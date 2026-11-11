@@ -346,6 +346,32 @@
   border-left: 3px solid var(--ou-border);
   color: var(--ou-fg-muted);
 }
+#ou-panel .ou-md .ou-table {
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 0 0 10px;
+}
+#ou-panel .ou-md table {
+  border-collapse: collapse;
+  font-size: 12px;
+}
+#ou-panel .ou-md th,
+#ou-panel .ou-md td {
+  border: 1px solid var(--ou-border);
+  padding: 4px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+#ou-panel .ou-md th {
+  font-weight: 600;
+  background: var(--ou-bg-muted);
+}
+#ou-panel .ou-md [data-align='center'] {
+  text-align: center;
+}
+#ou-panel .ou-md [data-align='right'] {
+  text-align: right;
+}
 #ou-panel a {
   color: var(--ou-accent);
 }

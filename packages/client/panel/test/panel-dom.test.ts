@@ -605,6 +605,32 @@ await test('a question the host sends in later shows up in the dock', async () =
   }
 });
 
+await test('an answer holding a markdown table draws a real table inside the answer', async () => {
+  const list = [
+    question('t1', {
+      answers: [
+        {
+          at: '2026-11-03T11:30:00Z',
+          text: 'Before\n\n| a | b |\n|---|:-:|\n| `x` | **y** |\n\nAfter',
+        },
+      ],
+    }),
+  ];
+  const panel = await mount(
+    story(),
+    (calls) => fullOptions(calls, { loadQuestions: async () => list, pulse: undefined }),
+    { chatOpen: true },
+  );
+  try {
+    assert.equal(all('.ou-a table').length, 1);
+    assert.equal(all('.ou-a th').length, 2);
+    assert.equal(all('.ou-a td').length, 2);
+    assert.equal($('.ou-a td code').textContent, 'x');
+  } finally {
+    panel.done();
+  }
+});
+
 await test('the frame keeps its nodes, and the listeners the parts bound to them, through redraws and step changes', async () => {
   const panel = await mount(story(), full, { n: 1, chatOpen: true });
   try {

@@ -77,7 +77,7 @@ export function html(strings: TemplateStringsArray, ...values: HtmlValue[]): Htm
 
 /*
  * A tiny markdown renderer for a story's or an answer's text: escape first, then a block
- * pass (code fences, quotes, headings, lists, paragraphs) and an inline pass
+ * pass (code fences, quotes, headings, lists, tables, paragraphs) and an inline pass
  * (code, bold, italics, links: http(s) or relative only, built with html``
  * so the href is escaped once, and never one with a code span inside its URL).
  * A host that has links of its own (the panel's jump links to the PR's files) passes `link`, which is asked about each
@@ -106,6 +106,52 @@ const SAFE_HREF = /^(?:https?:\/\/|\/(?!\/)|\.{1,2}\/|#)[^\s"'<>`\u0000-\u0002]*
 const MARKERS = /[\u0000\u0001\u0002]/;
 // eslint-disable-next-line no-control-regex -- the placeholder markers are control characters on purpose
 const LINK_MARK = /\u0002(\d+)\u0002/g;
+
+const TABLE_DELIMITER_CELL = /^\s*(:?)-+(:?)\s*$/;
+/** A table over either limit is not drawn as one (a short row is padded to the header, so columns x rows is the cost). */
+const TABLE_MAX_COLUMNS = 64;
+const TABLE_MAX_ROWS = 500;
+// the cells (padded, header included) all the tables of one render may emit; a table that would pass it stays text
+const TABLE_MAX_CELLS = 40_000;
+const HEADING = /^(#{1,6})\s+(.*)$/;
+/** A line that opens a block of its own: a table's header can't be one, and a table's body ends at one. */
+const startsBlock = (line: string): boolean =>
+  /^\s*(```|>)/.test(line) || HEADING.test(line) || LIST_ITEM.test(line);
+
+/** A table row's cells: the outer pipes are optional, and `\|` is a pipe inside a cell, not a break. */
+function tableCells(line: string): string[] {
+  let text = line.trim();
+  if (text.startsWith('|')) {
+    text = text.slice(1);
+  }
+  if (text.endsWith('|') && !text.endsWith('\\|')) {
+    text = text.slice(0, -1);
+  }
+  return text.split(/(?<!\\)\|/).map((cell) => cell.trim().replace(/\\\|/g, '|'));
+}
+
+/** The alignment of each column a delimiter row (`|:--|:-:|--:|`) gives, or null when the line is not one. */
+function tableAlignments(line: string): (string | null)[] | null {
+  if (!line.includes('-') || !line.includes('|')) {
+    return null;
+  }
+  const aligns: (string | null)[] = [];
+  for (const cell of tableCells(line)) {
+    const match = TABLE_DELIMITER_CELL.exec(cell);
+    if (!match) {
+      return null;
+    }
+    const [, left, right] = match;
+    if (left && right) {
+      aligns.push('center');
+    } else if (right) {
+      aligns.push('right');
+    } else {
+      aligns.push(left ? 'left' : null);
+    }
+  }
+  return aligns;
+}
 
 /** The link's markup, or null when its URL isn't one SAFE_HREF allows. `text` is markup already. */
 function linkHtml(text: string, escapedUrl: string): string | null {
@@ -152,11 +198,17 @@ export function createMarkdown({ link: hostLink }: { link?: MarkdownLink } = {})
   }
 
   function markdown(source: string | null | undefined): Html {
+    return render(source, { cells: 0 });
+  }
+
+  /** `budget` is made by each top-level call and handed down to a quote's body, so one render has one count. */
+  function render(source: string | null | undefined, budget: { cells: number }): Html {
     const lines = String(source || '')
       .replace(/\r/g, '')
       .split('\n');
     let html = '';
     let paragraph: string[] = [];
+    let notTableUntil = 0;
     let lists: { type: 'ol' | 'ul'; indent: number }[] | null = null;
     const flushParagraph = () => {
       if (paragraph.length) {
@@ -192,10 +244,45 @@ export function createMarkdown({ link: hostLink }: { link?: MarkdownLink } = {})
           body.push(lines[i++].replace(/^\s*> ?/, ''));
         }
         i--;
-        html += `<blockquote>${markdown(body.join('\n'))}</blockquote>`;
+        html += `<blockquote>${render(body.join('\n'), budget)}</blockquote>`;
         continue;
       }
-      const heading = /^(#{1,6})\s+(.*)$/.exec(line);
+      const aligns =
+        line.includes('|') && !startsBlock(line) ? tableAlignments(lines[i + 1] ?? '') : null;
+      if (
+        aligns &&
+        i >= notTableUntil &&
+        aligns.length <= TABLE_MAX_COLUMNS &&
+        tableCells(line).length === aligns.length
+      ) {
+        let next = i + 2;
+        while (
+          next < lines.length &&
+          lines[next].includes('|') &&
+          lines[next].trim() &&
+          !startsBlock(lines[next])
+        ) {
+          next++;
+        }
+        const cells = aligns.length * (next - i - 1);
+        if (next - (i + 2) > TABLE_MAX_ROWS || budget.cells + cells > TABLE_MAX_CELLS) {
+          // the whole run is text: its body ends at the same line for every header inside it, so it is scanned once
+          notTableUntil = next;
+        } else {
+          budget.cells += cells;
+          flushParagraph();
+          closeLists();
+          const cell = (tag: 'th' | 'td', text: string, column: number) =>
+            `<${tag}${aligns[column] ? ` data-align="${aligns[column]}"` : ''}>${inline(text)}</${tag}>`;
+          const row = (tag: 'th' | 'td', cells: string[]) =>
+            `<tr>${aligns.map((align, column) => cell(tag, cells[column] ?? '', column)).join('')}</tr>`;
+          const body = lines.slice(i + 2, next).map((text) => row('td', tableCells(text)));
+          html += `<div class="ou-table"><table><thead>${row('th', tableCells(line))}</thead><tbody>${body.join('')}</tbody></table></div>`;
+          i = next - 1;
+          continue;
+        }
+      }
+      const heading = HEADING.exec(line);
       if (heading) {
         flushParagraph();
         closeLists();
