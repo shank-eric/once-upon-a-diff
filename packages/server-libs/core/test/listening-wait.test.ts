@@ -5,6 +5,7 @@ import '@once-upon-a-diff/test-kit/env';
 import { tmp, writeJson } from '@once-upon-a-diff/test-kit/files';
 import { githubStory } from '@once-upon-a-diff/test-kit/stories';
 import { Inbox } from '@once-upon-a-diff/state/queues/requests/inbox';
+import { markQuestions, noteHanded } from '@once-upon-a-diff/state/queues/requests/conversation';
 import { Listening } from '../src/features/listeners/service.ts';
 import { handOverLines, stoppedEvent, stoppedLines } from '../src/features/listeners/hand-over.ts';
 
@@ -35,6 +36,70 @@ test('wait returns the question it was handed, with the lines a session acts on'
   assert.equal(outcome.items[0].relay, undefined);
   assert.deepEqual(outcome.items[0].lines, handOverLines(outcome.items[0].entry));
   assert.match(outcome.items[0].lines.join('\n'), /Answer with: once-upon answer --question q_a/);
+});
+
+/** A question in the repo's inbox, `hoursAgo` old. */
+const ask = (inbox: Inbox, id: string, hoursAgo = 0) =>
+  inbox.append({
+    type: 'question',
+    id,
+    story: STORY,
+    repo: 'acme/widgets',
+    step: 1,
+    text: 'Why?',
+    at: new Date(Date.now() - hoursAgo * 3600_000).toISOString(),
+  });
+
+test("a question asked before a new consumer's first wait is handed over then, once", async () => {
+  const home = tmp('home');
+  const inbox = new Inbox(home);
+  ask(inbox, 'q_early');
+  const service = new Listening(home);
+  const first = await service.wait({ repo: 'acme/widgets', timeout: '1', cwd: home });
+  assert.equal(first.kind, 'handed');
+  assert.deepEqual(first.kind === 'handed' ? first.items.map((item) => item.entry.id) : [], [
+    'q_early',
+  ]);
+  assert.deepEqual(await service.wait({ repo: 'acme/widgets', timeout: '1', cwd: home }), {
+    kind: 'timeout',
+  });
+});
+
+test('a first wait hands over only the unanswered, undismissed, unhanded, day-fresh questions, oldest first', async () => {
+  const home = tmp('home');
+  githubStory(path.join(home, STORY));
+  const inbox = new Inbox(home);
+  ask(inbox, 'q_old', 25);
+  ask(inbox, 'q_answered', 3);
+  inbox.append({ type: 'answer', question: 'q_answered', text: 'Because.' });
+  ask(inbox, 'q_dismissed', 2);
+  markQuestions(home, STORY, 'dismiss', ['q_dismissed']);
+  ask(inbox, 'q_elsewhere', 2);
+  noteHanded(home, ['q_elsewhere'], 'someone-else');
+  ask(inbox, 'q_b', 1);
+  ask(inbox, 'q_a', 5);
+  const outcome = await new Listening(home).wait({ repo: 'acme/widgets', timeout: '1', cwd: home });
+  assert.equal(outcome.kind, 'handed');
+  assert.deepEqual(outcome.kind === 'handed' ? outcome.items.map((item) => item.entry.id) : [], [
+    'q_a',
+    'q_b',
+  ]);
+});
+
+test("a question of another repo or story isn't handed to a new consumer's first wait", async () => {
+  const home = tmp('home');
+  const inbox = new Inbox(home);
+  inbox.append({
+    type: 'question',
+    id: 'q_other',
+    story: 'acme-other-1',
+    repo: 'acme/other',
+    text: 'Hm?',
+  });
+  assert.deepEqual(
+    await new Listening(home).wait({ repo: 'acme/widgets', timeout: '1', cwd: home }),
+    { kind: 'timeout' },
+  );
 });
 
 test('wait returns a timeout when nothing arrives, and a stop when the story goes quiet', async () => {

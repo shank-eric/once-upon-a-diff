@@ -12,7 +12,7 @@
  * a due timeout over a story's idle stop, and that over the repo's.
  */
 import { repoListenerName } from '@once-upon-a-diff/terms/ids';
-import { existsSync, statSync, watch } from 'node:fs';
+import { existsSync, watch } from 'node:fs';
 import {
   REPO_RE,
   sameRepo,
@@ -161,6 +161,27 @@ function approvalsToTake(
   );
 }
 
+/** A question a first wait still hands over: asked within this long ago (the panel tells the reader it will wait). */
+const BACKLOG_MS = 24 * 3600 * 1000;
+
+/**
+ * The questions among the inbox's entries with no answer yet and asked under BACKLOG_MS ago, oldest first. Whether one is
+ * dismissed or already handed over is left to routeQuestions.
+ */
+function waitingQuestions(entries: InboxEntry[], now = Date.now()): InboxEntry[] {
+  const answered = new Set(
+    entries.flatMap((entry) => (entry.type === 'answer' ? [entry.question] : [])),
+  );
+  return entries
+    .filter(
+      (entry) =>
+        entry.type === 'question' &&
+        !answered.has(entry.id) &&
+        now - (Date.parse(entry.at) || 0) < BACKLOG_MS,
+    )
+    .sort((one, other) => (Date.parse(one.at) || 0) - (Date.parse(other.at) || 0));
+}
+
 /** A wait run from the repo's checkout tells the bridge where that checkout is, for the next prompt. */
 function noteCheckout(home: string, repo: string, cwd: string): void {
   try {
@@ -258,9 +279,12 @@ export async function wait(home: string, opts: WaitOptions): Promise<WaitOutcome
         }
       : null;
   messages.ensureFile();
-  // a reader new to the inbox starts from now, not from every old question
+  // a reader new to the inbox starts from now, but is handed the questions of its scope still waiting for a listener
+  let backlog: InboxEntry[] = [];
   if (!existsSync(messages.cursorFile(consumer))) {
-    messages.setCursor(consumer, statSync(messages.file).size);
+    const { entries, offset } = messages.readFrom(0);
+    messages.setCursor(consumer, offset);
+    backlog = waitingQuestions(entries);
   }
   // a wait run from the session that owns a story's agent relays that story's questions to it (binding.ts), whatever
   // it covers; the beat says which session this is, so the panel can name the agent as the one that answers
@@ -279,10 +303,11 @@ export async function wait(home: string, opts: WaitOptions): Promise<WaitOutcome
   const builds = takesBuilds ? new Builds(home) : null;
   try {
     for (;;) {
-      const unread = filterEntries(messages.unread(consumer, { advance: true }), {
+      const unread = filterEntries([...backlog, ...messages.unread(consumer, { advance: true })], {
         type,
         ...flags,
       });
+      backlog = [];
       const questions = questionsToTake(
         home,
         messages,

@@ -68,11 +68,11 @@ flowchart LR
 |---|---|---|---|
 | 12 | `app` | `once-upon wait --repo` (started by the once-upon-listen skill) enters the CLI | `packages/server/bridge/bin/once-upon.ts:14` (`main(process.argv.slice(2))`) |
 | 13 | `app` | the command table runs `wait` | `packages/server/cli/src/index.ts:116` (`entry.run(`) |
-| 14 | `service` | each loop asks for build requests to hand over | `packages/server-libs/core/src/features/listeners/wait.ts:315` (`builds.toHand(consumer`) |
+| 14 | `service` | each loop asks for build requests to hand over | `packages/server-libs/core/src/features/listeners/wait.ts:340` (`builds.toHand(consumer`) |
 | 15 | `service` | `Builds.toHand` picks this wait's requests | `packages/server-libs/state/src/queues/requests/builds.ts:288` (`toHand(`) |
 | 16 | `service` | and claims them in the same locked write, so no other wait gets them | `packages/server-libs/state/src/queues/requests/queue.ts:201` (`take(consumer: string`) |
 | 17 | `app` | the wait returns the request, the CLI prints it and exits, which wakes the session | `packages/server/cli/src/commands/inbox.ts:84` (`of outcome.items`) |
-| 18 | `service` | with nothing to hand, it sleeps until the inbox file changes or 2 s pass | `packages/server-libs/core/src/features/listeners/wait.ts:179` (`watch(file`) |
+| 18 | `service` | with nothing to hand, it sleeps until the inbox file changes or 2 s pass | `packages/server-libs/core/src/features/listeners/wait.ts:200` (`watch(file`) |
 
 **The story is written and published**
 
@@ -146,7 +146,7 @@ flowchart LR
 | 4 | `app` | the story route checks the body and appends the question | `packages/server/server/src/routes/questions.ts:66` (`app.inbox.append(`) |
 | 5 | `service` | `Inbox.append` gives it an id and a time | `packages/server-libs/state/src/queues/requests/inbox.ts:109` (`append<E`) |
 | 6 | `adapter` | **appends a line to `inbox.jsonl`** | `packages/server-libs/adapters/src/stores/fs/files.ts:28` (`export function appendText`) |
-| 7 | `service` | a running `wait` wakes on the file change and reads past its cursor | `packages/server-libs/core/src/features/listeners/wait.ts:282` (`messages.unread(consumer, { advance: true })`) |
+| 7 | `service` | a running `wait` wakes on the file change and reads past its cursor | `packages/server-libs/core/src/features/listeners/wait.ts:306` (`messages.unread(consumer, { advance: true })`) |
 | 8 | `service` | `unread` reads from the cursor's byte offset and **writes the cursor** (`cursors/<consumer>.json`) | `packages/server-libs/state/src/queues/requests/inbox.ts:211` (`unread(`) |
 | 9 | `service` | which questions this wait takes | `packages/server-libs/core/src/features/listeners/wait.ts:118` (`function questionsToTake(`) |
 | 10 | `service` | routing, and **writes `handed.json`** under `handed.json.lock`: a question another wait has is skipped, a story's own live listener beats a repo listener (which defers to it), and each question taken is marked as this wait's in the same locked write, so two waits can't both take it | `packages/server-libs/state/src/queues/requests/conversation.ts:343` (`updateJson<Handed, void>(handedFile(home)`) |
@@ -240,7 +240,7 @@ flowchart LR
 | 12 | `service` | the bridge makes the line itself, and the body never carries text: `/once-upon-listen <repo>` for the repo, or `--story <id>` for the story scope (`packages/server-libs/core/src/features/sessions/listening.ts:198` (`export const listenStoryPromptFor`), chosen at `packages/server-libs/core/src/features/sessions/sessions.ts:255` (`listenStoryPromptFor(story)`)) | `packages/server-libs/core/src/features/sessions/listening.ts:195` (`export const listenPromptFor`) |
 | 13 | `adapter` | **types it** into the tab found from the session's tty | `packages/server-libs/adapters/src/iterm.ts:150` (`export async function typeLine`) |
 | 14 | `outside` | the session runs the once-upon-listen skill, which starts `once-upon wait` in the background |  |
-| 15 | `service` | the wait **writes its `waiting` beat** every 5 s | `packages/server-libs/core/src/features/listeners/wait.ts:277` (`beat(home, consumer, 'waiting', scope)`) |
+| 15 | `service` | the wait **writes its `waiting` beat** every 5 s | `packages/server-libs/core/src/features/listeners/wait.ts:301` (`beat(home, consumer, 'waiting', scope)`) |
 | 16 | `app` | back: the pulse says whether a listener is live for the story or its repo | `packages/server/server/src/routes/story.ts:85` (`new Listening(app.home).listening(`) |
 | 17 | `library` | the light turns green | `packages/client/panel/src/shell/overlay.ts:268` (`moved('listening')`) |
 

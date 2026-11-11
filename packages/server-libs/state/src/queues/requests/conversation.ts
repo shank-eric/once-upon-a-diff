@@ -343,10 +343,8 @@ export function routeQuestions<Q extends { id: string; story: string }>(
   updateJson<Handed, void>(handedFile(home), {}, (handed) => {
     const now = new Date().toISOString();
     for (const question of questions) {
-      const owner =
-        handed[question.id] && (handed[question.id].via || handed[question.id].consumer);
-      const elsewhere = owner && owner !== consumer;
-      if (elsewhere || readQaMarks(home, question.story).dismissed[question.id]) {
+      // handed already, to another session or to this consumer name (a second wait under it), counts as taken
+      if (handed[question.id] || readQaMarks(home, question.story).dismissed[question.id]) {
         continue;
       }
       const ownedByStory =
