@@ -17,6 +17,7 @@ import { newImplicitCardId, newRunId } from '@once-upon-a-diff/foundation/ids';
 import { appendAgentEvent } from '@once-upon-a-diff/adapters/stores/agents-file';
 import { agentEventsIn } from './events-file.ts';
 import { appendLine } from '@once-upon-a-diff/adapters/stores/fs/lines';
+import { withLock } from '@once-upon-a-diff/adapters/stores/fs/lock';
 import { checkWrite } from '@once-upon-a-diff/foundation/shared-files';
 import { readAgentEvent } from '@once-upon-a-diff/contracts/files/schemas';
 import { strictAgentEvent } from '@once-upon-a-diff/contracts/files/strict';
@@ -321,7 +322,15 @@ export class AgentRegistry {
     return card ? { id, closed: null, repo: card.repo, branch: card.branch, claimed: true } : null;
   }
 
+  /** Registers a run. The checks and the append are one step under the log's lock: two starts at once see each other (one open author per card). */
   start(
+    input: StartInput,
+    warn?: (text: string) => void,
+  ): { id: string; run: string; card: string | null } {
+    return withLock(this.file, () => this.startLocked(input, warn));
+  }
+
+  private startLocked(
     input: StartInput,
     warn?: (text: string) => void,
   ): { id: string; run: string; card: string | null } {

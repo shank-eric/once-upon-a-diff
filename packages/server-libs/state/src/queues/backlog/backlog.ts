@@ -45,6 +45,7 @@ import { strictBacklogEvent } from '@once-upon-a-diff/contracts/files/strict';
 import { checkWrite } from '@once-upon-a-diff/foundation/shared-files';
 import { BACKLOG_NOTE_MAX, SHA_RE } from '@once-upon-a-diff/terms/text';
 import { jsonLines } from '@once-upon-a-diff/adapters/stores/fs/jsonl';
+import { withLock } from '@once-upon-a-diff/adapters/stores/fs/lock';
 import {
   appendBacklogEvent,
   readBacklogFile,
@@ -351,8 +352,15 @@ export class BacklogStore implements BacklogStorage {
     return this.find(id);
   }
 
-  /** Records that an agent owns the card: the board links the card to that agent and to nothing else. */
+  /**
+   * Records that an agent owns the card: the board links the card to that agent and to nothing else. The check and the
+   * append run under the log's lock, so claims take turns; the latest claim wins either way, and nothing more is promised.
+   */
   claim(id: string, input: ClaimInput): BacklogItem {
+    return withLock(this.file, () => this.claimLocked(id, input));
+  }
+
+  private claimLocked(id: string, input: ClaimInput): BacklogItem {
     const item = this.find(id);
     if (item.state === 'dropped') {
       throw new Error(`${id} was dropped`);

@@ -57,8 +57,8 @@ flowchart LR
 | 5 | `service` | `Builds.request` checks the repo and number | `packages/server-libs/state/src/queues/requests/builds.ts:332` (`request({`) |
 | 6 | `service` | and changes `builds.json` in one locked step | `packages/server-libs/state/src/queues/requests/builds.ts:343` (`this.queue.update(`) |
 | 7 | `service` | `RequestQueue.update` | `packages/server-libs/state/src/queues/requests/queue.ts:114` (`update<T>(`) |
-| 8 | `adapter` | reads, changes and writes the file under its `O_EXCL` lock | `packages/server-libs/adapters/src/stores/fs/lock.ts:106` (`export function updateJson`) |
-| 9 | `adapter` | the lock: `builds.json.lock`, taken over when its pid is gone or it's 10 s old | `packages/server-libs/adapters/src/stores/fs/lock.ts:82` (`export function withLock`) |
+| 8 | `adapter` | reads, changes and writes the file under its `O_EXCL` lock | `packages/server-libs/adapters/src/stores/fs/lock.ts:256` (`export function updateJson`) |
+| 9 | `adapter` | the lock: `builds.json.lock`, taken over when its pid is gone or was reused (never while the holder is alive; a wait past 30 s throws) | `packages/server-libs/adapters/src/stores/fs/lock.ts:228` (`export function withLock`) |
 | 10 | `adapter` | **writes `builds.json`** through a temp file and a rename | `packages/server-libs/adapters/src/stores/fs/json-file.ts:92` (`export function writeJsonAtomic`) |
 | 11 | `app` | back: the route answers the request's state, and the tag shows Queued | `packages/server/server/src/routes/builds.ts:42` (`send(200, { state: build!.state`) |
 
@@ -266,11 +266,11 @@ flowchart LR
 | # | Layer | Hop | At |
 |---|---|---|---|
 | 1 | `app` | `once-upon agent start <name> --role author --card <id> …` | `packages/server/cli/src/commands/agent.ts:211` (`registry.start(`) |
-| 2 | `service` | `AgentRegistry.start` checks the fields (the card exists and is open and claimed, one author at a time, a critic or fixer names its card, the card's repo and branch are the run's and a typed `--kind`, `--repo`, `--branch`, `--pr` or `--lane` beside `--card` is refused: ADR-25) and gives the run an id | `packages/server-libs/state/src/records/agents/registry.ts:324` (`start(`) |
+| 2 | `service` | `AgentRegistry.start` checks the fields (the card exists and is open and claimed, one author at a time, a critic or fixer names its card, the card's repo and branch are the run's and a typed `--kind`, `--repo`, `--branch`, `--pr` or `--lane` beside `--card` is refused: ADR-25) and gives the run an id | `packages/server-libs/state/src/records/agents/registry.ts:326` (`start(`) |
 | 3 | `adapter` | **appends a `start` event to `agents.jsonl`** | `packages/server-libs/adapters/src/stores/agents-file.ts:12` (`export function appendAgentEvent`) |
-| 4 | `service` | and a log line to the ledger file through the adapter's `appendLine`, when `board_ledger_file` is set (a mirror for the status line, the iTerm hook and people; the board never reads it) | `packages/server-libs/state/src/records/agents/registry.ts:210` (`appendLine(this.mirror.ledger`) |
+| 4 | `service` | and a log line to the ledger file through the adapter's `appendLine`, when `board_ledger_file` is set (a mirror for the status line, the iTerm hook and people; the board never reads it) | `packages/server-libs/state/src/records/agents/registry.ts:211` (`appendLine(this.mirror.ledger`) |
 | 5 | `app` | `once-upon backlog claim <id> --agent <name> --branch <b>` | `packages/server/cli/src/commands/backlog.ts:277` (`store.claim(item.id`) |
-| 6 | `service` | `BacklogStore.claim` refuses a dropped card | `packages/server-libs/state/src/queues/backlog/backlog.ts:355` (`claim(`) |
+| 6 | `service` | `BacklogStore.claim` refuses a dropped card | `packages/server-libs/state/src/queues/backlog/backlog.ts:359` (`claim(`) |
 | 7 | `adapter` | **appends a `claim` event to `backlog.jsonl`** | `packages/server-libs/adapters/src/stores/backlog-file.ts:12` (`export function appendBacklogEvent`) |
 | 8 | `app` | `--branch` also starts the card on that branch | `packages/server/cli/src/commands/backlog.ts:286` (`store.start(item.id`) |
 
@@ -280,7 +280,7 @@ flowchart LR
 |---|---|---|---|
 | 9 | `outside` | the agent runs `once-upon beat <name> N/M <step> "<note>"` (`fnm exec --using=24 once-upon beat …` from a shell not on Node 24) |  |
 | 10 | `app` | `beat`, which also writes the progress line for an agent that has no open run (`agent beat` is the same without that) | `packages/server/cli/src/commands/beat.ts:32` (`registry.beatOrLog(`) |
-| 11 | `service` | **appends a `beat` event** | `packages/server-libs/state/src/records/agents/registry.ts:498` (`beat(name: string`) |
+| 11 | `service` | **appends a `beat` event** | `packages/server-libs/state/src/records/agents/registry.ts:507` (`beat(name: string`) |
 | 12 | `service` | the board reads both files on each build (flow 3, hops 13–14 and 20): the card its runs name sits in the column its runs say, with its agents on it (`claimViews`) | `packages/server-libs/board/src/stages/agents.ts:108` (`export function claimViews(`) |
 | 13 | `service` | once the author finishes, the card waits for its critic before Ready to ship, and an open fix round keeps it Working (the table: `packages/server-libs/state/src/queues/backlog/phase.ts:108` (`export function cardPhase(`)) | `packages/server-libs/board/src/stages/backlog.ts:235` (`cardPhase(item, runsOf(item, agents), nowMs)`) |
 
@@ -289,7 +289,7 @@ flowchart LR
 | # | Layer | Hop | At |
 |---|---|---|---|
 | 14 | `app` | `once-upon agent finish <name> --state done --commit <sha> --branch <b> --card <id>` | `packages/server/cli/src/commands/agent.ts:272` (`registry.finish(`) |
-| 15 | `service` | **appends a `finish` event** with the commit as its result | `packages/server-libs/state/src/records/agents/registry.ts:574` (`finish(name: string`) |
+| 15 | `service` | **appends a `finish` event** with the commit as its result | `packages/server-libs/state/src/records/agents/registry.ts:583` (`finish(name: string`) |
 | 16 | `outside` | the main session deploys: `scripts/deploy-local.sh --yes <branch>` fast-forwards main and restarts the bridge |  |
 | 17 | `app` | after the deploy, the script runs `backlog land` over the range that went live | `scripts/deploy-local.sh:319` (`backlog land`) |
 | 18 | `app` | `land` reads the commit each agent's finish recorded | `packages/server/cli/src/commands/backlog.ts:330` (`recordedTips(registry.events())`) |
@@ -297,6 +297,6 @@ flowchart LR
 | 20 | `service` | which cards' commits went live: the recorded tip itself is in the range; or a commit with its patch id is (a rebase or a clean pick); or, for a batch deploy's picked sha whose patch changed, the commit with the tip's author stamp (`packages/server-libs/state/src/queues/backlog/landing.ts:107` (`const pickOf`)) | `packages/server-libs/state/src/queues/backlog/landing.ts:83` (`export function landItems(`) |
 | 21 | `adapter` | `git rev-list` over the range | `packages/server-libs/adapters/src/git.ts:290` (`export function commitsInRange(`) |
 | 22 | `app` | each matched card is marked done at its sha | `packages/server/cli/src/commands/backlog.ts:338` (`store.done(item.id, { sha`) |
-| 23 | `service` | **appends a `done` event** to `backlog.jsonl` | `packages/server-libs/state/src/queues/backlog/backlog.ts:470` (`done(id: string`) |
+| 23 | `service` | **appends a `done` event** to `backlog.jsonl` | `packages/server-libs/state/src/queues/backlog/backlog.ts:478` (`done(id: string`) |
 
 A card the script couldn't match is printed, to close by hand with `once-upon backlog done <id> --sha <sha>`. A card held with `backlog hold` is never marked by a deploy.
