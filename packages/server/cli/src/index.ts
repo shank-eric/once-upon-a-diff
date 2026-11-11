@@ -59,6 +59,7 @@ const HELP_ORDER = [
   'agent',
   'beat',
   'heavy',
+  'deploy',
   'editor',
   'reviewed',
   'approve',

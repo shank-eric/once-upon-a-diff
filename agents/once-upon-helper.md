@@ -1,6 +1,6 @@
 ---
 name: once-upon-helper
-description: Plan checks, read-only checks, deploys and cleanup, with detail written to a notes file.
+description: Plan checks, read-only checks, cleanup and deploy-failure diagnosis, with detail written to a notes file.
 tools: Read, Grep, Glob, Bash, Write
 model: sonnet
 ---

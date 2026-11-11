@@ -76,7 +76,7 @@ test('the editor skill launches each role by its type and keeps the general-purp
   assert.match(text, /`scripts\/link-agents\.sh`/);
   assert.match(text, /`once-upon-author` \(authors and fixers\)/);
   assert.match(text, /`once-upon-helper` agent \(effort medium\)/);
-  assert.doesNotMatch(text, /`lookup`|`backlog-clerk`|`research`/);
+  assert.doesNotMatch(text, /`lookup`|`backlog-clerk`|`research`|clerk/);
 });
 
 test('the lean-types bullet sends a relaying role and a self-telling author to general-purpose', () => {
@@ -89,4 +89,18 @@ test('the lean-types bullet sends a relaying role and a self-telling author to g
     text,
     /tells its own story launches its authors as `general-purpose`, because `once-upon-author` has no once-upon skill/,
   );
+});
+
+test('every deploy command the skill writes starts with a program, not a VAR=value word (once-upon deploy runs no shell)', () => {
+  let seen = 0;
+  for (const rel of ['SKILL.md', 'repos/_template.md', 'repos/once-upon-a-diff.md']) {
+    const text = readFileSync(path.join(SKILL, rel), 'utf8');
+    for (const match of text.matchAll(/once-upon deploy (\S+) (\S+)/g)) {
+      seen += 1;
+      assert.doesNotMatch(match[2], /^[A-Za-z_]\w*=/, `${rel}: ${match[0]}`);
+    }
+  }
+  const profile = readFileSync(path.join(SKILL, 'repos/once-upon-a-diff.md'), 'utf8');
+  assert.match(profile, /once-upon deploy <name> scripts\/deploy-local\.sh --yes <branch>/);
+  assert.ok(seen >= 3, 'the skill, the template and the profile each write one');
 });

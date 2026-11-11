@@ -13,14 +13,24 @@
  * The command runs in the caller's folder with its stdio. `$ONCE_UPON_PATH`, when set and not empty, is the PATH the command
  * gets (and is not passed on): a caller that must run once-upon under `fnm exec --using=24` passes its own PATH this way, so
  * the command runs under the Node the caller's shell picked, not under Node 24. A signal to this process goes on to the
- * command, and the lock is freed when the command ends. The command also gets the umask the caller had (`ONCE_UPON_CALLER_UMASK`,
+ * command, and the lock is freed when the command ends. With a `logFile` the command's stdout and stderr go to that file instead
+ * (made owner-only, with its folder, before the wait), and so do the lines `say` would have printed (the wait, a command that can't start): nothing reaches the caller's terminal, which is how `once-upon deploy` keeps a deploy to one line. The command also gets the umask the caller had (`ONCE_UPON_CALLER_UMASK`,
  * which bin/once-upon.ts records before it sets its own 0077), so what it creates keeps the modes it would have had without us.
  */
 import { spawn } from 'node:child_process';
-import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import {
+  closeSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pidAlive } from './os.ts';
+import { ensureDir } from './stores/fs/files.ts';
 
 const SIGNALS = { SIGINT: 2, SIGTERM: 15, SIGHUP: 1 } as const;
 
@@ -136,20 +146,35 @@ function readFileSafe(file: string): string {
 
 /**
  * Runs `command` (a program and its arguments) once it holds the lock, and resolves to its exit code: the command's own,
- * 128 plus the signal's number when a signal ended it, 127 when it can't be started.
+ * 128 plus the signal's number when a signal ended it, 127 when it can't be started (the log, if any, says so too).
  */
 export async function runHeavy(
   name: string,
   command: string[],
   say: (line: string) => void,
   env: NodeJS.ProcessEnv = process.env,
+  logFile?: string,
 ): Promise<number> {
   const lock = heavyLockPath(env);
   const poll = Number(env.ONCE_UPON_HEAVY_POLL);
   const pollMs = (poll > 0 ? poll : 5) * 1000;
-  await take(lock, `${name} (${clock(new Date())}): ${command.join(' ')}`, pollMs, (holder) =>
-    say(`once-upon heavy: waiting for ${holder}`),
-  );
+  let logFd: number | undefined;
+  if (logFile) {
+    ensureDir(path.dirname(logFile));
+    logFd = openSync(logFile, 'a', 0o600);
+  }
+  const tell = (line: string) =>
+    logFd === undefined ? say(line) : writeFileSync(logFd, line + '\n');
+  try {
+    await take(lock, `${name} (${clock(new Date())}): ${command.join(' ')}`, pollMs, (holder) =>
+      tell(`once-upon heavy: waiting for ${holder}`),
+    );
+  } catch (err) {
+    if (logFd !== undefined) {
+      closeSync(logFd);
+    }
+    throw err;
+  }
   const childEnv = { ...env };
   if (childEnv.ONCE_UPON_PATH) {
     childEnv.PATH = childEnv.ONCE_UPON_PATH;
@@ -169,7 +194,10 @@ export async function runHeavy(
   };
   try {
     return await new Promise<number>((resolve) => {
-      const child = spawn(command[0], command.slice(1), { stdio: 'inherit', env: childEnv });
+      const child = spawn(command[0], command.slice(1), {
+        stdio: logFd === undefined ? 'inherit' : ['inherit', logFd, logFd],
+        env: childEnv,
+      });
       const handlers = (Object.keys(SIGNALS) as (keyof typeof SIGNALS)[]).map(
         (signal) => [signal, forward(signal, child)] as const,
       );
@@ -183,7 +211,8 @@ export async function runHeavy(
         resolve(code);
       };
       child.on('error', (err) => {
-        say(`once-upon heavy: can't run ${command[0]}: ${err.message}`);
+        const line = `once-upon heavy: can't run ${command[0]}: ${err.message}`;
+        tell(line);
         done(127);
       });
       child.on('close', (code, signal) => {
@@ -192,6 +221,9 @@ export async function runHeavy(
       });
     });
   } finally {
+    if (logFd !== undefined) {
+      closeSync(logFd);
+    }
     rmSync(lock, { recursive: true, force: true });
   }
 }

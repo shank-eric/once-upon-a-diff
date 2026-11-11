@@ -408,6 +408,12 @@ stamp_of() {
 
 REUSED=0
 if [ -e "$WT" ]; then
+  # A batch whose cherry-pick conflicted stops here with the pick still open: its conflicted index would fail the checks
+  # below, and the worktree is ours alone, so the next run closes the pick first.
+  if git -C "$WT" rev-parse -q --verify CHERRY_PICK_HEAD >/dev/null; then
+    git -C "$WT" cherry-pick --abort
+    say "aborted the cherry-pick left in $WT"
+  fi
   [ -z "$(git -C "$WT" status --porcelain)" ] || die "worktree $WT has uncommitted changes"
   STAMP="$(stamp_of)"
   # A dry run's result can be reused when this worktree's tip is the one whose gates passed for these arguments.
@@ -437,7 +443,7 @@ if [ "$REUSED" = 0 ]; then
       echo "deploy-local: cherry-pick of $s failed:" >&2
       echo "$out" | tail -n 6 >&2
       git -C "$WT" status --short | grep -E '^(UU|AA|DU|UD|AU|UA|DD) ' >&2 || true
-      die "stopped. Fix it in $WT, or 'git cherry-pick --abort' there. Nothing was deleted and nothing is live."
+      die "stopped. Rebase the branch onto $BASE and fix the conflict there, then deploy again: the next run aborts this cherry-pick, so a fix made in $WT is lost. Nothing was deleted and nothing is live."
     fi
     say "picked $s -> $(git -C "$WT" rev-parse --short HEAD)"
   done

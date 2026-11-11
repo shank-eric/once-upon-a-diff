@@ -67,7 +67,7 @@ flowchart LR
 | # | Layer | Hop | At |
 |---|---|---|---|
 | 12 | `app` | `once-upon wait --repo` (started by the once-upon-listen skill) enters the CLI | `packages/server/bridge/bin/once-upon.ts:14` (`main(process.argv.slice(2))`) |
-| 13 | `app` | the command table runs `wait` | `packages/server/cli/src/index.ts:116` (`entry.run(`) |
+| 13 | `app` | the command table runs `wait` | `packages/server/cli/src/index.ts:117` (`entry.run(`) |
 | 14 | `service` | each loop asks for build requests to hand over | `packages/server-libs/core/src/features/listeners/wait.ts:340` (`builds.toHand(consumer`) |
 | 15 | `service` | `Builds.toHand` picks this wait's requests | `packages/server-libs/state/src/queues/requests/builds.ts:288` (`toHand(`) |
 | 16 | `service` | and claims them in the same locked write, so no other wait gets them | `packages/server-libs/state/src/queues/requests/queue.ts:201` (`take(consumer: string`) |

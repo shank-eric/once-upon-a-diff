@@ -6,8 +6,8 @@ Copy this file to `~/.once-upon/editor/<repo directory name>.md` (or `$ONCE_UPON
 - Claim: `once-upon backlog claim <id> --agent <name> --branch <b> --sid <your sid8> --repo <owner>/<name>`
 - Agent command (start, state, finish, list): `once-upon agent`
 - Stories: does a branch get a story for the reader before it ships? (yes: add storytellers; no: critics only)
-- Heavy for `once-upon heavy`: the commands that take turns, for example the full test suite, a browser run, a whole-repo typecheck or lint, deploy gates. A single-file test is light.
-- Deploy (a deploy agent, never the author): `<the command>`, and what it must never do (push, restart something live).
+- Heavy for `once-upon heavy`: the commands that take turns, for example the full test suite, a browser run, a whole-repo typecheck or lint (not the deploy command: `once-upon deploy` takes the lock for it). A single-file test is light.
+- Deploy (the editor runs it itself, never an author or an agent): the full line, `<VAR=value ...> ONCE_UPON_PATH="$PATH" fnm exec --using=24 once-upon deploy <name> <program> <arguments>` (any environment variable goes before the wrapper: `once-upon deploy` takes a program and its arguments, not shell syntax), and what it must never do (push, restart something live). Or `none`, for a repo with no local deploy (a PR-based repo): the card ends at an approved story, and the user opens the PR.
 - Card order: where the cards come from (`once-upon backlog list`) and any parked line or dependencies.
 - Reviews: the folder for critic reports, used when your user file names none (else `~/.once-upon/reviews`).
 - Memory or notes to read: any extra files the editor should read at start.

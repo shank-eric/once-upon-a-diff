@@ -14,7 +14,6 @@ const FILES = readdirSync(DIR).sort();
 const ALLOWED_TOOLS = ['Read', 'Grep', 'Glob', 'Bash', 'Edit', 'Write'];
 const EXPECTED = [
   'once-upon-author',
-  'once-upon-clerk',
   'once-upon-critic',
   'once-upon-helper',
   'once-upon-storyteller',
@@ -76,13 +75,12 @@ test('tools are known, Skill is never listed, and the roles hold the tools they 
   }
   assert.ok(toolsOf('once-upon-author').includes('Edit'));
   assert.ok(toolsOf('once-upon-storyteller').includes('Write'));
-  for (const name of ['once-upon-critic', 'once-upon-helper', 'once-upon-clerk']) {
+  for (const name of ['once-upon-critic', 'once-upon-helper']) {
     assert.ok(!toolsOf(name).includes('Edit'), `${name} has no Edit`);
   }
   assert.ok(
     toolsOf('once-upon-critic').includes('Write') && toolsOf('once-upon-critic').includes('Bash'),
   );
-  assert.deepEqual(toolsOf('once-upon-clerk'), ['Bash']);
   assert.equal(parse('once-upon-critic.md').fields.get('model'), 'opus');
 });
 
@@ -115,7 +113,7 @@ test('no body names a person, a personal path or a private repo, and each says w
 
 test('the editor skill names every type that exists, and only those', () => {
   const skill = readFileSync(path.join(ROOT, 'skills/once-upon-editor/SKILL.md'), 'utf8');
-  const named = new Set(skill.match(/once-upon-(?:author|critic|storyteller|helper|clerk)\b/g));
+  const named = new Set(skill.match(/once-upon-(?:author|critic|storyteller|helper)\b/g));
   assert.deepEqual([...named].sort(), EXPECTED);
   for (const name of skill.match(/`once-upon-[a-z]+`/g) ?? []) {
     const bare = name.slice(1, -1);
