@@ -3,7 +3,7 @@
  * report's snapshot). The folder is the user's alone (0700) and every file 0600. Reads of a missing or unreadable file
  * give the fallback, so a damaged file never stops the tool.
  */
-import { mkdirSync, readFileSync, rmdirSync, statSync } from 'node:fs';
+import { mkdirSync, readFileSync, lstatSync, rmdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import {
   appendText,
@@ -92,24 +92,27 @@ export function withUsageLock<T>(home: string, name: string, work: () => T): T {
   const lock = `${fileOf(home, name)}.lock`;
   const until = Date.now() + LOCK_WAIT_MS;
   let held = false;
-  while (!held) {
+  while (!held && Date.now() <= until) {
     try {
       mkdirSync(lock, { mode: 0o700 });
       held = true;
-    } catch {
-      try {
-        if (Date.now() - statSync(lock).mtimeMs > LOCK_STALE_MS) {
-          rmdirSync(lock);
-          continue;
-        }
-      } catch {
-        continue; // the holder let go between the two calls
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+        break; // the folder cannot be written: no lock to wait for, the work runs without it
       }
-      if (Date.now() > until) {
-        break;
-      }
-      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5);
     }
+    try {
+      if (Date.now() - lstatSync(lock).mtimeMs > LOCK_STALE_MS) {
+        removeDir(lock); // a crashed holder's lock, whatever it is now (an empty folder, a file, a folder with things in it)
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        break; // the stale lock cannot be removed: the work runs without the lock, no wait for a deadline
+      }
+      /* the holder let go: try the lock again */
+    }
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5);
   }
   try {
     return work();

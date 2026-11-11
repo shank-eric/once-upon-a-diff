@@ -1,7 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
+import { spawn, spawnSync, execFileSync, type ChildProcess } from 'node:child_process';
+import {
+  chmodSync,
+  existsSync,
+  lutimesSync,
+  mkdirSync,
+  readFileSync,
+  symlinkSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
 import { tmp, writeJson, runCli } from './helpers.ts';
 import { assertPrivate } from './usage-helpers.ts';
@@ -234,3 +243,151 @@ test('fix 4: a lock a crashed run left behind is taken over, not waited on forev
   assert.ok(Date.now() - started < 1400, 'no wait for the full timeout');
   assert.ok(!existsSync(lock));
 });
+
+/** Runs withUsageLock in a child with a hard timeout, so a loop that never ends fails the test instead of hanging it. */
+function lockedRun(home: string) {
+  const store = path.resolve(
+    import.meta.dirname,
+    '../../../server-libs/usage/src/adapters/usage-file.ts',
+  );
+  const started = Date.now();
+  const out = spawnSync(
+    process.execPath,
+    [
+      '--input-type=module',
+      '-e',
+      `import { withUsageLock } from ${JSON.stringify(store)}; const t = Date.now(); let waited = -1; process.stdout.write(withUsageLock(${JSON.stringify(home)}, 'coverage-cli.json', () => { waited = Date.now() - t; return 'ran'; })); process.stderr.write('waited=' + waited)`,
+    ],
+    { encoding: 'utf8', timeout: 4000, killSignal: 'SIGKILL' },
+  );
+  const waited = Number(/waited=(\d+)/.exec(out.stderr ?? '')?.[1] ?? -1);
+  return { out, ms: Date.now() - started, waited };
+}
+
+const aged = (target: string) => {
+  const old = new Date(Date.now() - 60000);
+  utimesSync(target, old, old);
+};
+
+test(
+  'the lock never loops for ever: a usage folder that cannot be written gives up at once',
+  {
+    skip: process.getuid?.() === 0 ? 'root can write anywhere' : false,
+  },
+  () => {
+    const home = tmp('home');
+    const dir = path.join(home, 'usage');
+    mkdirSync(dir, { recursive: true });
+    chmodSync(dir, 0o500);
+    try {
+      const { out, ms } = lockedRun(home);
+      assert.equal(out.error, undefined, 'it ended before the timeout');
+      assert.equal(out.status, 0, out.stderr);
+      assert.equal(out.stdout, 'ran');
+      assert.ok(ms < 2000, `took ${ms} ms`);
+    } finally {
+      chmodSync(dir, 0o700);
+    }
+  },
+);
+
+test('the lock never loops for ever: a stale lock that is a regular file is removed at once, and stays gone', () => {
+  const home = tmp('home');
+  mkdirSync(path.join(home, 'usage'), { recursive: true });
+  const lock = file(home, 'coverage-cli.json.lock');
+  writeFileSync(lock, 'x');
+  aged(lock);
+  for (const run of [1, 2]) {
+    const { out, waited } = lockedRun(home);
+    assert.equal(out.error, undefined, 'it ended before the timeout');
+    assert.equal(out.status, 0, out.stderr);
+    assert.equal(out.stdout, 'ran');
+    assert.ok(waited >= 0 && waited < 500, `run ${run} waited ${waited} ms for the lock`);
+    assert.ok(!existsSync(lock), `run ${run} left the lock path`);
+  }
+});
+
+test('the lock never loops for ever: a stale lock folder that is not empty is removed at once, and stays gone', () => {
+  const home = tmp('home');
+  const lock = file(home, 'coverage-cli.json.lock');
+  mkdirSync(lock, { recursive: true });
+  writeFileSync(path.join(lock, 'inside'), 'x');
+  aged(lock);
+  for (const run of [1, 2]) {
+    const { out, waited } = lockedRun(home);
+    assert.equal(out.error, undefined, 'it ended before the timeout');
+    assert.equal(out.status, 0, out.stderr);
+    assert.equal(out.stdout, 'ran');
+    assert.ok(waited >= 0 && waited < 500, `run ${run} waited ${waited} ms for the lock`);
+    assert.ok(!existsSync(lock), `run ${run} left the lock path`);
+  }
+});
+
+test('the lock never loops for ever: a stale dangling symlink at the lock path is removed at once', () => {
+  const home = tmp('home');
+  mkdirSync(path.join(home, 'usage'), { recursive: true });
+  const lock = file(home, 'coverage-cli.json.lock');
+  symlinkSync(path.join(home, 'nowhere'), lock);
+  const old = new Date(Date.now() - 60000);
+  lutimesSync(lock, old, old);
+  const { out, waited } = lockedRun(home);
+  assert.equal(out.error, undefined, 'it ended before the timeout');
+  assert.equal(out.stdout, 'ran');
+  assert.ok(waited >= 0 && waited < 500, `waited ${waited} ms for the lock`);
+  assert.ok(!existsSync(lock), 'the link is gone');
+});
+
+test('the lock never loops for ever: a stale symlink is removed and its target is left alone', () => {
+  const home = tmp('home');
+  mkdirSync(path.join(home, 'usage'), { recursive: true });
+  const target = tmp('target');
+  writeFileSync(path.join(target, 'keep'), 'x');
+  const lock = file(home, 'coverage-cli.json.lock');
+  symlinkSync(target, lock);
+  const old = new Date(Date.now() - 60000);
+  lutimesSync(lock, old, old);
+  const { out, waited } = lockedRun(home);
+  assert.equal(out.error, undefined, 'it ended before the timeout');
+  assert.equal(out.stdout, 'ran');
+  assert.ok(waited >= 0 && waited < 500, `waited ${waited} ms for the lock`);
+  assert.ok(!existsSync(lock), 'the link is gone');
+  assert.ok(existsSync(path.join(target, 'keep')), 'the target and its file are untouched');
+});
+
+test('the lock never loops for ever: a fresh lock is not removed, the run waits the deadline and goes on', () => {
+  const home = tmp('home');
+  const lock = file(home, 'coverage-cli.json.lock');
+  mkdirSync(lock, { recursive: true });
+  writeFileSync(path.join(lock, 'inside'), 'x');
+  const { out, waited } = lockedRun(home);
+  assert.equal(out.error, undefined, 'it ended before the timeout');
+  assert.equal(out.status, 0, out.stderr);
+  assert.equal(out.stdout, 'ran');
+  assert.ok(waited >= 1400 && waited < 3000, `waited ${waited} ms`);
+  assert.ok(existsSync(path.join(lock, 'inside')), 'a lock that is not stale is left alone');
+});
+
+test(
+  'the lock never loops for ever: a stale lock that cannot be removed gives up at once',
+  { skip: process.getuid?.() === 0 ? 'root can remove anything' : false },
+  () => {
+    const home = tmp('home');
+    const dir = path.join(home, 'usage');
+    mkdirSync(dir, { recursive: true });
+    const lock = file(home, 'coverage-cli.json.lock');
+    mkdirSync(lock);
+    writeFileSync(path.join(lock, 'inside'), 'x');
+    aged(lock);
+    chmodSync(lock, 0o500); // a folder with things in it that cannot be emptied
+    aged(lock);
+    try {
+      const { out, waited } = lockedRun(home);
+      assert.equal(out.error, undefined, 'it ended before the timeout');
+      assert.equal(out.status, 0, out.stderr);
+      assert.equal(out.stdout, 'ran');
+      assert.ok(waited >= 0 && waited < 500, `waited ${waited} ms`);
+    } finally {
+      chmodSync(lock, 0o700);
+    }
+  },
+);
