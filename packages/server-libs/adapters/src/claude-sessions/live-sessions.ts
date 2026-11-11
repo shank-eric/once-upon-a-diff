@@ -36,27 +36,131 @@ interface Registry {
   kind?: unknown;
 }
 
-/** The registry's live sessions: files whose pid is running, with their ttys. */
-export async function liveSessions(dir: string): Promise<LiveSession[]> {
+/** What the reader found in the registry folder: whether it could be read, and what became of each `<pid>.json` it found. */
+export interface RegistryHealth {
+  folder: 'ok' | 'missing' | 'unreadable';
+  /** files found, whatever became of them (not one that vanished between the listing and the read) */
+  seen: number;
+  /** of those, JSON this reader does not know the shape of (a field renamed): the sign of a format change */
+  skipped: number;
+  /** of those, files that did not parse even on a second read: a half-written file or a crashed session's leftover */
+  broken: number;
+  /** of those, files that could not be read at all (permissions, say) */
+  unreadable: number;
+}
+
+/** What is wrong with the registry, in a line for doctor, or null when nothing is. Broken files alone are not a problem. */
+export function registryProblem({
+  folder,
+  seen,
+  skipped,
+  broken,
+  unreadable,
+}: RegistryHealth): string | null {
+  if (folder !== 'ok') {
+    return `the sessions folder is ${folder}: Claude Code may have moved it`;
+  }
+  if (seen && unreadable === seen) {
+    return `${seen} session file${seen === 1 ? '' : 's'} found and none could be read: check their permissions`;
+  }
+  const parsed = seen - broken - unreadable;
+  if (skipped && skipped === parsed) {
+    return `${parsed} session file${parsed === 1 ? '' : 's'} found and none could be used: Claude Code may have changed their format`;
+  }
+  return skipped ? `${skipped} of ${parsed} session files could not be used` : null;
+}
+
+/** What doctor mentions as information when the registry is fine: files that did not parse or could not be read. */
+export function registryNote({ broken, unreadable }: RegistryHealth): string {
+  return [
+    broken ? `${broken} not valid JSON (half-written or left by a crashed session)` : '',
+    unreadable ? `${unreadable} unreadable` : '',
+  ]
+    .filter(Boolean)
+    .join(', ');
+}
+
+/** The board's one-line notice: only when files are there and every one that parsed has a shape it does not know. */
+export function registryNotice({
+  seen,
+  skipped,
+  broken,
+  unreadable,
+}: RegistryHealth): string | null {
+  return skipped && skipped === seen - broken - unreadable
+    ? "Claude Code's session files could not be read: run once-upon doctor"
+    : null;
+}
+
+type Parsed = LiveSession & { procStart: string | null };
+
+/** How long a file that does not parse waits before its one second read (a registry file caught mid-write). */
+const REREAD_AFTER_MS = 50;
+
+type Read = { parsed: unknown } | 'gone' | 'broken' | 'unreadable';
+
+function readOne(file: string): Read {
+  let text: string;
+  try {
+    text = readFileSync(file, 'utf8');
+  } catch (err) {
+    // a session that ended between the listing and the read is not a file at all
+    return (err as NodeJS.ErrnoException).code === 'ENOENT' ? 'gone' : 'unreadable';
+  }
+  try {
+    return { parsed: JSON.parse(text) };
+  } catch {
+    return 'broken';
+  }
+}
+
+/** Reads every registry file, without asking whether the pid still runs. */
+async function scan(dir: string): Promise<{ found: Parsed[]; health: RegistryHealth }> {
   let names: string[];
   try {
     names = readdirSync(dir).filter((name) => /^\d+\.json$/.test(name));
-  } catch {
-    return [];
+  } catch (err) {
+    const missing = (err as NodeJS.ErrnoException).code === 'ENOENT';
+    return {
+      found: [],
+      health: {
+        folder: missing ? 'missing' : 'unreadable',
+        seen: 0,
+        skipped: 0,
+        broken: 0,
+        unreadable: 0,
+      },
+    };
   }
-  const found: (LiveSession & { procStart: string | null })[] = [];
-  for (const name of names) {
-    let reg: Registry;
-    try {
-      const parsed: unknown = JSON.parse(readFileSync(path.join(dir, name), 'utf8'));
-      // `null`, a number or a string is valid JSON but not a registry file: it drops only itself
-      if (!parsed || typeof parsed !== 'object') {
-        continue;
-      }
-      reg = parsed as Registry;
-    } catch {
+  const reads = new Map<string, Read>(names.map((name) => [name, readOne(path.join(dir, name))]));
+  // a file that does not parse may be mid-write: one more read after a short pause, off the event loop
+  const again = names.filter((name) => reads.get(name) === 'broken');
+  if (again.length) {
+    await new Promise((resolve) => setTimeout(resolve, REREAD_AFTER_MS));
+    for (const name of again) {
+      reads.set(name, readOne(path.join(dir, name)));
+    }
+  }
+  const found: Parsed[] = [];
+  let seen = 0;
+  let broken = 0;
+  let unreadable = 0;
+  for (const read of reads.values()) {
+    if (read === 'gone') {
       continue;
     }
+    seen++;
+    if (read === 'broken' || read === 'unreadable') {
+      broken += read === 'broken' ? 1 : 0;
+      unreadable += read === 'unreadable' ? 1 : 0;
+      continue;
+    }
+    const { parsed } = read;
+    // `null`, a number or a string is valid JSON but not a registry file: it drops only itself
+    if (!parsed || typeof parsed !== 'object') {
+      continue;
+    }
+    const reg = parsed as Registry;
     const pid = Number(reg.pid);
     if (
       !Number.isInteger(pid) ||
@@ -79,8 +183,33 @@ export async function liveSessions(dir: string): Promise<LiveSession[]> {
       procStart: typeof reg.procStart === 'string' ? collapse(reg.procStart) : null,
     });
   }
+  return {
+    found,
+    health: {
+      folder: 'ok',
+      seen,
+      skipped: seen - broken - unreadable - found.length,
+      broken,
+      unreadable,
+    },
+  };
+}
+
+/** The registry folder's health, for doctor: no ps, no liveness check. */
+export const registryHealth = async (dir: string): Promise<RegistryHealth> =>
+  (await scan(dir)).health;
+
+/** The registry's live sessions: files whose pid is running, with their ttys. */
+export const liveSessions = async (dir: string): Promise<LiveSession[]> =>
+  (await liveRegistry(dir)).sessions;
+
+/** The live sessions with what the reader could and could not use of the registry. */
+export async function liveRegistry(
+  dir: string,
+): Promise<{ sessions: LiveSession[]; health: RegistryHealth }> {
+  const { found, health } = await scan(dir);
   if (!found.length) {
-    return [];
+    return { sessions: [], health };
   }
   // ps in UTC with a fixed locale answers the pid's tty and start time in the registry's procStart form; no ps (or a
   // pid it doesn't list) falls back to a plain liveness check
@@ -104,7 +233,7 @@ export async function liveSessions(dir: string): Promise<LiveSession[]> {
     (first, second) =>
       (first.startedAt ?? Infinity) - (second.startedAt ?? Infinity) || first.pid - second.pid,
   );
-  return found
+  const sessions = found
     .filter((live) => {
       const row = rows.get(live.pid);
       if (row) {
@@ -124,4 +253,5 @@ export async function liveSessions(dir: string): Promise<LiveSession[]> {
       ...live,
       tty: rows.get(live.pid)?.tty.replace(/^\?+$/, '') || null,
     }));
+  return { sessions, health };
 }

@@ -6,11 +6,16 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { Listening } from '../../features/listeners/service.ts';
-import { formatTime } from '@once-upon-a-diff/foundation/settings';
+import { formatTime, readSettings } from '@once-upon-a-diff/foundation/settings';
 
 import { MIN_NODE_MAJOR, nodeVersionProblem } from '../../../../foundation/src/node-version.mjs';
 import type { Config } from '@once-upon-a-diff/foundation/settings';
 import { listenerPid } from '@once-upon-a-diff/adapters/os';
+import {
+  registryHealth,
+  registryNote,
+  registryProblem,
+} from '@once-upon-a-diff/adapters/claude-sessions/live-sessions';
 import { fetchHealth } from '@once-upon-a-diff/adapters/bridge-health';
 import { readExtensionSeen } from './bridge.ts';
 import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
@@ -214,6 +219,20 @@ export async function doctor(
       'In Claude Code, in the repo you want to listen for: /once-upon-listen <owner/name>. Until then, questions wait in the inbox.',
     );
   }
+  // Claude Code's session files, which the board reads with no promise that their format holds
+  const sessionsDir = readSettings(home).board.sessionsDir;
+  const registry = await registryHealth(sessionsDir);
+  const registryInfo = registryNote(registry);
+  const registryTrouble = registryProblem(registry);
+  add(
+    registryTrouble ? 'WARN' : 'PASS',
+    'Claude sessions',
+    registryTrouble ??
+      `${registry.seen} session file${registry.seen === 1 ? '' : 's'} read in ${sessionsDir}${registryInfo ? ` (${registryInfo})` : ''}`,
+    registryTrouble
+      ? `Look in ${sessionsDir}: a Claude Code update may have renamed a field or moved the folder, or the files' permissions changed (set board_sessions_dir in config.json if it moved)`
+      : null,
+  );
   // every run is a run of one card, and says nothing the card does not (ADR-25)
   const items = new BacklogStore(home).items();
   const problems = [

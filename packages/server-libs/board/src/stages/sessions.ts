@@ -32,7 +32,10 @@ import type {
 } from '@once-upon-a-diff/contracts/types';
 import { sessionCard } from './cards.ts';
 import { laneOf } from './lanes.ts';
-import { liveSessions } from '@once-upon-a-diff/adapters/claude-sessions/live-sessions';
+import {
+  liveRegistry,
+  registryNotice,
+} from '@once-upon-a-diff/adapters/claude-sessions/live-sessions';
 import type { BuildContext, PinnedVoice, SessionView, Work } from './types.ts';
 import { branchOfWork, startWork } from './works.ts';
 
@@ -53,10 +56,15 @@ export interface LiveFacts {
 /** Reads the registry's live sessions, their statuses, branches and repos, and the registered agents. */
 export async function readLive(ctx: BuildContext): Promise<LiveFacts> {
   const { settings, nowMs } = ctx;
-  const picked = ctx.sourceOverride
+  const status: { source: StatusSource; warning: string | null } = ctx.sourceOverride
     ? { source: ctx.sourceOverride, warning: null }
     : pickSource(settings.statusSource, settings.it2Path);
-  const live = await liveSessions(settings.sessionsDir);
+  const { sessions: live, health } = await liveRegistry(settings.sessionsDir);
+  // the board's one warning line also says when Claude Code's session files are there and none could be used
+  const picked = {
+    source: status.source,
+    warning: [status.warning, registryNotice(health)].filter(Boolean).join(' ') || null,
+  };
   const [known, branches, repos] = await Promise.all([
     picked.source.statuses(live),
     Promise.all(live.map((session) => ctx.lookups.branchOf(session.cwd, nowMs))),

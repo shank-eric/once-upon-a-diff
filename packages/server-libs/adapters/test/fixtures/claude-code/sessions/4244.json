@@ -1,0 +1,25 @@
+{
+  "pid": 4244,
+  "sessionId": "00000000-0000-4000-8000-000000000003",
+  "cwd": "/home/dev/projects/widgets",
+  "startedAt": 1767610800000,
+  "procStart": "Mon Jan  5 09:00:00 2026",
+  "version": "2.1.319",
+  "peerProtocol": 1,
+  "peerFeatures": [
+    "notify_idle",
+    "reply_across_default_dirs",
+    "artifact_yield"
+  ],
+  "kind": "interactive",
+  "entrypoint": "cli",
+  "pidDomain": "darwin",
+  "asksForConvertedSkills": false,
+  "messagingSocketPath": "/tmp/example/claude-peer.sock",
+  "name": "fixture-shell",
+  "nameSource": "derived",
+  "nameSince": 1767610800000,
+  "status": "shell",
+  "updatedAt": 1767610860000,
+  "statusUpdatedAt": 1767610860000
+}

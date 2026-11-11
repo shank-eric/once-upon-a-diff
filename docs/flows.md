@@ -189,9 +189,9 @@ flowchart LR
 | 8 | `service` | a 2 s cache, one build in flight for every caller, and a generation so a stale build can't refill it | `packages/server-libs/board/src/board.ts:210` (`async snapshot()`) |
 | 9 | `service` | the build gathers its context and runs the stages | `packages/server-libs/board/src/board.ts:395` (`buildBoard(ctx`) |
 | 10 | `service` | the stages, in order | `packages/server-libs/board/src/stages/index.ts:86` (`export async function buildBoard`) |
-| 11 | `service` | live sessions, their status, branches and repos | `packages/server-libs/board/src/stages/sessions.ts:59` (`liveSessions(settings.sessionsDir)`) |
-| 12 | `adapter` | **reads `~/.claude/sessions/<pid>.json`**, live pids only | `packages/server-libs/adapters/src/claude-sessions/live-sessions.ts:40` (`export async function liveSessions`) |
-| 13 | `service` | the agents, from the registry | `packages/server-libs/board/src/stages/sessions.ts:65` (`readAgents(`) |
+| 11 | `service` | live sessions, their status, branches and repos | `packages/server-libs/board/src/stages/sessions.ts:62` (`liveRegistry(settings.sessionsDir)`) |
+| 12 | `adapter` | **reads `~/.claude/sessions/<pid>.json`**, live pids only | `packages/server-libs/adapters/src/claude-sessions/live-sessions.ts:207` (`export async function liveRegistry`) |
+| 13 | `service` | the agents, from the registry | `packages/server-libs/board/src/stages/sessions.ts:73` (`readAgents(`) |
 | 14 | `service` | **reads `agents.jsonl`** (only what was appended since this process last read it: `events-file.ts`) and folds its events into one view per agent. (Nothing else is read: the ledger and progress files are logs the registry writes, not input.) | `packages/server-libs/state/src/records/agents/read.ts:15` (`foldAgentEvents(agentEventsIn(`) |
 | 15 | `service` | the works: PR and local stories, pending builds | `packages/server-libs/board/src/stages/index.ts:95` (`collectWorks(ctx)`) |
 | 16 | `service` | what else is known of each session: listeners, voice, blank sessions, titles, status lines | `packages/server-libs/board/src/stages/index.ts:103` (`readSessionFacts(`) |
