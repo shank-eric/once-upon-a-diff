@@ -109,3 +109,84 @@ test('telling a story again with no chapters handed in fails on a corrupt chapte
     'the corrupt file is left for a person to see',
   );
 });
+
+test('once-upon local with --chapters prints the story checks without changing the exit status', async () => {
+  const home = tmp('home');
+  const { repo, base } = localRepo();
+  const chapters = path.join(tmp('chapters'), 'chapters.json');
+  writeFileSync(
+    chapters,
+    JSON.stringify({
+      title: 'Two files',
+      refs: [],
+      overview: 'Told badly: a narrative with no heading.',
+      chapters: [
+        {
+          title: 'The change',
+          key: 'change',
+          summary: 'one and two.',
+          narrative: 'No heading and no closing line.',
+          files: ['one.txt', 'lib/two.js', 'gone.txt'],
+          refs: [],
+        },
+      ],
+    }),
+  );
+  const cli = await runCli(home, [
+    'local',
+    '--repo',
+    repo,
+    '--base',
+    base,
+    '--chapters',
+    chapters,
+    '--id',
+    'checked',
+    '--no-serve',
+    '--no-open',
+  ]);
+  assert.equal(cli.code, 0, cli.stderr);
+  assert.match(cli.stderr, /Story checks: 1 fail, \d+ warns/);
+  assert.match(cli.stderr, /^fail shape chapter 1: /m);
+});
+
+test('once-upon local --chapters still publishes and exits 0 when the findings cannot be computed', async () => {
+  const home = tmp('home');
+  const { repo, base } = localRepo();
+  const chapters = path.join(tmp('chapters'), 'chapters.json');
+  writeFileSync(
+    chapters,
+    JSON.stringify({
+      title: 'Two files',
+      refs: [],
+      overview: 'A headline that is a list, not a sentence.',
+      chapters: [
+        {
+          title: 'The change',
+          key: 'change',
+          headline: ['a', 'b'],
+          summary: 'one and two.',
+          narrative: '### Chapter 1: The change\n\nThe words.',
+          files: ['one.txt', 'lib/two.js', 'gone.txt'],
+          refs: [],
+        },
+      ],
+    }),
+  );
+  const cli = await runCli(home, [
+    'local',
+    '--repo',
+    repo,
+    '--base',
+    base,
+    '--chapters',
+    chapters,
+    '--id',
+    'unreadable',
+    '--no-serve',
+    '--no-open',
+  ]);
+  assert.equal(cli.code, 0, cli.stderr);
+  assert.match(cli.stderr, /^findings: could not be computed: .+$/m);
+  assert.doesNotMatch(cli.stderr, /\n\s+at /);
+});

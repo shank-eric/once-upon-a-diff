@@ -13,6 +13,7 @@ import { storyIdOf } from './inbox.ts';
 import { afterRebuild } from '@once-upon-a-diff/core/features/publishing/after-rebuild';
 import { vetRebuild } from '@once-upon-a-diff/stories/rebuild';
 import { createLocalStory } from '@once-upon-a-diff/stories/local-story';
+import { findingsSummary, localStoryFindings } from '@once-upon-a-diff/stories/story-report';
 
 import { out } from '../output.ts';
 import { portState, serve } from '@once-upon-a-diff/core/orchestration/bridge/bridge';
@@ -159,6 +160,12 @@ async function local(home: string, cfg: Config, opts: CliOpts) {
     process.stderr.write(
       `  ${made.unknown.length} chapter files aren't in the diff and are skipped: ${made.unknown.join(', ')}\n`,
     );
+  }
+  if (opts.chapters) {
+    // the quality rules the publish does not refuse (story.mjs check lists them); the exit status is not touched
+    for (const line of findingsSummary(() => localStoryFindings(made.dir))) {
+      process.stderr.write(`${line}\n`);
+    }
   }
   const port = Number(opts.port || cfg.port);
   const url = localPageUrl(port, made.id, cfg.token);

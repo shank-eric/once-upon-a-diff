@@ -78,8 +78,8 @@ flowchart LR
 
 | # | Layer | Hop | At |
 |---|---|---|---|
-| 19 | `outside` | the once-upon skill gathers the PR with `gh`, writes the chapters and runs `story.mjs build`, which checks them and runs `once-upon publish` itself | `skills/once-upon/bin/story.ts:440` (`'publish',`) |
-| 20 | `app` | `publish`, run by `story.ts build` | `packages/server/cli/src/commands/stories.ts:207` (`function publish(`) |
+| 19 | `outside` | the once-upon skill gathers the PR with `gh`, writes the chapters and runs `story.mjs build`, which checks them and runs `once-upon publish` itself | `skills/once-upon/bin/story.ts:474` (`'publish',`) |
+| 20 | `app` | `publish`, run by `story.ts build` | `packages/server/cli/src/commands/stories.ts:214` (`function publish(`) |
 | 21 | `service` | places the story's folder: `.once-upon/<id>/` in the repo's checkout when the bridge knows it, else `~/.once-upon/<id>/` | `packages/server-libs/core/src/features/publishing/publish.ts:91` (`storyDirFor(home, id, { repo })`) |
 | 22 | `service` | **copies `chapters.json` and `file-map.json`** into that folder, through the adapter's `copyFileAtomic` | `packages/server-libs/core/src/features/publishing/publish.ts:106` (`copyFileAtomic(`) |
 | 23 | `service` | **writes `meta.json`** last, with the head it was told from, through the adapter's `writeJsonAtomic` | `packages/server-libs/core/src/features/publishing/publish.ts:110` (`writeJsonAtomic(path.join(dest, 'meta.json')`) |

@@ -33,13 +33,40 @@ export type Check =
   | 'shape'
   | 'links';
 
+/**
+ * What a length or shape finding is, for the fix that suits it (story-report.ts): one rule covers findings that need
+ * different fixes, so the rule alone does not say what to do.
+ */
+export type Kind =
+  | 'unwritten'
+  | 'too-long'
+  | 'too-short'
+  | 'no-refs'
+  | 'too-many-refs'
+  | 'no-opener'
+  | 'opener-number'
+  | 'opener-title'
+  | 'no-closer'
+  | 'closer-number'
+  | 'closer-title'
+  | 'headline'
+  | 'answer'
+  | 'no-overview'
+  | 'title-long'
+  | 'summary-long';
+
 export interface Finding {
   level: 'fail' | 'warn';
   check: Check;
+  /** what the finding is, on the length and shape rules */
+  kind?: Kind;
   /** the chapter's number, 1-based, when the finding is about one */
   chapter?: number;
   message: string;
 }
+
+/** The finding for a chapter still being written: a skeleton has it on every chapter, so a publish's summary leaves it out. */
+export const NO_NARRATIVE = 'the chapter has no narrative';
 
 /** The skill's own numbers. Words and refs are targets (warn); more files than filesFailOver is a step that should have been split. */
 export const LIMITS = {
@@ -53,15 +80,17 @@ export const LIMITS = {
   answerMax: 400,
 };
 
-const fail = (check: Check, message: string, chapter?: number): Finding => ({
+const fail = (check: Check, message: string, chapter?: number, kind?: Kind): Finding => ({
   level: 'fail',
   check,
+  ...(kind ? { kind } : {}),
   message,
   ...(chapter ? { chapter } : {}),
 });
-const warn = (check: Check, message: string, chapter?: number): Finding => ({
+const warn = (check: Check, message: string, chapter?: number, kind?: Kind): Finding => ({
   level: 'warn',
   check,
+  ...(kind ? { kind } : {}),
   message,
   ...(chapter ? { chapter } : {}),
 });
@@ -203,9 +232,13 @@ function lengthFindings(plan: Plan, diff: Map<string, DiffFile>): Finding[] {
     if (!words) {
       // no narrative is a shape failure, not a length
     } else if (words > LIMITS.wordsWarnOver) {
-      out.push(warn('length', `${words} words (the skill asks for about 150-300)`, num));
+      out.push(
+        warn('length', `${words} words (the skill asks for about 150-300)`, num, 'too-long'),
+      );
     } else if (words < LIMITS.wordsWarnUnder) {
-      out.push(warn('length', `${words} words (the skill asks for about 150-300)`, num));
+      out.push(
+        warn('length', `${words} words (the skill asks for about 150-300)`, num, 'too-short'),
+      );
     }
     // the skill's exemptions: only a journey step splits by size; a "Since you read it" chapter lists every file of its commits;
     // a `whole` file, a lockfile and a deleted file cost the reader little
@@ -244,10 +277,22 @@ function lengthFindings(plan: Plan, diff: Map<string, DiffFile>): Finding[] {
     if (!chapter.since) {
       if (chapter.refs.length === 0 && chapter.files.length) {
         out.push(
-          warn('length', 'no refs (the skill asks for 2-4 for the hunks the text discusses)', num),
+          warn(
+            'length',
+            'no refs (the skill asks for 2-4 for the hunks the text discusses)',
+            num,
+            'no-refs',
+          ),
         );
       } else if (chapter.refs.length > LIMITS.refsWarnOver) {
-        out.push(warn('length', `${chapter.refs.length} refs (the skill asks for 2-4)`, num));
+        out.push(
+          warn(
+            'length',
+            `${chapter.refs.length} refs (the skill asks for 2-4)`,
+            num,
+            'too-many-refs',
+          ),
+        );
       }
     }
   });
@@ -266,18 +311,26 @@ function shapeFindings(plan: Plan, diff: Map<string, DiffFile>): Finding[] {
     const num = numbers[index];
     const text = chapter.narrative.trim();
     if (!text) {
-      out.push(fail('shape', 'the chapter has no narrative', num));
+      out.push(fail('shape', NO_NARRATIVE, num, 'unwritten'));
     } else {
       const lines = text.split('\n').map((line) => line.trim());
       const opener = /^#{1,6}\s+Chapter\s+(\d+)\s*:\s*(.*)$/i.exec(lines[0]);
       if (!opener) {
-        out.push(fail('shape', 'the narrative does not open with "### Chapter N: title"', num));
+        out.push(
+          fail(
+            'shape',
+            'the narrative does not open with "### Chapter N: title"',
+            num,
+            'no-opener',
+          ),
+        );
       } else if (Number(opener[1]) !== position + 1) {
         out.push(
           fail(
             'shape',
             `the narrative opens as chapter ${opener[1]}, not chapter ${position + 1}`,
             num,
+            'opener-number',
           ),
         );
       } else if (plainTitle(opener[2]) !== plainTitle(chapter.title)) {
@@ -286,6 +339,7 @@ function shapeFindings(plan: Plan, diff: Map<string, DiffFile>): Finding[] {
             'shape',
             `the narrative's heading "${opener[2].trim()}" is not the chapter's title`,
             num,
+            'opener-title',
           ),
         );
       }
@@ -295,7 +349,12 @@ function shapeFindings(plan: Plan, diff: Map<string, DiffFile>): Finding[] {
         const closer = /^Next is chapter (\d+),\s*(.*?)\.?$/i.exec(last);
         if (!closer) {
           out.push(
-            fail('shape', 'the narrative does not close with "Next is chapter N, title."', num),
+            fail(
+              'shape',
+              'the narrative does not close with "Next is chapter N, title."',
+              num,
+              'no-closer',
+            ),
           );
         } else if (Number(closer[1]) !== position + 2) {
           out.push(
@@ -303,6 +362,7 @@ function shapeFindings(plan: Plan, diff: Map<string, DiffFile>): Finding[] {
               'shape',
               `the narrative's closing line names "${last}", not the chapter that follows`,
               num,
+              'closer-number',
             ),
           );
         } else if (plainTitle(closer[2]) !== plainTitle(next.chapter.title)) {
@@ -312,13 +372,14 @@ function shapeFindings(plan: Plan, diff: Map<string, DiffFile>): Finding[] {
               'shape',
               `the narrative's closing line "${last}" does not repeat the next chapter's title`,
               num,
+              'closer-title',
             ),
           );
         }
       }
     }
     if (/[.!?]\s+\S/.test(chapter.headline.trim())) {
-      out.push(warn('shape', 'the headline is more than one sentence', num));
+      out.push(warn('shape', 'the headline is more than one sentence', num, 'headline'));
     }
   });
   const plain = plan.chapters || [];
@@ -329,16 +390,22 @@ function shapeFindings(plan: Plan, diff: Map<string, DiffFile>): Finding[] {
           'shape',
           `the answer is ${chapter.answer.length} characters (at most ${LIMITS.answerMax})`,
           numbers[index],
+          'answer',
         ),
       );
     }
   });
   if (!plan.overview && !plan.summary && !plan.plan) {
-    out.push(warn('shape', 'the story has no overview'));
+    out.push(warn('shape', 'the story has no overview', undefined, 'no-overview'));
   }
   if ((plan.title || '').length > LIMITS.titleMax) {
     out.push(
-      warn('shape', `the title is ${plan.title!.length} characters (at most ${LIMITS.titleMax})`),
+      warn(
+        'shape',
+        `the title is ${plan.title!.length} characters (at most ${LIMITS.titleMax})`,
+        undefined,
+        'title-long',
+      ),
     );
   }
   if ((plan.summary || '').length > LIMITS.summaryMax) {
@@ -346,6 +413,8 @@ function shapeFindings(plan: Plan, diff: Map<string, DiffFile>): Finding[] {
       warn(
         'shape',
         `the summary is ${plan.summary!.length} characters (at most ${LIMITS.summaryMax})`,
+        undefined,
+        'summary-long',
       ),
     );
   }

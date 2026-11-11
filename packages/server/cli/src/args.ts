@@ -6,7 +6,7 @@
 import type { CliOpts } from './types.ts';
 
 /** Flags that never take a value, so a bare word after one stays a word. */
-const BOOLEAN_FLAGS = new Set(['dry-run', 'off']);
+const BOOLEAN_FLAGS = new Set(['dry-run', 'off', 'final']);
 
 export function parseArgs(argv: string[]): { command: string | undefined; opts: CliOpts } {
   const [command, ...rest] = argv;

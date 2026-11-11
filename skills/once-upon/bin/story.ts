@@ -9,6 +9,9 @@
  *                                             (written back to D/chapters.json); fails if a file is unplaced, a chapter
  *                                             has no refs list, a ref or comment is wrong, or a hunk is told by no
  *                                             chapter (--allow-uncovered publishes anyway)
+ *   story.ts check   --dir D [--chapters F] [--final]   the story's quality findings (packages/server-libs/stories/src/quality.ts), one per line; exit 1 on any `fail`.
+ *                                             A chapter with no narrative is counted as still being written, not failed, until --final.
+ *                                             Works on a built story, published or not; build prints the same as a summary
  *   story.ts publish --dir D [--agent NAME]    publish the story for Once Upon a Diff through `once-upon publish` (build does this too)
  *   story.ts slice   --dir D --chapter K     what one chapter's writer reads: map, neighbours, key points (D/points.json), numbered diff
  *   story.ts merge   --dir D                 lay D/fragments/*.json (one per chapter) onto D/chapters.json; never publishes (--clear: delete them instead)
@@ -31,6 +34,12 @@ import {
   sliceOf,
   type Points,
 } from '../../../packages/server-libs/stories/src/fragments.ts';
+import {
+  findingsReport,
+  findingsSummary,
+  hasFails,
+} from '../../../packages/server-libs/stories/src/story-report.ts';
+import { storyFindings } from '../../../packages/server-libs/stories/src/quality.ts';
 import { lintTextRefs } from '../../../packages/server-libs/stories/src/text-refs.ts';
 import { upgradePlan } from '../../../packages/server-libs/stories/src/legacy.ts';
 import { assignKeys, chapterProblems } from '../../../packages/server-libs/stories/src/validate.ts';
@@ -326,6 +335,26 @@ async function cmdBuild(opts: CliOpts) {
   if (!opts['no-bridge']) {
     await cmdPublish(opts);
   }
+  // the quality rules the gate does not refuse; the exit status is the gate's alone
+  for (const line of findingsSummary(() => storyFindings(plan, diff))) {
+    process.stderr.write(`${line}\n`);
+  }
+}
+
+/** The story's quality findings, one per line on stdout; exits 1 when any is a `fail`, 0 for warnings or none. */
+async function cmdCheck(opts: CliOpts) {
+  const plan = await readJson<Plan>(
+    (opts.chapters as string | undefined) || path.join(opts.dir as string, 'chapters.json'),
+  );
+  if (!plan) {
+    throw new Error(`no chapters.json to check in ${opts.dir}`);
+  }
+  const findings = storyFindings(plan, diffOf(opts));
+  const final = opts.final === true;
+  process.stdout.write(`${findingsReport(findings, final).join('\n')}\n`);
+  if (hasFails(findings, final)) {
+    process.exitCode = 1;
+  }
 }
 
 /**
@@ -341,7 +370,12 @@ function diffOf(opts: CliOpts): ReturnType<typeof parseUnifiedDiff> {
   ) {
     return parseUnifiedDiff(diffText(path.resolve(opts.repo), opts.base, opts.head));
   }
-  const file = typeof opts.diff === 'string' ? path.resolve(opts.diff) : path.join(dir, 'pr.diff');
+  // a published local story keeps its own diff as local.diff
+  const stored = existsSync(path.join(dir, 'pr.diff')) ? 'pr.diff' : 'local.diff';
+  const file =
+    typeof opts.diff === 'string'
+      ? path.resolve(opts.diff)
+      : path.join(dir, existsSync(path.join(dir, stored)) ? stored : 'pr.diff');
   if (!existsSync(file)) {
     throw new Error(
       `no diff to read: ${file} is missing. For a local story pass --repo <checkout> --base <ref> --head <branch> (or --diff <file>)`,
@@ -456,6 +490,7 @@ async function cmdPublish(opts: CliOpts) {
 const COMMANDS: Record<string, (opts: CliOpts) => Promise<void>> = {
   brief: cmdBrief,
   build: cmdBuild,
+  check: cmdCheck,
   publish: cmdPublish,
   slice: cmdSlice,
   merge: cmdMerge,
@@ -464,7 +499,7 @@ const { command, opts } = parseArgs(process.argv.slice(2));
 const run = COMMANDS[command as string];
 if (!run || !opts.dir) {
   process.stderr.write(
-    'usage: story.ts <brief|build|publish|slice|merge> --dir <scratch-dir> [--no-bridge] [--allow-uncovered] [--agent <name>] [--chapter <key|n>] [--clear] [--diff <file> | --repo <dir> --base <ref> --head <ref>]\n',
+    'usage: story.ts <brief|build|check|publish|slice|merge> --dir <scratch-dir> [--no-bridge] [--allow-uncovered] [--agent <name>] [--chapter <key|n>] [--clear] [--final] [--diff <file> | --repo <dir> --base <ref> --head <ref>]\n',
   );
   process.exitCode = 1;
 } else {
