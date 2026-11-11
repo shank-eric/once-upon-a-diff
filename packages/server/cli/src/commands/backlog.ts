@@ -356,8 +356,8 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
     const held = store.hold(item.id, !opts.off, who);
     return out(
       held.hold
-        ? `${held.id} held: a deploy will not mark it done, only backlog done ${held.id} does`
-        : `${held.id} released: a deploy can mark it done again`,
+        ? `${held.id} held: neither a deploy nor a merged PR will mark it done, only backlog done ${held.id} does`
+        : `${held.id} released: a deploy or a merged PR can mark it done again`,
     );
   }
   if (verb === 'someday') {
@@ -408,9 +408,9 @@ export const backlogCommands: Command[] = [
       '  once-upon backlog edit ID [--title TEXT] [--note TEXT] [--repo owner/name]      change an open card in place (an empty --note or --repo clears it; a long note: --note-file PATH or --note -)',
       '  once-upon backlog list [--all] [--json] [--someday] | show ID | drop ID | reopen ID  the items in board order (open ones, or all), one item, drop one, or bring a dropped one back',
       '  once-upon backlog done ID [--sha SHA]                                            the work landed: the card goes to Done for an hour',
-      '  once-upon backlog land [PICKED_SHA...] --from REF --to REF [--dry-run]           a deploy: mark done the cards whose recorded commit (agent finish --commit) is in the range',
+      '  once-upon backlog land [PICKED_SHA...] --from REF --to REF [--dry-run]           a deploy: mark done the cards whose recorded commit (agent finish --commit) is in the range (a repo with no deploy lands by merged PR: the bridge does it)',
       '  once-upon backlog adopt ID [--title TEXT]                                        an implicit card (a run that did not start in the backlog; list --implicit shows them) becomes a backlog card with the same id',
-      '  once-upon backlog hold ID [--off]                                                the card lands by hand: a deploy never marks it done',
+      '  once-upon backlog hold ID [--off]                                                the card lands by hand: a deploy or a merged PR never marks it done',
       '  once-upon backlog someday ID [--off]                                             maybe someday: out of the main list into a collapsed Someday section (list --someday shows it)',
       '  once-upon backlog move ID --before ID | --top | --bottom                        reorder: new items go to the bottom',
       "  once-upon backlog start ID [--branch NAME]                                       work began: the card moves onto that branch's work card",

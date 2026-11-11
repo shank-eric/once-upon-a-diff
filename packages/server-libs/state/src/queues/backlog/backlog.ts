@@ -8,7 +8,7 @@
  *
  *   {op:'add',   id, title, note, repo, branch, by, at}
  *   {op:'start', id, branch, repo, by, at}     work began on that branch
- *   {op:'done',  id, sha?, by, at}             the work landed (a local deploy: no PR ever merges it); an open item can land too
+ *   {op:'done',  id, sha?, by, at}             the work landed (a local deploy, or the bridge seeing the card's PR merge: land-merged.ts); an open item can land too
  *   {op:'drop',  id, by, at}
  *   {op:'reopen', id, by, at}                  a dropped item is open again (a new `start` after a drop is still ignored)
  *   {op:'move',  id, before | edge, by, at}   `before` is another item's id; `edge` is 'top' or 'bottom'
@@ -16,7 +16,7 @@
  *   {op:'claim', id, agent, sid?, session?, worktree?, by, at}   an agent (named as it registered) owns the card: the one link from a card to an
  *                                              agent (claims.ts). The latest claim wins; a `done` or a reopen clears it. `session` is the
  *                                              claimer's full session id (the editor's: slots.ts) and `worktree` the checkout path
- *   {op:'hold',  id, on, by, at}              the card lands by hand: a deploy never marks it done (landing.ts), only `done ID` does.
+ *   {op:'hold',  id, on, by, at}              the card lands by hand: a deploy or a merged PR never marks it done (landing.ts, land-merged.ts), only `done ID` does.
  *                                              `on:false` clears it; a reopen clears it too. Sticky across claims
  *   {op:'someday', id, on, by, at}            maybe someday: an open card with no live claim leaves the main list for the Someday section,
  *                                              keeping its place in the order (`on:false` puts it back there). A start, a claim, a done,
@@ -474,7 +474,7 @@ export class BacklogStore implements BacklogStorage {
     return this.find(id);
   }
 
-  /** Records that a started item's work landed (deploy-local.sh, no PR), with the sha it landed as when known. */
+  /** Records that a started item's work landed (deploy-local.sh, or the board seeing its PR merge), with the sha it landed as when known. */
   done(id: string, input: { sha?: string | null; by?: string | null } = {}): BacklogItem {
     const item = this.find(id);
     if (item.state === 'dropped') {

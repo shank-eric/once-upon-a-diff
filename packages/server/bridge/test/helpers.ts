@@ -10,6 +10,7 @@ import type {
   PrCheck,
   RequestedCheck,
 } from '@once-upon-a-diff/state/records/github/github-checks';
+import type { MergedCheck } from '@once-upon-a-diff/state/records/github/merged-pr';
 import {
   localEntries,
   localStory,
@@ -67,6 +68,7 @@ export async function startBridge(opts: {
   checkPr?: PrCheck;
   checkBranch?: BranchCheck;
   checkRequested?: RequestedCheck;
+  checkMerged?: MergedCheck;
   now?: () => number;
 }) {
   // no test asks GitHub unless it brings its own check
@@ -75,6 +77,7 @@ export async function startBridge(opts: {
     checkPr: async () => ({ merged: false, why: null }),
     checkBranch: async () => null,
     checkRequested: async () => [],
+    checkMerged: async () => null,
     ...opts,
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));

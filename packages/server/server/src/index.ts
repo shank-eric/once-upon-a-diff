@@ -78,6 +78,7 @@ import {
   type PrCheck,
   type RequestedCheck,
 } from '@once-upon-a-diff/state/records/github/github-checks';
+import { ghMergedCheck, type MergedCheck } from '@once-upon-a-diff/state/records/github/merged-pr';
 import { UNPACKED_EXTENSION_ID, readSettings } from '@once-upon-a-diff/foundation/settings';
 import type { ApiRoute, App, Body, Call, Send, StoryRoute } from './types.ts';
 
@@ -139,6 +140,7 @@ export function createBridge({
   checkPr = ghPrCheck,
   checkBranch = ghBranchCheck,
   checkRequested = ghRequestedCheck,
+  checkMerged = ghMergedCheck,
   now = Date.now,
 }: {
   home: string;
@@ -152,6 +154,8 @@ export function createBridge({
   checkBranch?: BranchCheck;
   /** how the board asks GitHub which PRs wait on your review (the tests' stand-in) */
   checkRequested?: RequestedCheck;
+  /** how the board asks GitHub whether a card's branch has a merged PR (the tests' stand-in; the real check by default) */
+  checkMerged?: MergedCheck;
   /** the clock the GitHub refresh route measures its gaps and per-minute cap by (the tests' stand-in) */
   now?: () => number;
 }): Bridge {
@@ -163,7 +167,7 @@ export function createBridge({
   const inbox = new Inbox(home);
   const autoReview = new AutoReview(stories, checkPr, undefined, checkBranch, checkRequested, home);
   const builds = new Builds(home);
-  const board = new Board(home, stories, autoReview, builds);
+  const board = new Board(home, stories, autoReview, builds, { checkMerged });
   const portOf = () => (server.address() as { port: number }).port;
   const app: App = {
     home,

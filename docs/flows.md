@@ -24,7 +24,7 @@ Paths are from the repo root. After each `file:line` comes the name you'll find 
 Two things every HTTP hop shares, written once here:
 
 - **Getting to the bridge.** The extension's content scripts never call the bridge. `callBridge` sends the service worker a message (`packages/client/extension/src/content/bridge.ts:69` (`chrome.runtime.sendMessage`)), the worker checks the route is one the extension may call (`packages/client/extension/src/entrypoints/background.ts:27` (`matchRoute`)) and fetches `127.0.0.1` with the token (`packages/client/extension/src/entrypoints/background.ts:37` (`fetch(`)). A page fetches with its own key instead: the board's transport is at `packages/client/web/public/board.ts:41` (`const transport`).
-- **Inside the bridge.** One handler (`packages/server/server/src/index.ts:399` (`http.createServer`)) checks Host and Origin, serves pages, then checks the key (`packages/server/server/src/index.ts:448` (`checkApiCall(req, pathname, origin)`)). A bridge-wide route is found in `API_ROUTES` and run (`packages/server/server/src/index.ts:462` (`route.handle(call)`)). A story route goes through `storyCall` (`packages/server/server/src/index.ts:475` (`storyCall(call, storyMatch, scope)`)), which finds the story and runs its route (`packages/server/server/src/index.ts:396` (`route.handle(call, story)`)). Every handler that takes a body checks it with `parseBody` against the contracts package's schema before it acts.
+- **Inside the bridge.** One handler (`packages/server/server/src/index.ts:403` (`http.createServer`)) checks Host and Origin, serves pages, then checks the key (`packages/server/server/src/index.ts:452` (`checkApiCall(req, pathname, origin)`)). A bridge-wide route is found in `API_ROUTES` and run (`packages/server/server/src/index.ts:466` (`route.handle(call)`)). A story route goes through `storyCall` (`packages/server/server/src/index.ts:479` (`storyCall(call, storyMatch, scope)`)), which finds the story and runs its route (`packages/server/server/src/index.ts:400` (`route.handle(call, story)`)). Every handler that takes a body checks it with `parseBody` against the contracts package's schema before it acts.
 
 ## 1. Build a story
 
@@ -184,10 +184,10 @@ flowchart LR
 | 3 | `library` | over `createPoll`: a timer while visible, and the window's focus | `packages/client-libs/bridge-client/src/poll.ts:117` (`timer = setTimeout(`) |
 | 4 | `contracts` | the route: `GET /api/board`, the token or the board's key | `packages/domain/contracts/src/board/routes.ts:10` (`board: api<undefined, BoardData>`) |
 | 5 | `app` | the page's transport sends its key (the `#key=` fragment, or the cookie on a proxy name) | `packages/client/web/public/board.ts:44` (`fetch(path`) |
-| 6 | `app` | the bridge recognizes the board's key (`packages/server/server/src/index.ts:302` (`sameToken(auth, boardKey(token))`)), and lets it reach only the routes whose table entry allows it; any other route is a 403 | `packages/server/server/src/index.ts:458` (`boardKeyMay(candidate.route)`) |
+| 6 | `app` | the bridge recognizes the board's key (`packages/server/server/src/index.ts:306` (`sameToken(auth, boardKey(token))`)), and lets it reach only the routes whose table entry allows it; any other route is a 403 | `packages/server/server/src/index.ts:462` (`boardKeyMay(candidate.route)`) |
 | 7 | `app` | the route | `packages/server/server/src/routes/board.ts:58` (`app.board.snapshot()`) |
-| 8 | `service` | a 2 s cache, one build in flight for every caller, and a generation so a stale build can't refill it | `packages/server-libs/board/src/board.ts:210` (`async snapshot()`) |
-| 9 | `service` | the build gathers its context and runs the stages | `packages/server-libs/board/src/board.ts:395` (`buildBoard(ctx`) |
+| 8 | `service` | a 2 s cache, one build in flight for every caller, and a generation so a stale build can't refill it | `packages/server-libs/board/src/board.ts:224` (`async snapshot()`) |
+| 9 | `service` | the build gathers its context and runs the stages | `packages/server-libs/board/src/board.ts:425` (`buildBoard(ctx`) |
 | 10 | `service` | the stages, in order | `packages/server-libs/board/src/stages/index.ts:86` (`export async function buildBoard`) |
 | 11 | `service` | live sessions, their status, branches and repos | `packages/server-libs/board/src/stages/sessions.ts:62` (`liveRegistry(settings.sessionsDir)`) |
 | 12 | `adapter` | **reads `~/.claude/sessions/<pid>.json`**, live pids only | `packages/server-libs/adapters/src/claude-sessions/live-sessions.ts:207` (`export async function liveRegistry`) |
@@ -246,7 +246,7 @@ flowchart LR
 
 ## 5. An agent's claim, through to its card landing
 
-A launching session registers an agent and claims a Backlog card for it. The agent beats as it works and finishes with the commit it made. A deploy then marks the card done by that commit, never by a branch name. Every step is a CLI command over append-only files: no HTTP.
+A launching session registers an agent and claims a Backlog card for it. The agent beats as it works and finishes with the commit it made. A deploy then marks the card done by that commit; where there is no deploy, the bridge marks it by its branch when the PR merged (hops 24 to 27). Every step is a CLI command over append-only files: no HTTP.
 
 ```mermaid
 flowchart LR
@@ -300,3 +300,12 @@ flowchart LR
 | 23 | `service` | **appends a `done` event** to `backlog.jsonl` | `packages/server-libs/state/src/queues/backlog/backlog.ts:478` (`done(id: string`) |
 
 A card the script couldn't match is printed, to close by hand with `once-upon backlog done <id> --sha <sha>`. A card held with `backlog hold` is never marked by a deploy.
+
+**Or land by merged PR** (a repo with no `deploy-local.sh`; the card needs a branch, a repo and a start, and no author run)
+
+| # | Layer | Hop | At |
+|---|---|---|---|
+| 24 | `service` | each board build (every 2 s at most) kicks the landing in the background and never waits for it | `packages/server-libs/board/src/board.ts:230` (`this.landMerged()`) |
+| 25 | `service` | one run at a time; an unheld card with a repo and branch and its work begun (started, claimed or named by a run) is asked about once per 10 minutes, 20 at most a kick, each ask timed out | `packages/server-libs/state/src/queues/backlog/land-merged.ts:90` (`private async run(`) |
+| 26 | `adapter` | `gh api graphql` asks for the merged PRs of the card's branch: head in the card's repo, into the default branch | `packages/server-libs/state/src/records/github/merged-pr.ts:33` (`export const ghMergedCheck`) |
+| 27 | `service` | merged at or after the card's work began: **appends a `done` event** at the merge commit, `by: merged-pr`, and the board drops its kept answer | `packages/server-libs/state/src/queues/backlog/land-merged.ts:111` (`this.store.done(`) |

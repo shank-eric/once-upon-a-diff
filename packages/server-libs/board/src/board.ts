@@ -1,7 +1,7 @@
 /**
  * The agent board's actions, and the cache in front of its data. What the data holds, where each source is read and how
  * a card is made is in stages/ (stages/index.ts has the stages and the sources). What a click on the board does to other
- * tools is in ADR-11: Board has the actions, which are the board's only writes.
+ * tools is in ADR-11: Board has the actions, which are the board's writes, and landing a card whose PR merged (landMerged).
  */
 import { agentId, isImplicitCard } from '@once-upon-a-diff/terms/ids';
 import path from 'node:path';
@@ -27,6 +27,8 @@ import {
 } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import type { AddInput, EditInput, MoveTo } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
+import { MergeLander } from '@once-upon-a-diff/state/queues/backlog/land-merged';
+import type { MergedCheck } from '@once-upon-a-diff/state/records/github/merged-pr';
 import { parseWorktrees } from '@once-upon-a-diff/state/queues/backlog/backlog-links';
 import { WorktreeScanner, workingIn } from '@once-upon-a-diff/state/records/worktrees/worktrees';
 import type { Runner } from '@once-upon-a-diff/adapters/os';
@@ -96,6 +98,8 @@ export class Board {
   /** the session each listener's wait ran in, for its handling beat (adoptHandlers) */
   private listenerSessions = new Map<string, string>();
   private backlog: BacklogStore;
+  /** marks a started card done when the PR for its branch merged (kicked by a build, never waited for) */
+  private lander: MergeLander;
   /** The sessions a click may type into: Build story, Start listening and Assign (sessions.ts). */
   readonly sessions: Sessions;
   /** every git worktree, scanned in the background (worktrees.ts): a build reads what it has and never waits */
@@ -113,6 +117,8 @@ export class Board {
     aheadOf?: typeof aheadOf;
     /** runs the worktree scan's git and du (tests count calls or hold one up) */
     worktreeRun?: Runner;
+    /** how a started card's merged PR is found; with none, nothing is asked and nothing lands (createBridge passes the real one) */
+    checkMerged?: MergedCheck;
   };
 
   /** what the build stages ask of this Board's caches */
@@ -137,6 +143,7 @@ export class Board {
       typeLine?: typeof typeLine;
       aheadOf?: typeof aheadOf;
       worktreeRun?: Runner;
+      checkMerged?: MergedCheck;
     } = {},
   ) {
     this.home = home;
@@ -145,6 +152,13 @@ export class Board {
     this.builds = builds;
     this.options = options;
     this.backlog = new BacklogStore(home);
+    this.lander = new MergeLander(
+      this.backlog,
+      options.checkMerged ?? (async () => null),
+      () => (this.options.now || (() => new Date()))().getTime(),
+      undefined,
+      () => readAgents(this.home).agents,
+    );
     this.sessions = new Sessions(
       home,
       stories,
@@ -213,6 +227,7 @@ export class Board {
       return this.cache.data;
     }
     if (!this.building) {
+      this.landMerged();
       const generation = this.generation;
       const running = this.build(now)
         .then((data) => {
@@ -229,6 +244,21 @@ export class Board {
       this.building = running;
     }
     return this.building;
+  }
+
+  /**
+   * Lands the cards whose PR merged (land-merged.ts), in the background: a build never waits for it, and an error
+   * in it (or a slow gh) never reaches the board. A landing drops the kept snapshot so the next poll shows the card in Done.
+   */
+  private landMerged(): void {
+    this.lander
+      .kick()
+      .then((landed) => {
+        if (landed) {
+          this.invalidate();
+        }
+      })
+      .catch(() => undefined);
   }
 
   /** Drops the kept answer so the next snapshot is built again (a change made outside the board, after which the page must not see the old one). */
