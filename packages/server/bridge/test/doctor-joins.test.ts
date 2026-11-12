@@ -195,3 +195,28 @@ test('a state folder doctor cannot read gets its own warning, and the rest are s
     chmodSync(locked, 0o755);
   }
 });
+
+test('Proxy: reports (INFO, no warning) when puma-dev’s link exists and a port it listens on reaches past this machine; ok when loopback only; silent with no link', async () => {
+  const home = world();
+  const link = path.join(tmp('doctor-puma'), 'once-upon');
+  const run = async (listeners: Record<number, string[]>, pumaDevLink: string) => {
+    const out: string[] = [];
+    await doctor(
+      home,
+      { token: 't', port: 1 },
+      {
+        out: (text) => out.push(text),
+        pumaDevLink,
+        proxyListeners: (port) => listeners[port] ?? [],
+      },
+    );
+    return line(out, 'Proxy');
+  };
+  assert.equal(await run({ 443: ['*'] }, link), '', 'no link: nothing to say');
+  writeFileSync(link, '4823');
+  assert.match(await run({}, link), /^PASS/);
+  const warned = await run({ 80: ['*'], 443: ['*'] }, link);
+  assert.match(warned, /^INFO/);
+  assert.match(warned, /all interfaces.*refuses non-loopback/);
+  assert.match(warned, /\*:80, \*:443/);
+});

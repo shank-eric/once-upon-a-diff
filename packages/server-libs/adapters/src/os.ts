@@ -103,6 +103,25 @@ export function listenerPid(port: number): { pid: string; command: string } | nu
   }
 }
 
+/**
+ * The addresses something listens on for the port that reach past this machine (`*`, 0.0.0.0, [::], a LAN address), as
+ * `lsof` names them; empty when the listener is loopback only, or nothing listens, or lsof can't say.
+ */
+export function openListeners(port: number): string[] {
+  try {
+    const out = execFileSync('lsof', ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN', '-Fn'], {
+      encoding: 'utf8',
+    });
+    const hosts = out
+      .split('\n')
+      .filter((line) => line.startsWith('n'))
+      .map((line) => line.slice(1, line.lastIndexOf(':')));
+    return [...new Set(hosts)].filter((host) => !/^(127\.|\[::1\]$|localhost$)/.test(host));
+  } catch {
+    return [];
+  }
+}
+
 /** The pid's start time as `ps` says it, in the form the registry's procStart has, or null when ps can't say. */
 export function startOf(pid: number): string | null {
   try {

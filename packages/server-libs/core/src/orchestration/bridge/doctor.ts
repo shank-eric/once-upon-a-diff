@@ -4,13 +4,14 @@
  * PASS, WARN or FAIL with what it found and, when it isn't passing, the fix.
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { Listening } from '../../features/listeners/service.ts';
 import { formatTime, readSettings } from '@once-upon-a-diff/foundation/settings';
 
 import { MIN_NODE_MAJOR, nodeVersionProblem } from '../../../../foundation/src/node-version.mjs';
 import type { Config } from '@once-upon-a-diff/foundation/settings';
-import { listenerPid } from '@once-upon-a-diff/adapters/os';
+import { listenerPid, openListeners } from '@once-upon-a-diff/adapters/os';
 import {
   registryHealth,
   registryNote,
@@ -107,6 +108,8 @@ export async function doctor(
     out = (text) => process.stdout.write(text + '\n'),
     nodeVersion = process.versions.node,
     gitVersion = gitVersionText(),
+    pumaDevLink = path.join(os.homedir(), '.puma-dev', 'once-upon'),
+    proxyListeners = openListeners,
   }: {
     port?: number | string;
     wait?: number;
@@ -115,6 +118,9 @@ export async function doctor(
     nodeVersion?: string;
     /** the `git --version` text to judge, for tests; this machine's git by default */
     gitVersion?: string | null;
+    /** puma-dev's link to the bridge, and the addresses a port listens on past this machine: for tests */
+    pumaDevLink?: string;
+    proxyListeners?: (port: number) => string[];
   } = {},
 ): Promise<boolean> {
   const port = Number(portOpt || cfg.port);
@@ -197,6 +203,21 @@ export async function doctor(
       'Bridge',
       `something else answers on port ${port} (HTTP ${health.status})`,
       'Pick another port: set "port" in config.json, restart the bridge, and change it in the extension options',
+    );
+  }
+
+  // the proxy in front of the bridge (puma-dev): the bridge refuses a client that is not this machine, but the proxy
+  // itself should not accept one either
+  if (existsSync(pumaDevLink)) {
+    const open = [80, 443].flatMap((proxyPort) =>
+      proxyListeners(proxyPort).map((host) => `${host}:${proxyPort}`),
+    );
+    add(
+      open.length ? 'INFO' : 'PASS',
+      'Proxy',
+      open.length
+        ? `puma-dev listens on all interfaces (${open.join(', ')}); the bridge refuses non-loopback clients`
+        : 'puma-dev listens on this machine only (or is not running)',
     );
   }
 

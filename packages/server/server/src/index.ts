@@ -5,7 +5,8 @@
  *
  * Guard rails:
  *   - binds 127.0.0.1 only, and answers only when the Host header is
- *     127.0.0.1:<port> or localhost:<port> (no DNS rebinding)
+ *     127.0.0.1:<port> or localhost:<port> (no DNS rebinding), and only to a client that is this machine: a
+ *     forwarding header (X-Forwarded-For, Forwarded, X-Real-IP) naming a non-loopback address is a 403 (./client-address.ts)
  *   - every /api call needs the token (Authorization: Bearer <token>), or for a local page's own story only,
  *     that story's page key (./page-key.ts), which can't reach other stories, bridge-wide routes or GitHub's
  *     API. Its one way out to GitHub is Create pull request's `git push` of the story's branch, which the page
@@ -40,6 +41,7 @@ import { SEEN_WRITE_MS } from '@once-upon-a-diff/terms/timing';
 import { HttpError, sameToken, readBody } from './request.ts';
 import { COOKIE_NAMES, cookieFor, cookiesOf } from './session-cookie.ts';
 import { assetFor } from './assets.ts';
+import { nonLoopbackClient } from './client-address.ts';
 import { parseBody } from './validate.ts';
 import { boardKeyMay } from '@once-upon-a-diff/contracts/routes';
 import { pageHeaders, localPage, boardPage } from './pages.ts';
@@ -419,6 +421,10 @@ export function createBridge({
       // the bridge's own address, or a name allowed in config.json (allowed_hosts) that a proxy forwards: exact names only
       if (host !== `127.0.0.1:${port}` && host !== `localhost:${port}` && !allowedHostOf(req)) {
         throw new HttpError(421, 'wrong host');
+      }
+      // this machine only: a proxy here forwards a LAN client with its address in a header (silent: nothing logged)
+      if (nonLoopbackClient(req)) {
+        throw new HttpError(403, 'this bridge answers this machine only');
       }
       const url = new URL(req.url as string, `http://127.0.0.1:${port}`);
       const pathname = url.pathname;
