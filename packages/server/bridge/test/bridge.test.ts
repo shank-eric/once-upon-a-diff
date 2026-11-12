@@ -15,7 +15,6 @@ import {
   type TestBridge,
 } from './helpers.ts';
 import type { AddressInfo } from 'node:net';
-import { REGION_SHEETS } from '@once-upon-a-diff/panel/shell/sheets';
 import { pathSha } from '@once-upon-a-diff/stories/diff';
 import { createLocalStory } from '@once-upon-a-diff/stories/local-story';
 import { StoryStore } from '@once-upon-a-diff/stories/store';
@@ -474,11 +473,6 @@ describe('local stories', () => {
       const icon = await bridge.call('GET', path);
       assert.equal(icon.status, 200, path);
       assert.equal(icon.headers.get('content-type'), 'image/png');
-    }
-    for (const sheet of ['css/panel.css', 'css/page.css', ...REGION_SHEETS]) {
-      const css = await bridge.call('GET', `/assets/panel/${sheet}`);
-      assert.equal(css.status, 200, sheet);
-      assert.match(css.headers.get('content-type') as string, /^text\/css/);
     }
   });
 

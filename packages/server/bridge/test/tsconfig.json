@@ -3,7 +3,7 @@
   "compilerOptions": {
     "allowJs": true,
     "checkJs": true,
-    "types": ["node", "@once-upon-a-diff/panel/types/globals"]
+    "types": ["node"]
   },
   "include": ["."],
   "exclude": ["browser"]

@@ -4,8 +4,7 @@ import path from 'node:path';
 import { tmp, startBridge, localRepo, writeJson } from './helpers.ts';
 import { createLocalStory } from '@once-upon-a-diff/stories/local-story';
 import { relOfPath } from '@once-upon-a-diff/server/index';
-import { draftView } from '@once-upon-a-diff/panel/drafts/drafts';
-import type { DraftFix, DraftsAnswer, FixNote, StoryData } from '@once-upon-a-diff/contracts/types';
+import type { DraftsAnswer, FixNote, StoryData } from '@once-upon-a-diff/contracts/types';
 
 test('Add to fix before push makes a local draft a note, once, and the draft says so', async () => {
   const { repo, base } = localRepo();
@@ -99,17 +98,7 @@ test('Add to fix before push makes a local draft a note, once, and the draft say
   }
 });
 
-test('a draft in fix before push shows as such, and a dismissed one stays dismissed', () => {
-  assert.equal(
-    draftView({ status: 'draft', dismissed: false, fix: { id: 'n1', done: false } as DraftFix })
-      .show,
-    'fix',
-  );
-  assert.equal(
-    draftView({ status: 'draft', dismissed: true, fix: { id: 'n1', done: false } as DraftFix })
-      .show,
-    'dismissed',
-  );
+test('a bare file name resolves to its path in the story, and an ambiguous one to nothing', () => {
   assert.equal(relOfPath('two.js', ['lib/two.js', 'one.txt']), 'lib/two.js');
   assert.equal(
     relOfPath('index.ts', ['a/index.ts', 'b/index.ts']),

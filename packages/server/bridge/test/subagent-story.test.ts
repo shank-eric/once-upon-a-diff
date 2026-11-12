@@ -39,9 +39,6 @@ import {
 } from '@once-upon-a-diff/state/records/listeners/binding';
 import { relayMessage } from '@once-upon-a-diff/core/features/listeners/relay';
 import { beat, listeningOf } from '@once-upon-a-diff/state/records/listeners/listeners';
-import { waitingText } from '@once-upon-a-diff/panel/ask/question-list';
-import { askWhoHtml, healthChecks } from '@once-upon-a-diff/panel/components/status-light';
-import type { Health } from '@once-upon-a-diff/panel/components/status-light';
 import type { Pulse, Question } from '@once-upon-a-diff/contracts/types';
 
 const STORY = 'acme-widgets-7';
@@ -621,113 +618,6 @@ describe('questions by voice', () => {
     assert.match(message, /\(step 1\)/);
     assert.doesNotMatch(message, /voice/);
     assert.match(message, /Reply in chat with one line only/);
-  });
-});
-
-describe('what the panel says', () => {
-  const status = {
-    state: 'working' as const,
-    by: 'ou-fix-cache',
-    since: null,
-    note: null,
-    note_at: null,
-  };
-
-  test('a relayed question reads as sent to the agent only once the agent has spoken', () => {
-    assert.deepEqual(
-      waitingText({
-        handed_to: 'ou-fix-cache',
-        status: { ...status, state: 'relaying', via: 'story-x' },
-      }),
-      {
-        state: 'queued',
-        text: 'Waiting for story-x to pass it to ou-fix-cache, which built this story',
-        note: null,
-      },
-    );
-    const stalled = waitingText(
-      { handed_to: 'ou-fix-cache', status: { ...status, state: 'stalled', via: 'story-x' } },
-      { quietAt: '4:32 PM' },
-    );
-    assert.match(
-      stalled.text,
-      /Nothing from ou-fix-cache since 4:32 PM, and story-x may not have passed it on/,
-    );
-    assert.equal(
-      waitingText({ handed_to: 'ou-fix-cache', status: { ...status, via: 'story-x' } }).text,
-      'Sent to ou-fix-cache, which built this story, through story-x',
-    );
-    assert.equal(
-      waitingText({ handed_to: 'ou-fix-cache', status }).text,
-      'ou-fix-cache is working on it',
-    );
-  });
-
-  test('the line under the Ask box names the agent, with or without a relay', () => {
-    const health = (extra: Partial<Health>): Health => ({
-      level: 'ok',
-      checks: [],
-      listening: true,
-      ...extra,
-    });
-    const relayed = String(
-      askWhoHtml(
-        health({
-          answering: { consumer: 'story-x', scope: 'story', agent: 'ou-fix-cache' },
-          agent: 'ou-fix-cache',
-        }),
-      ),
-    );
-    assert.match(
-      relayed,
-      /Questions go to <b>ou-fix-cache<\/b>, the agent that built this story, through <b>story-x<\/b>/,
-    );
-    // a repo wait in the owner session relays: the panel names the agent, not the repo listener, as who answers
-    const repoRelay = String(
-      askWhoHtml(
-        health({
-          answering: { consumer: 'repo-acme', scope: 'repo', agent: 'ou-fix-cache' },
-          agent: 'ou-fix-cache',
-        }),
-      ),
-    );
-    assert.match(repoRelay, /Questions go to <b>ou-fix-cache<\/b>.*through <b>repo-acme<\/b>/);
-    // not relayed yet: only the session that launched the agent can reach it, so no Start button and no copy button, only the line to run by hand as plain text
-    const waiting = String(
-      askWhoHtml(
-        health({
-          answering: { consumer: 'repo-acme', scope: 'repo' },
-          agent: 'ou-fix-cache',
-          prompt: '/once-upon-listen acme/widgets',
-          storyPrompt: { prompt: `/once-upon-listen --story ${STORY}` },
-        }),
-        true,
-      ),
-    );
-    assert.match(waiting, /ou-fix-cache<\/b> built this story/);
-    assert.match(waiting, /Only the Claude session that launched it can pass/);
-    assert.match(waiting, /Until it does, <b>repo-acme<\/b> answers/);
-    assert.doesNotMatch(waiting, /ou-startstory/);
-    assert.doesNotMatch(waiting, /Copy prompt|ou-copystory|<button/);
-    assert.match(
-      waiting,
-      new RegExp(
-        `To start that, run <code>/once-upon-listen --story ${STORY}</code> in the session that launched ou-fix-cache`,
-      ),
-    );
-    const plain = String(
-      askWhoHtml(health({ answering: { consumer: 'story-x', scope: 'story' } })),
-    );
-    assert.match(plain, /Answered by <b>story-x<\/b>, the session listening for this story/);
-    // the status light's own answer carries the agent through
-    assert.equal(
-      healthChecks({
-        bridge: { version: '1' },
-        story: { ok: true, id: STORY },
-        listening: { ok: true, agent: 'ou-fix-cache' },
-      }).agent,
-      'ou-fix-cache',
-    );
   });
 });
 

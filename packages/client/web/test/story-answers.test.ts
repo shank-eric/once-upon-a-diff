@@ -37,6 +37,12 @@ test('a card with unread answers says how many, offers the story, and opens it w
   assert.match(two.note!, /2 questions .* read them/);
 });
 
+test('the answer is still on the card in PR open: a chip and Open story', () => {
+  const bits = answerBits(card('pr_open', { unread_answers: 1 }));
+  assert.equal(bits.chip, '1 unread answer');
+  assert.ok(bits.openable);
+});
+
 test('Mark reviewed is for a local story in Ready that is not marked, or was rebuilt after it was', () => {
   const local = { kind: 'local' as const, url: null };
   assert.equal(answerBits(card('ready', { ...local })).markable, true);

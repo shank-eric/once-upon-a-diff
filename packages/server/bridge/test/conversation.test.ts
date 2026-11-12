@@ -19,7 +19,6 @@ import {
   listeningOf,
 } from '@once-upon-a-diff/state/records/listeners/listeners';
 import { storyIdOf } from '@once-upon-a-diff/cli/commands/inbox';
-import { askWhoHtml, type Health } from '@once-upon-a-diff/panel/components/status-light';
 import type { StatusMany } from './helpers.ts';
 import type { Pulse, Question, QuestionMarksAnswer } from '@once-upon-a-diff/contracts/types';
 
@@ -216,7 +215,7 @@ describe('one story, one session', () => {
     assert.throws(() => storyIdOf(home, '8', () => null), /owner\/name#8/);
   });
 
-  test('the panel says who answers, and copies the prompt for this story', () => {
+  test('the story listener prompt, and who answers a story: its own listener, else the repo’s', () => {
     const home = tmp('home');
     const story = listenPrompt({ story: STORY }, 'once-upon');
     assert.equal(story.prompt, `/once-upon-listen --story ${STORY}`);
@@ -245,40 +244,6 @@ describe('one story, one session', () => {
       'repo-acme-widgets',
       "another story's listener doesn't answer this one",
     );
-
-    // just what askWhoHtml reads of the status light's health
-    const result = {
-      level: 'ok' as const,
-      prompt: '/once-upon-listen acme/widgets',
-      storyPrompt: { prompt: `/once-upon-listen --story ${STORY}` },
-    };
-    const byRepo = String(
-      askWhoHtml(
-        {
-          ...result,
-          answering: { consumer: 'repo-acme-widgets', scope: 'repo' },
-        } as Health,
-        true,
-      ),
-    );
-    assert.match(byRepo, /Answered by <b>repo-acme-widgets<\/b> \(listening for the whole repo\)/);
-    assert.match(byRepo, /Start listening for this story/);
-    const byStory = String(
-      askWhoHtml(
-        {
-          ...result,
-          answering: { consumer: 'api-10', scope: 'story' },
-        } as Health,
-        true,
-      ),
-    );
-    assert.match(byStory, /Answered by <b>api-10<\/b>, the session listening for this story/);
-    assert.doesNotMatch(byStory, /Start listening/);
-    assert.match(
-      String(askWhoHtml({ ...result, answering: null } as Health, true)),
-      /Start listening for this story/,
-    );
-    assert.equal(String(askWhoHtml({ level: 'error' } as Health)), '');
   });
 });
 

@@ -1,7 +1,7 @@
 /*
- * The extension's content sheets keep to the theme tokens (the bridge's theme-sheets test holds the pages' and panel's): no sheet
- * but ui-kit's tokens.css names a Primer variable (--fgColor-*, --bgColor-*, --borderColor-*), and every --ou-<token> a sheet
- * reads is one tokens.css defines.
+ * The extension's content sheets keep to the theme tokens (the web, panel and ui-kit theme-sheets tests hold the pages', panel's
+ * and shared sheets): no sheet but ui-kit's tokens.css names a Primer variable (--fgColor-*, --bgColor-*, --borderColor-*), and
+ * every --ou-<token> a sheet reads is one tokens.css defines.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

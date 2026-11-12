@@ -1,7 +1,7 @@
 {
   "extends": "../tsconfig.json",
   "compilerOptions": {
-    "types": ["node", "chrome", "@once-upon-a-diff/panel/types/globals"]
+    "types": ["node", "chrome"]
   },
   "include": ["."],
   "exclude": []

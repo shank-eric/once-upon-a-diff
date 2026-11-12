@@ -290,3 +290,41 @@ test('a typed question comes back after a remount, per story, and is gone once s
   askDrafts.forget('story-1');
   assert.equal(askDrafts.take('story-1'), '');
 });
+
+test('a relayed question reads as sent to the agent only once the agent has spoken', () => {
+  const status = {
+    state: 'working' as const,
+    by: 'ou-fix-cache',
+    since: null,
+    note: null,
+    note_at: null,
+  };
+
+  assert.deepEqual(
+    waitingText({
+      handed_to: 'ou-fix-cache',
+      status: { ...status, state: 'relaying', via: 'story-x' },
+    }),
+    {
+      state: 'queued',
+      text: 'Waiting for story-x to pass it to ou-fix-cache, which built this story',
+      note: null,
+    },
+  );
+  const stalled = waitingText(
+    { handed_to: 'ou-fix-cache', status: { ...status, state: 'stalled', via: 'story-x' } },
+    { quietAt: '4:32 PM' },
+  );
+  assert.match(
+    stalled.text,
+    /Nothing from ou-fix-cache since 4:32 PM, and story-x may not have passed it on/,
+  );
+  assert.equal(
+    waitingText({ handed_to: 'ou-fix-cache', status: { ...status, via: 'story-x' } }).text,
+    'Sent to ou-fix-cache, which built this story, through story-x',
+  );
+  assert.equal(
+    waitingText({ handed_to: 'ou-fix-cache', status }).text,
+    'ou-fix-cache is working on it',
+  );
+});

@@ -6,7 +6,6 @@ import { fileURLToPath } from 'node:url';
 import { tmp, githubStory, startBridge, writeJson } from './helpers.ts';
 import { addToPendingReview } from '@once-upon-a-diff/state/records/github/pending-review';
 import { clearCache } from '@once-upon-a-diff/core/features/review/drafts';
-import { draftView, shownIn } from '@once-upon-a-diff/panel/drafts/drafts';
 import type { DraftsAnswer } from '@once-upon-a-diff/contracts/types';
 
 /** The fake gh's log: each call's arguments. */
@@ -292,58 +291,3 @@ test('when GitHub refuses, the error comes back and nothing is marked added', ()
       await bridge.close();
     }
   }));
-
-test('the panel shows an added draft until gh matches it on a page loaded after the add, or it turns up on the page', () => {
-  const addedAt = '2026-10-21T15:00:00.000Z';
-  const addedMillis = Date.parse(addedAt);
-  const added = { at: addedAt, url: 'u', started: false };
-  const before = { pageAt: addedMillis - 60000 };
-  const after = { pageAt: addedMillis + 60000 };
-  assert.deepEqual(draftView({ status: 'draft', dismissed: false, added }, before), {
-    show: 'added',
-    settle: false,
-  });
-  // gh already sees it, but this page was loaded before the add, so GitHub isn't showing it here
-  assert.deepEqual(
-    draftView({ status: 'pending', source: 'github', dismissed: false, added }, before),
-    { show: 'added', settle: false },
-  );
-  assert.deepEqual(
-    draftView({ status: 'pending', source: 'github', dismissed: false, added }, after),
-    { show: 'pending', settle: true },
-  );
-  assert.deepEqual(
-    draftView({ status: 'draft', dismissed: false, added }, after),
-    { show: 'added', settle: false },
-    "reloaded, but gh hasn't caught up yet",
-  );
-  assert.deepEqual(
-    draftView({ status: 'draft', dismissed: false, added }, { ...before, onPage: true }),
-    { show: 'pending', settle: false },
-  );
-  assert.deepEqual(
-    draftView({ status: 'posted', source: 'github', dismissed: false, added }, before),
-    { show: 'posted', settle: true },
-    'submitted since',
-  );
-  // without an add, the states are what they were
-  assert.equal(
-    draftView({ status: 'pending', source: 'github', dismissed: false, added: null }, before).show,
-    'pending',
-  );
-  assert.equal(draftView({ status: 'draft', dismissed: true, added: null }).show, 'dismissed');
-  assert.equal(draftView(undefined).show, 'draft');
-});
-
-test("finding the added comment in the page's rendered comments", () => {
-  const body =
-    'Could you confirm what happens with an `empty` list here? See [the docs](https://example.com/x).';
-  assert.ok(
-    shownIn(
-      ['Octocat Pending', 'Could you confirm what happens with an empty list here? See the docs.'],
-      body,
-    ),
-  );
-  assert.ok(!shownIn(['Nice tidy-up of the old code.'], body));
-  assert.ok(!shownIn(['ok'], 'ok'), 'too short to tell');
-});

@@ -37,7 +37,6 @@ import { Inbox } from '@once-upon-a-diff/state/queues/requests/inbox';
 import { markQuestions } from '@once-upon-a-diff/state/queues/requests/conversation';
 import { Board, liveSessions, noPrWatcher, type PrWatcher } from '@once-upon-a-diff/board/board';
 import { columnOf, isBackToYou } from '@once-upon-a-diff/board/columns';
-import { answerBits } from '@once-upon-a-diff/web/public/board/columns/story-answers.ts';
 import {
   BacklogStore,
   assignBranch,
@@ -461,13 +460,6 @@ test("someone else's PR with a built story stays in PR open despite an unread an
   assert.equal(columnOf({ ...none, pr: { ...theirs, mine: true }, story }), 'back');
   // a stub PR (GitHub has not said who wrote it yet): author null, mine false, treated as yours
   assert.equal(columnOf({ ...none, pr: { ...theirs, author: null }, story }), 'back', 'stub');
-  // the answer is still on the card in PR open: a chip and Open story
-  const bits = answerBits({
-    column: 'pr_open',
-    story: { unread_answers: 1 } as Parameters<typeof answerBits>[0]['story'],
-  });
-  assert.equal(bits.chip, '1 unread answer');
-  assert.ok(bits.openable);
 });
 
 test('columns follow the work to merge: waiting and working first, then merged, ready, back to you, PR open', () => {
@@ -2578,57 +2570,6 @@ test('the bridge answers a proxy’s allowed host names, keeps the key in an Htt
     400,
     'a header key needs no Origin',
   );
-});
-
-test('the page drops its key only once a call by cookie alone has worked', async () => {
-  const saved = {
-    fetch: globalThis.fetch,
-    location: globalThis.location,
-    history: globalThis.history,
-  };
-  const scenario = async (name: string, session: unknown, probeStatus: number) => {
-    const replaced: string[] = [];
-    const calls: string[] = [];
-    Object.assign(globalThis, {
-      location: { hash: '#key=page.abc&repo=acme%2Fwidgets', pathname: '/board/', search: '' },
-      history: {
-        replaceState: (_state: unknown, _title: string, url: string) => replaced.push(url),
-      },
-      fetch: async (url: string) => {
-        calls.push(url);
-        return url === '/auth/session'
-          ? Response.json(session)
-          : new Response('{}', { status: probeStatus });
-      },
-    });
-    // a fresh copy of the module each time, since it keeps whether the cookie is in use
-    const auth = await import(
-      `${import.meta.resolve('@once-upon-a-diff/web/public/local/auth.ts')}?${name}` as string
-    );
-    await auth.startAuth('page.abc', '/api/board');
-    return { header: auth.authHeader('page.abc'), replaced, calls };
-  };
-  try {
-    const worked = await scenario('worked', { cookie: true }, 200);
-    assert.deepEqual(worked.header, {}, 'the cookie carries it');
-    assert.deepEqual(worked.replaced, ['/board/#repo=acme%2Fwidgets']);
-    assert.deepEqual(worked.calls, ['/auth/session', '/api/board']);
-
-    const refused = await scenario('refused', { cookie: true }, 401);
-    assert.deepEqual(
-      refused.header,
-      { Authorization: 'Bearer page.abc' },
-      'the browser kept no cookie',
-    );
-    assert.deepEqual(refused.replaced, [], 'so the key stays in the address bar');
-
-    const none = await scenario('none', { cookie: false }, 200);
-    assert.deepEqual(none.header, { Authorization: 'Bearer page.abc' });
-    assert.deepEqual(none.replaced, []);
-    assert.deepEqual(none.calls, ['/auth/session'], 'no cookie, nothing to check');
-  } finally {
-    Object.assign(globalThis, saved);
-  }
 });
 
 test('allowed_hosts in config.json decides the names, and only those', async () => {

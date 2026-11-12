@@ -136,6 +136,20 @@ test('every stylesheet under the web package is linked by a page (a region sheet
   }
 });
 
+test("the bridge serves every stylesheet of the panel's src/, base and each region's own", () => {
+  const panelSrc = path.dirname(
+    path.dirname(fileURLToPath(import.meta.resolve('@once-upon-a-diff/panel/shell/overlay'))),
+  );
+  const sheets = readdirSync(panelSrc, { recursive: true, encoding: 'utf8' }).filter((name) =>
+    name.endsWith('.css'),
+  );
+  assert.ok(sheets.includes('css/panel.css') && sheets.includes('css/page.css'));
+  for (const sheet of sheets) {
+    const served = assetFor(`/assets/panel/${sheet}`);
+    assert.ok(served && /text\/css/.test(served[1]), `${sheet} is served as CSS`);
+  }
+});
+
 test('the old /assets/protocol/ URLs are gone', () => {
   for (const old of [
     '/assets/protocol/routes.ts',
