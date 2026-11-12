@@ -1,5 +1,7 @@
 # ADR-07: The agent board as a bridge page
 
+> Paths in this ADR are as of its date. The code has moved since; `docs/flows.md` and ADR-26 cite where it lives now.
+
 Descriptive, of the code on main at 7fa8447 (11/4). The review inbox page this ADR first covered was removed in 1eb023f, and its jobs moved to the board. Since 11/5: the board's services are `orchestration/board/` in `packages/core`, the top tier (ADR-21), and the paths below say so; the backlog is `queues/backlog/`, the story lists `features/review/`, and the registry `records/agents/` (it was `services/ledger/`). The ledger fallback named below is gone (ledger trim, 7a9512f).
 
 ## Context

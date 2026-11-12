@@ -1,5 +1,7 @@
 # ADR-06: Claude sessions and listeners as the working side
 
+> Paths in this ADR are as of its date. The code has moved since; `docs/flows.md` and ADR-26 cite where it lives now.
+
 Descriptive, of the code on main at 7fa8447 (11/4). Since 11/5: the queue code is in `packages/core` (`queues/requests/` was `services/inbox/`, `records/listeners/` was `services/listeners/`, ADR-20), and `wait` is core's listening service (11/5, `packages/core/src/features/listeners/`: `wait.ts` is the loop, `service.ts` the one way in for the CLI, the HTTP app and the board, enforced by the `listening-through-service` rule; the CLI's `packages/cli/src/commands/inbox.ts` only parses flags and prints). The heartbeat, binding and history files stay in `records/listeners/`, because the request queues read heartbeats to route a claim. The decision is unchanged.
 
 ## Context

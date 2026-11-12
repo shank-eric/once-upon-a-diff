@@ -1,5 +1,7 @@
 # ADR-19: A repo's parts map, read from its checkout and never stored
 
+> Paths in this ADR are as of its date. The code has moved since; `docs/flows.md` and ADR-26 cite where it lives now.
+
 Descriptive, of the code on main at 7fa8447 (11/4). Built in 88b07b9. No earlier ADR covered it. Since 11/5: the parts reader is `parts.ts` in `packages/stories` (it was `records/stories/` in `packages/core`, ADR-24), the strip is in `packages/ui-kit` (it was `ui`), and the parts file names the new packages (the drift test below keeps it true).
 
 ## Context

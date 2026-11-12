@@ -1,5 +1,7 @@
 # ADR-10: Polling everywhere, with no push channel
 
+> Paths in this ADR are as of its date. The code has moved since; `docs/flows.md` and ADR-26 cite where it lives now.
+
 Descriptive, of the code on main at 0741c6c (10/29). Since 11/4 and 11/5 the timers in the table are `createPoll`s from `packages/bridge-client/src/poll.ts` (the panel's pulse and still-open ping, the extension's tag poll, the local page's version check and keepalive), and the board page's is `usePoll`, its Preact hook (`packages/bridge-client/src/use-poll.ts`). A load that hasn't settled after 60 s counts as failed and is aborted, so a hung route can't pile up open requests. The intervals and the no-push decision below are unchanged.
 
 ## Context

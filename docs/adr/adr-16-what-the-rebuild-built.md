@@ -1,5 +1,7 @@
 # ADR-16: What the rebuild built under ADR-14 and ADR-15, and what it left
 
+> Paths in this ADR are as of its date. The code has moved since; `docs/flows.md` and ADR-26 cite where it lives now.
+
 Decided 10/29. Descriptive, of the code on main at 0741c6c. ADR-14 and ADR-15 chose the direction. This records what was built from them, where it differs from the plan, and what was deferred on purpose. It is a record of 10/29, so it keeps that day's layout. Since 11/5 the names are: `protocol` is `contracts`, `api-client` is `bridge-client`, `ui` is `ui-kit`, `host-github` is `github-page`, and the bridge's four layers are packages ([ADR-20](adr-20-core-server-cli-split.md), tiers in [ADR-21](adr-21-core-tiers-and-their-rules.md)). Each place below says so where it matters.
 
 ## Context

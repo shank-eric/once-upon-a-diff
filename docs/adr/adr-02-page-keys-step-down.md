@@ -1,5 +1,7 @@
 # ADR-02: Page keys and the step-down rule
 
+> Paths in this ADR are as of its date. The code has moved since; `docs/flows.md` and ADR-26 cite where it lives now.
+
 Descriptive, of the code on main at 0741c6c (10/29). Since 11/5: the key code is `records/page-links/page-key.ts` in `packages/core` (the folder was `services/pages`, ADR-20), and the route table is in `packages/contracts` (it was `packages/protocol`, ADR-15). The rules are unchanged.
 
 ## Context

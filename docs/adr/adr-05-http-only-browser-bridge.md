@@ -1,5 +1,7 @@
 # ADR-05: HTTP only between browser and bridge, with the CLI using the stores in-process
 
+> Paths in this ADR are as of its date. The code has moved since; `docs/flows.md` and ADR-26 cite where it lives now.
+
 Descriptive, of the code on main at 0741c6c (10/29). Since 11/5: "the stores the bridge uses" are in `packages/core`, which the CLI imports by package name, never through the HTTP app, and the lint (ADR-22) keeps `cli` and `server` from importing each other (ADR-20). The rule here, HTTP only between browser and bridge, is unchanged.
 
 ## Context

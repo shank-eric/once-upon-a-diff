@@ -1,5 +1,7 @@
 # ADR-22: dependency-cruiser is the one home for layer rules, and ESLint keeps style and side effects
 
+> Paths in this ADR are as of its date. The code has moved since; `docs/flows.md` and ADR-26 cite where it lives now.
+
 Decided 11/4, built in 8553da5, with the cycle rule made an error in a0036f5 (11/5). Descriptive, of the code on main at 168b6b1. It supersedes the "Enforced by lint" bullet of [ADR-15](adr-15-layered-packages-and-protocol.md) and the boundary-lint bullet of [ADR-16](adr-16-what-the-rebuild-built.md), which made `eslint.boundaries.mjs` the source of the layer rules. [ADR-17](adr-17-host-github-and-the-end-of-shared.md) names the same file.
 
 ## Context

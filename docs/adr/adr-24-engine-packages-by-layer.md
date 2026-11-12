@@ -1,5 +1,7 @@
 # ADR-24: The engine splits into seven packages by layer: adapters, foundation, stories, usage, state, core and board
 
+> Paths in this ADR are as of its date. The code has moved since; `docs/flows.md` and ADR-26 cite where it lives now.
+
 Decided 11/5 by Eric. Built in the commit that adds this file (11/5), and descriptive of the code on main at that commit. It supersedes parts of [ADR-20](adr-20-core-server-cli-split.md) (what `packages/core` holds and what imports what) and of [ADR-21](adr-21-core-tiers-and-their-rules.md) (the five tiers as folders of one package). What it leaves alone is below, under Supersedes. The lint that holds all of it is [ADR-22](adr-22-dependency-cruiser-one-home-for-layer-rules.md).
 
 ## Context

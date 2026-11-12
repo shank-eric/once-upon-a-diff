@@ -1,5 +1,7 @@
 # ADR-28: Packages sit in five folders, and `domain` is `terms`
 
+> Paths in this ADR are as of its date. The code has moved since; `docs/flows.md` and ADR-26 cite where it lives now.
+
 Decided 11/6 (card bl_mw58benh117d5a, plan and plan check in `notes/` for `package-regroup`), built in the commit that adds this file, and descriptive of the code on main at that commit. It changes where every package lives and what two of them are called. It changes no behavior: the move is `git mv` plus one rewrite of the path strings.
 
 ## Context

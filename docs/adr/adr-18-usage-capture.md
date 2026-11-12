@@ -1,5 +1,7 @@
 # ADR-18: Usage capture, counting what the tool actually uses
 
+> Paths in this ADR are as of its date. The code has moved since; `docs/flows.md` and ADR-26 cite where it lives now.
+
 Descriptive, of the code on main at 7fa8447 (11/4). Built in 9bf7b6f. No earlier ADR covered it. Since 11/5: the capture is `packages/usage` (it was `records/usage/` in `packages/core`, and `services/usage/` before, ADR-20 and ADR-24), the count helper is in `bridge-client` (it was `api-client`) and the route table in `contracts` (it was `protocol`). The report keys coverage by file path, so the split started each moved file's history again (ADR-20).
 
 ## Context

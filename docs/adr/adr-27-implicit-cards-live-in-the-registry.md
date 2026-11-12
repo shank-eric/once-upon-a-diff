@@ -1,5 +1,7 @@
 # ADR-27: Implicit cards live in the registry: work that did not start in the backlog is its own card, with no row in backlog.jsonl
 
+> Paths in this ADR are as of its date. The code has moved since; `docs/flows.md` and ADR-26 cite where it lives now.
+
 Decided 11/6 by Eric (the plan's questions 1, 2 and 5, notes/research `2026-11-06-ou-implicit-cards-plan.md`), built in the commit that adds this file, and descriptive of the code on main at that commit. It finishes the implicit-card half of the follow-up (a) in [ADR-25](adr-25-the-card-owns-its-runs.md) (Not built here); the editors half is built there.
 
 ## Context

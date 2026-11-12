@@ -1,5 +1,7 @@
 # ADR-04: JSON files as the store
 
+> Paths in this ADR are as of its date. The code has moved since; `docs/flows.md` and ADR-26 cite where it lives now.
+
 Descriptive, of the code on main at 7fa8447 (11/4). Since 11/5: the services are in `packages/core` under tiers (ADR-20, ADR-21), so the request queue is `queues/requests/` (it was `services/inbox/`) and the adapters are `packages/adapters/src/`. The stores and their rules are unchanged.
 
 See [ADR-26](adr-26-the-data-model.md) for every store, its key, its writers and the rules, as of 11/6.

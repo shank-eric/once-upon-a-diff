@@ -1,5 +1,7 @@
 # ADR-25: The card owns its runs: a run names its card at start, and the board reads a card's column from its runs
 
+> Paths in this ADR are as of its date. The code has moved since; `docs/flows.md` and ADR-26 cite where it lives now.
+
 Decided 11/5 by Eric (option A of the draft `2026-11-05-adr-card-as-key`, with the D3 store plan). Built in the commit that adds this file (11/6), and descriptive of the code on main at that commit. It supersedes, in part, [ADR-04](adr-04-json-files-as-store.md) on what `agents.jsonl` and `backlog.jsonl` are joined by, and the claim-to-run rules in the header of `state/src/queues/backlog/claims.ts`. The flip (11/6) is built too: the typed flags beside a card, an unclaimed author and a cardless author or fixer are refused, and the guessing paths are deleted (see Reading old rows and Write checks). What it leaves for later cards is under Not built here.
 
 ## Context

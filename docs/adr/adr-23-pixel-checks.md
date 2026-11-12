@@ -1,5 +1,7 @@
 # ADR-23: Pixel checks in the browser test, with strict thresholds and baselines in git
 
+> Paths in this ADR are as of its date. The code has moved since; `docs/flows.md` and ADR-26 cite where it lives now.
+
 Decided 11/5, built in bbe010f, with the textarea rule added in d21183d. Descriptive, of the code on main at 168b6b1. No earlier ADR covered it. It is the CSS side of the browser test that [ADR-12](adr-12-one-panel-two-hosts.md) mentions (which reads public PRs while logged out).
 
 ## Context

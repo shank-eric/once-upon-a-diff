@@ -1,5 +1,7 @@
 # ADR-09: GitHub through `gh`, read-mostly, never waited on
 
+> Paths in this ADR are as of its date. The code has moved since; `docs/flows.md` and ADR-26 cite where it lives now.
+
 Descriptive, of the code on main at 0741c6c (10/29). Since 11/5: the GitHub code is in `packages/core`. What `review/` held is split by tier: the GitHub facts (`github-checks.ts`, `pending-review.ts`) are `records/github/`, and the features that use them (`drafts.ts`, `freshness.ts`, the watcher) are `features/review/` (ADR-21). `foundation/gh.ts` is the old `config/gh.ts`. The decision is unchanged.
 
 ## Context

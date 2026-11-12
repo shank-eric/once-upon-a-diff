@@ -1,5 +1,7 @@
 # ADR-11: The board's reads and writes beyond the bridge
 
+> Paths in this ADR are as of its date. The code has moved since; `docs/flows.md` and ADR-26 cite where it lives now.
+
 Descriptive, of the code on main at 0741c6c (10/29). Since 11/5: the board's code is `packages/board/src/`, and `voice.ts` (once `services/voice/`) is a file in it. The agent source changed on 11/3 and 11/4 as the bullet below says, and the ledger trim (7a9512f) removed the last fallback. It's split from ADR-07 because it's where Once Upon a Diff depends on things it doesn't own, and, since the board gained buttons, where it changes them.
 
 ## Context

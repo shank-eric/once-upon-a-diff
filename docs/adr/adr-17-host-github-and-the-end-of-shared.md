@@ -1,5 +1,7 @@
 # ADR-17: A host-github package, and the end of `shared`
 
+> Paths in this ADR are as of its date. The code has moved since; `docs/flows.md` and ADR-26 cite where it lives now.
+
 Decided 11/3. Follows ADR-15 and ADR-16, which left `packages/shared` as the place for everything the apps, the panel and the bridge had in common and listed "domain helpers" and `ui` as deferred.
 
 Since 11/5, `packages/host-github` is `packages/github-page` (3a849e9), named for what it does: it reads GitHub's diff page and routes its URLs. `packages/protocol` is `packages/contracts` and its `domain/` folder has been the `packages/domain` package since 11/4, so the `protocol/src/domain/` below is `packages/domain/src/`. `ui` is `ui-kit` and `eslint.boundaries.mjs` is gone ([ADR-22](adr-22-dependency-cruiser-one-home-for-layer-rules.md)). **Superseded in part:** the domain became a package on 11/4, which this ADR's options table rejects (see [ADR-15](adr-15-layered-packages-and-protocol.md)). The text below keeps the names of 11/3, with the new one beside the first use.

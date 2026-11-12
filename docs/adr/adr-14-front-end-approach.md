@@ -1,5 +1,7 @@
 # ADR-14: Front-end approach: Preact and htm, vendored, one region at a time
 
+> Paths in this ADR are as of its date. The code has moved since; `docs/flows.md` and ADR-26 cite where it lives now.
+
 Decided 10/29. Built for the board page, as of main at 0741c6c. At that point the story panel, the local page and the extension's tags still drew with `html` and `setHtml`; the updates below say when each moved. What was done and what was left is in ADR-16.
 
 Update 11/3: the panel's frame, body, file list and viewed, change and working marks draw with Preact (the first of two branches). The panel names the vendored file as the pages do, `/assets/preact.mjs`: the bridge serves it, and the extension's Vite config aliases it to `packages/web/public/vendor/preact.mjs`, so both run the same bytes. Ask, drafts, fixes, rebuild and freshness still write strings into slots the body leaves, and the story's markdown stays a string renderer (`parse-markup.ts` turns its output into nodes).

@@ -1,5 +1,7 @@
 # ADR-12: One panel on GitHub's page and on a page that copies its DOM
 
+> Paths in this ADR are as of its date. The code has moved since; `docs/flows.md` and ADR-26 cite where it lives now.
+
 Descriptive, of the code on main at 0741c6c (10/29). It was first drafted on 10/27 against the panel's old home in `shared`. Since 11/5: the diff-page reader is the `packages/github-page` package (ADR-17 named it `host-github`; it was renamed on 11/5), the panel's size below is of 10/29, and the shared helpers are `packages/ui-kit` and `packages/domain`.
 
 ## Context

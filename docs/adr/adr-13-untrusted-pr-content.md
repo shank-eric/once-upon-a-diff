@@ -1,5 +1,7 @@
 # ADR-13: PR content is data, and the guard is skill rules, not a sandbox
 
+> Paths in this ADR are as of its date. The code has moved since; `docs/flows.md` and ADR-26 cite where it lives now.
+
 Descriptive draft, 10/27, of the code on `stack/5-board-checks` (8710395).
 
 ## Context
