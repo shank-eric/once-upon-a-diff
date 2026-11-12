@@ -5,6 +5,7 @@ build/
 .yarn/
 yarn.lock
 packages/client/web/public/vendor/
+packages/client-libs/ui-kit/vendor/
 *.md
 *.json
 *.css

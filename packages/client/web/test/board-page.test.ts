@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { document, root, saved, tick, fire, window } from './dom-env.ts';
-import { render } from '../public/vendor/preact.mjs';
+import { render } from '@once-upon-a-diff/ui-kit/vendor/preact.mjs';
 import { BACKLOG_NOTE_MAX } from '@once-upon-a-diff/terms/text';
 import type {
   BoardAgent,

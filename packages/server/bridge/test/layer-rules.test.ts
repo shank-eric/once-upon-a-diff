@@ -483,7 +483,7 @@ const PROBES: Probe[] = [
   // --- the vendored Preact is named by its URL, and the page URLs stay out of the shared code ---
   ...['panel/src', 'ui-kit/src', 'bridge-client/src', 'extension/src'].map((dir): Probe => [
     `${dir}/to-preact-path.ts`,
-    'web/public/vendor/preact.mjs',
+    'ui-kit/vendor/preact.mjs',
     'preact-by-its-url-only',
   ]),
   ...['panel/src', 'ui-kit/src', 'extension/src'].map((dir): Probe => [
@@ -495,11 +495,7 @@ const PROBES: Probe[] = [
   ['bridge-client/src/to-preact-url.ts', spec('/assets/preact.mjs'), 'no-page-urls-at-all'],
   ['bridge-client/src/to-page-url.ts', spec('/assets/terms/leaf.ts'), 'no-page-urls-at-all'],
   ['github-page/src/to-page-url.ts', spec('/assets/terms/leaf.ts'), 'no-page-urls-at-all'],
-  [
-    'github-page/src/to-preact-url.ts',
-    spec('/assets/preact.mjs'),
-    ['no-page-urls-at-all', 'github-page-below-apps', PAGES_APP],
-  ],
+  ['github-page/src/to-preact-url.ts', spec('/assets/preact.mjs'), 'no-page-urls-at-all'],
   [
     'panel/src/to-page-url.ts',
     spec('/assets/terms/leaf.ts'),
@@ -547,9 +543,7 @@ const groupRules = (file: string, target: Target): string[] => {
     ...(SERVER_SIDE.includes(fromGroup) && CLIENT_SIDE.includes(toGroup)
       ? ['server-side-not-client-side']
       : []),
-    ...(fromGroup.endsWith('-libs') &&
-    ['client', 'server'].includes(toGroup) &&
-    target !== 'web/public/vendor/preact.mjs'
+    ...(fromGroup.endsWith('-libs') && ['client', 'server'].includes(toGroup)
       ? ['libs-not-apps']
       : []),
   ];
@@ -593,7 +587,7 @@ test('each rule in the dependency-cruiser config fires on its probe, and on noth
   for (const leaf of new Set([
     ...leaves,
     ...Object.values(PACKAGES).map((folder) => `${folder}/leaf.ts`),
-    'web/public/vendor/preact.mjs',
+    'ui-kit/vendor/preact.mjs',
   ])) {
     if (!probeFiles.has(leaf)) {
       writeSource(path.join(packages, real(leaf)), 'export const leaf = 1;\n');

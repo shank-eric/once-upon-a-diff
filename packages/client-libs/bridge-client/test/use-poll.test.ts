@@ -1,9 +1,9 @@
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { document, root, window } from './preact-env.ts';
-import { html, render } from '../../../client/web/public/vendor/preact.mjs';
 
 // after the DOM and the resolver are in place (a static import would be resolved before them)
+const { html, render } = await import('/assets/preact.mjs');
 const { usePoll } = await import('../src/use-poll.ts');
 
 // the test kit's tick waits on a real setTimeout, which is faked here

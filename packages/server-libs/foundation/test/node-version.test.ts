@@ -59,7 +59,7 @@ test('every package script that runs TypeScript with node checks the version fir
       }
       assert.match(
         script,
-        /^node (\.\.\/(\.\.\/server-libs\/)?foundation\/)?(src\/)?node-version\.mjs && /,
+        /^(node (\.\.\/(\.\.\/server-libs\/)?foundation\/)?(src\/)?node-version\.mjs|yarn workspace @once-upon-a-diff\/foundation run node-check) && /,
         `${pkg} ${name} checks the Node version before it runs TypeScript`,
       );
     }

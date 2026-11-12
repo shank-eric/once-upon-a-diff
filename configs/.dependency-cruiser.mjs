@@ -344,11 +344,11 @@ export default {
     ),
     rule(
       'bridge-client-below-panel-and-pages',
-      'the bridge-client imports the contracts package and the terms package and nothing else of this repo',
+      'the bridge-client imports the contracts package, the terms package and ui-kit’s vendored Preact (by its URL, in use-poll.ts) and nothing else of this repo',
       { path: BRIDGE_CLIENT },
       {
         path: `${BRIDGE}|${WEB}|${EXTENSION}|${PANEL}|${GITHUB_PAGE}|${UI_PKG}|${TEST_KIT}`,
-        pathNot: '^packages/client/web/public/vendor/preact\\.mjs$',
+        pathNot: '^packages/client-libs/ui-kit/vendor/preact\\.mjs$',
       },
     ),
     rule(
@@ -357,7 +357,6 @@ export default {
       { path: UI_PKG },
       {
         path: `${BRIDGE}|${WEB}|${EXTENSION}|${PANEL}|${GITHUB_PAGE}|${BRIDGE_CLIENT}|${TEST_KIT}`,
-        pathNot: '^packages/client/web/public/vendor/preact\\.mjs$',
       },
     ),
     rule(
@@ -393,7 +392,6 @@ export default {
       { path: PANEL },
       {
         path: `${GITHUB_PAGE}|${WEB}|${EXTENSION}|${BRIDGE}|${TEST_KIT}`,
-        pathNot: '^packages/client/web/public/vendor/preact\\.mjs$',
       },
     ),
     rule(
@@ -426,10 +424,10 @@ export default {
     ),
     rule(
       'preact-by-its-url-only',
-      'the vendored Preact is named /assets/preact.mjs by the panel, ui-kit, the bridge-client hook and the extension’s components, so a page has one Preact: not by a relative path or a package name',
-      { path: `${PANEL}|${UI_PKG}|${BRIDGE_CLIENT}|${EXTENSION}` },
+      'the vendored Preact is named /assets/preact.mjs by the panel, ui-kit, github-page, the bridge-client hook and the extension’s components, so a page has one Preact: not by a relative path or a package name',
+      { path: `${PANEL}|${UI_PKG}|${GITHUB_PAGE}|${BRIDGE_CLIENT}|${EXTENSION}` },
       {
-        path: '^packages/client/web/public/vendor/preact\\.mjs$',
+        path: '^packages/client-libs/ui-kit/vendor/preact\\.mjs$',
         dependencyTypesNot: ['aliased-tsconfig-paths'],
       },
     ),
@@ -447,9 +445,9 @@ export default {
     ),
     rule(
       'extension-not-the-server',
-      'the extension meets the server over HTTP, not by import (the vendored Preact, which its bundle names by URL like the panel does, is the one file of the pages it takes)',
+      'the extension meets the server over HTTP, not by import',
       { path: EXTENSION },
-      { path: `${BRIDGE}|${WEB}`, pathNot: '^packages/client/web/public/vendor/preact\\.mjs$' },
+      { path: `${BRIDGE}|${WEB}` },
     ),
     // the /assets/ spelling: the browser imports by URL, the extension's bundle and the packages by name
     rule(
@@ -458,7 +456,7 @@ export default {
       { path: `${PANEL}|${UI_PKG}|^packages/client-libs/bridge-client/src/use-poll\\.ts$` },
       {
         dependencyTypes: ['aliased-tsconfig-paths'],
-        pathNot: '^packages/client/web/public/vendor/preact\\.mjs$',
+        pathNot: '^packages/client-libs/ui-kit/vendor/preact\\.mjs$',
       },
     ),
     rule(
@@ -500,11 +498,10 @@ export default {
     ),
     rule(
       'libs-not-apps',
-      'a libs folder sits under its apps: client-libs imports nothing in client (but the vendored Preact the pages serve) and server-libs nothing in server',
+      'a libs folder sits under its apps: client-libs imports nothing in client and server-libs nothing in server',
       { path: '^packages/(client|server)-libs/' },
       {
         path: ['^packages/client/', '^packages/server/'],
-        pathNot: '^packages/client/web/public/vendor/preact\\.mjs$',
       },
     ),
     rule(

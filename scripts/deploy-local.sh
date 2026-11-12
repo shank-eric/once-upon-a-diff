@@ -171,7 +171,9 @@ bridge_dir() {
 
 # The vendored files' folder in MAIN, by the same rule.
 vendor_dir() {
-  if [ -d "$MAIN/packages/client/web/public/vendor" ]; then
+  if [ -d "$MAIN/packages/client-libs/ui-kit/vendor" ]; then
+    echo "$MAIN/packages/client-libs/ui-kit/vendor"
+  elif [ -d "$MAIN/packages/client/web/public/vendor" ]; then
     echo "$MAIN/packages/client/web/public/vendor"
   else
     echo "$MAIN/packages/web/public/vendor"
@@ -456,12 +458,12 @@ if [ "$REUSED" = 0 ]; then
   quiet "test" bash -c "cd '$WT' && yarn test"
   quiet "build" bash -c "cd '$WT' && yarn build"
   VENDOR_N=0
-  for f in "$WT"/packages/client/web/public/vendor/*.sha256; do
+  for f in "$WT"/packages/client-libs/ui-kit/vendor/*.sha256 "$WT"/packages/client/web/public/vendor/*.sha256; do
     [ -e "$f" ] || continue
     quiet "sha256 $(basename "$f")" bash -c "cd '$(dirname "$f")' && shasum -a 256 -c '$(basename "$f")'"
     VENDOR_N=$((VENDOR_N + 1))
   done
-  [ "$VENDOR_N" -gt 0 ] || die "no vendor .sha256 files found in $WT/packages/client/web/public/vendor, nothing was checked"
+  [ "$VENDOR_N" -gt 0 ] || die "no vendor .sha256 files found in $WT/packages/client-libs/ui-kit/vendor, nothing was checked"
   say "vendor checksums verified: $VENDOR_N"
   printf '%s\n%s\n' "$TIP" "$KEY" >"$(stamp_of)"
 fi

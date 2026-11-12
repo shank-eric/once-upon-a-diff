@@ -7,6 +7,10 @@
     "packages/client/extension": {
       "entry": ["src/entrypoints/**/*.ts", "scripts/*.ts"],
     },
+    "packages/client-libs/ui-kit": {
+      "entry": ["scripts/*.ts"],
+      "ignore": ["vendor/**"],
+    },
     "packages/client/web": {
       "entry": ["public/local/diff/{split,narrow,syntax}.ts", "scripts/*.ts"],
       "ignore": ["public/vendor/**"],

@@ -22,7 +22,7 @@ registerHooks({
   resolve(specifier, context, nextResolve) {
     if (specifier === '/assets/preact.mjs') {
       return {
-        url: pathToFileURL(path.join(PUBLIC, 'vendor/preact.mjs')).href,
+        url: import.meta.resolve('@once-upon-a-diff/ui-kit/vendor/preact.mjs'),
         shortCircuit: true,
       };
     }

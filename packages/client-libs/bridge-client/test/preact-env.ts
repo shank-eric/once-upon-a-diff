@@ -7,9 +7,7 @@ import { registerHooks } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { installDom } from '@once-upon-a-diff/test-kit/dom';
 
-const PREACT = fileURLToPath(
-  new URL('../../../client/web/public/vendor/preact.mjs', import.meta.url),
-);
+const PREACT = fileURLToPath(import.meta.resolve('@once-upon-a-diff/ui-kit/vendor/preact.mjs'));
 
 registerHooks({
   resolve(specifier, context, nextResolve) {

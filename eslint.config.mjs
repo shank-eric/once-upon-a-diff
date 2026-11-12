@@ -33,6 +33,7 @@ export default defineConfig(
     '**/.wxt/',
     '.yarn/',
     'packages/client/web/public/vendor/',
+    'packages/client-libs/ui-kit/vendor/',
   ]),
   eslint.configs.recommended,
   importPlugin.flatConfigs.recommended,

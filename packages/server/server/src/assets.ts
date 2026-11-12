@@ -71,7 +71,9 @@ const ASSETS: Record<string, string> = {
   // the base both pages link (the reset, the buttons, the top bar): shared by the board and the local page, so it is neither's folder
   '/assets/page.css': path.join(PUBLIC, 'page.css'),
   '/assets/highlight.mjs': path.join(PUBLIC, 'vendor/highlight.mjs'),
-  '/assets/preact.mjs': path.join(PUBLIC, 'vendor/preact.mjs'),
+  '/assets/preact.mjs': fileURLToPath(
+    import.meta.resolve('@once-upon-a-diff/ui-kit/vendor/preact.mjs'),
+  ),
   // the extension's icon (a blue tile that reads on light and dark tabs); /favicon.ico is what a browser asks for with no <link>
   '/assets/icon.png': path.join(PUBLIC, 'icon.png'),
   '/favicon.ico': path.join(PUBLIC, 'icon.png'),

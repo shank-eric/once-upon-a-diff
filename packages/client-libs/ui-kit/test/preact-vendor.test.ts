@@ -4,8 +4,8 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
 const vendor = (name: string) =>
-  readFileSync(new URL(`../public/vendor/${name}`, import.meta.url), 'utf8');
-const bridgePackage = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+  readFileSync(new URL(`../vendor/${name}`, import.meta.url), 'utf8');
+const uiKitPackage = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
 test('the vendored Preact is the file its checksum names, built from the versions package.json pins', () => {
   const file = vendor('preact.mjs');
@@ -14,7 +14,7 @@ test('the vendored Preact is the file its checksum names, built from the version
     `${createHash('sha256').update(file).digest('hex')}  preact.mjs`,
     'rebuild it with yarn vendor, never edit it by hand',
   );
-  const { preact, htm } = bridgePackage.devDependencies;
+  const { preact, htm } = uiKitPackage.devDependencies;
   assert.match(preact, /^\d+\.\d+\.\d+$/, 'an exact version');
   assert.match(htm, /^\d+\.\d+\.\d+$/, 'an exact version');
   assert.ok(file.startsWith(`// Preact ${preact} (MIT`), 'the header names the pinned Preact');
@@ -35,7 +35,7 @@ test('the vendored Preact needs no unsafe-eval, and exports what the components 
     `only XML namespace names, no URL it could load: ${urls.join(' ')}`,
   );
   assert.ok(!/\bfetch\(|XMLHttpRequest|\bimport\(/.test(file), 'it loads nothing from the network');
-  const names = Object.keys(await import('../public/vendor/preact.mjs')).sort();
+  const names = Object.keys(await import('../vendor/preact.mjs')).sort();
   assert.deepEqual(names, [
     'Component',
     'Fragment',

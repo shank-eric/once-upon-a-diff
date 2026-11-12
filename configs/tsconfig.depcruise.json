@@ -13,7 +13,7 @@
       "/assets/ui-kit/*": ["./packages/client-libs/ui-kit/src/*"],
       "/assets/local/*": ["./packages/client/web/public/local/*"],
       "/assets/highlight.mjs": ["./packages/client/web/public/vendor/highlight.mjs"],
-      "/assets/preact.mjs": ["./packages/client/web/public/vendor/preact.mjs"],
+      "/assets/preact.mjs": ["./packages/client-libs/ui-kit/vendor/preact.mjs"],
       "/assets/board/*": ["./packages/client/web/public/board/*"],
       "/assets/board.ts": ["./packages/client/web/public/board.ts"]
     }

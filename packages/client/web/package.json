@@ -20,16 +20,13 @@
     "@once-upon-a-diff/test-kit": "workspace:*",
     "@types/node": "24.19.1",
     "highlight.js": "11.11.1",
-    "htm": "3.1.1",
-    "preact": "10.29.8",
-    "rolldown": "1.2.15",
     "typescript": "5.9.3"
   },
   "exports": {
     "./public/*": "./public/*"
   },
   "scripts": {
-    "vendor": "node ../../server-libs/foundation/src/node-version.mjs && node scripts/vendor-hljs.ts && node scripts/vendor-preact.ts",
+    "vendor": "yarn workspace @once-upon-a-diff/foundation run node-check && node scripts/vendor-hljs.ts",
     "test": "node ../../server-libs/foundation/src/node-version.mjs && node --test --test-timeout=60000 test/*.test.ts",
     "typecheck": "tsc -p public/tsconfig.json && tsc -p test/tsconfig.json"
   }

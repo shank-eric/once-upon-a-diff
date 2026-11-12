@@ -12,6 +12,7 @@
     "./*": "./src/*.ts"
   },
   "scripts": {
+    "node-check": "node src/node-version.mjs",
     "test": "node src/node-version.mjs && node --test --test-timeout=60000 test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json && tsc -p test/tsconfig.json"
   },

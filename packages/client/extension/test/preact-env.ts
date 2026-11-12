@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { registerPreact } from '@once-upon-a-diff/test-kit/preact';
 import { installDom } from '@once-upon-a-diff/test-kit/dom';
 
-registerPreact(fileURLToPath(new URL('../../web/public/vendor/preact.mjs', import.meta.url)));
+registerPreact(fileURLToPath(import.meta.resolve('@once-upon-a-diff/ui-kit/vendor/preact.mjs')));
 
 export const { window, document, tick, fire } = installDom({
   html: '<!doctype html><html><body><div id="app"></div></body></html>',

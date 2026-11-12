@@ -9,9 +9,12 @@
     "node": ">=24"
   },
   "exports": {
+    "./vendor/preact.mjs": "./vendor/preact.mjs",
+    "./types/preact": "./types/preact.d.ts",
     "./*": "./src/*.ts"
   },
   "scripts": {
+    "vendor": "yarn workspace @once-upon-a-diff/foundation run node-check && node scripts/vendor-preact.ts",
     "test": "node ../../server-libs/foundation/src/node-version.mjs && node --test --test-timeout=60000 test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json && tsc -p test/tsconfig.json"
   },
@@ -22,6 +25,9 @@
   "devDependencies": {
     "@once-upon-a-diff/test-kit": "workspace:*",
     "@types/node": "24.19.1",
+    "htm": "3.1.1",
+    "preact": "10.29.8",
+    "rolldown": "1.2.15",
     "typescript": "5.9.3"
   }
 }

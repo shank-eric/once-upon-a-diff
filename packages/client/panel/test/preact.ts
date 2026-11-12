@@ -2,4 +2,4 @@
 import { fileURLToPath } from 'node:url';
 import { registerPreact } from '@once-upon-a-diff/test-kit/preact';
 
-registerPreact(fileURLToPath(new URL('../../web/public/vendor/preact.mjs', import.meta.url)));
+registerPreact(fileURLToPath(import.meta.resolve('@once-upon-a-diff/ui-kit/vendor/preact.mjs')));

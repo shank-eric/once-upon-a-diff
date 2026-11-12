@@ -4,6 +4,7 @@
  * on every change and reloads the extension, `yarn build` builds it once, and
  * `yarn zip` builds the store copy (no `key`) into .output/store.
  */
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { defineConfig } from 'wxt';
 
@@ -38,10 +39,12 @@ const LINKED_CSS = {
 };
 
 /**
- * The panel names the vendored Preact as the pages do, /assets/preact.mjs (the bridge serves it from the web package). The bundle takes
+ * The panel names the vendored Preact as the pages do, /assets/preact.mjs (the bridge serves it from the ui-kit package). The bundle takes
  * the same file, so the panel runs the very bytes the board does, with no second Preact to keep in step.
  */
-const VENDORED_PREACT = path.resolve(import.meta.dirname, '../web/public/vendor/preact.mjs');
+const VENDORED_PREACT = createRequire(import.meta.url).resolve(
+  '@once-upon-a-diff/ui-kit/vendor/preact.mjs',
+);
 
 export default defineConfig({
   srcDir: 'src',
