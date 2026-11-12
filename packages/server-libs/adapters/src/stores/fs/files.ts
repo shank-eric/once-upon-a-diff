@@ -3,7 +3,16 @@
  * bridge that changes a file or folder goes through here or through json-file.ts, so a lint rule can keep the
  * services and the apps from reaching for `node:fs` writes themselves (configs/eslint.side-effects.mjs).
  */
-import { appendFileSync, chmodSync, copyFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  chmodSync,
+  copyFileSync,
+  mkdirSync,
+  rmSync,
+  statSync,
+  truncateSync,
+  writeFileSync,
+} from 'node:fs';
 
 /**
  * Makes the folder (and its parents) if it is missing, the user's alone (0700) unless `mode` says otherwise. The mode applies
@@ -47,6 +56,20 @@ export function restrictFile(file: string, mode: number): void {
 /** Copies a file. */
 export function copyFile(src: string, dest: string): void {
   copyFileSync(src, dest);
+}
+
+/** A file's size in bytes, 0 when it is not there. */
+export function fileSize(file: string): number {
+  try {
+    return statSync(file).size;
+  } catch {
+    return 0;
+  }
+}
+
+/** Empties a file in place: the same inode, so a process that holds it open for appending carries on at the new end. */
+export function truncateFile(file: string): void {
+  truncateSync(file, 0);
 }
 
 /** Removes a folder and everything in it, with no error when it is not there. */

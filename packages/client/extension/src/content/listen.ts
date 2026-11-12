@@ -6,6 +6,7 @@
  */
 import { bridgeProblem } from '@once-upon-a-diff/bridge-client/client';
 import { ROUTES } from '@once-upon-a-diff/contracts/routes';
+import { BRIDGE_TOO_OLD, NOT_THE_BRIDGE } from '../bridge-words.ts';
 import type { Bridge, BridgeAnswer } from './bridge.ts';
 import type { PanelOptions } from '@once-upon-a-diff/panel/shell/overlay';
 import type { ListenTarget } from '@once-upon-a-diff/contracts/types';
@@ -23,6 +24,12 @@ export function listenError(answer: Extract<BridgeAnswer, { ok: false }>): strin
   }
   if (error === 'not-configured' || answer.status === 401) {
     return 'the extension has no working bridge token (see its options)';
+  }
+  if (error === 'not-the-bridge') {
+    return NOT_THE_BRIDGE;
+  }
+  if (error === 'bridge-too-old') {
+    return BRIDGE_TOO_OLD;
   }
   if (bridgeProblem(answer) === 'old') {
     return 'the bridge is older than this panel, so restart it (once-upon serve)';

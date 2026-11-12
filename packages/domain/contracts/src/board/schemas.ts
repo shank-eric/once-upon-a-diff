@@ -22,6 +22,8 @@ const MOVE_NEEDS = 'before (an item id) or edge (top or bottom) is needed';
 export const BOARD_BODIES = {
   /** POST /auth/session */
   authSession: object({ key: optional(string(), '') }),
+  /** POST /auth/handshake: a fresh random nonce from the extension's worker */
+  authHandshake: object({ nonce: pipe(string(), regex(/^[0-9a-f]{16,64}$/)) }),
   /** POST /api/board/type */
   boardType: object({
     kind: picklist(['build', 'listen']),

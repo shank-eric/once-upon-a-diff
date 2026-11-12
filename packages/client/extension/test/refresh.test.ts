@@ -156,7 +156,9 @@ test('pending pings are kept in the extension’s storage, never the page’s (a
     'utf8',
   ).replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '');
   assert.ok(!/sessionStorage|localStorage|tabSession/.test(code));
-  assert.match(code, /chrome\.storage\.local/);
+  // through the service worker: the content script can't read chrome.storage.local (it holds the token)
+  assert.match(code, /readStore[\s\S]*writeStore/);
+  assert.ok(!/chrome\.storage/.test(code));
   // what the extension kept before a reload is read back, only while fresh
   const kept: Pending[] = [
     { ...REVIEW, at: START, pings: 0 },

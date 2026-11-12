@@ -83,8 +83,8 @@ test('every route the bridge registers is in the table, and every table route is
       `${route.method} ${route.path} has no handler`,
     );
   }
-  // POST /auth/session is answered by the bridge itself, before the routes
-  assert.equal(TABLE.length, API_TABLE.length + STORY_TABLE.length + 1);
+  // POST /auth/session and POST /auth/handshake are answered by the bridge itself, before the routes
+  assert.equal(TABLE.length, API_TABLE.length + STORY_TABLE.length + 2);
 });
 
 /**

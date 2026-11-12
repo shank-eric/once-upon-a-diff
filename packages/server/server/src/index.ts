@@ -22,6 +22,7 @@
  * stores and settings below) and answers with `send`.
  */
 import http, { type IncomingMessage } from 'node:http';
+import { createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -38,7 +39,7 @@ import { Board } from '@once-upon-a-diff/board/board';
 import { BoardError } from '@once-upon-a-diff/foundation/errors';
 import { codeOfStatus } from '@once-upon-a-diff/terms/error-code';
 import { SEEN_WRITE_MS } from '@once-upon-a-diff/terms/timing';
-import { HttpError, sameToken, readBody } from './request.ts';
+import { HttpError, decodeId, sameToken, readBody } from './request.ts';
 import { COOKIE_NAMES, cookieFor, cookiesOf } from './session-cookie.ts';
 import { assetFor } from './assets.ts';
 import { nonLoopbackClient } from './client-address.ts';
@@ -245,6 +246,22 @@ export function createBridge({
     send(200, { cookie: true }, undefined, { 'Set-Cookie': cookieFor(name, key) });
   }
 
+  /**
+   * Proves to the extension's worker that this is the bridge before it sends the token: the HMAC, keyed by the token, of
+   * the worker's fresh nonce and this port (so a program on another port can't relay a nonce to the real bridge). It
+   * keeps no state: the worker never reuses a nonce, so an old proof is of no use.
+   */
+  async function handshake(req: IncomingMessage, port: number, send: Send) {
+    if (!/^application\/json\b/i.test(String(req.headers['content-type'] || ''))) {
+      throw new HttpError(415, 'send application/json');
+    }
+    const { nonce } = parseBody('authHandshake', await readBody(req));
+    const proof = createHmac('sha256', token)
+      .update(`once-upon-handshake:${port}:${nonce}`)
+      .digest('hex');
+    send(200, { proof });
+  }
+
   /** The pages and assets, which need no token. Returns true when it answered. */
   function servePage(req: IncomingMessage, pathname: string, send: Send): boolean {
     if (req.method !== 'GET') {
@@ -257,7 +274,7 @@ export function createBridge({
     }
     const localPath = /^\/local\/([^/]+)\/?$/.exec(pathname);
     if (localPath) {
-      const id = decodeURIComponent(localPath[1]);
+      const id = decodeId(localPath[1]);
       const dir = stories.dirOf(id);
       if (!dir || readMeta(dir).kind !== 'local') {
         throw new HttpError(404, 'no local story with that id');
@@ -312,7 +329,7 @@ export function createBridge({
         throw new HttpError(401, 'missing or wrong token');
       }
       const storyMatch = STORY_PATH.exec(pathname);
-      const id = storyMatch ? decodeURIComponent(storyMatch[1]) : null;
+      const id = storyMatch ? decodeId(storyMatch[1]) : null;
       if (!id) {
         throw new HttpError(403, "this page's key works only for its own story");
       }
@@ -370,7 +387,7 @@ export function createBridge({
 
   /** A /api/stories/<id>/... call: the story, then the route for its `what`. */
   function storyCall(call: Call, match: RegExpExecArray, scope: string | null) {
-    const id = decodeURIComponent(match[1]);
+    const id = decodeId(match[1]);
     const dir = stories.dirOf(id);
     if (!dir) {
       throw new HttpError(404, 'no story with that id');
@@ -451,6 +468,9 @@ export function createBridge({
       }
       if (req.method === 'POST' && pathname === '/auth/session') {
         return await startSession(req, origin, send);
+      }
+      if (req.method === 'POST' && pathname === '/auth/handshake') {
+        return await handshake(req, port, send);
       }
       if (!pathname.startsWith('/api/')) {
         throw new HttpError(404, 'not found', 'no_route');

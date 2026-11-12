@@ -98,4 +98,5 @@ export const BOARD_ROUTES = {
     'token+board',
   ),
   authSession: api<In<'authSession'>, { cookie: boolean }>('POST', '/auth/session', 'none'),
+  authHandshake: api<In<'authHandshake'>, { proof: string }>('POST', '/auth/handshake', 'none'),
 } as const;

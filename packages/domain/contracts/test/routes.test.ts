@@ -5,14 +5,19 @@ import { BODIES } from '../src/schemas.ts';
 
 const ENTRIES = Object.entries(ROUTES as Record<string, AnyRoute>);
 
-test('the table has 66 routes, each method and path once', () => {
-  assert.equal(ENTRIES.length, 66);
+test('the table has 67 routes, each method and path once', () => {
+  assert.equal(ENTRIES.length, 67);
   const seen = new Set<string>();
   for (const [name, route] of ENTRIES) {
     const key = `${route.method} ${route.path}`;
     assert.ok(!seen.has(key), `${name} repeats ${key}`);
     seen.add(key);
-    assert.ok(route.path.startsWith('/api/') || route.path === '/auth/session', name);
+    assert.ok(
+      route.path.startsWith('/api/') ||
+        route.path === '/auth/session' ||
+        route.path === '/auth/handshake',
+      name,
+    );
   }
 });
 

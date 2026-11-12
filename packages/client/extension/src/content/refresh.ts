@@ -6,7 +6,7 @@
  * the usual flow, and the router's tick skips a hidden tab.
  *
  * An intent is pinged twice: 1.5 s after (GitHub has the change by then), and 8 s after (GitHub's search, behind the list of
- * your open PRs, lags a few seconds). It is kept in the extension's own chrome.storage.local (never the page's storage, which
+ * your open PRs, lags a few seconds). It is kept in the extension's own chrome.storage.local, through the service worker (never the page's storage, which
  * page scripts can write) because Create pull request and Merge can reload the page, which would end a timer. A ping that
  * doesn't get through is not retried: the poll covers it. Only a click or submit the person made counts (`isTrusted`), so a
  * script on the page can't make the extension call the bridge.
@@ -20,12 +20,13 @@ import {
   type Intent,
 } from '@once-upon-a-diff/github-page/actions';
 import { bridge, extensionAlive, type Bridge } from './bridge.ts';
+import { readStore, writeStore } from './storage.ts';
+import { REFRESH_KEY } from '../store-call.ts';
 
 export const FIRST_PING_MS = 1500;
 export const SECOND_PING_MS = 8000;
 export const DROP_MS = 60_000;
 const MAX_PENDING = 5;
-const STORE_KEY = 'ou-refresh-pending';
 
 /** An intent waiting for its pings: `pings` is how many were sent. */
 export interface Pending extends Intent {
@@ -142,15 +143,13 @@ export function createPings({
   };
 }
 
-/** The extension's own storage (a page's script can't reach it), or nothing when it is gone. */
+/** The extension's own storage, through the service worker (a page's script can't reach it), or nothing when it is gone. */
 const extensionStore = (): PendingStore => ({
   read: async () =>
-    extensionAlive()
-      ? (((await chrome.storage.local.get(STORE_KEY))[STORE_KEY] as Pending[] | undefined) ?? [])
-      : [],
+    extensionAlive() ? (((await readStore(REFRESH_KEY)) as Pending[] | undefined) ?? []) : [],
   write: async (list) => {
     if (extensionAlive()) {
-      await chrome.storage.local.set({ [STORE_KEY]: list });
+      await writeStore(REFRESH_KEY, list);
     }
   },
 });

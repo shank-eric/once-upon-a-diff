@@ -257,6 +257,14 @@
    "none"
   ],
   [
+   "authHandshake",
+   "POST",
+   "/auth/handshake",
+   null,
+   null,
+   "none"
+  ],
+  [
    "story",
    "GET",
    "/api/stories/:id",
@@ -2836,6 +2844,40 @@
        "async": false
       },
       "default": ""
+     }
+    }
+   }
+  ],
+  [
+   "authHandshake",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "nonce": {
+      "kind": "schema",
+      "type": "string",
+      "expects": "string",
+      "async": false,
+      "pipe": [
+       {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       },
+       {
+        "kind": "validation",
+        "type": "regex",
+        "async": false,
+        "expects": "/^[0-9a-f]{16,64}$/",
+        "requirement": {
+         "regex": "/^[0-9a-f]{16,64}$/"
+        }
+       }
+      ]
      }
     }
    }

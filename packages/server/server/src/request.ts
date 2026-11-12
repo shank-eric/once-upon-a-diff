@@ -21,6 +21,15 @@ export class HttpError extends Error {
   }
 }
 
+/** A story id from a path segment: a 400 when its %-escapes are malformed, not a 500 with a stack in the log. */
+export function decodeId(raw: string): string {
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    throw new HttpError(400, 'bad id in path');
+  }
+}
+
 /** Constant-time comparison of the given token with the bridge's. */
 export function sameToken(given: unknown, token: string): boolean {
   const givenBytes = Buffer.from(String(given || ''));

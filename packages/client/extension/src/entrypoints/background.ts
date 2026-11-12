@@ -4,64 +4,20 @@
  * {type: 'bridge', method, path, body}; GitHub's page CSP doesn't apply here.
  */
 import { defineBackground } from 'wxt/utils/define-background';
-import { getSettings, type BridgeSettings } from '../settings.ts';
-import { matchRoute } from '@once-upon-a-diff/bridge-client/client';
-import { EXTENSION_ROUTES } from '../bridge-routes.ts';
+import { getSettings, lockStorage } from '../settings.ts';
+import { createBridgeCaller } from '../bridge-call.ts';
+import { storeCall, type StoreRequest } from '../store-call.ts';
 import { isPageLink, type PageKind } from '../page-links.ts';
-import type { BridgeAbort, BridgeReply, BridgeRequest } from '../content/bridge.ts';
-
-const METHODS = new Set(['GET', 'POST']);
+import type { BridgeAbort, BridgeRequest } from '../content/bridge.ts';
 
 /** The fetches out for a call that has an id (a poll's), so a page's `bridge-abort` can close one. */
 const cancellable = new Map<string, AbortController>();
 
-async function callBridge(
-  { method = 'GET', path, body }: BridgeRequest,
-  override: BridgeSettings | null,
-  signal?: AbortSignal,
-): Promise<BridgeReply> {
-  // only a call to one of the routes the extension makes (bridge-routes.ts), with its method: the token goes with nothing else
-  if (
-    !METHODS.has(method) ||
-    typeof path !== 'string' ||
-    !matchRoute(method, path, EXTENSION_ROUTES)
-  ) {
-    return { ok: false, status: 0, error: 'bad request' };
-  }
-  // the options page can test the values in its form before they're saved
-  const { port, token } = override || (await getSettings());
-  if (!token) {
-    return { ok: false, status: 0, error: 'not-configured' };
-  }
-  try {
-    const res = await fetch(`http://127.0.0.1:${Number(port)}${path}`, {
-      method,
-      cache: 'no-store',
-      credentials: 'omit',
-      signal,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-      },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
-    const text = await res.text();
-    let json: { error?: string } | null = null;
-    try {
-      json = JSON.parse(text);
-    } catch {
-      json = null;
-    }
-    return {
-      ok: res.ok,
-      status: res.status,
-      body: json,
-      error: res.ok ? null : (json && json.error) || `HTTP ${res.status}`,
-    };
-  } catch {
-    return { ok: false, status: 0, error: 'unreachable' };
-  }
-}
+const callBridge = createBridgeCaller({
+  fetch: (input, init) => fetch(input, init),
+  getSettings,
+  crypto,
+});
 
 /**
  * Opens the board in a tab (the keyboard command; the options page has a button too). The link, with
@@ -93,10 +49,27 @@ function toggle(tab: chrome.tabs.Tab | undefined) {
 }
 
 export default defineBackground(() => {
+  void lockStorage();
+  // a tab opened before the port and token were saved looks again as soon as they are
+  chrome.storage.onChanged.addListener(async (changes, area) => {
+    if (area === 'local' && changes.settings) {
+      for (const tab of await chrome.tabs.query({})) {
+        if (tab.id != null) {
+          chrome.tabs.sendMessage(tab.id, { type: 'settings-changed' }).catch(() => {});
+        }
+      }
+    }
+  });
   chrome.runtime.onMessage.addListener(
-    (msg: BridgeRequest | BridgeAbort | null, sender, sendResponse) => {
+    (msg: BridgeRequest | BridgeAbort | StoreRequest | null, sender, sendResponse) => {
       if (sender.id !== chrome.runtime.id || !msg) {
         return false;
+      }
+      if (msg.type === 'store') {
+        storeCall(msg, chrome.storage.local)
+          .then(sendResponse)
+          .catch(() => sendResponse({ ok: false }));
+        return true;
       }
       if (msg.type === 'bridge-abort') {
         if (typeof msg.id === 'string') {

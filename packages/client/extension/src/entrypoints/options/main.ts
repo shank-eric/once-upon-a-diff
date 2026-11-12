@@ -1,7 +1,8 @@
-import { getSettings, setSettings } from '../../settings.ts';
+import { getSettings, lockStorage, setSettings } from '../../settings.ts';
 import { isPageLink, type PageKind } from '../../page-links.ts';
 import { bridgeProblem, createClient } from '@once-upon-a-diff/bridge-client/client';
 import { ROUTES } from '@once-upon-a-diff/contracts/routes';
+import { BRIDGE_TOO_OLD, NOT_THE_BRIDGE } from '../../bridge-words.ts';
 import type { BridgeRequest } from '../../content/bridge.ts';
 
 /** The page's elements by id; the form's fields are inputs. */
@@ -42,6 +43,8 @@ async function test(prefix = '') {
             {
               unreachable: 'nothing is listening on that port. Is once-upon serve running?',
               'not-configured': 'paste the token first.',
+              'not-the-bridge': `${NOT_THE_BRIDGE}.`,
+              'bridge-too-old': `${BRIDGE_TOO_OLD}.`,
             } as Record<string, string>
           )[health.error as string] || health.error;
     return status(`${prefix}Couldn't reach the bridge: ${why}`, false);
@@ -76,6 +79,7 @@ async function openPage(kind: PageKind) {
 }
 
 async function init() {
+  void lockStorage();
   const settings = await getSettings();
   $('port').value = String(settings.port);
   $('token').value = settings.token;

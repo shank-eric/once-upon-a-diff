@@ -23,6 +23,7 @@ import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { bridgeProblem } from '@once-upon-a-diff/bridge-client/client';
 import { bridge, extensionAlive, usage } from '../bridge.ts';
 import { createListenOption } from '../listen.ts';
+import { noStoryWhy } from '../../bridge-words.ts';
 import { loadPanelUi, savePanelUi, loadPrefsCopy, storePrefsCopy, tabSession } from '../storage.ts';
 import { createPrTags, titleElement } from '../pr-tags.ts';
 import { requestFor, stepOfHash, withAskDock } from '../tag-model.ts';
@@ -400,16 +401,7 @@ export function createFilesChangedPage() {
     if (!current) {
       return '';
     }
-    if (current.status === 'not-configured') {
-      return 'Set the bridge port and token in the extension options first.';
-    }
-    if (current.status === 'unreachable') {
-      return "The bridge isn't running. Start it with: once-upon serve";
-    }
-    if (current.problem === 'token') {
-      return 'The bridge rejected the token. Copy it again from: once-upon setup';
-    }
-    return 'The bridge has no story for this PR.';
+    return noStoryWhy(current.status, current.problem);
   }
 
   /** The toolbar button (or Alt+Shift+S): show or hide the panel. */
@@ -485,10 +477,8 @@ export function createFilesChangedPage() {
         if (message && message.type === 'toggle') {
           toggle();
         }
-      });
-      // a tab opened before the port and token were saved looks again as soon as they are
-      chrome.storage.onChanged.addListener((changes, area) => {
-        if (area === 'local' && changes.settings && current && !current.data) {
+        // a tab opened before the port and token were saved looks again as soon as they are (the worker tells it)
+        if (message && message.type === 'settings-changed' && current && !current.data) {
           current = null;
           sync();
         }

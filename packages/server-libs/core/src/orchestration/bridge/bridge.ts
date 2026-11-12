@@ -11,7 +11,8 @@ import {
   writeBridgeFile,
 } from '@once-upon-a-diff/adapters/stores/bridge-file';
 import { pidAlive, portTaken } from '@once-upon-a-diff/adapters/os';
-import { restrictFile, appendText } from '@once-upon-a-diff/adapters/stores/fs/files';
+import { makeBridgeLog } from './bridge-log.ts';
+import { restrictFile } from '@once-upon-a-diff/adapters/stores/fs/files';
 
 /*
  * The bridge as a process: which one is running on a port, its log file, what it records about the extension, and starting
@@ -82,14 +83,10 @@ export function serve(
   if (existsSync(logFile)) {
     restrictFile(logFile, 0o600); // an older bridge may have made it readable by others
   }
+  const append = makeBridgeLog(logFile);
   const log = (line: string) => {
-    const text = `${new Date().toISOString()} ${line}\n`;
     process.stderr.write(`once-upon bridge: ${line}\n`);
-    try {
-      appendText(logFile, text, 0o600);
-    } catch {
-      /* the log is a convenience */
-    }
+    append(`${new Date().toISOString()} ${line}\n`);
   };
   const server = factory({
     home,
