@@ -1697,6 +1697,94 @@ async function record(
   await record('9-failed-run-replaced', board);
 }
 
+// ---- 10. one piece of work, one card: work first, then `backlog add --branch` adopts the implicit card (no second card beside it)
+{
+  const home = tmp('home');
+  const sessions = tmp('sessions');
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
+  const et = (hour: number, minute: number) => new Date(Date.UTC(2026, 9, 26, hour + 4, minute));
+  const sid8 = 'dddddddd';
+  const runs = new AgentRegistry(home);
+  const start = (
+    name: string,
+    card: string,
+    kind: 'author' | 'critic' | 'helper' | 'research' | 'storyteller',
+    at: Date,
+    extra = {},
+  ) => runs.start({ sid: sid8, name, kind, task: `${name}'s task`, card, at, ...extra });
+  // a: an ad-hoc author that built on branch dup-a (an implicit card), and its critic; `backlog add --branch dup-a` then adopted
+  // the implicit card with the add's title and note (an add under the implicit id, started on the branch and claimed for the
+  // author), so it is one card
+  start('ou-dup', 'ic_ddddd01', 'author', et(14, 20), { repo: 'acme/widgets', branch: 'dup-a' });
+  runs.finish('ou-dup', {
+    sid: sid8,
+    result: { commit: 'abc1234', branch: 'dup-a' },
+    outcome: 'built it',
+    at: et(14, 40),
+  });
+  start('review-dup', 'ic_ddddd01', 'critic', et(14, 45), {
+    repo: 'acme/widgets',
+    branch: 'dup-a',
+  });
+  // b: a card on another branch, one that is claimed, and one a run names: each is its own card, not part of a
+  const item = (id: string, title: string, branch: string | null, at = et(13, 0)) => ({
+    op: 'add',
+    id,
+    title,
+    note: `${title}: the note`,
+    repo: 'acme/widgets',
+    branch,
+    by: 'cli',
+    at: at.toISOString(),
+  });
+  start('ou-named', 'bl_ddddd04', 'author', et(14, 10), {
+    repo: 'acme/widgets',
+    branch: 'dup-named',
+  });
+  writeFileSync(
+    path.join(home, 'backlog.jsonl'),
+    [
+      item('ic_ddddd01', 'Backlog card for dup-a', 'dup-a', et(14, 30)),
+      {
+        op: 'start',
+        id: 'ic_ddddd01',
+        branch: 'dup-a',
+        repo: 'acme/widgets',
+        by: 'ou-dup',
+        at: et(14, 30).toISOString(),
+      },
+      {
+        op: 'claim',
+        id: 'ic_ddddd01',
+        agent: 'ou-dup',
+        sid: sid8,
+        by: 'ou-dup',
+        at: et(14, 30).toISOString(),
+      },
+      item('bl_ddddd02', 'Another branch', 'dup-other'),
+      item('bl_ddddd03', 'Claimed on dup-a', 'dup-a'),
+      {
+        op: 'claim',
+        id: 'bl_ddddd03',
+        agent: 'ou-claimer',
+        sid: 'cccccccc',
+        by: 'ou-claimer',
+        at: et(13, 2).toISOString(),
+      },
+      item('bl_ddddd04', 'Named by a run', 'dup-named'),
+    ]
+      .map((event) => JSON.stringify(event))
+      .join('\n') + '\n',
+  );
+  const { watcher } = fakeWatcher([], {});
+  const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
+    source: sourceSaying({}),
+    now: () => NOW,
+    repoOf,
+  });
+  await record('10-duplicate-cards', board);
+}
+
 // ---- normalize paths and pids
 export const snapshots: Record<string, string> = {};
 for (const [name, value] of Object.entries(results)) {

@@ -265,8 +265,13 @@ test('backlog adopt writes one add with the same id and the runs now name a real
   // adopting again, a real card or an unknown id is refused
   assert.match((await backlog(home, 'adopt', author.card)).stderr, /already a card/);
   assert.match((await backlog(home, 'adopt', 'ic_nosuchcard12')).stderr, /no (such )?card/);
-  // a card that was adopted and then dropped takes no more runs (the backlog is asked first)
-  await backlog(home, 'drop', author.card);
+  // a card that was adopted and then dropped takes no more runs (the backlog is asked first). It has a run, so a bare drop is
+  // refused and its run moves to another card with --into
+  assert.match((await backlog(home, 'drop', author.card)).stderr, /--into/);
+  const other = (await backlog(home, 'add', 'Another card', '--repo', 'acme/widgets')).stdout.split(
+    ' ',
+  )[0];
+  assert.equal((await backlog(home, 'drop', author.card, '--into', other)).code, 0);
   const late = await agent(
     home,
     'start',
@@ -285,6 +290,9 @@ test('backlog adopt writes one add with the same id and the runs now name a real
 test('backlog drop takes an implicit card directly, with no adopt first', async () => {
   const home = tmp('implicit-drop');
   const helper = await start(home, 'deploy-x', '--kind', 'helper', '--task', 'deploy it');
+  // a run still going is refused (it would be left on no card); a finished one is taken with its card
+  assert.match((await backlog(home, 'drop', helper.card)).stderr, /--into/);
+  assert.equal((await agent(home, 'finish', 'deploy-x')).code, 0);
   const dropped = await backlog(home, 'drop', helper.card);
   assert.equal(dropped.code, 0, dropped.stderr);
   assert.match(dropped.stdout, new RegExp(`${helper.card} dropped`));

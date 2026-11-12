@@ -202,12 +202,13 @@ export class AgentRegistry {
     );
     try {
       // an editor is not an agent: a `[running]` line that never closes would read as a running agent in the ledger
-      // (a branch move is not a line either: the ledger tells what a run did, and a rename is not one of those)
+      // (a branch or card move is not a line either: the ledger tells what a run did, and a move is not one of those)
       if (
         agent &&
         this.mirror.ledger &&
         event.op !== 'beat' &&
         event.op !== 'branch' &&
+        event.op !== 'card' &&
         agent.kind !== 'editor'
       ) {
         appendLine(this.mirror.ledger, ledgerLine(event, agent));
@@ -582,6 +583,23 @@ export class AgentRegistry {
       ...this.base('branch', name, agent.sid, target),
       run: agent.run ?? undefined,
       branch: next,
+    });
+  }
+
+  /**
+   * Moves one run, open or over, to another card (`backlog drop --into`): the card a run names is what the board reads (ADR-25), and
+   * an event cannot be changed, so a move is its own event. A run with no run id cannot be named, so it is refused.
+   */
+  setCard(run: LedgerAgent, card: string, target: Target = {}): void {
+    if (!run.run) {
+      throw new Error(
+        `${run.name} has a run with no run id, so it cannot be moved: finish it, then drop the card by hand`,
+      );
+    }
+    this.append({
+      ...this.base('card', run.name, run.sid, target),
+      run: run.run,
+      card,
     });
   }
 

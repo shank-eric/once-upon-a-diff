@@ -12,8 +12,14 @@
 import type { BoardColumn } from '@once-upon-a-diff/contracts/types';
 import { isImplicitCard, sameRepo } from '@once-upon-a-diff/terms/ids';
 import { repoName } from '@once-upon-a-diff/terms/text';
-import { STALE_MS } from '../../records/agents/events.ts';
-import { isCritic, isStoryteller, type LedgerAgent } from '../../records/agents/ledger.ts';
+import { STALE_MS, runIsOpen } from '../../records/agents/events.ts';
+import { implicitCards } from '../../records/agents/implicit.ts';
+import {
+  isCritic,
+  isStoryteller,
+  lastActivity,
+  type LedgerAgent,
+} from '../../records/agents/ledger.ts';
 import { CLAIM_GRACE_HOURS, OPEN, agentKey } from './claims.ts';
 import type { BacklogItem } from './types.ts';
 
@@ -42,6 +48,24 @@ export function runsOf(item: Pick<BacklogItem, 'id'>, agents: LedgerAgent[]): Le
     .flatMap((agent) => [...(agent.earlier ?? []), agent])
     .filter((run) => run.card === item.id)
     .sort((first, second) => startedAt(first) - startedAt(second));
+}
+
+/**
+ * Why dropping the card would leave a live run on no card, or null when it would not: a run of the card (the latest of an agent
+ * or one before it) that is still open is stranded, so the drop says to move it first (`backlog drop ID --into CARD`). Runs
+ * that are all over strand nothing live (the board hides them with the dropped card), so such a card, an implicit one too,
+ * drops bare.
+ */
+export function dropRunsProblem(
+  item: Pick<BacklogItem, 'id'>,
+  agents: LedgerAgent[],
+): string | null {
+  const open = runsOf(item, agents).filter(runIsOpen);
+  if (!open.length) {
+    return null;
+  }
+  const names = [...new Set(open.map((run) => run.name))].join(', ');
+  return `${item.id} has ${open.length} open run${open.length === 1 ? '' : 's'} (${names}): dropping it would leave them on no card. Move them first: once-upon backlog drop ${item.id} --into CARD`;
 }
 
 /** The latest run of each agent on the card (a fix round replaces its author's first run), as it stood, oldest first: what the card shows. */
@@ -252,6 +276,50 @@ export function cardBranchProblems(items: BacklogItem[], nowMs: number): string[
     ) {
       problems.push(
         `${item.id} has no branch (${item.state === 'started' ? 'started' : `claimed by ${item.claim?.agent}`}): backlog branch ${item.id} <branch>`,
+      );
+    }
+  }
+  return problems;
+}
+
+/**
+ * The duplicates a join at write time would have prevented, one per pair, for `once-upon doctor`: a backlog card with a branch and
+ * no run, no claim and no drop, and an implicit card with a run on its repo and branch that was live when the backlog card was
+ * added (a run open, or the card added no later than the last run's activity). A card added after that work ended, on a branch
+ * name it reused, is its own. Each carries the `backlog drop ID --into CARD` that merges the pair; nothing is merged here.
+ */
+export function duplicateCardProblems(items: BacklogItem[], agents: LedgerAgent[]): string[] {
+  const taken = new Set<string>();
+  const problems: string[] = [];
+  const twins = items.filter(
+    (item) =>
+      item.state !== 'dropped' &&
+      !!item.branch &&
+      !item.landed_at &&
+      !item.claim &&
+      !item.someday &&
+      runsOf(item, agents).length === 0,
+  );
+  for (const card of implicitCards(agents)) {
+    if (items.some((item) => item.id === card.id)) {
+      continue;
+    }
+    const open = card.runs.some(runIsOpen);
+    const lastEnd = Math.max(...card.runs.map((run) => lastActivity(run)?.getTime() ?? 0));
+    const twin = twins.find(
+      (item) =>
+        !taken.has(item.id) &&
+        (open || Date.parse(item.added_at) <= lastEnd) &&
+        card.runs.some(
+          (run) =>
+            (run.result?.branch ?? run.branch) === item.branch &&
+            (item.repo ? sameRepo(run.repo, item.repo) : !run.repo),
+        ),
+    );
+    if (twin) {
+      taken.add(twin.id);
+      problems.push(
+        `${twin.id} and ${card.id} are one piece of work on ${twin.branch}: once-upon backlog drop ${twin.id} --into ${card.id}`,
       );
     }
   }

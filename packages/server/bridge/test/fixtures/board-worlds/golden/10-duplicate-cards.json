@@ -1,0 +1,270 @@
+{
+  "board": {
+    "at": "2026-10-26T19:00:00.000Z",
+    "blank": [],
+    "editors": [],
+    "helpers": [],
+    "lanes": [
+      {
+        "cards": [
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": "2026-10-26T18:40:00.000Z",
+                "gate": null,
+                "key": "dddddddd:ou-dup",
+                "kind": "author",
+                "model": null,
+                "name": "ou-dup",
+                "notes": null,
+                "outcome": "built it",
+                "review": false,
+                "sid": "dddddddd",
+                "stale": false,
+                "started_at": "2026-10-26T18:20:00.000Z",
+                "state": "done",
+                "status": "done",
+                "summary": null,
+                "task": "ou-dup's task"
+              },
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": null,
+                "gate": {
+                  "findings": null,
+                  "kind": "review"
+                },
+                "key": "dddddddd:review-dup",
+                "kind": "critic",
+                "model": null,
+                "name": "review-dup",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "dddddddd",
+                "stale": false,
+                "started_at": "2026-10-26T18:45:00.000Z",
+                "state": "running",
+                "status": "working",
+                "summary": null,
+                "task": "review-dup's task"
+              }
+            ],
+            "backlog": {
+              "added_by": "cli",
+              "agent": null,
+              "assign": null,
+              "assigned": null,
+              "claim": {
+                "agent": "ou-dup",
+                "at": "2026-10-26T18:30:00.000Z",
+                "pending": false
+              },
+              "id": "ic_ddddd01",
+              "start_line": "once-upon backlog start ic_ddddd01 --branch dup-a",
+              "started": {
+                "at": "2026-10-26T18:30:00.000Z",
+                "branch": "dup-a",
+                "links": {
+                  "active": true,
+                  "agent": {
+                    "beat": null,
+                    "ended_at": "2026-10-26T18:40:00.000Z",
+                    "name": "ou-dup",
+                    "outcome": "built it",
+                    "state": "done"
+                  },
+                  "merged": false,
+                  "merged_at": null,
+                  "sessions": [],
+                  "worktrees": []
+                },
+                "on": null
+              }
+            },
+            "branch": "dup-a",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "ready",
+            "detail": "Backlog card for dup-a: the note",
+            "focus_session": null,
+            "id": "backlog:ic_ddddd01",
+            "kind": "backlog",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/widgets",
+            "sessions": [],
+            "since": "2026-10-26T18:40:00.000Z",
+            "story": null,
+            "title": "Backlog card for dup-a"
+          },
+          {
+            "agents": [],
+            "backlog": {
+              "added_by": "cli",
+              "agent": null,
+              "assign": {
+                "prompt": "Start backlog card bl_ddddd02: Another branch. Claim it first: once-upon backlog claim bl_ddddd02 --agent NAME (the agent's name in the ledger), plus --branch BRANCH when it has one"
+              },
+              "assigned": null,
+              "claim": null,
+              "id": "bl_ddddd02",
+              "start_line": "once-upon backlog start bl_ddddd02 --branch dup-other",
+              "started": null
+            },
+            "branch": "dup-other",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "backlog",
+            "detail": "Another branch: the note",
+            "focus_session": null,
+            "id": "backlog:bl_ddddd02",
+            "kind": "backlog",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/widgets",
+            "sessions": [],
+            "since": "2026-10-26T17:00:00.000Z",
+            "story": null,
+            "title": "Another branch"
+          },
+          {
+            "agents": [],
+            "backlog": {
+              "added_by": "cli",
+              "agent": null,
+              "assign": null,
+              "assigned": null,
+              "claim": {
+                "agent": "ou-claimer",
+                "at": "2026-10-26T17:02:00.000Z",
+                "pending": true
+              },
+              "id": "bl_ddddd03",
+              "start_line": "once-upon backlog start bl_ddddd03 --branch dup-a",
+              "started": null
+            },
+            "branch": "dup-a",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "working",
+            "detail": "Claimed on dup-a: the note",
+            "focus_session": null,
+            "id": "backlog:bl_ddddd03",
+            "kind": "backlog",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/widgets",
+            "sessions": [],
+            "since": "2026-10-26T17:02:00.000Z",
+            "story": null,
+            "title": "Claimed on dup-a"
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": null,
+                "gate": null,
+                "key": "dddddddd:ou-named",
+                "kind": "author",
+                "model": null,
+                "name": "ou-named",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "dddddddd",
+                "stale": false,
+                "started_at": "2026-10-26T18:10:00.000Z",
+                "state": "running",
+                "status": "working",
+                "summary": null,
+                "task": "ou-named's task"
+              }
+            ],
+            "backlog": {
+              "added_by": "cli",
+              "agent": {
+                "links": {
+                  "active": true,
+                  "agent": {
+                    "beat": null,
+                    "ended_at": null,
+                    "name": "ou-named",
+                    "outcome": null,
+                    "state": "running"
+                  },
+                  "merged": false,
+                  "merged_at": null,
+                  "sessions": [],
+                  "worktrees": []
+                },
+                "tried": false
+              },
+              "assign": null,
+              "assigned": null,
+              "claim": null,
+              "id": "bl_ddddd04",
+              "start_line": "once-upon backlog start bl_ddddd04 --branch dup-named",
+              "started": null
+            },
+            "branch": "dup-named",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "working",
+            "detail": "Named by a run: the note",
+            "focus_session": null,
+            "id": "backlog:bl_ddddd04",
+            "kind": "backlog",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/widgets",
+            "sessions": [],
+            "since": "2026-10-26T17:00:00.000Z",
+            "story": null,
+            "title": "Named by a run"
+          }
+        ],
+        "key": "acme/widgets",
+        "name": "widgets"
+      }
+    ],
+    "listeners": [],
+    "phone": null,
+    "status_source": "iterm",
+    "usage": null,
+    "voice": null,
+    "voice_paused": false,
+    "voice_start": null,
+    "warning": null,
+    "worktrees": {
+      "at": null,
+      "items": [],
+      "on_cards": 0,
+      "prunable": [],
+      "removable": 0,
+      "scanning": true,
+      "size_kb": "<kb>",
+      "total": 0
+    }
+  }
+}

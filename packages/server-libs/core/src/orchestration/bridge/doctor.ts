@@ -22,7 +22,11 @@ import { gitVersionProblem, MIN_GIT } from '@once-upon-a-diff/foundation/git-ver
 import { fetchHealth } from '@once-upon-a-diff/adapters/bridge-health';
 import { readExtensionSeen } from './bridge.ts';
 import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
-import { cardBranchProblems, cardRunProblems } from '@once-upon-a-diff/state/queues/backlog/phase';
+import {
+  cardBranchProblems,
+  cardRunProblems,
+  duplicateCardProblems,
+} from '@once-upon-a-diff/state/queues/backlog/phase';
 import { claimWorktreeProblems } from '@once-upon-a-diff/state/queues/backlog/claim-worktree';
 import { readAgents } from '@once-upon-a-diff/state/records/agents/read';
 import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
@@ -285,6 +289,19 @@ export async function doctor(
     problems.length
       ? `${problems.length} to look at: ${firstFive(problems)}`
       : 'every run names a card that holds, and every claimed card has a branch',
+  );
+
+  // one piece of work is one card: a backlog card and an implicit card on one repo and branch are a pair to merge by hand
+  const duplicates = duplicateCardProblems(items, readAgents(home).agents);
+  add(
+    duplicates.length ? 'WARN' : 'PASS',
+    'Duplicate cards',
+    duplicates.length
+      ? `${duplicates.length} to look at: ${firstFive(duplicates)}`
+      : 'no backlog card duplicates the implicit card on its branch',
+    duplicates.length
+      ? 'Run the drop --into it names: it moves the runs onto the card you keep and drops the other. Doctor never merges'
+      : null,
   );
 
   // state folders and inbox entries each belong to a story: one in stories.json or with a story folder on disk

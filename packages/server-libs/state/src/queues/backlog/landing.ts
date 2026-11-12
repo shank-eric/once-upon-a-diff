@@ -7,30 +7,46 @@
  */
 import { authorStamp, commitOf, commitsInRange, patchId } from '@once-upon-a-diff/adapters/git';
 import { sameRepo } from '@once-upon-a-diff/foundation/repos';
-import { STALE_MS, runIsOpen, type AgentEvent } from '../../records/agents/events.ts';
+import { STALE_MS, movesWith, runIsOpen, type AgentEvent } from '../../records/agents/events.ts';
 import { lastActivity, type LedgerAgent } from '../../records/agents/ledger.ts';
 import type { BacklogItem } from './types.ts';
 import { isWorkRun, runsOf } from './phase.ts';
 
 /**
  * Each card's tip from the raw finish events (the folded registry keeps only a run's last result, and a rerun hides the
- * runs before it): a finish names its card, else it is the card of its own run's `start`. The newest commit wins, and a
- * finish with no commit does not clear an earlier one. The shas are as recorded (often short).
+ * runs before it): a finish names its card, else it is the card of its own run's `start`. A run moved to another card (a
+ * `card` event, `backlog drop --into`) takes its commit along, by the fold's rule: its start card is re-pointed, and a
+ * finish that named the old card now names the new one. The newest commit wins, and a finish with no commit does not clear
+ * an earlier one. The shas are as recorded (often short).
  */
 export function recordedTips(events: AgentEvent[]): Map<string, string> {
-  const startCard = new Map<string, string>();
-  const tips = new Map<string, { sha: string; when: number }>();
+  const runCard = new Map<string, string>();
+  const finishes: { key: string | null; named: string | undefined; sha: string; when: number }[] =
+    [];
   for (const event of events) {
-    if (event.op === 'start' && event.run && event.card) {
-      startCard.set(`${event.id}/${event.run}`, event.card);
+    const key = event.run ? `${event.id}/${event.run}` : null;
+    if (event.op === 'start' && key && event.card) {
+      runCard.set(key, event.card);
+    } else if (event.op === 'card' && key && event.card) {
+      const from = runCard.get(key);
+      for (const one of finishes) {
+        if (one.key === key && movesWith(one.named, from)) {
+          one.named = event.card;
+        }
+      }
+      runCard.set(key, event.card);
+    } else if (event.op === 'finish' && event.result?.commit) {
+      finishes.push({
+        key,
+        named: event.result.card ?? undefined,
+        sha: event.result.commit,
+        when: Date.parse(event.at),
+      });
     }
-    const sha = event.op === 'finish' ? event.result?.commit : null;
-    if (!sha) {
-      continue;
-    }
-    const card =
-      event.result?.card ?? (event.run ? startCard.get(`${event.id}/${event.run}`) : undefined);
-    const when = Date.parse(event.at);
+  }
+  const tips = new Map<string, { sha: string; when: number }>();
+  for (const { key, named, sha, when } of finishes) {
+    const card = named ?? (key ? runCard.get(key) : undefined);
     if (card && when >= (tips.get(card)?.when ?? -Infinity)) {
       tips.set(card, { sha, when });
     }

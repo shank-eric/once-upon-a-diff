@@ -492,3 +492,24 @@ test('deploy-local.sh marks cards through backlog land, not a branch name', () =
   assert.doesNotMatch(script, /done --branch/);
   assert.doesNotMatch(script, /--branch "\$name"/);
 });
+
+test('a run moved to another card (drop --into) carries its commit to the new card, a finish that named the old card or not', () => {
+  const lab = world();
+  lab.branch('feat/m');
+  const tip = lab.edit(3, 'm change');
+  lab.run('ou-named', 'ic_oldnamed0001', tip);
+  lab.run('ou-bare', 'ic_oldbare00002', tip, { named: false });
+  for (const [name, target] of [
+    ['ou-named', 'bl_targetnamed01'],
+    ['ou-bare', 'bl_targetbare001'],
+  ]) {
+    const run = lab.registry.agents().find((one) => one.name === name);
+    assert.ok(run);
+    lab.registry.setCard(run, target);
+  }
+  const tips = recordedTips(lab.registry.events());
+  assert.equal(tips.get('bl_targetnamed01'), tip);
+  assert.equal(tips.get('bl_targetbare001'), tip);
+  assert.equal(tips.has('ic_oldnamed0001'), false);
+  assert.equal(tips.has('ic_oldbare00002'), false);
+});

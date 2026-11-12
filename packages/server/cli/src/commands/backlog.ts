@@ -6,7 +6,12 @@ import path from 'node:path';
 import { formatTime, DEFAULT_BRANCHES } from '@once-upon-a-diff/foundation/settings';
 import { repoOfCheckout, currentBranch, sameRepo } from '@once-upon-a-diff/foundation/repos';
 
-import { BacklogStore, claimHint } from '@once-upon-a-diff/state/queues/backlog/backlog';
+import {
+  BacklogStore,
+  cardLookup,
+  claimHint,
+} from '@once-upon-a-diff/state/queues/backlog/backlog';
+import { dropRunsProblem, runsOf } from '@once-upon-a-diff/state/queues/backlog/phase';
 import { claimWorktreeProblem } from '@once-upon-a-diff/state/queues/backlog/claim-worktree';
 import { ownSession } from '@once-upon-a-diff/core/features/listeners/service';
 import { landItems, recordedTips } from '@once-upon-a-diff/state/queues/backlog/landing';
@@ -34,7 +39,7 @@ const USAGE =
   '       once-upon backlog land [PICKED_SHA...] --from REF --to REF [--by NAME] [--dry-run]\n' +
   '       once-upon backlog hold ID [--off]\n' +
   '       once-upon backlog someday ID [--off]\n' +
-  '       once-upon backlog drop ID\n' +
+  '       once-upon backlog drop ID [--into CARD]\n' +
   '       once-upon backlog reopen ID';
 
 const text = (value: unknown): string | null => (typeof value === 'string' ? value : null);
@@ -84,25 +89,8 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
     }
     return item;
   };
-  if (verb === 'add') {
-    // the title is the words after `add`, or --title / --title-file / --title - (not both)
-    const flagged = text(opts.title);
-    if (flagged !== null && words.length) {
-      throw new Error('give the title as words or as --title, not both');
-    }
-    warnTypedRepo(home, text(opts.repo), process.cwd());
-    const item = store.add({
-      title: flagged ?? words.join(' '),
-      note: text(opts.note),
-      // the checkout the command runs in names the repo unless --repo says otherwise
-      repo: text(opts.repo) ?? repoOfCheckout(process.cwd()),
-      branch: text(opts.branch),
-      by: who,
-    });
-    return out(`${item.id} added: ${item.title}`);
-  }
   // an implicit card written into the backlog under its own id, as `adopt` and `drop` need it
-  const adoptCard = (id: string | undefined, title: string | null) => {
+  const adoptCard = (id: string | undefined, title: string | null, note?: string | null) => {
     if (store.items().some((one) => one.id === id)) {
       throw new Error(`${id} is already a card`);
     }
@@ -115,26 +103,63 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
     const adopted = store.add({
       id: card.id,
       title: title ?? card.title,
-      note: card.task && card.task !== card.title ? card.task : null,
+      note: note ?? (card.task && card.task !== card.title ? card.task : null),
       repo: card.repo,
       branch: card.branch,
       by: who ?? card.agent,
     });
     return { card, adopted };
   };
-  if (verb === 'adopt') {
-    // an implicit card becomes a backlog card, with its own id: its runs already name it
-    const { card, adopted } = adoptCard(words[0], text(opts.title));
-    // a card with a branch is started on it, as `claim --branch` does, so it reads as work done or under way: no Assign while its
-    // author runs, and a built card on a branch reaches Ready instead of leaving the board. Start needs a branch, so a card with
-    // none stays open in the Backlog (its runs still decide its column), and is not claimed: a claim with no branch would show
-    // "claimed, pending" in Working for two hours with nobody on it. With a branch the card is claimed for its first run, so the
-    // same author can start a fix round on it (an author on a card with no claim is refused)
+  // a card with a branch is started on it, as `claim --branch` does, so it reads as work done or under way: no Assign while its
+  // author runs, and a built card on a branch reaches Ready instead of leaving the board. Start needs a branch, so a card with
+  // none stays open in the Backlog (its runs still decide its column), and is not claimed: a claim with no branch would show
+  // "claimed, pending" in Working for two hours with nobody on it. With a branch the card is claimed for its first run, so the
+  // same author can start a fix round on it (an author on a card with no claim is refused)
+  const adoptStarted = (id: string | undefined, title: string | null, note?: string | null) => {
+    const { card, adopted } = adoptCard(id, title, note);
     if (card.branch) {
       store.start(adopted.id, { branch: card.branch, repo: card.repo, by: who ?? card.agent });
       store.claim(adopted.id, { agent: card.agent, sid: card.sid, by: who ?? card.agent });
     }
+    return adopted;
+  };
+  if (verb === 'adopt') {
+    // an implicit card becomes a backlog card, with its own id: its runs already name it
+    const adopted = adoptStarted(words[0], text(opts.title));
     return out(`${adopted.id} adopted: ${adopted.title}`);
+  }
+  if (verb === 'add') {
+    // the title is the words after `add`, or --title / --title-file / --title - (not both)
+    const flagged = text(opts.title);
+    if (flagged !== null && words.length) {
+      throw new Error('give the title as words or as --title, not both');
+    }
+    warnTypedRepo(home, text(opts.repo), process.cwd());
+    // the checkout the command runs in names the repo unless --repo says otherwise
+    const repo = text(opts.repo) ?? repoOfCheckout(process.cwd());
+    const branch = text(opts.branch);
+    const title = flagged ?? words.join(' ');
+    // work and its card are one card: an implicit card with a run open on this repo and branch is the card this add would make,
+    // so it is adopted with this title and note (as `adopt` does) and no second card is written. A card whose runs are all over
+    // is earlier work on a reused branch name: this one is its own
+    const live =
+      branch && !DEFAULT_BRANCHES.has(branch)
+        ? implicitCards(new AgentRegistry(home).agents()).find(
+            (one) =>
+              !store.items().some((item) => item.id === one.id) &&
+              one.runs.some(runIsOpen) &&
+              (repo ? sameRepo(one.repo, repo) : !one.repo) &&
+              one.runs.some((run) => (run.result?.branch ?? run.branch) === branch),
+          )
+        : undefined;
+    if (live) {
+      const joined = adoptStarted(live.id, title, text(opts.note));
+      return out(
+        `${joined.id} added: ${joined.title} (joined the implicit card for ${branch}, so its runs are on it)`,
+      );
+    }
+    const item = store.add({ title, note: text(opts.note), repo, branch, by: who });
+    return out(`${item.id} added: ${item.title}`);
   }
   if (verb === 'list') {
     if (opts.implicit) {
@@ -375,12 +400,55 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
     );
   }
   if (verb === 'drop') {
-    // an implicit card is dropped directly: it is adopted first (an open card, not started or claimed), then dropped
-    const item = implicit().some((one) => one.id === words[0])
-      ? adoptCard(words[0], null).adopted
-      : found();
-    store.drop(item.id, who);
-    return out(`${item.id} dropped: ${item.title}`);
+    // an implicit card that was never adopted is only its runs: a drop with no --into takes it (adopted first, then dropped).
+    // A card with an open run is refused: it would be left on no card
+    const registry = new AgentRegistry(home);
+    const agents = registry.agents();
+    const fresh = implicit().find((one) => one.id === words[0]);
+    const item = fresh ?? found();
+    const into = text(opts.into);
+    if (!into) {
+      const problem = dropRunsProblem(item, agents);
+      if (problem) {
+        throw new Error(problem);
+      }
+      const dropped = fresh ? adoptCard(item.id, null).adopted : item;
+      store.drop(dropped.id, who);
+      return out(`${dropped.id} dropped: ${dropped.title}`);
+    }
+    // --into: its runs move to another card first, then the card goes. The runs are moved one event each, so a failure
+    // part-way leaves the card undropped and running it again moves what is left
+    if (into === item.id) {
+      throw new Error(`${item.id} cannot be dropped into itself`);
+    }
+    if (item.state === 'dropped') {
+      throw new Error(`${item.id} is already dropped`);
+    }
+    const stored = cardLookup(store)(into);
+    const target = stored ?? implicit().find((one) => one.id === into) ?? null;
+    if (!target) {
+      throw new Error(`no card ${into}: drop ${item.id} into a backlog card or an implicit card`);
+    }
+    if (stored?.closed) {
+      throw new Error(
+        `${into} is ${stored.closed}: it takes no runs, so drop ${item.id} into another card`,
+      );
+    }
+    if (item.repo && target.repo && !sameRepo(item.repo, target.repo)) {
+      throw new Error(
+        `${item.id} is on ${item.repo} and ${into} on ${target.repo}: runs stay on their own repo's cards`,
+      );
+    }
+    const runs = runsOf(item, agents);
+    for (const run of runs) {
+      registry.setCard(run, into, { by: who ?? undefined });
+    }
+    if (!fresh) {
+      store.drop(item.id, who);
+    }
+    return out(
+      `${item.id} dropped: ${item.title} (moved ${runs.length} run${runs.length === 1 ? '' : 's'} onto ${into})`,
+    );
   }
   if (verb === 'reopen') {
     const item = found();
@@ -413,7 +481,7 @@ export const backlogCommands: Command[] = [
     usage: [
       '  once-upon backlog add "TITLE" [--note TEXT] [--repo owner/name] [--branch NAME]  keep something for later: a card in the board\'s Backlog column',
       '  once-upon backlog edit ID [--title TEXT] [--note TEXT] [--repo owner/name]      change an open card in place (an empty --note or --repo clears it; a long note: --note-file PATH or --note -)',
-      '  once-upon backlog list [--all] [--json] [--someday] | show ID | drop ID | reopen ID  the items in board order (open ones, or all), one item, drop one (an implicit card too), or bring a dropped one back',
+      '  once-upon backlog list [--all] [--json] [--someday] | show ID | drop ID [--into CARD] | reopen ID  the items in board order (open ones, or all), one item, drop one (an implicit card too; a card with an open run needs --into CARD, which moves it first), or bring a dropped one back',
       '  once-upon backlog done ID [--sha SHA]                                            the work landed: the card goes to Done for an hour',
       '  once-upon backlog land [PICKED_SHA...] --from REF --to REF [--dry-run]           a deploy: mark done the cards whose recorded commit (agent finish --commit) is in the range (a repo with no deploy lands by merged PR: the bridge does it)',
       '  once-upon backlog adopt ID [--title TEXT]                                        an implicit card (a run that did not start in the backlog; list --implicit shows them) becomes a backlog card with the same id',

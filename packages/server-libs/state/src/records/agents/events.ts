@@ -8,6 +8,7 @@
  *   {op:'state',  ..., state: running|waiting|review|plan|fixing, outcome, findings, notes}
  *   {op:'beat',   ..., n, of, step, note}                 also the heartbeat: it counts as the agent's last sign of life
  *   {op:'branch', ..., run, branch}                       the open run's branch moved (a rename)
+ *   {op:'card',   ..., run, card}                         a run, open or over, moved to another card (`backlog drop --into`)
  *   {op:'finish', ..., state: done|failed|stopped, outcome, result: {commit, pr, branch, card}, findings, notes}
  *
  * `id` is `<sid8>:<name>`: the launching session's first 8 characters and the agent's name (agentKey). A `start` begins a
@@ -53,6 +54,10 @@ const isOpen = (agent: Pick<LedgerAgent, 'state'>) =>
 
 /** Whether a run is still going (running, at a gate, or waiting on a question or a story review). */
 export const runIsOpen = isOpen;
+
+/** Whether a finish's named card moves with its run when the run moves off `from`: only a finish that named that card does. */
+export const movesWith = (named: string | null | undefined, from: string | null | undefined) =>
+  !!named && named === from;
 
 /** The agents the events tell, one per id with its latest run, runs before it in `earlier`. */
 export function foldAgentEvents(events: AgentEvent[]): LedgerAgent[] {
@@ -104,6 +109,21 @@ export function foldAgentEvents(events: AgentEvent[]): LedgerAgent[] {
         lastEvent: when,
         ...(earlier.length ? { earlier } : {}),
       });
+      continue;
+    }
+    // a run moved to another card, whatever state it is in: the move is not a sign of life, and changes nothing else
+    if (event.op === 'card') {
+      const run =
+        agent && (!event.run || event.run === agent.run)
+          ? agent
+          : agent?.earlier?.find((one) => one.run === event.run);
+      if (run && event.run && event.card) {
+        // a finish that named the old card now names the new one (it is replaced, never changed: a restart copies a run's `result` by reference)
+        if (movesWith(run.result?.card, run.card)) {
+          run.result = { ...run.result, card: event.card };
+        }
+        run.card = event.card;
+      }
       continue;
     }
     // an event names its run: one for a run that is not the latest (a restarted agent's old beats and finish) is not this run's

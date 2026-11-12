@@ -86,11 +86,12 @@ export type AgentResult = Listed<InferOutput<typeof AgentResultSchema>>;
  *   {op:'state',  ..., state: running|waiting|review|plan|fixing, outcome, findings, notes}
  *   {op:'beat',   ..., n, of, step, note}                 also the heartbeat: it counts as the agent's last sign of life
  *   {op:'branch', ..., run, branch}                       the open run's branch moved (a rename): `backlog branch` writes it with the card's
+ *   {op:'card',   ..., run, card}                         a run, open or over, moved to another card (`backlog drop --into`)
  *   {op:'finish', ..., state: done|failed|stopped, outcome, result: {commit, pr, branch, card}, findings, notes}
  * `id` is `<sid8>:<name>`. An old row may carry a `lane` tag: nothing reads it, and the row loads with it. `kind` is as stored: an old line may still say `builder` or `reviewer`, and a kind nobody knows reads as none.
  */
 const AgentEventSchema = looseObject({
-  op: picklist(['start', 'state', 'beat', 'branch', 'finish']),
+  op: picklist(['start', 'state', 'beat', 'branch', 'card', 'finish']),
   v: lenient(number()),
   id: string(),
   sid8: string(),

@@ -15,6 +15,7 @@ import {
 import { branchNameAsync, isAncestorAsync, runGitAsync } from '@once-upon-a-diff/adapters/git';
 import { aheadOf } from '@once-upon-a-diff/stories/pull-request';
 import { lastActivity } from '@once-upon-a-diff/state/records/agents/ledger';
+import { dropRunsProblem } from '@once-upon-a-diff/state/queues/backlog/phase';
 import { readAgents } from '@once-upon-a-diff/state/records/agents/read';
 import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
 import { markFinished } from '@once-upon-a-diff/adapters/stores/finished-agents';
@@ -215,8 +216,12 @@ export class Board {
     return item;
   }
 
-  /** Drops a backlog item (a card's Drop). */
+  /** Drops a backlog item (a card's Drop). A card with an open run is refused: it would be left on no card (`backlog drop --into`). */
   dropBacklog(id: string, who: string): BacklogItem {
+    const problem = dropRunsProblem({ id }, readAgents(this.home).agents);
+    if (problem) {
+      throw new Error(problem);
+    }
     const item = this.backlog.drop(id, who);
     this.invalidate();
     return item;
