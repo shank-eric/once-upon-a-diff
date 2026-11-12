@@ -295,7 +295,7 @@ flowchart LR
 | 18 | `app` | `land` reads the commit each agent's finish recorded | `packages/server/cli/src/commands/backlog.ts:330` (`recordedTips(registry.events())`) |
 | 19 | `service` | the last recorded commit per card | `packages/server-libs/state/src/queues/backlog/landing.ts:20` (`export function recordedTips`) |
 | 20 | `service` | which cards' commits went live: the recorded tip itself is in the range; or a commit with its patch id is (a rebase or a clean pick); or, for a batch deploy's picked sha whose patch changed, the commit with the tip's author stamp (`packages/server-libs/state/src/queues/backlog/landing.ts:107` (`const pickOf`)) | `packages/server-libs/state/src/queues/backlog/landing.ts:83` (`export function landItems(`) |
-| 21 | `adapter` | `git rev-list` over the range | `packages/server-libs/adapters/src/git.ts:326` (`export function commitsInRange(`) |
+| 21 | `adapter` | `git rev-list` over the range | `packages/server-libs/adapters/src/git.ts:329` (`export function commitsInRange(`) |
 | 22 | `app` | each matched card is marked done at its sha | `packages/server/cli/src/commands/backlog.ts:338` (`store.done(item.id, { sha`) |
 | 23 | `service` | **appends a `done` event** to `backlog.jsonl` | `packages/server-libs/state/src/queues/backlog/backlog.ts:478` (`done(id: string`) |
 

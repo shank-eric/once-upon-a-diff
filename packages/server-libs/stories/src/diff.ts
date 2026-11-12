@@ -75,9 +75,19 @@ export function headerPaths(line: string): { from: string; to: string } | null {
     newPath = wholePath(first.rest.replace(/^ /, ''));
   } else {
     const quotedNew = text.indexOf(' "b/');
+    const half = (text.length - 1) / 2;
     if (quotedNew > 0) {
       oldPath = text.slice(0, quotedNew);
       newPath = wholePath(text.slice(quotedNew + 1));
+    } else if (
+      Number.isInteger(half) &&
+      text.slice(2, half) === text.slice(half + 3) &&
+      text.startsWith('a/') &&
+      text[half] === ' ' &&
+      text.slice(half + 1, half + 3) === 'b/'
+    ) {
+      // a path may hold " b/", so when both halves name one path, that is the split
+      [oldPath, newPath] = [text.slice(0, half), text.slice(half + 1)];
     } else {
       const plain = /^(a\/.+) (b\/.+)$/.exec(text);
       [oldPath, newPath] = plain ? [plain[1], plain[2]] : [null, null];
@@ -98,19 +108,21 @@ export function parseUnifiedDiff(text: string): Map<string, DiffFile> {
     if (cur) {
       cur.hash = createHash('sha1').update(raw.join('\n')).digest('hex').slice(0, 16);
     }
-    raw = [];
   };
   for (const line of String(text).split('\n')) {
     if (line.startsWith('diff --git ')) {
       close();
       const names = headerPaths(line);
-      cur = {
-        rel: names ? names.to : line.slice(11),
-        kind: 'modified',
-        stats: { added: 0, removed: 0 },
-        hunks: [],
-      };
-      files.set(cur.rel, cur);
+      const rel = names ? names.to : line.slice(11);
+      // a type change (symlink to file) is two entries for one path: the second joins the first
+      const again = files.get(rel);
+      if (again) {
+        cur = again;
+      } else {
+        cur = { rel, kind: 'modified', stats: { added: 0, removed: 0 }, hunks: [] };
+        files.set(rel, cur);
+        raw = [];
+      }
       hunk = null;
       raw.push(line);
       continue;

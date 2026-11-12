@@ -35,7 +35,7 @@ gh pr view "$PR" -R "$REPO" --json number,title,body,url,author,baseRefName,head
 
 if ! gh pr diff "$PR" -R "$REPO" > "$OUT/pr.diff" 2> "$OUT/diff.err"; then
   echo "gh pr diff failed (often: diff too large). Build it from a local checkout instead:" >&2
-  echo "  git -C <checkout> diff \$(jq -r .baseRefOid $OUT/pr.json)...\$(jq -r .headRefOid $OUT/pr.json) > $OUT/pr.diff" >&2
+  echo "  git -C <checkout> diff --src-prefix=a/ --dst-prefix=b/ \$(jq -r .baseRefOid $OUT/pr.json)...\$(jq -r .headRefOid $OUT/pr.json) > $OUT/pr.diff" >&2
 fi
 
 # shellcheck disable=SC2016 # $owner, $name and $pr are GraphQL variables, not the shell's

@@ -179,6 +179,9 @@ export const diffText = (
     '--no-color',
     '--no-ext-diff',
     '--find-renames',
+    // the a/ and b/ the story parser needs, whatever diff.noprefix or diff.srcPrefix say
+    '--src-prefix=a/',
+    '--dst-prefix=b/',
     ...(ignoreWhitespace ? ['--ignore-all-space'] : []),
     '--end-of-options',
     baseOid,

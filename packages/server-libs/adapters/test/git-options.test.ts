@@ -40,6 +40,17 @@ test('diffText never reads a base or head as an option', () => {
   assert.match(diffText(repo, base, 'HEAD'), /^diff --git/m);
 });
 
+test('diffText writes a/ and b/ headers whatever the user’s diff prefix config says', () => {
+  const { repo, base } = localRepo();
+  execFileSync('git', ['config', 'diff.noprefix', 'true'], { cwd: repo });
+  const text = diffText(repo, base, 'HEAD');
+  assert.match(text, /^diff --git a\/one\.txt b\/one\.txt$/m);
+  assert.match(text, /^diff --git a\/lib\/two\.js b\/lib\/two\.js$/m);
+  execFileSync('git', ['config', 'diff.srcPrefix', 'x/'], { cwd: repo });
+  execFileSync('git', ['config', 'diff.dstPrefix', 'y/'], { cwd: repo });
+  assert.match(diffText(repo, base, 'HEAD'), /^diff --git a\/one\.txt b\/one\.txt$/m);
+});
+
 test('the other git helpers never read a ref, branch or sha as an option', async () => {
   const { repo, base } = localRepo();
   const file = out();
