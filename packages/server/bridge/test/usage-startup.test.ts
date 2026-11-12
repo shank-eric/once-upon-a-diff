@@ -13,8 +13,8 @@ test('a flush before the bridge listens keeps its startup coverage for the first
   const script = `
     import { begin } from ${JSON.stringify(path.join(ROOT, 'instrumentation/usage-probe.ts'))};
     begin(['serve']);
-    const { installUsage, bridgeListening } = await import(${JSON.stringify(path.join(ROOT, '../../server-libs/usage/src/capture.ts'))});
-    const { etDay } = await import(${JSON.stringify(path.join(ROOT, '../../server-libs/usage/src/days.ts'))});
+    const { installUsage, bridgeListening } = await import(${JSON.stringify(import.meta.resolve('@once-upon-a-diff/usage/capture'))});
+    const { etDay } = await import(${JSON.stringify(import.meta.resolve('@once-upon-a-diff/usage/days'))});
     etDay(new Date()); // startup code that runs before the port binds
     const capture = installUsage(['serve']);
     capture.flush(); // the first flush, before listening

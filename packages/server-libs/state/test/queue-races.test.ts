@@ -45,7 +45,7 @@ async function race(body: string, argsList: string[][]): Promise<string[]> {
 import { Builds } from ${src('queues/requests/builds.ts')};
 import { addNote, fixesToHand } from ${src('queues/requests/fixes.ts')};
 import { noteHanded, routeQuestions } from ${src('queues/requests/conversation.ts')};
-import { StoryStore } from ${JSON.stringify(path.resolve(import.meta.dirname, '../../stories/src/store.ts'))};
+import { StoryStore } from ${JSON.stringify(import.meta.resolve('@once-upon-a-diff/stories/store'))};
 const [go, ...args] = process.argv.slice(2);
 process.stderr.write('ready\\n');
 while (!existsSync(go)) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1);

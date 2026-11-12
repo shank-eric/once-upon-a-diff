@@ -8,6 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { copyFileSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import '@once-upon-a-diff/test-kit/env';
 import { tmp } from '@once-upon-a-diff/test-kit/files';
 import { Inbox } from '../src/queues/requests/inbox.ts';
@@ -21,7 +22,9 @@ import { checkWrite } from '@once-upon-a-diff/foundation/shared-files';
 import { strictBuild } from '@once-upon-a-diff/contracts/files/strict';
 import { readBuild, readFixRequest, type Build } from '@once-upon-a-diff/contracts/files/schemas';
 
-const FIXTURES = path.resolve(import.meta.dirname, '../../../domain/contracts/test/fixtures/files');
+const FIXTURES = path.dirname(
+  fileURLToPath(import.meta.resolve('@once-upon-a-diff/contracts/fixtures/agents.jsonl')),
+);
 const fixture = (name: string) => readFileSync(path.join(FIXTURES, name), 'utf8');
 const count = (name: string) => fixture(name).split('\n').filter(Boolean).length;
 /** A home with the old-form files in it, under their real names. */

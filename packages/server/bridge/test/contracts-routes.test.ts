@@ -497,7 +497,9 @@ test('the bridge serves the route table (each area route file) and the bridge-cl
 test('the bridge serves every module of the terms package as JavaScript with no package specifier, and not at the protocol package’s old URLs', async () => {
   const bridge = await startBridge({ home: tmp('home') });
   try {
-    const src = fileURLToPath(new URL('../../../domain/terms/src/', import.meta.url));
+    const src = path.dirname(
+      fileURLToPath(import.meta.resolve('@once-upon-a-diff/terms/patterns')),
+    );
     const names = readdirSync(src)
       .filter((name) => name.endsWith('.ts'))
       .map((name) => name.slice(0, -3));

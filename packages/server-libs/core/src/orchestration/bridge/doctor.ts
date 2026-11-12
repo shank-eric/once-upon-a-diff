@@ -9,7 +9,7 @@ import path from 'node:path';
 import { Listening } from '../../features/listeners/service.ts';
 import { formatTime, readSettings } from '@once-upon-a-diff/foundation/settings';
 
-import { MIN_NODE_MAJOR, nodeVersionProblem } from '../../../../foundation/src/node-version.mjs';
+import { MIN_NODE_MAJOR, nodeVersionProblem } from '@once-upon-a-diff/foundation/node-version.mjs';
 import type { Config } from '@once-upon-a-diff/foundation/settings';
 import { listenerPid, openListeners } from '@once-upon-a-diff/adapters/os';
 import {

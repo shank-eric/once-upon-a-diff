@@ -9,14 +9,9 @@ import path from 'node:path';
 import { installDom } from '@once-upon-a-diff/test-kit/dom';
 
 const PUBLIC = fileURLToPath(new URL('../public/', import.meta.url));
-const CONTRACTS = fileURLToPath(new URL('../../../domain/contracts/src/', import.meta.url));
-const TERMS = fileURLToPath(new URL('../../../domain/terms/src/', import.meta.url));
-const BRIDGE_CLIENT = fileURLToPath(
-  new URL('../../../client-libs/bridge-client/src/', import.meta.url),
-);
-const PANEL = fileURLToPath(new URL('../../panel/src/', import.meta.url));
-const UI_DIR = fileURLToPath(new URL('../../../client-libs/ui-kit/src/', import.meta.url));
-const GITHUB_PAGE = fileURLToPath(new URL('../../github-page/src/', import.meta.url));
+/** A file of a package `/assets/<name>/...` stands for, by the package's name: its exports map `./*` to the file under src/. */
+const inPackage = (name: string, file: string) =>
+  import.meta.resolve(`@once-upon-a-diff/${name}/${file.replace(/\.ts$/, '')}`);
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
@@ -28,33 +23,33 @@ registerHooks({
     }
     const panel = /^\/assets\/panel\/([a-z0-9/-]+\.ts)$/.exec(specifier);
     if (panel) {
-      return { url: pathToFileURL(path.join(PANEL, panel[1])).href, shortCircuit: true };
+      return { url: inPackage('panel', panel[1]), shortCircuit: true };
     }
     const shared = /^\/assets\/ui-kit\/([a-z0-9/-]+\.ts)$/.exec(specifier);
     if (shared) {
-      return { url: pathToFileURL(path.join(UI_DIR, shared[1])).href, shortCircuit: true };
+      return { url: inPackage('ui-kit', shared[1]), shortCircuit: true };
     }
     const host = /^\/assets\/github-page\/([a-z0-9-]+\.ts)$/.exec(specifier);
     if (host) {
-      return { url: pathToFileURL(path.join(GITHUB_PAGE, host[1])).href, shortCircuit: true };
+      return { url: inPackage('github-page', host[1]), shortCircuit: true };
     }
     const bridgeClient = /^\/assets\/bridge-client\/([a-z0-9-]+\.ts)$/.exec(specifier);
     if (bridgeClient) {
       return {
-        url: pathToFileURL(path.join(BRIDGE_CLIENT, bridgeClient[1])).href,
+        url: inPackage('bridge-client', bridgeClient[1]),
         shortCircuit: true,
       };
     }
     const contractsFile = /^\/assets\/contracts\/([a-z0-9/-]+\.ts)$/.exec(specifier);
     if (contractsFile) {
       return {
-        url: pathToFileURL(path.join(CONTRACTS, contractsFile[1])).href,
+        url: inPackage('contracts', contractsFile[1]),
         shortCircuit: true,
       };
     }
     const terms = /^\/assets\/terms\/([a-z0-9-]+\.ts)$/.exec(specifier);
     if (terms) {
-      return { url: pathToFileURL(path.join(TERMS, terms[1])).href, shortCircuit: true };
+      return { url: inPackage('terms', terms[1]), shortCircuit: true };
     }
     const board = /^\/assets\/board\/([a-z0-9/-]+\.ts)$/.exec(specifier);
     if (board) {

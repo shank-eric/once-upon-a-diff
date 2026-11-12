@@ -1,0 +1,17 @@
+[
+  {
+    "file": "packages/server-libs/state/src/records/listeners/listeners.ts",
+    "literal": "../../../../../server/bridge/bin/once-upon.mjs",
+    "reason": "The listen prompt names the CLI's launcher for a shell with no once-upon on PATH. The launcher is in the shell package (bridge), which sits above state in the layers, so state cannot depend on it by name (the layer rules refuse the import)."
+  },
+  {
+    "file": "packages/server/bridge/test/builds.test.ts",
+    "literal": "../../etc",
+    "reason": "Not a path the code opens: a hostile repo name the route must refuse with 400."
+  },
+  {
+    "file": "packages/server/bridge/test/layer-rules.test.ts",
+    "literal": "../../packages",
+    "reason": "A symlink target written into a throwaway fixture repo (its node_modules/@once-upon-a-diff/<name> -> its own packages/), resolved against that repo, not this file."
+  }
+]

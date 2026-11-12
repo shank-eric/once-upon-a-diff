@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { chmodSync, cpSync, writeFileSync } from 'node:fs';
 import { tmp, writeJson } from './helpers.ts';
 import { doctor } from '@once-upon-a-diff/core/orchestration/bridge/doctor';
@@ -12,9 +13,8 @@ import { registrySource } from '@once-upon-a-diff/core/features/sessions/sources
 // Claude Code's session files are read with no promise their format holds: doctor and the board say so when files are
 // there and none can be used, or the folder is gone.
 
-const FIXTURES = path.resolve(
-  import.meta.dirname,
-  '../../../server-libs/adapters/test/fixtures/claude-code/sessions',
+const FIXTURES = path.dirname(
+  fileURLToPath(import.meta.resolve('@once-upon-a-diff/adapters/fixtures/sessions/4242.json')),
 );
 
 function homeWith(sessions: string): string {

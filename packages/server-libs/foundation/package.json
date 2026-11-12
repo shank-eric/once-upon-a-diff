@@ -9,6 +9,7 @@
     "node": ">=24"
   },
   "exports": {
+    "./node-version.mjs": "./src/node-version.mjs",
     "./*": "./src/*.ts"
   },
   "scripts": {

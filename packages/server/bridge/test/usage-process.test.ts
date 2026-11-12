@@ -189,10 +189,7 @@ test('fix 2: `usage clear` while the bridge runs: its old counts stay cleared', 
 test("fix 4: processes that read-merge-write coverage-cli.json at once keep each other's lines", () => {
   const home = tmp('home');
   const script = path.join(tmp('lock'), 'writer.ts');
-  const store = path.resolve(
-    import.meta.dirname,
-    '../../../server-libs/usage/src/adapters/usage-file.ts',
-  );
+  const store = import.meta.resolve('@once-upon-a-diff/usage/adapters/usage-file');
   writeFileSync(
     script,
     `import { readUsageJson, writeUsageJson, withUsageLock } from ${JSON.stringify(store)};
@@ -226,10 +223,7 @@ test('fix 4: a lock a crashed run left behind is taken over, not waited on forev
   const old = new Date(Date.now() - 60000);
   utimesSync(lock, old, old);
   const started = Date.now();
-  const store = path.resolve(
-    import.meta.dirname,
-    '../../../server-libs/usage/src/adapters/usage-file.ts',
-  );
+  const store = import.meta.resolve('@once-upon-a-diff/usage/adapters/usage-file');
   const out = execFileSync(
     process.execPath,
     [
@@ -246,10 +240,7 @@ test('fix 4: a lock a crashed run left behind is taken over, not waited on forev
 
 /** Runs withUsageLock in a child with a hard timeout, so a loop that never ends fails the test instead of hanging it. */
 function lockedRun(home: string) {
-  const store = path.resolve(
-    import.meta.dirname,
-    '../../../server-libs/usage/src/adapters/usage-file.ts',
-  );
+  const store = import.meta.resolve('@once-upon-a-diff/usage/adapters/usage-file');
   const started = Date.now();
   const out = spawnSync(
     process.execPath,

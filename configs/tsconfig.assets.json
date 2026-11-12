@@ -1,0 +1,21 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["es2023", "dom", "dom.iterable"],
+    "paths": {
+      "/assets/preact.mjs": ["../packages/client-libs/ui-kit/types/preact.d.ts"],
+      "/assets/highlight.mjs": ["../packages/client/web/public/types/highlight.d.ts"],
+      "/assets/types.ts": ["../packages/domain/contracts/src/types.ts"],
+      "/assets/contracts/*": ["../packages/domain/contracts/src/*"],
+      "/assets/terms/*": ["../packages/domain/terms/src/*"],
+      "/assets/bridge-client/*": ["../packages/client-libs/bridge-client/src/*"],
+      "/assets/ui-kit/*": ["../packages/client-libs/ui-kit/src/*"],
+      "/assets/github-page/*": ["../packages/client/github-page/src/*"],
+      "/assets/panel/*": ["../packages/client/panel/src/*"],
+      "/assets/local/*": ["../packages/client/web/public/local/*"],
+      "/assets/board/*": ["../packages/client/web/public/board/*"],
+      "/assets/*": ["../packages/client/web/public/*"]
+    }
+  },
+  "include": []
+}

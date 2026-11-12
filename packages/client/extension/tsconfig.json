@@ -1,7 +1,7 @@
 {
   "extends": "../../../configs/tsconfig.browser.json",
   "compilerOptions": {
-    "types": ["chrome"]
+    "types": ["chrome", "@once-upon-a-diff/panel/types/globals"]
   },
-  "include": ["src", "../panel/types", ".wxt/wxt.d.ts"]
+  "include": ["src", ".wxt/wxt.d.ts"]
 }

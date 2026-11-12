@@ -513,6 +513,14 @@ const PROBES: Probe[] = [
   ],
   ['extension/src/ok-page-url.ts', spec('/assets/terms/leaf.ts'), null],
 
+  // shipped code never imports a package's test/ files (its `fixtures` exports); a test may
+  [
+    'foundation/src/uses-fixture.ts',
+    'foundation/test/fixture-leaf.ts',
+    'shipped-code-not-test-files',
+  ],
+  ['foundation/test/uses-fixture.ts', 'foundation/test/fixture-leaf.ts', null],
+
   ...MATRIX_PROBES,
 ];
 

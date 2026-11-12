@@ -13,14 +13,15 @@
   },
   "scripts": {
     "serve": "node bin/once-upon.mjs serve",
-    "test": "node ../../server-libs/foundation/src/node-version.mjs && node --test --test-timeout=60000 test/*.test.ts",
-    "test:extension": "node ../../server-libs/foundation/src/node-version.mjs && yarn workspace @once-upon-a-diff/extension build && node test/browser/load-test.ts",
-    "test:expand": "node ../../server-libs/foundation/src/node-version.mjs && yarn workspace @once-upon-a-diff/extension build && node test/browser/expand-test.ts",
+    "test": "yarn workspace @once-upon-a-diff/foundation run node-check && node --test --test-timeout=60000 test/*.test.ts",
+    "test:extension": "yarn workspace @once-upon-a-diff/foundation run node-check && yarn workspace @once-upon-a-diff/extension build && EXTENSION_DIR=\"$(yarn workspace @once-upon-a-diff/extension exec pwd)\" node test/browser/load-test.ts",
+    "test:expand": "yarn workspace @once-upon-a-diff/foundation run node-check && yarn workspace @once-upon-a-diff/extension build && EXTENSION_DIR=\"$(yarn workspace @once-upon-a-diff/extension exec pwd)\" node test/browser/expand-test.ts",
     "typecheck": "tsc -p tsconfig.json && tsc -p test/tsconfig.json && tsc -p test/browser/tsconfig.json"
   },
   "dependencies": {
     "@once-upon-a-diff/cli": "workspace:*",
     "@once-upon-a-diff/core": "workspace:*",
+    "@once-upon-a-diff/foundation": "workspace:*",
     "@once-upon-a-diff/server": "workspace:*",
     "@once-upon-a-diff/usage": "workspace:*"
   },
@@ -29,7 +30,6 @@
     "@once-upon-a-diff/board": "workspace:*",
     "@once-upon-a-diff/bridge-client": "workspace:*",
     "@once-upon-a-diff/contracts": "workspace:*",
-    "@once-upon-a-diff/foundation": "workspace:*",
     "@once-upon-a-diff/github-page": "workspace:*",
     "@once-upon-a-diff/panel": "workspace:*",
     "@once-upon-a-diff/state": "workspace:*",

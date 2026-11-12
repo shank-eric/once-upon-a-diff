@@ -1,7 +1,7 @@
 /*
  * The panel's stylesheets are split by region (css/panel.css is the base, each region folder has its own). A sheet nobody links never
  * loads and the region draws unstyled, so every .css under src/ is the page's, the base or in REGION_SHEETS, every one of those exists,
- * and the extension ships each (wxt.config.ts's LINKED_CSS, which web_accessible_resources follows).
+ * (the extension's test checks it ships each one).
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -28,13 +28,6 @@ test('a region sheet sits in its region: <region>/<region>.css', () => {
   for (const sheet of REGION_SHEETS) {
     const [region, file] = sheet.split('/');
     assert.equal(file, `${region}.css`);
-  }
-});
-
-test('the extension ships every panel sheet (a LINKED_CSS entry each)', () => {
-  const config = readFileSync(new URL('../../extension/wxt.config.ts', import.meta.url), 'utf8');
-  for (const sheet of ['page.css', 'panel.css', ...REGION_SHEETS]) {
-    assert.match(config, new RegExp(`'panel/${sheet.replace('.', '\\.')}'`), sheet);
   }
 });
 

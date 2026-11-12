@@ -4,7 +4,7 @@
  * checks the Node version first, so an old Node says what's wrong instead of
  * failing to load TypeScript, then runs the CLI in once-upon.ts.
  */
-import { requireNode } from '../../../server-libs/foundation/src/node-version.mjs';
+import { requireNode } from '@once-upon-a-diff/foundation/node-version.mjs';
 
 requireNode();
 // start counting before any other module of this repo loads, so their top-level code is counted too

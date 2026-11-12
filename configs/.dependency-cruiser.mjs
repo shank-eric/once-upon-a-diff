@@ -511,6 +511,12 @@ export default {
       { path: TEST_KIT },
     ),
     rule(
+      'shipped-code-not-test-files',
+      "a package's test/ files (its `fixtures` exports) are for tests: nothing that ships imports them, by name or by path",
+      { path: '^packages/[^/]+/[^/]+/(src|public|bin)/' },
+      { path: '^packages/[^/]+/[^/]+/test/' },
+    ),
+    rule(
       'test-kit-is-below',
       'the test kit sits below every package: it imports Node and linkedom only',
       { path: TEST_KIT },

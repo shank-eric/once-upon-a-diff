@@ -18,7 +18,6 @@ import {
 import type { BranchPr, PrFacts } from '@once-upon-a-diff/state/records/github/github-checks';
 import { noPrWatcher, type PrWatcher } from '@once-upon-a-diff/board/stages/pr-watcher';
 import { boardKey } from '@once-upon-a-diff/state/records/page-links/page-key';
-import { EXTENSION_ROUTES } from '../../../client/extension/src/bridge-routes.ts';
 import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import type { BoardCard, InboxStory, PrInfo } from '@once-upon-a-diff/contracts/types';
 import type { StatusSource } from '@once-upon-a-diff/adapters/status-source';
@@ -255,8 +254,7 @@ test('the body is checked, and only the extension’s token reaches it', async (
       { Authorization: `Bearer ${boardKey(TOKEN)}` },
     );
     assert.equal(board.status, 403);
-    // and the extension's service worker may forward it
-    assert.ok(EXTENSION_ROUTES.includes(ROUTES.githubRefresh));
+    // (the extension's own tests check its service worker may forward it)
     assert.equal(ROUTES.githubRefresh.keys, 'token');
   } finally {
     await sim.bridge.close();

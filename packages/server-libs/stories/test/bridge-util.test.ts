@@ -41,7 +41,7 @@ test('atomic writes: the mode holds, a failed write leaves no temp file', () => 
 test('atomic writes: two writers at once both leave valid JSON, never a partial file', async () => {
   const dir = tmp('json-race');
   const file = path.join(dir, 'shared.json');
-  const mod = new URL('../../adapters/src/stores/fs/json-file.ts', import.meta.url).href;
+  const mod = import.meta.resolve('@once-upon-a-diff/adapters/stores/fs/json-file');
   const script = `
     import { writeJsonAtomic } from ${JSON.stringify(mod)};
     const [file, tag] = process.argv.slice(1);

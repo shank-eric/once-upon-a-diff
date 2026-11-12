@@ -9,10 +9,11 @@
     "node": ">=24"
   },
   "exports": {
+    "./fixtures/*": "./test/fixtures/files/*",
     "./*": "./src/*.ts"
   },
   "scripts": {
-    "test": "node ../../server-libs/foundation/src/node-version.mjs && node --test test/*.test.ts",
+    "test": "yarn workspace @once-upon-a-diff/foundation run node-check && node --test test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json && tsc -p test/tsconfig.json"
   },
   "dependencies": {

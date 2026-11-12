@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { matchRoute } from '@once-upon-a-diff/bridge-client/client';
 import { EXTENSION_ROUTES } from '../src/bridge-routes.ts';
@@ -9,7 +10,9 @@ import { EXTENSION_ROUTES } from '../src/bridge-routes.ts';
 // the extension's own code, and the panel it bundles (whose bridge-options.ts names the routes the panel calls)
 const SOURCES = [
   path.join(import.meta.dirname, '../src'),
-  path.join(import.meta.dirname, '../../panel/src'),
+  path.dirname(
+    path.dirname(fileURLToPath(import.meta.resolve('@once-upon-a-diff/panel/shell/overlay'))),
+  ),
 ];
 
 function sourceFiles(dir: string): string[] {
@@ -47,6 +50,10 @@ test('the service worker forwards the routes the extension calls: each one named
   );
   assert.equal(listed.size, EXTENSION_ROUTES.length, 'every listed route is in the table, once');
   assert.deepEqual([...listed].sort(), [...named].sort());
+});
+
+test('the worker may forward the GitHub refresh route (the bridge serves it for the token only)', () => {
+  assert.ok(EXTENSION_ROUTES.includes(ROUTES.githubRefresh));
 });
 
 test('the worker refuses a table route the extension never calls, and a path that is not one', () => {

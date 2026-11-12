@@ -2602,7 +2602,9 @@ test('the page drops its key only once a call by cookie alone has worked', async
       },
     });
     // a fresh copy of the module each time, since it keeps whether the cookie is in use
-    const auth = await import(`../../../client/web/public/local/auth.ts?${name}` as string);
+    const auth = await import(
+      `${import.meta.resolve('@once-upon-a-diff/web/public/local/auth.ts')}?${name}` as string
+    );
     await auth.startAuth('page.abc', '/api/board');
     return { header: auth.authHeader('page.abc'), replaced, calls };
   };

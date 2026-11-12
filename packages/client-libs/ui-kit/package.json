@@ -11,11 +11,12 @@
   "exports": {
     "./vendor/preact.mjs": "./vendor/preact.mjs",
     "./types/preact": "./types/preact.d.ts",
+    "./*.css": "./src/*.css",
     "./*": "./src/*.ts"
   },
   "scripts": {
     "vendor": "yarn workspace @once-upon-a-diff/foundation run node-check && node scripts/vendor-preact.ts",
-    "test": "node ../../server-libs/foundation/src/node-version.mjs && node --test --test-timeout=60000 test/*.test.ts",
+    "test": "yarn workspace @once-upon-a-diff/foundation run node-check && node --test --test-timeout=60000 test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json && tsc -p test/tsconfig.json"
   },
   "dependencies": {

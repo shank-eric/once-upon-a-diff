@@ -12,9 +12,9 @@
     "dev": "wxt",
     "build": "wxt build",
     "zip": "ONCE_UPON_STORE=1 wxt zip",
-    "icons": "node ../../server-libs/foundation/src/node-version.mjs && node scripts/make-icons.ts",
+    "icons": "yarn workspace @once-upon-a-diff/foundation run node-check && node scripts/make-icons.ts",
     "postinstall": "wxt prepare",
-    "test": "node ../../server-libs/foundation/src/node-version.mjs && node --test --test-timeout=60000 test/*.test.ts",
+    "test": "yarn workspace @once-upon-a-diff/foundation run node-check && node --test --test-timeout=60000 test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json && tsc -p scripts/tsconfig.json && tsc -p test/tsconfig.json"
   },
   "dependencies": {

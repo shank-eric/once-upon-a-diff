@@ -171,11 +171,3 @@ test('worktree clean: ack and ignored take a string or a list, empty ones droppe
   assert.equal(out.ignored.length, 100);
   assert.deepEqual(ok('boardWorktreeClean', { path: '/a' })!.ack, []);
 });
-
-test('the question actions match the bridge’s own list', async () => {
-  // the bridge refuses an action it doesn't know too (inbox/conversation.ts), so the two lists have to agree
-  const bridge = await import('../../../server-libs/state/src/queues/requests/conversation.ts');
-  for (const action of bridge.QA_ACTIONS) {
-    ok('questionMarks', { action });
-  }
-});

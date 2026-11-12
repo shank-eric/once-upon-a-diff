@@ -128,17 +128,18 @@ test('each tier holds the folders listed here, and no loose file', () => {
   }
 });
 
-test('state exports its test helper, and the others only their sources', () => {
+// What a package exports besides its sources: a file another package reads by name, never by a `../` path.
+const EXTRA_EXPORTS: Record<string, Record<string, string>> = {
+  state: { './test/*': './test/*.ts' },
+  adapters: { './fixtures/sessions/*': './test/fixtures/claude-code/sessions/*' },
+  foundation: { './node-version.mjs': './src/node-version.mjs' },
+};
+
+test('an engine package exports its sources, and only the files another package reads by name', () => {
   for (const name of Object.keys(FOLDERS)) {
     const pkg = JSON.parse(readFileSync(manifestOf(name), 'utf8')) as {
       exports: Record<string, string>;
     };
-    assert.deepEqual(
-      pkg.exports,
-      name === 'state'
-        ? { './*': './src/*.ts', './test/*': './test/*.ts' }
-        : { './*': './src/*.ts' },
-      name,
-    );
+    assert.deepEqual(pkg.exports, { './*': './src/*.ts', ...EXTRA_EXPORTS[name] }, name);
   }
 });

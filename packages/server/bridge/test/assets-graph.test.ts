@@ -5,6 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assetFor, forBrowser } from '@once-upon-a-diff/server/assets';
 import { startBridge, tmp } from './helpers.ts';
@@ -124,7 +125,9 @@ test("the bridge serves ui-kit's stylesheet, and the pages link tokens.css, ui.c
 test('every stylesheet under the web package is linked by a page (a region sheet nobody links never loads)', async () => {
   const { BOARD_SHEETS, LOCAL_SHEETS } = await import('@once-upon-a-diff/server/pages');
   const linked = new Set([...BOARD_SHEETS, ...LOCAL_SHEETS]);
-  const publicDir = fileURLToPath(new URL('../../../client/web/public/', import.meta.url));
+  const publicDir = path.dirname(
+    fileURLToPath(import.meta.resolve('@once-upon-a-diff/web/public/board.ts')),
+  );
   for (const name of readdirSync(publicDir, { recursive: true, encoding: 'utf8' })) {
     if (name.endsWith('.css')) {
       const url = name === 'page.css' ? '/assets/page.css' : `/assets/${name}`;
@@ -227,7 +230,9 @@ test('every asset the local page and the board page load, and every module under
 });
 
 test('a running bridge serves every file of the ui-kit package at /assets/ui-kit/, components and css included', async () => {
-  const src = fileURLToPath(new URL('../../../client-libs/ui-kit/src/', import.meta.url));
+  const src = path.dirname(
+    fileURLToPath(import.meta.resolve('@once-upon-a-diff/ui-kit/clipboard')),
+  );
   const files = readdirSync(src, { recursive: true, encoding: 'utf8' }).filter((name) =>
     /\.(ts|css)$/.test(name),
   );
@@ -249,7 +254,9 @@ test('a running bridge serves every file of the ui-kit package at /assets/ui-kit
 });
 
 test('a running bridge serves every file of the github-page package at /assets/github-page/, and the old /assets/host-github/ URLs are 404', async () => {
-  const src = fileURLToPath(new URL('../../../client/github-page/src/', import.meta.url));
+  const src = path.dirname(
+    fileURLToPath(import.meta.resolve('@once-upon-a-diff/github-page/diff-dom')),
+  );
   const files = readdirSync(src).filter((name) => name.endsWith('.ts'));
   assert.ok(files.includes('diff-dom.ts') && files.includes('pages.ts'));
   const bridge = await startBridge({ home: tmp('home') });
@@ -268,7 +275,9 @@ test('a running bridge serves every file of the github-page package at /assets/g
 });
 
 test('a running bridge serves every file of the bridge-client package at /assets/bridge-client/, and not the old /assets/api-client/', async () => {
-  const src = fileURLToPath(new URL('../../../client-libs/bridge-client/src/', import.meta.url));
+  const src = path.dirname(
+    fileURLToPath(import.meta.resolve('@once-upon-a-diff/bridge-client/client')),
+  );
   const files = readdirSync(src, { recursive: true, encoding: 'utf8' }).filter((name) =>
     name.endsWith('.ts'),
   );

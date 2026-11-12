@@ -9,10 +9,11 @@
     "node": ">=24"
   },
   "exports": {
+    "./fixtures/sessions/*": "./test/fixtures/claude-code/sessions/*",
     "./*": "./src/*.ts"
   },
   "scripts": {
-    "test": "node ../foundation/src/node-version.mjs && node --test --test-timeout=60000 test/*.test.ts",
+    "test": "yarn workspace @once-upon-a-diff/foundation run node-check && node --test --test-timeout=60000 test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json && tsc -p test/tsconfig.json"
   },
   "dependencies": {

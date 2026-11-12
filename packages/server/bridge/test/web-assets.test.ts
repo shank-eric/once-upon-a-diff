@@ -11,7 +11,7 @@ test('the bridge serves highlight.js and the highlighter, with no CDN in the pag
       assert.equal(response.status, 200);
       assert.match(response.headers.get('content-type') as string, /javascript/);
     }
-    const dir = new URL('../../../client/web/public/local/', import.meta.url);
+    const dir = new URL('./', import.meta.resolve('@once-upon-a-diff/web/public/local/app.ts'));
     const sources = (readdirSync(dir, { recursive: true }) as string[]).filter((name) =>
       name.endsWith('.ts'),
     );

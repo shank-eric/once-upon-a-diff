@@ -1,23 +1,10 @@
 {
-  "extends": "../../../../configs/tsconfig.base.json",
+  "extends": "../../../../configs/tsconfig.assets.json",
   "compilerOptions": {
-    "lib": ["es2023", "dom", "dom.iterable"],
     "module": "esnext",
     "moduleResolution": "bundler",
-    "paths": {
-      "/assets/types.ts": ["../../../domain/contracts/src/types.ts"],
-      "/assets/contracts/*": ["../../../domain/contracts/src/*"],
-      "/assets/terms/*": ["../../../domain/terms/src/*"],
-      "/assets/bridge-client/*": ["../../../client-libs/bridge-client/src/*"],
-      "/assets/github-page/*": ["../../github-page/src/*"],
-      "/assets/panel/*": ["../../panel/src/*"],
-      "/assets/ui-kit/*": ["../../../client-libs/ui-kit/src/*"],
-      "/assets/local/*": ["./local/*"],
-      "/assets/highlight.mjs": ["./types/highlight.d.ts"],
-      "/assets/preact.mjs": ["./types/preact.d.ts"],
-      "/assets/*": ["./*"]
-    }
+    "types": ["@once-upon-a-diff/panel/types/globals"]
   },
-  "include": [".", "../../panel/types"],
+  "include": ["."],
   "exclude": ["vendor"]
 }

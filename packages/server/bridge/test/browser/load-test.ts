@@ -37,11 +37,14 @@ import { Builds, type Build } from '@once-upon-a-diff/state/queues/requests/buil
 import type { InboxEntry, QuestionEntry } from '@once-upon-a-diff/state/queues/requests/inbox';
 import type { LocalNote } from '@once-upon-a-diff/contracts/types';
 
-const ROOT = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  '../../../../client/extension',
-);
-const EXT = path.join(ROOT, '.output/chrome-mv3'); // yarn build's output
+// The extension package's folder, which the package script passes (this shell never imports the client side).
+const EXTENSION_DIR = process.env.EXTENSION_DIR;
+if (!EXTENSION_DIR) {
+  throw new Error(
+    'EXTENSION_DIR is not set: run this through the bridge package script (yarn test:extension / test:expand)',
+  );
+}
+const EXT = path.join(EXTENSION_DIR, '.output/chrome-mv3'); // yarn build's output
 const args = process.argv.slice(2);
 /** --name's value, true for a bare --name, or the fallback when it isn't given. */
 const arg = <F>(name: string, fallback: F): string | true | F => {

@@ -19,20 +19,22 @@ const KEY =
 /** The Chrome Web Store signs with its own key and refuses a manifest that has one. */
 const STORE = !!process.env.ONCE_UPON_STORE;
 
+const require = createRequire(import.meta.url);
+
 /**
  * Stylesheets the content scripts link into their shadow roots (and the page's head), copied as is to the same
- * paths in the output: they're web-accessible, so github.com can load them from the extension.
+ * paths in the output (a `@once-upon-a-diff/...` source is another package's, reached by name): they're web-accessible, so github.com can load them from the extension.
  */
 const LINKED_CSS = {
-  'panel/page.css': '../panel/src/css/page.css',
-  'panel/panel.css': '../panel/src/css/panel.css',
-  'panel/ask/ask.css': '../panel/src/ask/ask.css',
-  'panel/drafts/drafts.css': '../panel/src/drafts/drafts.css',
-  'panel/fixes/fixes.css': '../panel/src/fixes/fixes.css',
-  'panel/rebuild/rebuild.css': '../panel/src/rebuild/rebuild.css',
-  'panel/reading/reading.css': '../panel/src/reading/reading.css',
-  'ui-kit/tokens.css': '../../client-libs/ui-kit/src/css/tokens.css',
-  'ui-kit/ui.css': '../../client-libs/ui-kit/src/css/ui.css',
+  'panel/page.css': '@once-upon-a-diff/panel/css/page.css',
+  'panel/panel.css': '@once-upon-a-diff/panel/css/panel.css',
+  'panel/ask/ask.css': '@once-upon-a-diff/panel/ask/ask.css',
+  'panel/drafts/drafts.css': '@once-upon-a-diff/panel/drafts/drafts.css',
+  'panel/fixes/fixes.css': '@once-upon-a-diff/panel/fixes/fixes.css',
+  'panel/rebuild/rebuild.css': '@once-upon-a-diff/panel/rebuild/rebuild.css',
+  'panel/reading/reading.css': '@once-upon-a-diff/panel/reading/reading.css',
+  'ui-kit/tokens.css': '@once-upon-a-diff/ui-kit/css/tokens.css',
+  'ui-kit/ui.css': '@once-upon-a-diff/ui-kit/css/ui.css',
   'content/components/story-tag.css': 'src/content/components/story-tag.css',
   'content/components/listen-notice.css': 'src/content/components/listen-notice.css',
   'content/components/toast.css': 'src/content/components/toast.css',
@@ -42,9 +44,7 @@ const LINKED_CSS = {
  * The panel names the vendored Preact as the pages do, /assets/preact.mjs (the bridge serves it from the ui-kit package). The bundle takes
  * the same file, so the panel runs the very bytes the board does, with no second Preact to keep in step.
  */
-const VENDORED_PREACT = createRequire(import.meta.url).resolve(
-  '@once-upon-a-diff/ui-kit/vendor/preact.mjs',
-);
+const VENDORED_PREACT = require.resolve('@once-upon-a-diff/ui-kit/vendor/preact.mjs');
 
 export default defineConfig({
   srcDir: 'src',
@@ -89,7 +89,12 @@ export default defineConfig({
   hooks: {
     'build:publicAssets': (wxt, files) => {
       for (const [dest, src] of Object.entries(LINKED_CSS)) {
-        files.push({ absoluteSrc: path.resolve(wxt.config.root, src), relativeDest: dest });
+        files.push({
+          absoluteSrc: src.startsWith('@')
+            ? require.resolve(src)
+            : path.resolve(wxt.config.root, src),
+          relativeDest: dest,
+        });
       }
     },
   },
