@@ -45,7 +45,9 @@ test('a second run waits for the first and runs after it', async () => {
   const dir = tmp('heavy');
   const lock = path.join(dir, 'lock');
   const order = path.join(dir, 'order.txt');
+  const release = path.join(dir, 'release');
   const env = lockEnv(lock);
+  // the first holds the lock until the test creates `release`, so no fixed time decides who is waiting
   const first = runCli(
     home(),
     [
@@ -53,23 +55,44 @@ test('a second run waits for the first and runs after it', async () => {
       'first',
       'sh',
       '-c',
-      `echo first-start >> ${order}; sleep 1; echo first-end >> ${order}`,
+      `echo first-start >> ${order}; while [ ! -e ${release} ]; do sleep 0.05; done; echo first-end >> ${order}`,
     ],
     env,
   );
-  assert.ok(await until(() => existsSync(order)), 'the first run holds the lock');
-  assert.match(
-    readFileSync(path.join(lock, 'who'), 'utf8'),
-    /^first \(\d{1,2}:\d{2} [AP]M\): sh -c/,
-  );
-  assert.equal(Number(readFileSync(path.join(lock, 'pid'), 'utf8')) > 0, true);
-  const second = await runCli(
-    home(),
-    ['heavy', 'second', 'sh', '-c', `echo second >> ${order}`],
-    env,
-  );
+  let passed = false;
+  let child: ReturnType<typeof spawn> | undefined;
+  let ended: Promise<number | null> | undefined;
+  try {
+    assert.ok(await until(() => existsSync(order), 20000), 'the first run holds the lock');
+    assert.match(
+      readFileSync(path.join(lock, 'who'), 'utf8'),
+      /^first \(\d{1,2}:\d{2} [AP]M\): sh -c/,
+    );
+    assert.equal(Number(readFileSync(path.join(lock, 'pid'), 'utf8')) > 0, true);
+    const second = spawn(
+      process.execPath,
+      [CLI_BIN, 'heavy', 'second', 'sh', '-c', `echo second >> ${order}`],
+      {
+        env: { ...process.env, ONCE_UPON_HOME: home(), ...lockEnv(lock) },
+        stdio: ['ignore', 'ignore', 'pipe'],
+      },
+    );
+    child = second;
+    let stderr = '';
+    second.stderr.on('data', (chunk) => (stderr += chunk));
+    ended = new Promise<number | null>((resolve) => second.on('close', (code) => resolve(code)));
+    assert.ok(await until(() => /waiting for first/.test(stderr), 20000), 'the second run waits');
+    assert.deepEqual(readFileSync(order, 'utf8').trim().split('\n'), ['first-start']);
+    passed = true;
+  } finally {
+    writeFileSync(release, '');
+    if (!passed && child && child.exitCode === null && child.signalCode === null) {
+      child.kill();
+    }
+  }
+  assert.ok(ended);
+  assert.equal(await ended, 0);
   await first;
-  assert.match(second.stderr, /waiting for first/);
   assert.deepEqual(readFileSync(order, 'utf8').trim().split('\n'), [
     'first-start',
     'first-end',
