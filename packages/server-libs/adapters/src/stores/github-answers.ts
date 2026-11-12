@@ -16,7 +16,7 @@ const VERSION = 1;
 export const KEEP_MS = 7 * 24 * 3600 * 1000;
 
 /** The PR GitHub has for a branch (see BranchPr in github-checks.ts), as stored. */
-export interface StoredBranchPr {
+interface StoredBranchPr {
   number: number;
   state: 'open' | 'merged';
   merged_at: string | null;

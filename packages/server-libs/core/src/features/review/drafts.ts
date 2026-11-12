@@ -84,7 +84,7 @@ export interface DraftMarks {
 
 const TTL_MS = 60000;
 const LINE_SLACK = 3;
-export const SIMILAR = 0.75; // drafts get edited before posting: a lightly reworded real one scored 0.80 against its draft
+const SIMILAR = 0.75; // drafts get edited before posting: a lightly reworded real one scored 0.80 against its draft
 
 export const draftKey = (comment: CommentLike): string =>
   createHash('sha1')
@@ -92,7 +92,7 @@ export const draftKey = (comment: CommentLike): string =>
     .digest('hex')
     .slice(0, 12);
 
-export function normalize(text: unknown): string {
+function normalize(text: unknown): string {
   return String(text || '')
     .toLowerCase()
     .replace(/```[a-z]*\n?/g, ' ')
@@ -200,7 +200,7 @@ const cache = new Map<
   { at: number; value: { login: string; comments: GithubComment[] } }
 >();
 /** The gh user's comments on a PR: [{state: 'posted'|'pending', path, line, body, url}], cached 60s. */
-export async function githubComments(
+async function githubComments(
   repo: string,
   number: number | string,
 ): Promise<{ login: string; comments: GithubComment[] }> {
@@ -353,7 +353,7 @@ export function noteAdded(
  * added is {at, url, started} while an Add to my review is waiting to show on the page, else null.
  * fix is {id, done, path, side, line}, the fix-before-push note a local story's draft became, else null.
  */
-export function draftStatus(
+function draftStatus(
   chapters: Pick<Chapter, 'comments'>[],
   marks: DraftMarks,
   github: { comments: GithubComment[] } | null = null,

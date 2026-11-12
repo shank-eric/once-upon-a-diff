@@ -79,6 +79,7 @@ export interface StartInput extends Target {
   role?: AgentRole | null;
   /** the name of the earlier run of this session that this one retries: once this run is done, a failed one of that name is off the board */
   replaces?: string | null;
+  /** a typed `--lane`: nothing reads a lane tag (a run's lane is its repo's), so it is refused beside a card and otherwise warned about */
   lane?: string | null;
   notes?: string | null;
   /** an editor's build slots (1..99, default 3); only an editor has them */
@@ -363,7 +364,7 @@ export class AgentRegistry {
     let pr = count(input.pr, 'the PR number');
     let repo = optional(input.repo, 'the repo', REPO_RE);
     let branch = optional(input.branch, 'the branch', CARD_BRANCH_RE);
-    const typedLane = optional(input.lane, 'the lane', AGENT_NAME_RE);
+    const typedLane = input.lane?.trim() || null;
     const replaces = optional(input.replaces, 'the replaced run', AGENT_NAME_RE);
     if (replaces === name) {
       throw new Error('--replaces names an earlier run: it cannot be this run');
@@ -487,8 +488,6 @@ export class AgentRegistry {
       card: cardId,
       ...(replaces ? { replaces } : {}),
       ...(input.role ? { role: input.role } : {}),
-      // nothing reads a lane tag (a run's lane is its repo's): it is not written
-      lane: null,
       notes: clean(input.notes, 'the notes path', 500) || null,
       // a restart that leaves --slots out keeps the editor's earlier slots
       ...(kind === 'editor' ? { slots: slots ?? earlier?.slots ?? DEFAULT_SLOTS } : {}),

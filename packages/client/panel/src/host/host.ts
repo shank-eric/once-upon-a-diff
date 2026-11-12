@@ -14,10 +14,10 @@ import type { Side } from '@once-upon-a-diff/terms/line-refs';
 import type { ActionName } from '@once-upon-a-diff/terms/usage-actions';
 import type { ExpandRow, FileBlock, TreeRow } from './diff-types.ts';
 
-export type { FileBlock, TreeRow } from './diff-types.ts';
+export type { FileBlock } from './diff-types.ts';
 
 /** What a host page's adapter is built from: the story's files and the panel's own element ids (it never reads those). */
-export interface HostPageDeps {
+interface HostPageDeps {
   shaToPath: Map<string, string>;
   pathToSha: Map<string, string>;
   allPaths: Set<string>;

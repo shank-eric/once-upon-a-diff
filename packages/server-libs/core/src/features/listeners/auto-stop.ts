@@ -26,8 +26,8 @@ import { sameRepo } from '@once-upon-a-diff/foundation/repos';
 import type { StoryStore } from '@once-upon-a-diff/stories/store';
 import { ensureDir, appendText } from '@once-upon-a-diff/adapters/stores/fs/files';
 
-export const SEEN_FILE = 'seen.json';
-export const DEFAULT_IDLE_MINUTES = 10;
+const SEEN_FILE = 'seen.json';
+const DEFAULT_IDLE_MINUTES = 10;
 
 /** When each story's seen.json was last written by this bridge, so a pulse every 5s writes it twice a minute. */
 const lastWritten = new Map<string, number>();
@@ -51,7 +51,7 @@ export function noteSeen(
 }
 
 /** When a page last showed the story, in ms, or null when none has. */
-export function lastSeen(stories: StoryStore, id: string): number | null {
+function lastSeen(stories: StoryStore, id: string): number | null {
   const seen = stories.readState<{ at?: string } | null>(id, SEEN_FILE, null);
   const seenAt = seen && seen.at ? Date.parse(seen.at) : NaN;
   return Number.isFinite(seenAt) ? seenAt : null;

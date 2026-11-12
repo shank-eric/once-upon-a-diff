@@ -140,10 +140,7 @@ export interface ReadMark {
   [field: string]: unknown;
 }
 
-/** GET .../read: what has been read, and what changed after. */
-export type ReadsAnswer = ReadInfo;
-
-/** GET .../rebuild and POST .../rebuild. */
+/** POST .../rebuild. */
 export interface RebuildAnswer {
   rebuild: (RebuildView & { id: string }) | null;
 }

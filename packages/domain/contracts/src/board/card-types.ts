@@ -82,8 +82,8 @@ export interface BoardSession {
 
 /**
  * One card. kind `work` is a branch or PR with the sessions and agents working on it inside; `session` is a session
- * that is not on a branch of its own (the default branch, or no repo); `agent` is a registered agent whose lane tag put it
- * away from its parent, or whose session is gone.
+ * that is not on a branch of its own (the default branch, or no repo); `agent` is a registered agent that no card's repo,
+ * branch, PR or card names, or whose session is gone.
  */
 export interface BoardCard {
   id: string;
@@ -91,7 +91,7 @@ export interface BoardCard {
   title: string;
   repo: string | null;
   branch: string | null;
-  /** the lane key: the repo's owner/name, else the folder's name (or a lane tag, or "General") */
+  /** the lane key: the repo's owner/name, else the folder's name (or "General") */
   lane: string;
   column: BoardColumn;
   /** the question or status line worth reading at a glance */
@@ -269,7 +269,7 @@ export interface BoardListening {
 }
 
 /** The Assign button on a backlog card: the message it sends the voice session (the same for every click). */
-export interface BoardAssign {
+interface BoardAssign {
   prompt: string;
 }
 

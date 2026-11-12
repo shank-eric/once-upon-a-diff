@@ -40,7 +40,6 @@ export const STORY_ROUTES = {
   storyUiWrite: story<In<'ui'>, SavedUi>('POST', 'ui', 'token+page+view'),
   storyPosition: story<In<'position'>, Ok>('POST', 'position', 'token+page+view'),
   storyFreshness: story<undefined, Freshness>('GET', 'freshness', 'token+page+view'),
-  storyRebuildRead: story<undefined, RebuildAnswer>('GET', 'rebuild', 'token+page+view'),
   storyRebuildWrite: story<In<'rebuild'>, RebuildAnswer>('POST', 'rebuild', 'token+page+view'),
   storyStatus: story<undefined, BridgeStatus>('GET', 'status', 'token+page+view'),
   storyPrefsRead: story<undefined, Prefs>('GET', 'prefs', 'token+page+view'),

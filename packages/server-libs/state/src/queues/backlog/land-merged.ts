@@ -23,7 +23,7 @@ const ASK_MS = 40000;
  * When the card's work began, in ms: the earliest of its start, its claim and the first run that names it (a card added with a
  * branch and claimed or run without `--branch` is never `started`), or null when none of them exists.
  */
-export function workBeganAt(item: BacklogItem, agents: LedgerAgent[]): number | null {
+function workBeganAt(item: BacklogItem, agents: LedgerAgent[]): number | null {
   const times = [
     item.started_at,
     item.claim?.at,
@@ -35,7 +35,7 @@ export function workBeganAt(item: BacklogItem, agents: LedgerAgent[]): number | 
 }
 
 /** Whether a card may land by its PR: not landed, dropped, held or someday, with a branch and repo, and its work begun (a card only added with a branch is not). */
-export function landable(
+function landable(
   item: BacklogItem,
   agents: LedgerAgent[],
 ): item is BacklogItem & { repo: string; branch: string } {

@@ -144,7 +144,7 @@ const REQUESTED_QUERY = `query{
 type SearchNode = { number?: number; repository?: { nameWithOwner: string } };
 
 /** The PRs in both searches' answers, each once, review requests first. */
-export function requestedOf(data: {
+function requestedOf(data: {
   requested?: { nodes: SearchNode[] };
   mine?: { nodes: SearchNode[] };
 }): { repo: string; number: number }[] {

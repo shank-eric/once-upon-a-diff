@@ -51,6 +51,18 @@ test('a field the schema does not list survives a read', () => {
   });
 });
 
+test('an old row that carries a lane tag still loads', () => {
+  const event = readAgentEvent({
+    op: 'start',
+    id: 'a:b',
+    sid8: 'a',
+    name: 'b',
+    at: '2026-11-01T00:00:00Z',
+    lane: 'widgets',
+  });
+  assert.equal(event?.name, 'b');
+});
+
 test('a field of the wrong type reads as absent, and null stays null', () => {
   const event = readAgentEvent({
     op: 'start',

@@ -16,7 +16,7 @@ import type { EditorState } from '/assets/local/store.ts';
 type Sign = ' ' | '-' | '+';
 
 /** A row of the diff, before notes and folds. */
-export type BaseRow =
+type BaseRow =
   | { kind: 'hunk'; key: string; hunk: DiffHunk }
   /** a unified line: its numbers are null on the side it isn't on. `hunkIndex` and `i` say where its highlighted HTML is. */
   | {
@@ -33,7 +33,7 @@ export type BaseRow =
   | { kind: 'info'; key: string; text: string; hunkIndex?: number }
   | { kind: 'message'; key: string; text: string };
 
-export type Row = BaseRow | NoteRow | EditorRow | FoldRow;
+type Row = BaseRow | NoteRow | EditorRow | FoldRow;
 export interface NoteRow {
   kind: 'note';
   key: string;

@@ -169,7 +169,7 @@ function currentNotes(home: string, store: StoryStore, story: string): LocalNote
 }
 
 /** The story's Auto-send setting: each note is sent as it's added. Off unless the reviewer turned it on. */
-export const autoSendOf = (store: StoryStore, story: string): boolean =>
+const autoSendOf = (store: StoryStore, story: string): boolean =>
   !!(store.readState<{ auto_send?: boolean }>(story, 'fix-settings.json', {}) || {}).auto_send;
 export function setAutoSend(store: StoryStore, story: string, enabled: unknown): boolean {
   store.writeState(story, 'fix-settings.json', {
@@ -184,7 +184,7 @@ const fixListeners = (home: string, live: Listener[] | null) =>
   (live || listeners(home)).filter((listener) => listener.live && listener.fixes);
 
 /** Which session a story's fix requests go to now: {consumer, scope} or null, by the questions' rule. */
-export const fixesGoTo = (
+const fixesGoTo = (
   home: string,
   { repo = null, story = null }: { repo?: string | null; story?: string | null } = {},
   live: Listener[] | null = null,

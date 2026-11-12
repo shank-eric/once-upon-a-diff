@@ -162,7 +162,7 @@ export function listeningOnly(
 }
 
 /** The latest time a request was handed to this consumer: a question, or a build or fix request it claimed. */
-export function lastHandled(home: string, consumer: string): string | null {
+function lastHandled(home: string, consumer: string): string | null {
   const times = [
     ...Object.values(readHanded(home))
       .filter((handed) => handed.consumer === consumer)

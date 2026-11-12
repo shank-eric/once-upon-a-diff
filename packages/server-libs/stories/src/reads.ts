@@ -53,7 +53,7 @@ export interface Since {
 }
 
 /** time: they stayed on it; viewed: they ticked its last file; inferred: its files were all Viewed already when the panel opened (a review before read tracking, or with the panel closed) */
-export const READ_REASONS = ['time', 'viewed', 'inferred'];
+const READ_REASONS = ['time', 'viewed', 'inferred'];
 
 const READS = 'read.json';
 const file = (home: string, key: string) => stateFile(home, key, READS);

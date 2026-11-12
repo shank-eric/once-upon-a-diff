@@ -37,7 +37,7 @@ export interface QaMarks {
   held: Record<string, string>;
 }
 
-export type QaAction = 'dismiss' | 'restore' | 'collapse' | 'expand' | 'read' | 'unread';
+type QaAction = 'dismiss' | 'restore' | 'collapse' | 'expand' | 'read' | 'unread';
 
 /** Who a wait handed each question to (handed.json). */
 /** `via` is the relay wait that handed it to the agent `consumer` (binding.ts). */
@@ -162,7 +162,7 @@ export function noteHanded(home: string, ids: string[], consumer: string, via?: 
 const NEVER_READ = new Date(0).toISOString();
 
 /** An answer nobody has marked read counts as unread for this long, so old stories don't light up. */
-export const UNREAD_DAYS = 7;
+const UNREAD_DAYS = 7;
 
 /** What a question needs to be judged unread: when it was asked, its answers, and whether it was dismissed. */
 interface Judged {
@@ -174,7 +174,7 @@ interface Judged {
  * Whether the question has an answer the reviewer hasn't read: one newer than the question's read mark, or, with no
  * mark, one under UNREAD_DAYS old. A dismissed question has nothing unread.
  */
-export function isUnread(question: Judged, marks: QaMarks, now = Date.now()): boolean {
+function isUnread(question: Judged, marks: QaMarks, now = Date.now()): boolean {
   if (!question.answers.length || marks.dismissed[question.id]) {
     return false;
   }

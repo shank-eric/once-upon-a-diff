@@ -78,7 +78,7 @@ export function parseWorktreeEntries(text: string): WorktreeEntry[] {
 export const HIDDEN_MARKER = 'once-upon-hidden';
 
 /** Whether a linked worktree's git dir (named by the `gitdir:` line of its .git file) has the hidden marker. */
-export function hiddenWorktree(dir: string): boolean {
+function hiddenWorktree(dir: string): boolean {
   try {
     const line = /^gitdir:\s*(.+)$/m.exec(readFileSync(path.join(dir, '.git'), 'utf8'));
     return !!line && existsSync(path.join(path.resolve(dir, line[1].trim()), HIDDEN_MARKER));
@@ -874,7 +874,7 @@ export function workingIn(
 }
 
 /** Whether a repo's branches are on the never-delete list: by owner/name, name, or the main checkout's folder. */
-export function branchesKept(facts: Pick<WorktreeFacts, 'repo' | 'main'>, keep: string[]): boolean {
+function branchesKept(facts: Pick<WorktreeFacts, 'repo' | 'main'>, keep: string[]): boolean {
   const names = [facts.repo, repoName(facts.repo), path.basename(facts.main)].map((name) =>
     (name ?? '').toLowerCase(),
   );

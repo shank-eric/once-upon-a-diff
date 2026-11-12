@@ -6,7 +6,7 @@
 
 /** The colour of a chip: its text and its border. `inherit` takes the text colour from the host's own class. No tone is the neutral chip. */
 export type ChipTone = 'muted' | 'accent' | 'success' | 'attention' | 'inherit';
-export type ChipSize = 'sm' | 'md' | 'lg';
+type ChipSize = 'sm' | 'md' | 'lg';
 
 export interface ChipLook {
   tone?: ChipTone;

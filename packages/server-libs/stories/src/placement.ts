@@ -26,7 +26,7 @@ import { updateJson } from '@once-upon-a-diff/adapters/stores/fs/lock';
 import { readStoryKinds } from '@once-upon-a-diff/contracts/files/story-kinds';
 import { runGit } from '@once-upon-a-diff/adapters/git';
 
-export const STORY_FOLDER = '.once-upon';
+const STORY_FOLDER = '.once-upon';
 const EXCLUDE_LINE = `/${STORY_FOLDER}/`;
 
 /** The main checkout of the repo dir is in (for a worktree, the checkout its .git belongs to), or dir itself. */
@@ -110,7 +110,7 @@ const indexFile = (home: string) => path.join(home, 'stories.json');
 export function readIndex(home: string): Record<string, string> {
   return readJson<Record<string, string>>(indexFile(home), {}) || {};
 }
-export function indexStory(home: string, id: string, dir: string): void {
+function indexStory(home: string, id: string, dir: string): void {
   const all = readIndex(home);
   if (all[id] === dir) {
     return;

@@ -18,7 +18,7 @@ import {
 import { BRANCH_RE, REPO_RE } from '@once-upon-a-diff/terms/patterns';
 
 /** What the extension saw you do on a GitHub page (a refresh's reason, for the bridge's log line). */
-export const GITHUB_REFRESH_REASONS = ['review', 'open', 'merge', 'ready', 'close'] as const;
+const GITHUB_REFRESH_REASONS = ['review', 'open', 'merge', 'ready', 'close'] as const;
 
 export const GITHUB_BODIES = {
   /** POST /api/github/refresh: what the extension saw you do on GitHub (page-made, so every field is checked) */

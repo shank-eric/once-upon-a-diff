@@ -90,7 +90,6 @@ const agentCommon = {
   pr: maybe(number()),
   cwd: maybe(text),
   card: maybe(card),
-  lane: maybe(text),
   notes: maybe(text),
   slots: maybe(number()),
   outcome: maybe(text),

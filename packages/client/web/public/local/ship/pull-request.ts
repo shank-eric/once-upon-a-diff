@@ -78,7 +78,7 @@ export async function lookForPull(force = false) {
 const refPath = (ref: string) => ref.split('/').map(encodeURIComponent).join('/');
 
 /** GitHub's compare page for the PR, with the title and body when the link isn't too long for the body. */
-export function compareUrl(
+function compareUrl(
   repo: string,
   base: string,
   branch: string,

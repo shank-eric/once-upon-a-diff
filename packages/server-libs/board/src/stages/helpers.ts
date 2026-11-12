@@ -10,7 +10,7 @@ import type { BoardHelper, BoardSession } from '@once-upon-a-diff/contracts/type
 import type { LiveSession } from '@once-upon-a-diff/adapters/claude-sessions/live-sessions';
 
 /** A helper with no event this long is left off the row (its session may be live, but nobody has asked it anything). */
-export const HELPER_IDLE_MS = 8 * 3600 * 1000;
+const HELPER_IDLE_MS = 8 * 3600 * 1000;
 
 export const isStandingHelper = (agent: Pick<LedgerAgent, 'standing'>): boolean =>
   agent.standing === true;

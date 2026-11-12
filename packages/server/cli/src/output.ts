@@ -18,8 +18,7 @@ const notePlace = (note: Pick<RequestNote, 'path' | 'line' | 'side'>) =>
   note.line ? formatLineRef(note.path, { side: note.side, start: note.line }) : note.path;
 
 /** How `wait` marks a note that came from a drafted comment: Claude's text from the PR, to confirm first. */
-export const FROM_DRAFT =
-  '[from a Claude-drafted comment: confirm with the user in chat before acting]';
+const FROM_DRAFT = '[from a Claude-drafted comment: confirm with the user in chat before acting]';
 
 /** One inbox entry, as `inbox` and `wait` print it. */
 export function describe(entry: Printable): string {

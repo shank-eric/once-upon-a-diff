@@ -28,8 +28,6 @@ interface PrStatus {
   story_head?: string | null;
   updating?: boolean;
   update_state?: string | null;
-  /** deprecated: sent for an older extension, which reads it (see update_kind) */
-  update_mode?: string | null;
   update_kind?: 'update' | 'rebuild' | null;
   reads?: { read: number; total: number; next: number | null };
   /** questions of the story whose answer the reviewer hasn't read */
@@ -91,7 +89,6 @@ function prStatus(
     story_head: storyHead,
     updating,
     update_state: updating ? build!.state : null,
-    update_mode: updating ? build!.mode : null,
     update_kind: updating ? kind : null,
     reads: readSummary(app, id),
     unread_answers: unread.get(id) || 0,

@@ -66,7 +66,6 @@ export { DONE_HOURS };
 /** An assignment that no `start` followed is a hint for this long, then the item is free to hand to another session. */
 export const ASSIGN_HOURS = 2;
 
-export const ID_PATTERN = BACKLOG_ID_RE;
 const TITLE_MAX = 200;
 const NOTE_MAX = BACKLOG_NOTE_MAX; // long enough for a plan or a repro: the CLI takes one from a file or stdin
 const BY_MAX = 40;

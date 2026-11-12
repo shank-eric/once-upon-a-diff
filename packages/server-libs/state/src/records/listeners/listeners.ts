@@ -60,8 +60,8 @@ export interface Listener {
   fixes: boolean;
 }
 
-export const WAITING_FRESH_MS = 15000;
-export const HANDLING_FRESH_MS = 10 * 60 * 1000;
+const WAITING_FRESH_MS = 15000;
+const HANDLING_FRESH_MS = 10 * 60 * 1000;
 /** How long without a history note is still one stretch of listening: a whole handover, which is live that long, and a beat. */
 const STRETCH_GAP_MS = HANDLING_FRESH_MS + WAITING_FRESH_MS;
 
@@ -228,7 +228,7 @@ export function answeringOf(
  * the session that owns the story's agent (its beat says which) relays, whatever it covers (the story, the repo or
  * everything). A listener for the story that isn't in that session answers it itself, and so keeps it.
  */
-export function answeringWithAgent(
+function answeringWithAgent(
   live: Pick<Listener, 'consumer' | 'repo' | 'story' | 'session' | 'no_relay'>[],
   binding: Pick<Binding, 'agent' | 'session'> | null,
   { repo = null, story = null }: { repo?: string | null; story?: string | null } = {},

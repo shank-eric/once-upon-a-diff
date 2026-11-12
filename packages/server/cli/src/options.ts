@@ -27,7 +27,7 @@ export function bodyText(
  * node process (exit 137) when a single argument passes about 1,000 bytes, before any of this code runs.
  * (`--body` has its own pair, `--body-file`, in bodyText.)
  */
-export const LONG_TEXT_FLAGS = ['note', 'outcome', 'task', 'title', 'text'] as const;
+const LONG_TEXT_FLAGS = ['note', 'outcome', 'task', 'title', 'text'] as const;
 
 /**
  * The opts with each long-text flag settled: `--note-file F` (or `--note -`, stdin) replaces `--note`'s value with the

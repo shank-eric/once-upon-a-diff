@@ -90,13 +90,13 @@ export interface Chapter {
 }
 
 /** A file of the diff, and its sha256 (GitHub's #diff-<sha> anchors). */
-export interface StoryFile {
+interface StoryFile {
   rel: string;
   sha: string;
 }
 
 /** A changed hunk no chapter points at, as a line reference (`path:40-58`). */
-export interface UncoveredHunk extends LineSpan {
+interface UncoveredHunk extends LineSpan {
   ref: string;
 }
 
@@ -105,14 +105,14 @@ export interface UncoveredFile {
   hunks: UncoveredHunk[];
 }
 
-export interface StoryPr {
+interface StoryPr {
   repo: string | null;
   number: number | null;
   title: string;
   url: string | null;
 }
 
-export interface DiffStats {
+interface DiffStats {
   added: number;
   removed: number;
 }
@@ -230,7 +230,7 @@ export interface PrDraft {
  * missing (not pushed yet), same (GitHub has this commit), ahead (new commits to push), diverged (GitHub's copy
  * has commits this checkout doesn't, so a push would be refused) or unreachable (ls-remote failed).
  */
-export type PrRemoteState = 'missing' | 'same' | 'ahead' | 'diverged' | 'unreachable';
+type PrRemoteState = 'missing' | 'same' | 'ahead' | 'diverged' | 'unreachable';
 
 export interface PrView {
   /** owner/name, from the checkout's origin; null when origin isn't on GitHub */
@@ -260,7 +260,7 @@ export interface PrPushAnswer {
  * the commit), ahead (the commit is new there: a fast-forward), behind (it already has the commit and more), diverged
  * (it has commits this checkout doesn't), missing (no such branch on origin) or unreachable (the fetch failed).
  */
-export type PushRemoteState = 'same' | 'ahead' | 'behind' | 'diverged' | 'missing' | 'unreachable';
+type PushRemoteState = 'same' | 'ahead' | 'behind' | 'diverged' | 'missing' | 'unreachable';
 
 export interface PushView {
   /** owner/name, from the checkout's origin; null when origin isn't on GitHub */

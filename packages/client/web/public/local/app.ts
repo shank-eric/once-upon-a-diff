@@ -109,7 +109,7 @@ function Story(props: { state: LocalState }) {
     <${Follow} />`;
 }
 
-export function LocalApp(props: { state: LocalState }) {
+function LocalApp(props: { state: LocalState }) {
   const { state } = props;
   if (state.loadError !== null) {
     return html`<p class="ou-local-error">Couldn't load the story: ${state.loadError}</p>`;

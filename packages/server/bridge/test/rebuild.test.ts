@@ -288,11 +288,6 @@ describe('asking for a rebuild', () => {
       ).body.results[0];
       assert.equal(status.state, 'ready');
       assert.equal(status.updating, true);
-      assert.equal(
-        status.update_mode,
-        'rebuild',
-        'sent still: an extension from before update_kind reads it',
-      );
       assert.equal(status.update_kind, 'rebuild');
       assert.equal(status.update_state, 'queued');
       assert.equal(

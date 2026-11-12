@@ -66,10 +66,10 @@ export interface Finding {
 }
 
 /** The finding for a chapter still being written: a skeleton has it on every chapter, so a publish's summary leaves it out. */
-export const NO_NARRATIVE = 'the chapter has no narrative';
+const NO_NARRATIVE = 'the chapter has no narrative';
 
 /** The skill's own numbers. Words and refs are targets (warn); more files than filesFailOver is a step that should have been split. */
-export const LIMITS = {
+const LIMITS = {
   wordsWarnOver: 300,
   wordsWarnUnder: 100,
   filesWarnOver: 8,

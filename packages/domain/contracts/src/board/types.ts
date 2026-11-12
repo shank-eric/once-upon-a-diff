@@ -6,7 +6,7 @@
 import type { BoardEditor } from './agent-types.ts';
 import type { BoardCard, BoardListening, BoardWorktree } from './card-types.ts';
 
-/** GET /api/board: lanes (one per repo, or per lane tag), each with its cards. */
+/** GET /api/board: lanes (one per repo), each with its cards. */
 export interface BoardData {
   at: string;
   /** which source gave the sessions' status */
@@ -35,7 +35,7 @@ export interface BoardData {
   helpers: BoardHelper[];
   /** live sessions that have had no prompt yet (new, or just cleared), by lane: a strip in the Idle lane, not cards */
   blank: { key: string; name: string; sessions: BoardBlankSession[] }[];
-  /** one per repo, or per lane tag: `key` is the repo's owner/name (else the folder or tag), `name` is the label (the short name, unless two lanes share it) */
+  /** one per repo: `key` is the repo's owner/name (else the folder), `name` is the label (the short name, unless two lanes share it) */
   lanes: { key: string; name: string; cards: BoardCard[] }[];
   /** every git worktree on this Mac (null when the board's worktrees are off) */
   worktrees: BoardWorktrees | null;
@@ -82,7 +82,7 @@ export interface BoardVoice {
 }
 
 /** The sessions Start voice may type /larmor into. */
-export interface BoardVoiceStart {
+interface BoardVoiceStart {
   last: { id: string; name: string } | null;
   candidates: { id: string; name: string; idle: boolean }[];
 }

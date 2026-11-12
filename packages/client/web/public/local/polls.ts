@@ -6,7 +6,7 @@
 import { createPoll } from '/assets/bridge-client/poll.ts';
 import { STILL_OPEN_MS } from '/assets/terms/timing.ts';
 
-export const POLL_MS = 5000;
+const POLL_MS = 5000;
 
 /** Starts both. `closed` says whether the panel is closed, `reload` looks for a new version, `seen` tells the bridge the page is open. Returns the stop. */
 export function startLocalPolls({

@@ -9,9 +9,9 @@ import path from 'node:path';
 import { readJson } from '@once-upon-a-diff/adapters/stores/fs/json-file';
 import { updateJson } from '@once-upon-a-diff/adapters/stores/fs/lock';
 
-export const HISTORY_DAYS = 7;
+const HISTORY_DAYS = 7;
 
-export interface HistoryEntry {
+interface HistoryEntry {
   repo: string;
   consumer: string;
   started_at: string;

@@ -329,14 +329,6 @@
    "token+page+view"
   ],
   [
-   "storyRebuildRead",
-   "GET",
-   "/api/stories/:id/rebuild",
-   "rebuild",
-   null,
-   "token+page+view"
-  ],
-  [
    "storyRebuildWrite",
    "POST",
    "/api/stories/:id/rebuild",

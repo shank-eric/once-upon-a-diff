@@ -21,11 +21,11 @@ import type { InboxLocalStory, InboxStory, ReviewedBy } from '@once-upon-a-diff/
 import { prUrl } from '@once-upon-a-diff/terms/github-urls';
 
 /** How long after it was built a PR story stays in the inbox. */
-export const STORY_DAYS = 30;
+const STORY_DAYS = 30;
 /** A local story nobody has opened, read, marked or rebuilt for this many days counts as done (reviewed by `idle`). */
 export const LOCAL_IDLE_DAYS = 3;
 /** What marks a local story done without you: its work is on GitHub or in the default branch, or it went quiet. */
-export const AUTO_DONE: readonly ReviewedBy[] = ['pr', 'delivered', 'idle'];
+const AUTO_DONE: readonly ReviewedBy[] = ['pr', 'delivered', 'idle'];
 const REVIEWED = 'reviewed.json';
 const MERGED = 'merged.json';
 
@@ -274,11 +274,6 @@ export function mergedStories(
     });
   }
   return found;
-}
-
-/** One PR story by id, or null when the id isn't a listed one's. */
-export function prStory(stories: StoryStore, id: string): InboxStory | null {
-  return prStories(stories).find((story) => story.id === id) || null;
 }
 
 /** Whether the story has a reviewed.json at all (marked or unmarked by hand, or by the auto-check). */

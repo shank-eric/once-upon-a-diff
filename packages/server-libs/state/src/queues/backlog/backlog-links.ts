@@ -33,7 +33,7 @@ export function parseWorktrees(text: string): Worktree[] {
 }
 
 /** A live session as the links look at it. */
-export interface LinkSession {
+interface LinkSession {
   id: string;
   title: string;
   cwd: string;

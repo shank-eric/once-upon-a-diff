@@ -13,7 +13,7 @@ type FixRequestEntry = ReturnType<typeof fixesToHand>[number];
 export type Printable = InboxEntry | BuildRequestEntry | FixRequestEntry;
 
 /** What a session does with a fix request, after the request itself. */
-export function fixGuidance(entry: Extract<Printable, { type: 'fix_request' }>): string {
+function fixGuidance(entry: Extract<Printable, { type: 'fix_request' }>): string {
   const where = entry.kind === 'local' ? 'the local story' : `${entry.repo} PR`;
   const fromDrafts = entry.notes.some((note) => note.from_draft);
   return [

@@ -1,9 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { document, root, saved, tick, fire } from './dom-env.ts';
+import { html, render } from '@once-upon-a-diff/ui-kit/vendor/preact.mjs';
 import type { BoardVoice } from '@once-upon-a-diff/contracts/types';
 
-const { mountVoice, nearBottom, clampWidth, lineKeys, MIN_WIDTH } =
+const { VoicePanel, nearBottom, clampWidth, lineKeys, MIN_WIDTH } =
   await import('../public/board/voice/voice-panel.ts');
 
 const base: BoardVoice = {
@@ -54,8 +55,10 @@ function fresh(remembered: Record<string, string> = {}) {
   }
 }
 fresh();
+const mount = (voiceProps: ReturnType<typeof props>) =>
+  render(html`<${VoicePanel} ...${voiceProps} />`, host as unknown as HTMLElement);
 const show = async (voice: BoardVoice | null) => {
-  mountVoice(host as unknown as HTMLElement, props(voice));
+  mount(props(voice));
   await tick();
 };
 const $ = (selector: string) => host.querySelector(selector) as HTMLElement;
@@ -238,7 +241,7 @@ test('Pause asks the bridge, waits disabled until the poll is back, then enables
   // a slow bridge: the button waits disabled, so a second click cannot send a second request
   let release = () => {};
   const slow = { ...props(base), pause: () => new Promise<void>((resolve) => (release = resolve)) };
-  mountVoice(host as unknown as HTMLElement, slow);
+  mount(slow);
   await tick();
   fire($('.ou-board-voice-pause'), 'click');
   await tick();

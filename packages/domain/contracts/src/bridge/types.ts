@@ -3,8 +3,6 @@
  * statuses and the small acknowledgements. Types only: nothing here runs.
  */
 
-import type { ErrorCode } from '@once-upon-a-diff/terms/error-code';
-
 /** A built local story: a branch's story before any PR. The board's Open story goes to its local page, Mark reviewed ticks it off. */
 export interface InboxLocalStory {
   id: string;
@@ -107,19 +105,13 @@ export interface BridgeStatus {
   listening?: Listening;
 }
 
-/** What every non-2xx answer from the bridge is: its message (for people) and its code (for programs). */
-export interface ErrorBody {
-  error: string;
-  code: ErrorCode;
-}
-
 /** Why the bridge couldn't say: it's down, the token is wrong, or it's older than the panel. */
 export interface StatusError extends Error {
   code?: 'down' | 'token' | 'old';
 }
 
 /** The story panel's width and its questions dock's height, in pixels. */
-export interface Layout {
+interface Layout {
   width?: number;
   chatHeight?: number;
 }
@@ -160,8 +152,6 @@ export interface StoryStatus {
   newer?: number | null;
   updating?: boolean;
   update_state?: string | null;
-  /** deprecated: the build's mode, sent for an older extension (read `update_kind`) */
-  update_mode?: string | null;
   /** what the pending update is: a plain update to the latest commit, or a rebuild of the story */
   update_kind?: 'update' | 'rebuild' | null;
   reads?: { read: number; total: number; next?: number | null } | null;
@@ -183,7 +173,7 @@ export interface Health {
 }
 
 /** One story in GET /api/stories (the story's folder is not sent). */
-export interface StoryListEntry {
+interface StoryListEntry {
   id: string;
   kind: 'github' | 'local';
   title?: string;

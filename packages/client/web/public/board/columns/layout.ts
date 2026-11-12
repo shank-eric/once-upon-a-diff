@@ -36,7 +36,7 @@ export const GROUPS = [
 const WARM_MS = 60 * 60 * 1000;
 
 /** Whether a resting card's newest session went quiet within WARM_MS (by Claude Code's registry, not the tab's status). */
-export function isWarm(card: BoardCard, now: number): boolean {
+function isWarm(card: BoardCard, now: number): boolean {
   const rested = card.sessions
     .map((session) => (session.rested_at ? Date.parse(session.rested_at) : NaN))
     .filter((time) => !Number.isNaN(time));
@@ -44,10 +44,10 @@ export function isWarm(card: BoardCard, now: number): boolean {
 }
 
 /** A Backlog card in the Someday section: out of the Backlog column's lanes and count (the section lists it). */
-export const isSomeday = (card: BoardCard) => card.column === 'backlog' && !!card.backlog?.someday;
+const isSomeday = (card: BoardCard) => card.column === 'backlog' && !!card.backlog?.someday;
 
 /** Someone else's PR with nothing on you and no session of yours on it: the ball is in its author's court. */
-export const isOnAuthor = (card: BoardCard) =>
+const isOnAuthor = (card: BoardCard) =>
   card.column === 'pr_open' && !!card.pr && !card.pr.mine && !card.sessions.length;
 
 /**

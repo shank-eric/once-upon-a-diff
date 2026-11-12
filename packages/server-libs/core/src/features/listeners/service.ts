@@ -26,8 +26,6 @@ import {
 } from '@once-upon-a-diff/state/records/listeners/binding';
 import {
   answeringOf,
-  cliCommand,
-  listenPrompt,
   listeners,
   listeningOf,
   statusOf,
@@ -117,7 +115,7 @@ export class Listening {
 }
 
 // what needs no home
-export { AGENT_RE, answeringOf, cliCommand, listenPrompt, ownSession, repoAt };
+export { AGENT_RE, answeringOf, ownSession, repoAt };
 export { stoppedEvent, stoppedLines } from './hand-over.ts';
 export {
   adoptHandlers,
@@ -128,6 +126,5 @@ export {
   storyListening,
 } from './board-view.ts';
 export type { Binding, Listener };
-export type { Printable, StopScope } from './hand-over.ts';
-export type { HandedItem, WaitOptions, WaitOutcome } from './wait.ts';
-export type { LaneInput, MarkInput } from './board-view.ts';
+export type { Printable } from './hand-over.ts';
+export type { WaitOptions, WaitOutcome } from './wait.ts';

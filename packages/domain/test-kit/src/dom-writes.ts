@@ -7,7 +7,7 @@ import { readdirSync } from 'node:fs';
 import path from 'node:path';
 
 /** Every way the panel could write into a node by hand, as a source pattern. */
-export const WRITES = new RegExp(
+const WRITES = new RegExp(
   [
     String.raw`\bsetHtml\(`,
     String.raw`\binsertHtml\(`,

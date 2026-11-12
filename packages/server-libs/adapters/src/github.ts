@@ -8,7 +8,7 @@
 import { execFile } from 'node:child_process';
 
 /** The gh binary: ONCE_UPON_GH when set (the tests' fake gh), else gh on PATH. */
-export const ghBinary = () => process.env.ONCE_UPON_GH || 'gh';
+const ghBinary = () => process.env.ONCE_UPON_GH || 'gh';
 
 export interface GhOptions {
   timeout?: number;

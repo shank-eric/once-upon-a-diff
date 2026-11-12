@@ -15,7 +15,7 @@ export interface PanelState extends PanelUi {
 }
 
 /** The step clamped to the story's steps (0 is the Overview). */
-export function clampStep(story: StoryModel, step: number): number {
+function clampStep(story: StoryModel, step: number): number {
   return Math.min(Math.max(0, step), story.data.chapters.length);
 }
 

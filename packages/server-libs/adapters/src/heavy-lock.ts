@@ -35,7 +35,7 @@ import { ensureDir } from './stores/fs/files.ts';
 const SIGNALS = { SIGINT: 2, SIGTERM: 15, SIGHUP: 1 } as const;
 
 /** Where the lock is. */
-export function heavyLockPath(env: NodeJS.ProcessEnv = process.env): string {
+function heavyLockPath(env: NodeJS.ProcessEnv = process.env): string {
   return (
     env.ONCE_UPON_HEAVY_LOCK ||
     path.join(env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache'), 'heavy-run.lock')

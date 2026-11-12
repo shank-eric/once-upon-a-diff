@@ -75,7 +75,7 @@ export function parseFiles(spec: unknown): StoredMark['files'] {
  * beat after the mark was made and isn't live now. A listener of the same name that went quiet before the mark
  * (an old wait) doesn't count.
  */
-export function markLive(
+function markLive(
   mark: Pick<WorkingMark, 'consumer' | 'at' | 'started_at'>,
   beats: Pick<Listener, 'consumer' | 'live' | 'at'>[],
   now = Date.now(),

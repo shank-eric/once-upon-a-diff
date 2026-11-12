@@ -28,7 +28,7 @@ import type { App, Call, StoryRoute } from '../types.ts';
  * bridge's gh user, since fix requests go to the session working the viewer's own branch. When it's off, notes
  * already there stay readable. An author or a gh login that isn't known counts as not the viewer's.
  */
-export async function canAddNotes(story: ServedStory): Promise<boolean> {
+async function canAddNotes(story: ServedStory): Promise<boolean> {
   if (story.meta.kind === 'local') {
     return true;
   }

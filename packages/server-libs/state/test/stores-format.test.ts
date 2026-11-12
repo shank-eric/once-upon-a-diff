@@ -4,7 +4,7 @@ import path from 'node:path';
 import { appendFileSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import '@once-upon-a-diff/test-kit/env';
 import { tmp } from '@once-upon-a-diff/test-kit/files';
-import { appendAgentEvent, readAgentsFile } from '@once-upon-a-diff/adapters/stores/agents-file';
+import { appendAgentEvent } from '@once-upon-a-diff/adapters/stores/agents-file';
 import {
   appendBacklogEvent,
   readBacklogFile,
@@ -20,7 +20,7 @@ import {
   writeGithubAnswers,
 } from '@once-upon-a-diff/adapters/stores/github-answers';
 import { appendLine } from '@once-upon-a-diff/adapters/stores/fs/lines';
-import { jsonLines } from '@once-upon-a-diff/adapters/stores/fs/jsonl';
+import { jsonLines, readLogText } from '@once-upon-a-diff/adapters/stores/fs/jsonl';
 import { parseAgentEvents } from '../src/records/agents/events.ts';
 import { foldBacklog } from '../src/queues/backlog/backlog.ts';
 
@@ -31,14 +31,14 @@ const mode = (file: string) => statSync(file).mode & 0o777;
 
 test('agents.jsonl: one compact event a line, 0600, no time added', () => {
   const file = path.join(tmp('fmt-agents'), 'agents.jsonl');
-  assert.equal(readAgentsFile(file), '');
+  assert.equal(readLogText(file), '');
   appendAgentEvent(file, { v: 1, op: 'beat', id: 'abcdef01:x', at: '2026-11-04T10:00:00.000Z' });
   appendAgentEvent(file, { v: 1, op: 'finish', id: 'abcdef01:x' });
   assert.equal(
     text(file),
     '{"v":1,"op":"beat","id":"abcdef01:x","at":"2026-11-04T10:00:00.000Z"}\n{"v":1,"op":"finish","id":"abcdef01:x"}\n',
   );
-  assert.equal(readAgentsFile(file), text(file));
+  assert.equal(readLogText(file), text(file));
   assert.equal(mode(file), 0o600);
 });
 

@@ -71,7 +71,7 @@ export interface Plan {
  * A "Since you read it" chapter's `since`: {from, to, commits}, the commits it tells (from..to).
  * The panel numbers chapters after it, puts "Mark viewed" on its files, and links GitHub's diff of just that range.
  */
-export function sinceOfChapter(since: unknown): SinceRange | null {
+function sinceOfChapter(since: unknown): SinceRange | null {
   const range = since as { from?: string; to?: string; commits?: number } | null;
   if (
     !range ||

@@ -18,7 +18,7 @@ import { inCheckout, realPathOf, recordKind, recordedKind } from './placement.ts
 import { homeDir } from '@once-upon-a-diff/foundation/settings';
 
 /** A file's modification time in ms, or 0 when it's missing. */
-export function modifiedAt(file: string): number {
+function modifiedAt(file: string): number {
   try {
     return statSync(file).mtimeMs;
   } catch {
@@ -29,7 +29,7 @@ export function modifiedAt(file: string): number {
 export const isStoryDir = (dir: string): boolean =>
   existsSync(path.join(dir, 'chapters.json')) && existsSync(path.join(dir, 'meta.json'));
 
-export const STORY_KINDS = ['github', 'local'];
+const STORY_KINDS = ['github', 'local'];
 
 /**
  * A ref or branch a meta.json may name: what git allows in a ref name or a revision like `HEAD~1` (letters, digits and

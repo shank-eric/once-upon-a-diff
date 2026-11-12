@@ -29,9 +29,6 @@ import type {
 } from '@once-upon-a-diff/contracts/types';
 import type { BuildContext, PinnedVoice } from './types.ts';
 
-/** A running agent with no done line this long after it started is marked stale. */
-export { STALE_MS };
-
 export const AGENT_OPEN = ['running', 'waiting', 'plan', 'fixing'];
 
 /** The lane for an agent whose session is gone and that names no lane. */
@@ -62,7 +59,7 @@ export const isFinished = (agent: Pick<LedgerAgent, 'state'>): boolean => isEndS
  * registered is read, never the task or outcome text, the repo or the order of the runs. A failed run nobody replaced stays in
  * Waiting until its `finishedWaitMinutes` pass, as any finished run does.
  */
-export function replacedByRetry(agent: LedgerAgent, all: LedgerAgent[]): boolean {
+function replacedByRetry(agent: LedgerAgent, all: LedgerAgent[]): boolean {
   return (
     agent.state === 'failed' &&
     agent.kind === 'helper' &&
@@ -79,7 +76,7 @@ const droppedImplicit = (agent: LedgerAgent, items: BacklogItem[]): boolean =>
   isImplicitCard(agent.card) &&
   items.some((item) => item.id === agent.card && item.state === 'dropped');
 
-export function agentOf(
+function agentOf(
   agent: LedgerAgent,
   now: number,
   clearsAt: Date | null = null,
@@ -114,7 +111,7 @@ export function agentOf(
   };
 }
 
-export const AGENT_COLUMN: Record<LedgerAgent['state'], BoardColumn> = {
+const AGENT_COLUMN: Record<LedgerAgent['state'], BoardColumn> = {
   running: 'working',
   waiting: 'waiting',
   plan: 'checks',
@@ -154,7 +151,7 @@ export function claimViews(
 
 /**
  * The lane key for an agent with its own card: the lane of its registered repo, else its launching session's lane (by sid),
- * else "No live session". Nothing is read from its task, and no lane tag is read.
+ * else "No live session". Nothing is read from its task.
  */
 function laneOfAgent(agent: LedgerAgent, parentLane: string | null): string {
   return (agent.repo ? laneOf(agent.cwd ?? '', agent.repo) : null) || parentLane || NO_PARENT;

@@ -133,9 +133,9 @@ export function repoOfCheckout(dir: string | null | undefined): string | null {
 }
 
 /** How long one `git remote get-url` may take before it counts as a failure (a hung mount must not hold anything up). */
-export const REPO_LOOKUP_TIMEOUT_MS = 3000;
+const REPO_LOOKUP_TIMEOUT_MS = 3000;
 /** How long an answer, or a failure, is kept before the next look. */
-export const REPO_LOOKUP_TTL_MS = 5 * 60 * 1000;
+const REPO_LOOKUP_TTL_MS = 5 * 60 * 1000;
 
 const asyncByDir = new Map<string, { at: number; repo: string | null }>();
 const lookups = new Map<string, Promise<string | null>>();
@@ -226,7 +226,7 @@ export const seenCheckoutRepos = (home: string): string[] => Object.keys(readAll
  * the checkout's own origin when given, and any repo that two or more backlog cards (`cardRepos`, one entry a card) are on.
  * A repo on one card alone is not known by that card: a typo would pass itself.
  */
-export function knownRepos(
+function knownRepos(
   home: string,
   { cardRepos = [], origin = null }: { cardRepos?: (string | null)[]; origin?: string | null } = {},
 ): string[] {

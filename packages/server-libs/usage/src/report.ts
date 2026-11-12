@@ -41,7 +41,7 @@ const NODE_SCOPE = [
 ];
 const SKIP_DIR = new Set(['node_modules', 'vendor', 'test', 'build', '.output', 'dist']);
 
-export interface FileUse {
+interface FileUse {
   path: string;
   area: AreaOrNone;
   /** lines with code, from the file on disk */
@@ -53,7 +53,7 @@ export interface FileUse {
   mode: 'function' | 'lines' | null;
 }
 
-export interface AreaUse {
+interface AreaUse {
   area: Area | 'Unassigned';
   files: number;
   codeLines: number;
@@ -100,7 +100,7 @@ export interface Report {
   since_last: SinceLast | null;
 }
 
-export interface SinceLast {
+interface SinceLast {
   at: string;
   newlyCoveredLines: Record<string, number>;
   firstHits: string[];

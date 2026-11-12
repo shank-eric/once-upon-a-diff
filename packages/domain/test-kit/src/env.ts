@@ -16,6 +16,6 @@ export const CLAUDE_DIR = mkdtempSync(path.join(os.tmpdir(), 'once-upon-claude-'
 process.env.CLAUDE_CONFIG_DIR = CLAUDE_DIR;
 // the bridge's home holds config.json, whose board_larmor_dir names the real Larmor checkout (voice_ctl, and through it
 // ~/.larmor): a test that does not make its own home gets this empty one, never Eric's ~/.once-upon
-export const HOME_DIR = mkdtempSync(path.join(os.tmpdir(), 'once-upon-home-'));
+const HOME_DIR = mkdtempSync(path.join(os.tmpdir(), 'once-upon-home-'));
 process.env.ONCE_UPON_HOME = HOME_DIR;
 process.env.ONCE_UPON_NO_HOST_CHECK = '1';

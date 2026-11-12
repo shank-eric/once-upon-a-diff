@@ -332,5 +332,3 @@ export function createMarkdown({ link: hostLink }: { link?: MarkdownLink } = {})
 
   return { inline, markdown };
 }
-
-export type Markdown = ReturnType<typeof createMarkdown>;

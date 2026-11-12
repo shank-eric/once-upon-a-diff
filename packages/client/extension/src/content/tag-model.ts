@@ -17,15 +17,10 @@
  */
 import { plural, shortSha } from '@once-upon-a-diff/terms/text';
 import { clockTime } from '@once-upon-a-diff/terms/time';
-import type {
-  Listening,
-  PrRef,
-  BuildRequestView,
-  StoryStatus,
-} from '@once-upon-a-diff/contracts/types';
+import type { Listening, PrRef, StoryStatus } from '@once-upon-a-diff/contracts/types';
 import { prUrl } from '@once-upon-a-diff/terms/github-urls';
 
-export type { PrRef, BuildRequestView, StoryStatus };
+export type { PrRef, StoryStatus };
 
 /** What a tag shows and does. */
 export interface Tag {

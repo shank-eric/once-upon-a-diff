@@ -46,7 +46,7 @@ const overlaps = (range: { start: number; end: number }, side: { start: number; 
   range.start <= side.end && range.end >= side.start;
 
 /** A hunk as a line reference the narrative could use: `path:40-58`, or `path:L12-20` for one that only removes lines. */
-export function hunkRef(rel: string, hunk: DiffHunk): string {
+function hunkRef(rel: string, hunk: DiffHunk): string {
   const removesOnly = hunk.lines.every((line) => !line.startsWith('+'));
   const side = removesOnly ? 'L' : 'R';
   const { start, end } = sidesOf(hunk)[side];

@@ -26,8 +26,6 @@ export const nonBlankLines = (text: string): number =>
 
 /** A packed bitset of `lines` bits: bit i is line i + 1. */
 export const emptyBits = (lines: number): Uint8Array => new Uint8Array(Math.ceil(lines / 8));
-export const getBit = (bits: Uint8Array, line: number): boolean =>
-  ((bits[line >> 3] >> (line & 7)) & 1) === 1;
 const setBit = (bits: Uint8Array, line: number): void => {
   bits[line >> 3] |= 1 << (line & 7);
 };

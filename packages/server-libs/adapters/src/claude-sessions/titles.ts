@@ -23,7 +23,7 @@ const MIN_PROMPT = 20;
 const MAX_TITLE = 70;
 
 /** A card title from a prompt: its first line, cut at a word. Null for a slash command, a pasted tag or a short reply. */
-export function promptTitle(prompt: string): string | null {
+function promptTitle(prompt: string): string | null {
   const first = prompt.trim().split('\n')[0].replace(/…$/, '').replace(/\s+/g, ' ').trim();
   if (first.length < MIN_PROMPT || /^[/<[]/.test(first)) {
     return null;

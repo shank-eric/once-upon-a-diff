@@ -34,10 +34,10 @@ import type { StoryMeta } from '@once-upon-a-diff/stories/types';
 import { prUrl } from '@once-upon-a-diff/terms/github-urls';
 
 /** A build request, as builds.json keeps it: its format is the contracts package's (contracts/src/files/schemas.ts). */
-export type { Build, BuildRead };
+export type { Build };
 
 /** Where the reviewer's reading stopped, for an update (sinceOf() in reads.ts, plus the story id). */
-export interface UpdateSince {
+interface UpdateSince {
   since_sha?: string | null;
   source?: string | null;
   read?: { chapter: string; title: string | null; sha: string | null; at: string }[];

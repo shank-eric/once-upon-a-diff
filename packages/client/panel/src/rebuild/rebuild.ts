@@ -8,7 +8,7 @@ import { clockTime } from '@once-upon-a-diff/terms/time';
 import type { RebuildAsk, RebuildView } from '@once-upon-a-diff/contracts/types';
 
 /** How long the panel says a rebuild finished, after it did. */
-export const DONE_SHOWN_MS = 30 * 60 * 1000;
+const DONE_SHOWN_MS = 30 * 60 * 1000;
 
 /** The request for a rebuild asked on `step` (0, the Overview, or 1: the whole story). */
 export function rebuildAsk(step: number, guidance = ''): RebuildAsk {

@@ -59,7 +59,7 @@ export interface LocalState {
   pendingScroll: { note: string } | null;
 }
 
-export const initialState = (): LocalState => ({
+const initialState = (): LocalState => ({
   story: null,
   loadError: null,
   generation: 0,
@@ -75,7 +75,7 @@ export const initialState = (): LocalState => ({
 });
 
 /** A store drawn by `draw`, which `attach` gives it. */
-export function createStore<S extends object>(initial: S) {
+function createStore<S extends object>(initial: S) {
   let state = initial;
   let draw: ((state: S) => void) | null = null;
   let dirty = false;

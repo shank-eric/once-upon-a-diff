@@ -73,5 +73,3 @@ export function createUsage(send: SendCounts, everyMs = EVERY_MS) {
     flush,
   };
 }
-
-export type Usage = ReturnType<typeof createUsage>;

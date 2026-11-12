@@ -24,7 +24,6 @@ export interface LedgerAgent {
   state: 'running' | 'waiting' | 'plan' | 'fixing' | 'done' | 'failed' | 'stopped';
   /** waiting on your story review (state `review`), not on a question */
   review?: boolean;
-  lane: string | null;
   /** the model and effort the run started with, joined ("sonnet, high"): what its `[running]` line shows */
   model: string | null;
   /** the model alone ("sonnet"), null when the run named none, whatever its effort */

@@ -7,7 +7,7 @@
 import { html } from '/assets/preact.mjs';
 import { chipClass, type ChipLook } from './chip-class.ts';
 
-export type { ChipTone, ChipSize } from './chip-class.ts';
+export type { ChipTone } from './chip-class.ts';
 export type ChipMark = 'ok' | 'plain' | 'warn' | 'bad';
 
 const MARK: Record<ChipMark, string> = { ok: '✓ ', plain: '', warn: '! ', bad: '! ' };

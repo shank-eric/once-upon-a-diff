@@ -80,7 +80,7 @@ type WaitScope = {
 };
 
 /** An entry the wait hands over, with the lines that tell the session what to do with it. */
-export interface HandedItem {
+interface HandedItem {
   entry: Printable;
   /** set when the entry goes on to the agent that built its story: the message to send and what to do if it can't be reached */
   relay?: { agent: string; message: string; fallback: string };

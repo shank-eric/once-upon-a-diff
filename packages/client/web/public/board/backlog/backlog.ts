@@ -21,7 +21,7 @@ import {
 import { BACKLOG_NOTE_MAX, repoName } from '/assets/terms/text.ts';
 
 /** The ids of the Backlog cards in a card's lane, in the order the board shows them. */
-export function backlogLane(card: BoardCard, board: BoardData | null): string[] {
+function backlogLane(card: BoardCard, board: BoardData | null): string[] {
   const lane = board?.lanes.find((one) => sameLaneKey(one.key, card.lane));
   return (lane?.cards ?? [])
     .filter((one) => one.column === 'backlog' && one.backlog && !one.backlog.someday)
@@ -29,7 +29,7 @@ export function backlogLane(card: BoardCard, board: BoardData | null): string[] 
 }
 
 /** Where `dragged` goes in its lane's ids if put before (or after) `target`: before the item now there, or the bottom. */
-export function placeAmong(
+function placeAmong(
   ids: string[],
   dragged: string,
   target: string,

@@ -18,8 +18,8 @@ import {
 import { SESSION_RE } from '@once-upon-a-diff/terms/patterns';
 
 /** The ids and lists the bridge caps, so a body can't make it hold more. */
-export const MAX_IDS = 500;
-export const MAX_LIST = 100;
+const MAX_IDS = 500;
+const MAX_LIST = 100;
 
 /** A string cut to `max`, null for none (a missing value, or null). */
 export const clipped = (max: number) =>

@@ -21,7 +21,7 @@ export function StoryTag({ tag }: { tag: Tag }) {
 }
 
 /** "1 new answer", linking Files changed with the Ask dock open. */
-export function AnswersLink({ badge }: { badge: AnswersBadge }) {
+function AnswersLink({ badge }: { badge: AnswersBadge }) {
   return html`<a class="ans" href=${badge.href} title=${badge.title}>${badge.label}</a>`;
 }
 

@@ -43,7 +43,7 @@ export function gitVersionText(): string | null {
 }
 
 /** Flags on every git call the board makes: no fsmonitor daemon to wedge on, and no index lock taken by a status. */
-export const GIT_FLAGS = ['--no-optional-locks', '-c', 'core.fsmonitor=false'];
+const GIT_FLAGS = ['--no-optional-locks', '-c', 'core.fsmonitor=false'];
 
 /**
  * Runs git in a folder through an injected program runner (a test passes its own to count or hold up calls), with the
@@ -127,7 +127,7 @@ export const mergeBase = (repo: string, first: string, second: string): string =
   runGit(repo, ['merge-base', '--end-of-options', first, second]).trim();
 
 /** The local branches whose tip is exactly this commit, sorted by name. */
-export function branchesAt(repo: string, oid: string): string[] {
+function branchesAt(repo: string, oid: string): string[] {
   return runGit(repo, ['for-each-ref', `--points-at=${oid}`, '--format=%(refname)', 'refs/heads'])
     .split('\n')
     .map((line) => line.trim().replace(/^refs\/heads\//, ''))

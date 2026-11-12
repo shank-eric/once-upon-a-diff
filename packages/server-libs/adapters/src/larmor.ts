@@ -351,7 +351,7 @@ const LOG_KEEP = 200;
  * Runs `voice_ctl log` for one session and returns its lines as the panel shows them (what it said, then what you said, by
  * time, oldest first). `sinceSeconds` is epoch seconds: only lines after it.
  */
-export async function runVoiceLog(
+async function runVoiceLog(
   larmorDir: string,
   session: string,
   limit: number,

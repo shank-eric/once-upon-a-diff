@@ -50,7 +50,6 @@ const agent = (over: Partial<LedgerAgent> = {}): LedgerAgent => ({
   sid: 'aaaaaaaa',
   name: 'helper',
   state: 'running',
-  lane: null,
   model: null,
   modelName: null,
   task: null,
@@ -233,7 +232,7 @@ test('a storyteller silent for a day on an implicit card whose author finished d
   assert.equal(live[0].column, 'working');
 });
 
-test('an agent’s lane is its registered repo’s lane, else its launching session’s: never a lane tag or its task', () => {
+test('an agent’s lane is its registered repo’s lane, else its launching session’s: never its task', () => {
   const parentCard = card({
     kind: 'session',
     repo: 'acme/parent',
@@ -248,10 +247,7 @@ test('an agent’s lane is its registered repo’s lane, else its launching sess
       [agent({ sid, name: 'a', task: 'widgets-worktrees/x for widgets and larmor', ...over })],
       cards,
     )[0].lane;
-  assert.equal(lane({ lane: 'tagged' }), 'acme/parent', 'a lane tag moves nothing');
-  assert.equal(lane({ lane: 'widgets' }), 'acme/parent');
   assert.equal(lane({ repo: 'acme/larmor', cwd: '/x/larmor-worktrees/y' }), 'acme/larmor');
-  assert.equal(lane({ repo: 'acme/larmor', lane: 'tagged' }), 'acme/larmor');
   // Eric, 11/6: shank-eric/larmor is a typo of naveenvasou/larmor, so a run typed with it sits on the naveenvasou lane
   assert.equal(
     lane({ repo: 'shank-eric/larmor', cwd: '/x/larmor' }),
@@ -262,7 +258,6 @@ test('an agent’s lane is its registered repo’s lane, else its launching sess
   assert.equal(lane({ cwd: '/x/y' }), 'acme/parent', 'a cwd alone is not a lane');
   assert.equal(lane({}, 'deadbeef'), NO_PARENT);
   assert.equal(lane({ kind: 'author' }, 'deadbeef'), NO_PARENT);
-  assert.equal(lane({ lane: 'tagged' }, 'deadbeef'), NO_PARENT, 'a tag is not a lane');
 });
 
 const started = (id: string, branch: string): BacklogItem =>

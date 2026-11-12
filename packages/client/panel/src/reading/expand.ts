@@ -10,7 +10,7 @@
 import type { Side } from '@once-upon-a-diff/terms/line-refs';
 import type { PanelContext } from '../host/context.ts';
 
-export { expandDirOf, type ExpandDir, type ExpandRow } from '../host/diff-types.ts';
+export { expandDirOf, type ExpandDir } from '../host/diff-types.ts';
 import type { ExpandDir, ExpandRow } from '../host/diff-types.ts';
 
 /**

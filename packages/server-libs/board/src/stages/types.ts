@@ -13,7 +13,7 @@ import type { StatusSource } from '@once-upon-a-diff/adapters/status-source';
 import type { PrWatcher } from './pr-watcher.ts';
 
 /** The board's settings (config.json's board_* keys, read once per build). */
-export type BoardSettings = ReturnType<typeof readSettings>['board'];
+type BoardSettings = ReturnType<typeof readSettings>['board'];
 
 /** A unit of work being assembled: a PR (with or without its story) or a branch that has no PR yet. */
 export interface Work {

@@ -573,7 +573,7 @@ describe('an agent that builds a story itself (builds --begin, no panel click)',
     const request = new Builds(home).get(REPO, 7)!;
     assert.equal(request.mode, 'update');
     assert.equal(request.base_sha, was);
-    assert.equal((await lineOf(home)).update_mode, 'update');
+    assert.equal((await lineOf(home)).update_kind, 'update');
     // at the same head it is a re-tell
     const same = tmp('home');
     assert.equal((await runCli(same, ['publish', '--dir', src])).code, 0);

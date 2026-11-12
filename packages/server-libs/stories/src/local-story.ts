@@ -86,7 +86,7 @@ export function isStoryless(dir: string): boolean {
 }
 
 /** One chapter per top-level folder: a starting point until a real story is written. */
-export function defaultChapters(rels: string[], title: string | undefined) {
+function defaultChapters(rels: string[], title: string | undefined) {
   const groups = new Map<string, string[]>();
   for (const rel of rels) {
     const key = groupOf(rel);

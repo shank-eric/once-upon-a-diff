@@ -218,7 +218,6 @@ describe('Create pull request on a local story', () => {
       ['notes', 'POST'],
       ['fixes', 'GET'],
       ['fixes', 'POST'],
-      ['rebuild', 'GET'],
       ['rebuild', 'POST'],
       ['pr', 'GET'],
     ];
@@ -336,7 +335,6 @@ describe('Create pull request on a local story', () => {
         'Send',
       );
       // Rebuild reaches its own route (a rebuild with no chapters to keep is a 400 from its own check, not a 403)
-      assert.notEqual((await withKey(read, 'GET', `${story}/rebuild`)).status, 403, 'Rebuild');
       assert.notEqual((await withKey(read, 'POST', `${story}/rebuild`, {})).status, 403, 'Rebuild');
       // everything not on the allowlist is refused, listed or not: Approve, a route that does not exist yet
       for (const [method, what] of [

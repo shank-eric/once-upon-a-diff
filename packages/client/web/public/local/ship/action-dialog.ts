@@ -12,7 +12,7 @@ import { Dialog } from '/assets/ui-kit/components/dialog.ts';
 import { shortSha } from '/assets/terms/text.ts';
 
 /** What a read-only link is told in place of the box: it can read the story but not push. */
-export interface Refusal {
+interface Refusal {
   title: string;
   /** "push its branch": what the link can't do */
   cant: string;

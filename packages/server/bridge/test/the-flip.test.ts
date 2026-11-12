@@ -120,7 +120,7 @@ test('--lane is ignored with a warning when no card is named, and nothing reads 
   assert.equal(done.code, 0, done.stderr);
   assert.match(done.stderr, /--lane is ignored/);
   const start = new AgentRegistry(home).events().find((one) => one.op === 'start');
-  assert.equal(start?.lane ?? null, null);
+  assert.equal('lane' in (start ?? {}), false, 'a lane tag is not written');
 });
 
 test('an author with no card needs --branch, which mints its implicit card; a fixer needs a card', async () => {

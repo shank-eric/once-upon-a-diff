@@ -16,7 +16,6 @@ import {
   localStory,
   markStoryReviewed,
   prStories,
-  prStory,
 } from '@once-upon-a-diff/core/features/review/story-lists';
 import type { InboxLocalStory, InboxStory } from '@once-upon-a-diff/contracts/types';
 import type { Build } from '@once-upon-a-diff/state/queues/requests/builds';
@@ -39,7 +38,7 @@ export interface PrLine {
   newer?: number | null;
   updating?: boolean;
   update_state?: string | null;
-  update_mode?: string | null;
+  update_kind?: 'update' | 'rebuild' | null;
   reads?: { read: number; total: number; next: number | null };
   unread_answers?: number;
 }
@@ -156,6 +155,10 @@ export function storyList(bridge: TestBridge): StoryList {
   autoReview.kickLocal(localList, Date.now());
   return { stories: everything, local_stories: localList.map((entry) => entry.story) };
 }
+
+/** One PR story by id, or null when the id isn't a listed one's. */
+const prStory = (stories: Parameters<typeof prStories>[0], id: string) =>
+  prStories(stories).find((story) => story.id === id) ?? null;
 
 /** Marks a PR story or a local story reviewed (or not), the way the board's Mark reviewed does, and answers with the story. */
 export function markReviewed(bridge: TestBridge, id: string, reviewed = true) {

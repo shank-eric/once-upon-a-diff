@@ -4,7 +4,7 @@
  * are fields. The format (AgentEvent) is the contracts package's: contracts/src/files/schemas.ts.
  * ledgerLine and beatLine write each event as a log line for people and scripts (registry.ts).
  *
- *   {op:'start',  v, id, sid8, session, name, at, by, run, kind, role, standing, task, model, effort, repo, branch, tip, pr, cwd, card, replaces, lane, notes}
+ *   {op:'start',  v, id, sid8, session, name, at, by, run, kind, role, standing, task, model, effort, repo, branch, tip, pr, cwd, card, replaces, notes}
  *   {op:'state',  ..., state: running|waiting|review|plan|fixing, outcome, findings, notes}
  *   {op:'beat',   ..., n, of, step, note}                 also the heartbeat: it counts as the agent's last sign of life
  *   {op:'branch', ..., run, branch}                       the open run's branch moved (a rename)
@@ -78,7 +78,6 @@ export function foldAgentEvents(events: AgentEvent[]): LedgerAgent[] {
         name: event.name,
         state: 'running',
         review: false,
-        lane: event.lane ?? null,
         model: model || null,
         modelName: event.model || null,
         task: event.task ?? null,
@@ -161,8 +160,7 @@ const flat = (text: string | null | undefined) => (text ?? '').replace(/\s+—\s
  * `agent` is the run after the event.
  */
 export function ledgerLine(event: AgentEvent, agent: LedgerAgent): string {
-  const lane = agent.lane ? ` lane:${agent.lane}` : '';
-  const head = `sid:${event.sid8}${lane} ${event.name}`;
+  const head = `sid:${event.sid8} ${event.name}`;
   const time = ledgerTime(new Date(event.at));
   const tail = (outcome: string | null | undefined) =>
     [outcome ? flat(outcome) : '', agent.notes ?? ''].filter(Boolean).join(' — ');

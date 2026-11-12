@@ -1,6 +1,6 @@
 /*
  * The board's voice session, the first region drawn by Preact (ADR-14). The rest of the page is still strings that
- * board.ts puts in with innerHTML; this one is a component that board.ts renders into a host element of its own, with
+ * board.ts puts in with innerHTML; this one is a component that board.ts draws as part of its own Preact render, with
  * the 3 s poll's `voice` as a prop. Preact diffs it, so a poll never replaces the grip (and its focus), the conversation
  * (and its scroll) or the Pause button, and what the panel remembers lives here, not in the page's module state.
  *
@@ -9,7 +9,7 @@
  * peeks it open without remembering. The panel's width is dragged (or arrowed) and remembered. The board's own element
  * (`root`) carries the classes and the width variable the stylesheet makes room with.
  */
-import { html, render, useEffect, useLayoutEffect, useRef, useState } from '/assets/preact.mjs';
+import { html, useEffect, useLayoutEffect, useRef, useState } from '/assets/preact.mjs';
 import { remember, stored } from '/assets/local/stored.ts';
 import { ActionButton } from '/assets/ui-kit/components/action-button.ts';
 import { ResizeGrip } from '/assets/ui-kit/components/resize-grip.ts';
@@ -44,8 +44,7 @@ export const nearBottom = (scrollHeight: number, scrollTop: number, clientHeight
   scrollHeight - scrollTop - clientHeight < BOTTOM_SLACK;
 
 /** While voice is paused or ended the panel is collapsed to its tab. */
-export const isCollapsed = (voice: BoardVoice) =>
-  voice.status === 'paused' || voice.status === 'ended';
+const isCollapsed = (voice: BoardVoice) => voice.status === 'paused' || voice.status === 'ended';
 
 /**
  * A key for each conversation line that stays with it as the window slides (the bridge keeps the last 20): when it was
@@ -260,9 +259,4 @@ export function VoicePanel(props: VoicePanelProps) {
         : null
     }
   </aside>`;
-}
-
-/** Draws (or updates, or with a null voice clears) the voice session in host, a stable element the page's string render never touches. */
-export function mountVoice(host: HTMLElement, props: VoicePanelProps): void {
-  render(html`<${VoicePanel} ...${props} />`, host);
 }

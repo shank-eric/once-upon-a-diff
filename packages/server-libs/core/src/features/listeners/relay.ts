@@ -41,7 +41,7 @@ export function relayMessage(
 }
 
 /** What a fix request, a rebuild or an approval is, as the relay needs it (the shapes `wait` hands over). */
-export interface RelayedFix {
+interface RelayedFix {
   type: 'fix_request';
   id: string;
   story: string;
@@ -66,7 +66,7 @@ export interface RelayedRebuild {
   from_step?: number | null;
   guidance?: string | null;
 }
-export interface RelayedApproval {
+interface RelayedApproval {
   type: 'approved';
   id?: string;
   story: string;
@@ -102,7 +102,7 @@ export function relayStory(entry: {
 }
 
 /** Is `agent` the author of a branch (an author in the agent registry), not a storyteller or another helper? */
-export function isAuthor(home: string, agent: string): boolean {
+function isAuthor(home: string, agent: string): boolean {
   return new AgentRegistry(home)
     .agents()
     .some((one) => one.name === agent && one.kind === 'author');
@@ -148,11 +148,7 @@ const shellSafePath = (value: string | null | undefined) =>
   value && /^[\w ./@+:=,~-]+$/.test(value) ? quote(value) : null;
 
 /** The message for a fix request: the author fixes it in its own worktree, amends its one commit and tells the story again. */
-export function fixRelayMessage(
-  request: RelayedFix,
-  agent: string,
-  cli: string = cliCommand(),
-): string {
+function fixRelayMessage(request: RelayedFix, agent: string, cli: string = cliCommand()): string {
   const fromDrafts = request.notes.some((note) => note.from_draft);
   return [
     `Fix-before-push notes came in on the Once Upon story you built (${request.story}). The fix is yours: you have the context and the worktree.`,
@@ -210,7 +206,7 @@ export function rebuildRelayMessage(
 }
 
 /** The message for an approval: check it still holds against its head_sha, then finish. */
-export function approvalRelayMessage(
+function approvalRelayMessage(
   approval: RelayedApproval,
   agent: string,
   cli: string = cliCommand(),

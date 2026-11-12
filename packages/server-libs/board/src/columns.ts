@@ -69,7 +69,7 @@ export interface ColumnInput {
 }
 
 /** When you last acted on the PR (ms): on GitHub, or by marking its story reviewed by hand. null when there is no sign. */
-export function baselineOf({ pr, story }: Pick<ColumnInput, 'pr' | 'story'>): number | null {
+function baselineOf({ pr, story }: Pick<ColumnInput, 'pr' | 'story'>): number | null {
   const times = [
     pr?.viewer_at ? Date.parse(pr.viewer_at) : null,
     story?.manualReviewedAt ?? null,

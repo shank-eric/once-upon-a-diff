@@ -4,7 +4,7 @@ import { laneLabels } from '@once-upon-a-diff/terms/lane-key';
 import path from 'node:path';
 
 /**
- * Lanes: one per repo (or lane tag), the cards grouped by the page into columns. A lane's key is its cards' lane (the
+ * Lanes: one per repo, the cards grouped by the page into columns. A lane's key is its cards' lane (the
  * repo's owner/name); its name is the label, the short name unless two lanes' short names are the same. Sorted by name.
  */
 export function groupLanes(

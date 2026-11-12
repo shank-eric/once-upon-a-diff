@@ -57,10 +57,7 @@ export function findingLine(finding: Finding): string {
  * chapter), so it is counted apart and the narrative rules (length, shape) skip it; `final` is the last check of a telling,
  * where an unwritten chapter is a fail like any other.
  */
-export function settleFindings(
-  all: Finding[],
-  final = false,
-): { findings: Finding[]; writing: number } {
+function settleFindings(all: Finding[], final = false): { findings: Finding[]; writing: number } {
   if (final) {
     return { findings: all, writing: 0 };
   }

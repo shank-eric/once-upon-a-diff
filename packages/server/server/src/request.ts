@@ -82,15 +82,3 @@ export function readBody(req: IncomingMessage): Promise<Body> {
     req.on('error', reject);
   });
 }
-
-/** A string at most `max` long, or null for null and undefined. */
-export function clipText(value: unknown, max = 4000): string | null {
-  if (typeof value === 'string') {
-    return value.slice(0, max);
-  }
-  return value == null ? null : String(value).slice(0, max);
-}
-
-/** A whole number, or null when it isn't one. */
-export const toInt = (value: unknown): number | null =>
-  Number.isFinite(+(value as number)) ? Math.trunc(+(value as number)) : null;

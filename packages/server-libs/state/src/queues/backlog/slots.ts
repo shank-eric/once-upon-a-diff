@@ -15,7 +15,7 @@ import type { BacklogItem } from './types.ts';
 export { DEFAULT_SLOTS };
 
 /** The states in which an author holds a slot. */
-export const SLOT_STATES: LedgerAgent['state'][] = ['running', 'plan', 'fixing'];
+const SLOT_STATES: LedgerAgent['state'][] = ['running', 'plan', 'fixing'];
 
 /** The full session that claimed the card an agent's run names, or null (an old claim, no claim, or no card). */
 export const claimSessionOf = (
@@ -46,7 +46,7 @@ function ownerOf(
  * The editor's open authors, oldest first: not stale, running, waiting, at a plan or fixing (a finished one is no one's
  * to count). Not all of them hold a slot (`slotsInUse`).
  */
-export function editorAuthors(
+function editorAuthors(
   editor: Pick<LedgerAgent, 'sid' | 'session'>,
   agents: LedgerAgent[],
   items: Pick<BacklogItem, 'id' | 'claim'>[],

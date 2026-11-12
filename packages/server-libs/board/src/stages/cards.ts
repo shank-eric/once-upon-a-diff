@@ -119,7 +119,7 @@ function aheadFor(
 }
 
 /** A card for a work, or null when there is nothing left to show on it (a PR closed, or merged long ago, with no session). */
-export function workCard(ctx: BuildContext, facts: CardFacts, work: Work): BoardCard | null {
+function workCard(ctx: BuildContext, facts: CardFacts, work: Work): BoardCard | null {
   const { nowMs } = ctx;
   let pr: PrInfo | null = null;
   let story: InboxStory | InboxLocalStory | null = work.story ?? work.local;

@@ -145,7 +145,6 @@ const VIEW_KEY_REACH = [
   'POST notes',
   'GET fixes',
   'POST fixes',
-  'GET rebuild',
   'POST rebuild',
   'GET pr',
   // a batch of UI action counts for the usage capture: names from a closed list, never content

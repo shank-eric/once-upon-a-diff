@@ -56,7 +56,7 @@ function Usage(props: { usage: BoardUsage | null; now: number }) {
  * is out ('start', 'stop', 'pause' or 'phone': Start voice takes up to about 20 s, Stop voice about 3 s, and phone mode can
  * take several seconds), and every button in the row waits while one is, through the refresh that follows it.
  */
-export type VoiceBusy = ReturnType<typeof useBusy>;
+type VoiceBusy = ReturnType<typeof useBusy>;
 
 /**
  * The voice controls in the board's top header, the rightmost items (past the repo dropdown):

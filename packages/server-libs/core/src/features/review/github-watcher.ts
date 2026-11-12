@@ -54,7 +54,7 @@ import {
 import type { InboxStory, PrInfo, ReviewedBy } from '@once-upon-a-diff/contracts/types';
 
 /** How long one PR's answer (including "nothing yet") is kept before asking GitHub again. */
-export const CACHE_MS = 3 * 60 * 1000;
+const CACHE_MS = 3 * 60 * 1000;
 /** The least time between two refreshes of the same branch or PR (a burst of pings is one). */
 export const REFRESH_GAP_MS = 2000;
 /**

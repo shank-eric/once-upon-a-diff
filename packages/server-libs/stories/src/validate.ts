@@ -78,7 +78,7 @@ function storyMapIn(narrative: string): boolean {
  * The problems of a refs list, as lines: an id that is not a slug or is used twice, a path that is not one of `files`
  * (any file when `files` is not given) or not in the diff, lines that are not a range, a side that is not L or R.
  */
-export function refListProblems(
+function refListProblems(
   refs: PlanRef[],
   {
     files,
@@ -121,7 +121,7 @@ export function refListProblems(
 }
 
 /** The problems of refs given with a text that links to them (an answer's, the overview's): bad refs, and links to ids not in the list. */
-export function linkedRefProblems(
+function linkedRefProblems(
   refs: PlanRef[],
   text: string,
   where: { files?: string[]; diff?: Map<string, DiffFile>; owner?: string } = {},

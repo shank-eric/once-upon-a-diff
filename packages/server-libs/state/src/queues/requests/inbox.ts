@@ -39,14 +39,9 @@ import { checkWrite } from '@once-upon-a-diff/foundation/shared-files';
 export type { InboxEntry };
 type Entry<T extends InboxEntry['type']> = Extract<InboxEntry, { type: T }>;
 export type QuestionEntry = Entry<'question'>;
-export type AnswerEntry = Entry<'answer'>;
+type AnswerEntry = Entry<'answer'>;
 export type NoteEntry = Entry<'note'>;
-export type FixEntry = Entry<'fix'>;
 export type ReadEntry = Entry<'read'>;
-export type ReviewCommentEntry = Entry<'review_comment'>;
-export type CommentEntry = Entry<'comment'>;
-/** Approve was clicked on a local story's page (or `once-upon approve` ran): ready to ship at this head. */
-export type ApprovedEntry = Entry<'approved'>;
 
 /** A question with its answers, as the panel and the CLI take it. */
 export interface QuestionWithAnswers {

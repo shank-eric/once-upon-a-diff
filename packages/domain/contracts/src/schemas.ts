@@ -16,8 +16,6 @@ import { STORY_BODIES, STORY_MESSAGES } from './story/schemas.ts';
 import { BOARD_BODIES, BOARD_MESSAGES } from './board/schemas.ts';
 import { GITHUB_BODIES, GITHUB_MESSAGES } from './github/schemas.ts';
 
-export { GITHUB_REFRESH_REASONS } from './github/schemas.ts';
-
 // The order is the one the bodies have always had (the extension's refresh body comes last), which a test pins.
 export const BODIES = {
   ...BRIDGE_BODIES,

@@ -45,7 +45,7 @@ export const UNMEASURED = [
 
 export const homeOf = (env: NodeJS.ProcessEnv) =>
   env.ONCE_UPON_HOME || path.join(os.homedir(), '.once-upon');
-export const usageDirOf = (home: string) => path.join(home, 'usage');
+const usageDirOf = (home: string) => path.join(home, 'usage');
 
 /**
  * What usage/settings.json asks for ('function' when it is missing or unreadable), and 'off' when ONCE_UPON_USAGE=0.

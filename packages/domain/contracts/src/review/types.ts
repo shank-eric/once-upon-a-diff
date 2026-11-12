@@ -38,7 +38,7 @@ export interface Question {
 }
 
 /** What a session has said about the question it is answering. */
-export interface QuestionStatus {
+interface QuestionStatus {
   state: 'queued' | 'relaying' | 'working' | 'stalled';
   /** the session working on it */
   by: string | null;
@@ -87,7 +87,7 @@ export interface DraftFix {
 }
 
 /** Add to my review's mark on a draft. */
-export interface DraftAdded {
+interface DraftAdded {
   at: string;
   url?: string | null;
   started?: boolean;
@@ -122,7 +122,7 @@ export interface FixNote extends LocalNote {
 }
 
 /** A fix request: the notes one Send handed to a session. */
-export interface FixRequestView {
+interface FixRequestView {
   id: string;
   status: string;
   notes: string[];

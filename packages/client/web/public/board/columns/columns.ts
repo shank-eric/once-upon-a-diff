@@ -13,7 +13,7 @@ import { Blank } from '/assets/board/columns/blank.ts';
 import { Editors } from '/assets/board/columns/editors.ts';
 
 /** What the Backlog column gets from the backlog region: its + Add button and Add panel, and the drag handlers for its lanes' lists. */
-export type ColumnSlots = {
+type ColumnSlots = {
   head?: unknown;
   form?: unknown;
   listProps?: Record<string, unknown>;

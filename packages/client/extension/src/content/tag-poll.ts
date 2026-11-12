@@ -7,10 +7,10 @@ import { createPoll } from '@once-upon-a-diff/bridge-client/poll';
 import { prKey } from '@once-upon-a-diff/terms/ids';
 import type { PrRef, StoryStatus } from './tag-model.ts';
 
-export const LOOK_AGAIN_MS = 10000; // while a story is queued, building or updating
-export const OFFLINE_MS = 30000; // while the bridge doesn't answer
+const LOOK_AGAIN_MS = 10000; // while a story is queued, building or updating
+const OFFLINE_MS = 30000; // while the bridge doesn't answer
 
-export const inFlight = (result: StoryStatus | null) =>
+const inFlight = (result: StoryStatus | null) =>
   !!result && (result.state === 'queued' || result.state === 'building' || !!result.updating);
 
 /**

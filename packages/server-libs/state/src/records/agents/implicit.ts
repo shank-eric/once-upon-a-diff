@@ -10,7 +10,7 @@ import { isImplicitCard } from '@once-upon-a-diff/terms/ids';
 import type { LedgerAgent } from './ledger.ts';
 
 /** A title is the first line of the first run's task, cut at this many characters. */
-export const IMPLICIT_TITLE_MAX = 80;
+const IMPLICIT_TITLE_MAX = 80;
 
 /** One implicit card as its runs tell it. */
 export interface ImplicitCard {
@@ -34,7 +34,7 @@ export interface ImplicitCard {
 const startedAt = (run: LedgerAgent): number => run.started?.getTime() ?? 0;
 
 /** The first line of a task, cut to a title. */
-export function implicitTitle(task: string | null | undefined): string {
+function implicitTitle(task: string | null | undefined): string {
   const line =
     (task ?? '')
       .split('\n')

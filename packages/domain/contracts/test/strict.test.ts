@@ -51,7 +51,6 @@ const start = (over: Record<string, unknown> = {}) =>
     pr: null,
     cwd: '/x',
     card: 'bl_mw4p3n9h7dadb2',
-    lane: null,
     notes: null,
     standing: false,
     ...over,

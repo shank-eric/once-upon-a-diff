@@ -7,7 +7,7 @@ import {
 } from '@once-upon-a-diff/adapters/stores/fs/files';
 
 /** How big bridge.log may grow before its lines move to bridge.log.1: with that backup the log is at most twice this. */
-export const BRIDGE_LOG_MAX_BYTES = 5 * 1024 * 1024;
+const BRIDGE_LOG_MAX_BYTES = 5 * 1024 * 1024;
 
 /**
  * Appends to the bridge's log, keeping it under `maxBytes`: a write that would pass the cap first copies the file to

@@ -118,7 +118,7 @@ export function itermSource(it2: string): StatusSource {
  * front from the app you are in (the board is in your browser), so this asks LaunchServices the way a Dock click does:
  * `open -a iTerm2`, which raises the app and its windows and opens no new window while it has one. No permission needed.
  */
-export async function raiseIterm(it2: string): Promise<void> {
+async function raiseIterm(it2: string): Promise<void> {
   const opened = await run('open', ['-a', 'iTerm']);
   if (opened === null) {
     await run(it2, ['app', 'activate']);

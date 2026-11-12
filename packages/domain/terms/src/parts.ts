@@ -9,7 +9,7 @@
  */
 
 /** One part in a parts file. */
-export interface PartDef {
+interface PartDef {
   id: string;
   name: string;
   group: string;
@@ -25,7 +25,7 @@ export interface PartsFile {
 }
 
 /** A part as the panel draws it. */
-export interface StoryPart {
+interface StoryPart {
   id: string;
   name: string;
   group: string;

@@ -69,7 +69,7 @@ const reader =
 
 // ---- agents.jsonl: the registry's events (state/src/records/agents) ----
 
-export { AGENT_KINDS, AGENT_ROLES, KIND_ALIASES } from './agent-kinds.ts';
+export { AGENT_KINDS, KIND_ALIASES } from './agent-kinds.ts';
 export type { AgentKind, AgentRole } from './agent-kinds.ts';
 
 const AgentResultSchema = looseObject({
@@ -82,14 +82,14 @@ const AgentResultSchema = looseObject({
 export type AgentResult = Listed<InferOutput<typeof AgentResultSchema>>;
 
 /**
- *   {op:'start',  v, id, sid8, session, name, at, by, run, kind, role, standing, task, model, effort, repo, branch, tip, pr, cwd, card, replaces, lane, notes, slots}
+ *   {op:'start',  v, id, sid8, session, name, at, by, run, kind, role, standing, task, model, effort, repo, branch, tip, pr, cwd, card, replaces, notes, slots}
  *   {op:'state',  ..., state: running|waiting|review|plan|fixing, outcome, findings, notes}
  *   {op:'beat',   ..., n, of, step, note}                 also the heartbeat: it counts as the agent's last sign of life
  *   {op:'branch', ..., run, branch}                       the open run's branch moved (a rename): `backlog branch` writes it with the card's
  *   {op:'finish', ..., state: done|failed|stopped, outcome, result: {commit, pr, branch, card}, findings, notes}
- * `id` is `<sid8>:<name>`. `kind` is as stored: an old line may still say `builder` or `reviewer`, and a kind nobody knows reads as none.
+ * `id` is `<sid8>:<name>`. An old row may carry a `lane` tag: nothing reads it, and the row loads with it. `kind` is as stored: an old line may still say `builder` or `reviewer`, and a kind nobody knows reads as none.
  */
-export const AgentEventSchema = looseObject({
+const AgentEventSchema = looseObject({
   op: picklist(['start', 'state', 'beat', 'branch', 'finish']),
   v: lenient(number()),
   id: string(),
@@ -118,7 +118,6 @@ export const AgentEventSchema = looseObject({
   card: lenient(string()),
   /** start only: the name of the earlier run of the same session this one retries (`--replaces`); once this run finishes done, the board hides that run if it failed */
   replaces: lenient(string()),
-  lane: lenient(string()),
   notes: lenient(string()),
   /** an editor's build slots */
   slots: lenient(number()),
@@ -153,7 +152,7 @@ const stamped = { id, at: lenient(string()), by: lenient(string()) };
  *   {op:'hold' | 'someday', id, on, by, at}
  * What each means, and how they fold into items, is state/src/queues/backlog/backlog.ts.
  */
-export const BacklogEventSchema = variant('op', [
+const BacklogEventSchema = variant('op', [
   looseObject({
     op: literal('add'),
     ...stamped,
@@ -196,7 +195,6 @@ export const BacklogEventSchema = variant('op', [
     repo: lenient(string()),
   }),
 ]);
-export type BacklogEvent = Listed<InferOutput<typeof BacklogEventSchema>>;
 export const readBacklogEvent = reader(BacklogEventSchema);
 
 // ---- inbox.jsonl: questions, answers, notes and the like (state/src/queues/requests/inbox.ts) ----
@@ -228,7 +226,7 @@ const objectOf = <T>() => custom<T>(isObject);
  *   review_comment a comment posted to GitHub
  *   comment        a drafted comment
  */
-export const InboxEntrySchema = variant('type', [
+const InboxEntrySchema = variant('type', [
   inboxEntry('question', {
     story: string(),
     step: lenient(number()),
@@ -319,7 +317,7 @@ export type BuildRead = Listed<InferOutput<typeof BuildReadSchema>>;
  * A build request, as builds.json keeps it, by `repo#number` (or `story:<id>` for a local story's rebuild): "there's no story
  * for this PR yet", "bring it up to the PR's latest commit" (mode 'update') or "tell it again" (mode 'rebuild' or 'rebuild_from').
  */
-export const BuildSchema = looseObject({
+const BuildSchema = looseObject({
   ...queued,
   repo: lenient(string()),
   number: optional(fallback(nullable(number()), null), null),
@@ -363,7 +361,7 @@ export type RequestNote = Listed<InferOutput<typeof RequestNoteSchema>>;
 const readNote = reader(RequestNoteSchema);
 
 /** A fix request, as fixes.json keeps it, by request id: a batch of notes handed to a session. */
-export const FixRequestSchema = looseObject({
+const FixRequestSchema = looseObject({
   ...queued,
   story: string(),
   repo: optional(fallback(nullable(string()), null), null),

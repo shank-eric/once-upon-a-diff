@@ -89,7 +89,7 @@ import type { ApiRoute, App, Body, Call, Send, StoryRoute } from './types.ts';
 export { relOfPath } from '@once-upon-a-diff/stories/diff';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-export const VERSION: string = JSON.parse(
+const VERSION: string = JSON.parse(
   readFileSync(path.resolve(HERE, '../package.json'), 'utf8'),
 ).version;
 

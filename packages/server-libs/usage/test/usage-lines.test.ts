@@ -7,7 +7,6 @@ import {
   andBits,
   countBits,
   fromBase64,
-  getBit,
   lineCount,
   nonBlankLines,
   toBase64,
@@ -16,6 +15,9 @@ import {
 import { MAX_VERSIONS, asCoverage, emptyCoverage, mergeSeen, type Seen } from '../src/merge.ts';
 import { createSnapshots } from '../src/snapshots.ts';
 import type { CoverageFunction } from '../src/adapters/session.ts';
+
+const getBit = (bits: Uint8Array, line: number): boolean =>
+  ((bits[line >> 3] >> (line & 7)) & 1) === 1;
 
 // the text and the ranges V8 reported for it (precise coverage, run in Node 24)
 const TEXT = [

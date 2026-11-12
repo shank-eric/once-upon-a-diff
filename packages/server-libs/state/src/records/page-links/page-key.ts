@@ -54,7 +54,7 @@ const VIEW_KEY_MAY: Record<string, readonly string[]> = {
   viewed: ['POST'],
   notes: ['POST'],
   fixes: ['GET', 'POST'],
-  rebuild: ['GET', 'POST'],
+  rebuild: ['POST'],
   pr: ['GET'],
   usage: ['POST'],
 };

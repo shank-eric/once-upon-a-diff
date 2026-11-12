@@ -126,7 +126,7 @@ const fileOf = (file: PlanFile) => (typeof file === 'string' ? file : file.rel);
  * a finished update from an older commit, and no chapter covers that range. Then the panel can still say what's new,
  * from GitHub's compare of the old head with the story's. Null when there's nothing to say or gh can't tell.
  */
-export async function updatedInPlace(
+async function updatedInPlace(
   meta: StoryMeta,
   chapters: ChapterFiles[],
   lastBuild: Build | null,

@@ -44,7 +44,7 @@ export interface Prefs {
 }
 
 /** The story panel's width and its questions dock's height, in pixels. */
-export interface Layout {
+interface Layout {
   width?: number;
   chatHeight?: number;
 }
@@ -188,7 +188,7 @@ const PLATFORM_OPENER: Partial<Record<NodeJS.Platform, string[]>> = {
 };
 
 /** Repos whose branches the board's worktree cleanup never deletes, whatever config.json says (the owner's packrat rule). */
-export const ALWAYS_KEEP_BRANCHES = ['everfi-frontend'];
+const ALWAYS_KEEP_BRANCHES = ['everfi-frontend'];
 
 /** Branches that are not a unit of work of their own. */
 export const DEFAULT_BRANCHES = new Set(['main', 'master', 'develop', 'development', 'trunk']);
@@ -376,7 +376,7 @@ export function ghEnv(home = homeDir(), base = process.env) {
 }
 
 /** argv that opens a URL or file: open_command, else the platform's usual opener. */
-export function openArgv(target: string, home = homeDir()): string[] {
+function openArgv(target: string, home = homeDir()): string[] {
   const cmd = readSettings(home).openCommand || PLATFORM_OPENER[process.platform] || ['xdg-open'];
   return [...cmd, target];
 }
@@ -417,7 +417,7 @@ export function saveConfig(cfg: Partial<Config>, home = homeDir()): void {
  * Page settings the bridge keeps for every story, read on each request so a change needs no restart.
  * Only known keys are kept: {hideWhitespace: boolean, diffView: 'unified' | 'split', layout?: {width?, chatHeight?}}.
  */
-export const PREF_DEFAULTS: Readonly<Prefs> = Object.freeze({
+const PREF_DEFAULTS: Readonly<Prefs> = Object.freeze({
   hideWhitespace: false,
   diffView: 'unified',
 });

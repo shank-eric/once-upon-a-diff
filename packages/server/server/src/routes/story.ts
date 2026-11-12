@@ -3,7 +3,7 @@
  * to redraw when chapters.json changes), its pulse (version plus what else the
  * panel polls for), the panel's saved state (ui), where the reviewer is
  * (position), whether the story is up to date (freshness), and its Rebuild
- * (rebuild: ask for one, or how the last one stands), and Start listening on the local page (listen: GET the sessions that
+ * (rebuild: ask for one), and Start listening on the local page (listen: GET the sessions that
  * may be typed into, POST to type into one), since a story's key does not reach the board's routes.
  */
 import { ROUTES } from '@once-upon-a-diff/contracts/routes';
@@ -129,30 +129,28 @@ function rebuildView(app: App, story: ServedStory): (RebuildView & { id: string 
 }
 
 /**
- * GET: rebuildView. POST {mode: 'rebuild'|'rebuild_from', from_step, guidance}: the panel's Rebuild story or Rebuild
+ * POST {mode: 'rebuild'|'rebuild_from', from_step, guidance}: the panel's Rebuild story or Rebuild
  * from here, a build request a listener hands to a Claude session. A request already being built comes back as it is.
  */
-function rebuild({ app, req, body: raw, send }: Call, story: ServedStory) {
-  if (req.method === 'POST') {
-    const body = parseBody('rebuild', raw);
-    const chapters = ((app.stories.load(story.id) as StoryData).chapters || []).filter(
-      (chapter) => !chapter.auto,
-    );
-    if (!chapters.length) {
-      throw new HttpError(400, 'the story has no chapters to rebuild');
-    }
-    app.statusCache = null;
-    app.builds.requestRebuild({
-      story: story.id,
-      meta: story.meta,
-      mode: body.mode,
-      from_step: body.from_step,
-      guidance: body.guidance,
-      chapters: chapters.length,
-      story_dir: story.dir,
-      requested_at: body.requested_at,
-    });
+function rebuild({ app, body: raw, send }: Call, story: ServedStory) {
+  const body = parseBody('rebuild', raw);
+  const chapters = ((app.stories.load(story.id) as StoryData).chapters || []).filter(
+    (chapter) => !chapter.auto,
+  );
+  if (!chapters.length) {
+    throw new HttpError(400, 'the story has no chapters to rebuild');
   }
+  app.statusCache = null;
+  app.builds.requestRebuild({
+    story: story.id,
+    meta: story.meta,
+    mode: body.mode,
+    from_step: body.from_step,
+    guidance: body.guidance,
+    chapters: chapters.length,
+    story_dir: story.dir,
+    requested_at: body.requested_at,
+  });
   return send(200, { rebuild: rebuildView(app, story) });
 }
 
@@ -222,7 +220,6 @@ export const storyRoutes: StoryRoute[] = [
   { route: ROUTES.storyUiWrite, handle: panelState },
   { route: ROUTES.storyPosition, handle: position },
   { route: ROUTES.storyFreshness, handle: storyFreshness },
-  { route: ROUTES.storyRebuildRead, handle: rebuild },
   { route: ROUTES.storyRebuildWrite, handle: rebuild },
   { route: ROUTES.storyListenSessions, handle: listenSessions },
   { route: ROUTES.storyListen, handle: listen },

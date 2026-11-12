@@ -73,7 +73,7 @@ export function approvedFor(stories: StoryStateReader, id: string, now = Date.no
  * protection is on (`protection.enabled`): anyone with read access can see it, where the protection rules (admin only) answer 404 to everyone else, even for
  * a protected branch. The rules are asked only to say why.
  */
-export async function protectionOf(repo: string, branch: string): Promise<PushView['protection']> {
+async function protectionOf(repo: string, branch: string): Promise<PushView['protection']> {
   const name = encodeURIComponent(branch);
   let reason: string | undefined;
   try {

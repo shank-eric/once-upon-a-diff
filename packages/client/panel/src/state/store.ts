@@ -32,5 +32,3 @@ export function createView(draw: () => void) {
   }
   return { update };
 }
-
-export type View = ReturnType<typeof createView>;
