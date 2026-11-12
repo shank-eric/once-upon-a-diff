@@ -18,7 +18,7 @@ import { sameLaneKey, shortLane } from '@once-upon-a-diff/terms/lane-key';
 const OPEN = ['running', 'waiting', 'plan', 'fixing'];
 
 /** The editors that are shown, newest registration first: an open run whose full session id is a live session. One per session. */
-function liveEditors(editors: LedgerAgent[], live: LiveSession[]): LedgerAgent[] {
+export function liveEditors(editors: LedgerAgent[], live: LiveSession[]): LedgerAgent[] {
   const bySession = new Map<string, LedgerAgent>();
   for (const editor of editors) {
     const open = OPEN.includes(editor.state);

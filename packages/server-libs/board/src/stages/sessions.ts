@@ -1,8 +1,8 @@
 /**
  * The live sessions: what the registry, the status source and the transcripts say of them, and which card
  * each goes on. A session on a branch of its own joins that branch's work (works.ts); a session standing alone is a card
- * of its own (cards.ts); the voice session is pinned above the columns; a session that only listens is shown in the
- * Listeners lane; one with no prompt yet is a chip in the Blank strip.
+ * of its own (cards.ts); the voice session is pinned above the columns; an editor's session is in
+ * the editors strip alone; a session that only listens is shown in the Listeners lane; one with no prompt yet is a chip in the Blank strip.
  */
 import { prWorkKey } from '@once-upon-a-diff/terms/ids';
 import path from 'node:path';
@@ -38,6 +38,7 @@ import {
 } from '@once-upon-a-diff/adapters/claude-sessions/live-sessions';
 import type { BuildContext, PinnedVoice, SessionView, Work } from './types.ts';
 import { branchOfWork, startWork } from './works.ts';
+import { liveEditors } from './editors.ts';
 
 /** What the registry and the status source say of the live sessions and the agents. */
 export interface LiveFacts {
@@ -210,6 +211,8 @@ export interface PlacedSessions {
   quietViews: BoardSession[];
   /** the sessions that have had no prompt yet, with their lane */
   blankViews: { lane: string; view: BoardSession }[];
+  /** an editor's session, in the editors strip and on no card: the parent its other agents (a critic, a helper) are "from" */
+  editorViews: { lane: string; view: BoardSession }[];
   /** the voice session, pinned above the columns and on no card */
   pin: PinnedVoice | null;
   /** each live session's repo */
@@ -226,7 +229,7 @@ export interface PlacedSessions {
  */
 export function placeSessions(
   ctx: BuildContext,
-  { live, known, branches, repos, picked }: LiveFacts,
+  { live, known, branches, repos, picked, editors }: LiveFacts,
   facts: SessionFacts,
   works: Map<string, Work>,
   seen: Map<string, { status: BoardStatus; since: number }>,
@@ -240,6 +243,9 @@ export function placeSessions(
   const sessionCards: BoardCard[] = [];
   const repoBySession = new Map<string, string | null>();
   const next = new Map<string, { status: BoardStatus; since: number }>();
+  // an editor's own session is in the editors strip, busy or not: never a card or a listener
+  const editorViews: { lane: string; view: BoardSession }[] = [];
+  const editorSessions = new Set(liveEditors(editors, live).map((editor) => editor.session));
   live.forEach((session, index) => {
     const extra = known.get(session.session);
     const status: BoardStatus = extra?.status || (session.status === 'busy' ? 'working' : 'idle');
@@ -271,6 +277,13 @@ export function placeSessions(
             : null,
       },
     };
+    if (
+      editorSessions.has(session.session) &&
+      !(voiceFiles && session.session === voiceFiles.session)
+    ) {
+      editorViews.push({ lane: laneOf(session.cwd, repo), view: view.card });
+      return;
+    }
     if (quiet.has(session.session) && !(voiceFiles && session.session === voiceFiles.session)) {
       quietViews.push(view.card);
       return;
@@ -349,5 +362,13 @@ export function placeSessions(
       alone();
     }
   });
-  return { sessionCards, quietViews, blankViews, pin: pin.found, repoBySession, seen: next };
+  return {
+    sessionCards,
+    quietViews,
+    blankViews,
+    editorViews,
+    pin: pin.found,
+    repoBySession,
+    seen: next,
+  };
 }

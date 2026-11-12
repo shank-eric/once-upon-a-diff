@@ -25,6 +25,8 @@ export interface ListenerFacts {
   /** those of them that are busy (a turn, a request in hand, other tasks) */
   busyListeners: Set<string>;
   blankViews: { lane: string; view: BoardSession }[];
+  /** an editor's session: on no card, but known by id (busy or idle, title, focus) */
+  editorViews?: { lane: string; view: BoardSession }[];
   pin: PinnedVoice | null;
   repoBySession: Map<string, string | null>;
   /** what the worktree scanner has (memory only): a branch it says is merged or superseded gets no Review */
@@ -62,6 +64,7 @@ export function markListening(
     quietViews,
     busyListeners,
     blankViews,
+    editorViews = [],
     pin,
     repoBySession,
     trees = [],
@@ -76,6 +79,7 @@ export function markListening(
     sessionViews.set(pin.view.id, pin.view);
   }
   blankViews.forEach((item) => sessionViews.set(item.view.id, item.view));
+  editorViews.forEach((item) => sessionViews.set(item.view.id, item.view));
   const idle = new Set(
     [...sessionViews.values()]
       .filter((view) => view.status === 'idle' || view.status === 'done')

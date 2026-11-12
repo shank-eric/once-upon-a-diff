@@ -153,41 +153,6 @@
           },
           {
             "agents": [],
-            "branch": "main",
-            "build": null,
-            "building": null,
-            "can_focus": true,
-            "column": "working",
-            "detail": "compiling",
-            "focus_session": "<PID:15>-aaaa-bbbb-cccc-dddddddddddd",
-            "id": "<PID:15>-aaaa-bbbb-cccc-dddddddddddd",
-            "kind": "session",
-            "lane": "acme/widgets",
-            "listening": null,
-            "parent": null,
-            "pr": null,
-            "repo": "acme/widgets",
-            "sessions": [
-              {
-                "branch": "main",
-                "context": null,
-                "cwd": "<WORK>/checkout-16",
-                "detail": "compiling",
-                "focus": true,
-                "id": "<PID:15>-aaaa-bbbb-cccc-dddddddddddd",
-                "rested_at": null,
-                "since": "2026-10-26T18:50:00.000Z",
-                "source": "iterm",
-                "status": "working",
-                "title": "Tab title"
-              }
-            ],
-            "since": "2026-10-26T18:50:00.000Z",
-            "story": null,
-            "title": "Tab title"
-          },
-          {
-            "agents": [],
             "ahead": null,
             "branch": "feat/x",
             "build": null,

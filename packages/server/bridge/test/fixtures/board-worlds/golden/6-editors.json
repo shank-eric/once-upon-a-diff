@@ -75,41 +75,6 @@
       {
         "cards": [
           {
-            "agents": [],
-            "branch": "main",
-            "build": null,
-            "building": null,
-            "can_focus": false,
-            "column": "working",
-            "detail": null,
-            "focus_session": "<PID:19>-aaaa-bbbb-cccc-dddddddddddd",
-            "id": "<PID:19>-aaaa-bbbb-cccc-dddddddddddd",
-            "kind": "session",
-            "lane": "acme/widgets",
-            "listening": null,
-            "parent": null,
-            "pr": null,
-            "repo": "acme/widgets",
-            "sessions": [
-              {
-                "branch": "main",
-                "context": null,
-                "cwd": "<WORK>/checkout-26",
-                "detail": null,
-                "focus": false,
-                "id": "<PID:19>-aaaa-bbbb-cccc-dddddddddddd",
-                "rested_at": null,
-                "since": "2026-10-26T18:50:00.000Z",
-                "source": "registry",
-                "status": "working",
-                "title": "editor-tab"
-              }
-            ],
-            "since": "2026-10-26T18:50:00.000Z",
-            "story": null,
-            "title": "editor-tab"
-          },
-          {
             "agents": [
               {
                 "beat": {

@@ -23,6 +23,7 @@ import type {
   BoardAgentEditor,
   BoardCard,
   BoardColumn,
+  BoardSession,
   BoardStatus,
 } from '@once-upon-a-diff/contracts/types';
 import type { BuildContext, PinnedVoice } from './types.ts';
@@ -141,6 +142,8 @@ export interface AgentFacts {
   agents: LedgerAgent[];
   /** the voice session, pinned above the columns, whose agents keep a card of their own */
   pin: PinnedVoice | null;
+  /** the editors' sessions, on no card: the parent of an agent launched from one */
+  editorViews?: { lane: string; view: BoardSession }[];
   /** the agents (agentKey) whose run names a card: they have no card of their own, the card shows them */
   held?: Set<string>;
   /** the backlog's items, which an agent's registered `card` points into */
@@ -168,7 +171,15 @@ export interface AgentFacts {
 export function placeAgents(
   ctx: BuildContext,
   cards: BoardCard[],
-  { agents, pin, held = new Set(), items = [], editorOf = () => null, trees = [] }: AgentFacts,
+  {
+    agents,
+    pin,
+    editorViews = [],
+    held = new Set(),
+    items = [],
+    editorOf = () => null,
+    trees = [],
+  }: AgentFacts,
 ): BoardCard[] {
   const { nowMs } = ctx;
   const waitMs = ctx.settings.finishedWaitMinutes * 60 * 1000;
@@ -222,8 +233,11 @@ export function placeAgents(
     const view = agentOf(agent, nowMs, clearsAt, editorOf(agent));
     const parent = cardsBySid.get(agent.sid) || null;
     const voiceParent = pin && pin.view.id.startsWith(agent.sid) ? pin : null;
+    const editorParent = editorViews.find((one) => one.view.id.startsWith(agent.sid));
     const parentSession =
-      parent?.sessions.find((one) => one.id.startsWith(agent.sid)) ?? voiceParent?.view;
+      parent?.sessions.find((one) => one.id.startsWith(agent.sid)) ??
+      voiceParent?.view ??
+      editorParent?.view;
     // a finished agent is gone once its card's Finish cleared it and it has done nothing since, wherever it would sit
     const clearedAt = isFinished(agent) ? cleared.get(agentKey(agent)) : undefined;
     const wasCleared = clearedAt !== undefined && !!active && active.getTime() <= clearedAt;
@@ -274,7 +288,7 @@ export function placeAgents(
       title: agent.name,
       repo: null,
       branch: null,
-      lane: laneOfAgent(agent, parent?.lane ?? voiceParent?.lane ?? null),
+      lane: laneOfAgent(agent, parent?.lane ?? voiceParent?.lane ?? editorParent?.lane ?? null),
       column: view.gate ? 'checks' : column,
       detail:
         agent.state === 'waiting' ||

@@ -154,6 +154,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
     ...placeAgents(ctx, cards, {
       agents,
       pin,
+      editorViews: placed.editorViews,
       held,
       items: backlogItems,
       editorOf: editing.editorOf,
@@ -179,6 +180,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
     quietViews,
     busyListeners: new Set([...quiet].filter(([, busy]) => busy).map(([id]) => id)),
     blankViews,
+    editorViews: placed.editorViews,
     pin,
     repoBySession,
     trees: settings.worktrees ? state.scanner.read().items : [],
