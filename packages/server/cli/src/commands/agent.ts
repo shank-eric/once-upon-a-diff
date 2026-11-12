@@ -32,6 +32,7 @@ import type { CliOpts, Command } from '../types.ts';
 const USAGE =
   'usage: once-upon agent start NAME [--kind author|critic|helper|research|storyteller | --role author|fixer|critic|storyteller|helper|research] [--standing] --task TEXT|--task-file PATH [--sid SID8] [--model M] [--effort E]\n' +
   '                             [--repo owner/name] [--branch NAME] [--pr N (its head branch, read through gh)] [--cwd DIR] [--card ID | --new-card] [--notes PATH]\n' +
+  '                             [--replaces NAME  the earlier run of this session this one retries: once this one finishes done, that one, if it failed, leaves the board]\n' +
   '                             with --card the card gives the repo and branch and --role says the kind: --kind, --lane, a --repo or --branch the card has, and a --pr when it has a branch, are refused (a card with no branch takes --pr or --branch and is stamped with it); --lane is ignored without a card\n' +
   '       once-upon agent state NAME --state running|waiting|review|plan|fixing [--outcome TEXT|--outcome-file PATH] [--findings N] [--notes PATH] [--sid SID8] [--run ID]\n' +
   '       once-upon agent beat NAME N/M STEP [NOTE...] [--sid SID8] [--no-mirror]\n' +
@@ -228,6 +229,7 @@ async function agent(home: string, _cfg: Config, opts: CliOpts) {
         cwd,
         card,
         newCard: !!opts['new-card'],
+        replaces: text(opts.replaces),
         role: role as NonNullable<Parameters<AgentRegistry['start']>[0]['role']> | null,
         lane: text(opts.lane),
         notes: text(opts.notes),
@@ -310,6 +312,7 @@ export const agentCommands: Command[] = [
       "                                                                                   --card ID: the card it works on, which gives it its repo and branch (a critic, fixer or storyteller needs one; --role says which, and --kind, --lane and a --repo, --branch or --pr the card already answers are refused, claim the card before an author starts); --pr or --branch on a card with no branch becomes the card's branch. --lane is ignored without a card",
       '                                                                                   no --card: the run is its own card (an implicit card, in the registry only: its id is printed after the run id, for a critic of the work to pass as --card); a restart of the same name stays on it, --new-card starts another',
       '                                                                                   --standing: a long-lived helper (the backlog clerk), in the Helpers row, never a card; put it before another flag. A restart of the same name may leave out --kind and --standing: they carry over (--standing false clears it)',
+      '                                                                                   --replaces NAME: the earlier run of this session this one retries (a deploy run after a failed one): once this one finishes done, the failed one leaves the board',
       '  once-upon agent state NAME --state running|waiting|review|plan|fixing            move it: a plan to check, a question, parked on a story review, fixing findings',
       '  once-upon agent beat NAME N/M STEP [NOTE...]                                     a progress beat, and a sign of life',
       '  once-upon agent finish NAME [--state done|failed|stopped] [--outcome TEXT]       it is over: --commit, --pr, --branch and --card say what it made',

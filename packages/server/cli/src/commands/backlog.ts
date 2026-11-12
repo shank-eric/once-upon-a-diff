@@ -101,9 +101,8 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
     });
     return out(`${item.id} added: ${item.title}`);
   }
-  if (verb === 'adopt') {
-    // an implicit card becomes a backlog card, with its own id: its runs already name it
-    const [id] = words;
+  // an implicit card written into the backlog under its own id, as `adopt` and `drop` need it
+  const adoptCard = (id: string | undefined, title: string | null) => {
     if (store.items().some((one) => one.id === id)) {
       throw new Error(`${id} is already a card`);
     }
@@ -115,12 +114,17 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
     }
     const adopted = store.add({
       id: card.id,
-      title: text(opts.title) ?? card.title,
+      title: title ?? card.title,
       note: card.task && card.task !== card.title ? card.task : null,
       repo: card.repo,
       branch: card.branch,
       by: who ?? card.agent,
     });
+    return { card, adopted };
+  };
+  if (verb === 'adopt') {
+    // an implicit card becomes a backlog card, with its own id: its runs already name it
+    const { card, adopted } = adoptCard(words[0], text(opts.title));
     // a card with a branch is started on it, as `claim --branch` does, so it reads as work done or under way: no Assign while its
     // author runs, and a built card on a branch reaches Ready instead of leaving the board. Start needs a branch, so a card with
     // none stays open in the Backlog (its runs still decide its column), and is not claimed: a claim with no branch would show
@@ -371,7 +375,10 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
     );
   }
   if (verb === 'drop') {
-    const item = found();
+    // an implicit card is dropped directly: it is adopted first (an open card, not started or claimed), then dropped
+    const item = implicit().some((one) => one.id === words[0])
+      ? adoptCard(words[0], null).adopted
+      : found();
     store.drop(item.id, who);
     return out(`${item.id} dropped: ${item.title}`);
   }
@@ -406,7 +413,7 @@ export const backlogCommands: Command[] = [
     usage: [
       '  once-upon backlog add "TITLE" [--note TEXT] [--repo owner/name] [--branch NAME]  keep something for later: a card in the board\'s Backlog column',
       '  once-upon backlog edit ID [--title TEXT] [--note TEXT] [--repo owner/name]      change an open card in place (an empty --note or --repo clears it; a long note: --note-file PATH or --note -)',
-      '  once-upon backlog list [--all] [--json] [--someday] | show ID | drop ID | reopen ID  the items in board order (open ones, or all), one item, drop one, or bring a dropped one back',
+      '  once-upon backlog list [--all] [--json] [--someday] | show ID | drop ID | reopen ID  the items in board order (open ones, or all), one item, drop one (an implicit card too), or bring a dropped one back',
       '  once-upon backlog done ID [--sha SHA]                                            the work landed: the card goes to Done for an hour',
       '  once-upon backlog land [PICKED_SHA...] --from REF --to REF [--dry-run]           a deploy: mark done the cards whose recorded commit (agent finish --commit) is in the range (a repo with no deploy lands by merged PR: the bridge does it)',
       '  once-upon backlog adopt ID [--title TEXT]                                        an implicit card (a run that did not start in the backlog; list --implicit shows them) becomes a backlog card with the same id',

@@ -1634,6 +1634,69 @@ async function record(
   await record('8-landed-ship', board);
 }
 
+// ---- 9. a failed helper run (a deploy) is not news once a retry that named it (--replaces) finished done
+{
+  const home = tmp('home');
+  const sessions = tmp('sessions');
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
+  const minutesAgo = (n: number) => new Date(NOW.getTime() - n * 60000);
+  const runs = new AgentRegistry(home);
+  const helper = (sid: string, name: string, at: Date, replaces?: string) =>
+    runs.start({
+      sid,
+      name,
+      kind: 'helper',
+      task: `${name}'s task`,
+      repo: 'acme/widgets',
+      at,
+      ...(replaces ? { replaces } : {}),
+    });
+  const fail = (sid: string, name: string, at: Date) =>
+    runs.finish(name, { sid, state: 'failed', outcome: `${name} failed`, at });
+  const pass = (sid: string, name: string, at: Date) =>
+    runs.finish(name, { sid, state: 'done', outcome: `${name} done`, at });
+  // a: a deploy failed, then the retry that named it did the job: only the retry is on the board
+  helper('99999991', 'deploy-a', minutesAgo(25));
+  fail('99999991', 'deploy-a', minutesAgo(20));
+  helper('99999991', 'deploy2-a', minutesAgo(15), 'deploy-a');
+  pass('99999991', 'deploy2-a', minutesAgo(10));
+  // b: a deploy failed and nothing replaced it: it stays in Waiting
+  helper('99999992', 'deploy-b', minutesAgo(25));
+  fail('99999992', 'deploy-b', minutesAgo(20));
+  // c: an unrelated helper of the same session that finished done later (it named nothing), or one that started before the
+  // failure and finished before it, does not replace it
+  helper('99999993', 'deploy-c', minutesAgo(25));
+  helper('99999993', 'lookup-c', minutesAgo(24));
+  pass('99999993', 'lookup-c', minutesAgo(23));
+  fail('99999993', 'deploy-c', minutesAgo(20));
+  helper('99999993', 'lookup2-c', minutesAgo(15));
+  pass('99999993', 'lookup2-c', minutesAgo(10));
+  // d: a retry in another session, or one that names another run, does not replace it
+  helper('99999994', 'deploy-d', minutesAgo(25));
+  fail('99999994', 'deploy-d', minutesAgo(20));
+  helper('99999995', 'deploy2-d', minutesAgo(15), 'deploy-d');
+  pass('99999995', 'deploy2-d', minutesAgo(10));
+  helper('99999996', 'deploy-e', minutesAgo(25));
+  fail('99999996', 'deploy-e', minutesAgo(20));
+  helper('99999996', 'deploy2-e', minutesAgo(15), 'deploy-other');
+  pass('99999996', 'deploy2-e', minutesAgo(10));
+  // e: a retry that failed too, or is still running, does not replace it
+  helper('99999997', 'deploy-f', minutesAgo(25));
+  fail('99999997', 'deploy-f', minutesAgo(20));
+  helper('99999997', 'deploy2-f', minutesAgo(15), 'deploy-f');
+  fail('99999997', 'deploy2-f', minutesAgo(10));
+  helper('99999998', 'deploy-g', minutesAgo(25));
+  fail('99999998', 'deploy-g', minutesAgo(20));
+  helper('99999998', 'deploy2-g', minutesAgo(5), 'deploy-g');
+  const { watcher } = fakeWatcher([], {});
+  const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
+    source: sourceSaying({}),
+    now: () => NOW,
+    repoOf,
+  });
+  await record('9-failed-run-replaced', board);
+}
+
 // ---- normalize paths and pids
 export const snapshots: Record<string, string> = {};
 for (const [name, value] of Object.entries(results)) {

@@ -82,7 +82,7 @@ const AgentResultSchema = looseObject({
 export type AgentResult = Listed<InferOutput<typeof AgentResultSchema>>;
 
 /**
- *   {op:'start',  v, id, sid8, session, name, at, by, run, kind, role, standing, task, model, effort, repo, branch, tip, pr, cwd, card, lane, notes, slots}
+ *   {op:'start',  v, id, sid8, session, name, at, by, run, kind, role, standing, task, model, effort, repo, branch, tip, pr, cwd, card, replaces, lane, notes, slots}
  *   {op:'state',  ..., state: running|waiting|review|plan|fixing, outcome, findings, notes}
  *   {op:'beat',   ..., n, of, step, note}                 also the heartbeat: it counts as the agent's last sign of life
  *   {op:'branch', ..., run, branch}                       the open run's branch moved (a rename): `backlog branch` writes it with the card's
@@ -116,6 +116,8 @@ export const AgentEventSchema = looseObject({
   pr: lenient(number()),
   cwd: lenient(string()),
   card: lenient(string()),
+  /** start only: the name of the earlier run of the same session this one retries (`--replaces`); once this run finishes done, the board hides that run if it failed */
+  replaces: lenient(string()),
   lane: lenient(string()),
   notes: lenient(string()),
   /** an editor's build slots */

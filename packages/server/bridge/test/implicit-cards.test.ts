@@ -282,6 +282,19 @@ test('backlog adopt writes one add with the same id and the runs now name a real
   assert.match(late.stderr, /dropped/);
 });
 
+test('backlog drop takes an implicit card directly, with no adopt first', async () => {
+  const home = tmp('implicit-drop');
+  const helper = await start(home, 'deploy-x', '--kind', 'helper', '--task', 'deploy it');
+  const dropped = await backlog(home, 'drop', helper.card);
+  assert.equal(dropped.code, 0, dropped.stderr);
+  assert.match(dropped.stdout, new RegExp(`${helper.card} dropped`));
+  const [item] = new BacklogStore(home).items();
+  assert.equal(item.id, helper.card);
+  assert.equal(item.state, 'dropped');
+  // an unknown id is still refused
+  assert.notEqual((await backlog(home, 'drop', 'ic_nosuchcard12')).code, 0);
+});
+
 test('an implicit card with no branch is adopted as one open card: one add, no start and no claim, so it stays in the Backlog', async () => {
   const home = tmp('implicit-adopt-nobranch');
   const helper = await start(home, 'a-scout', '--kind', 'helper', '--task', 'look at the thing');
@@ -437,4 +450,70 @@ test('a storyteller silent for a day takes nothing from the implicit card’s co
     at: new Date(),
   });
   assert.equal(await column(), 'checks', 'a live one holds it');
+});
+
+const names = (cards: BoardCard[]) => cards.flatMap((card) => card.agents.map((one) => one.name));
+
+test('agent start --replaces records the run it retries; a failed run leaves the board when the retry is done, and not for an unrelated helper', async () => {
+  const home = tmp('implicit-replaces');
+  const failed = await start(home, 'deploy-x', '--kind', 'helper', '--task', 'deploy it');
+  assert.equal((await agent(home, 'finish', 'deploy-x', '--state', 'failed')).code, 0);
+  // an unrelated helper of the same session that finished done later does not hide it
+  await start(home, 'lookup-y', '--kind', 'helper', '--task', 'look');
+  assert.equal((await agent(home, 'finish', 'lookup-y')).code, 0);
+  assert.ok(names(await cardsOf(home)).includes('deploy-x'), 'still on the board');
+  // the retry names it: while it runs the failure stays, once it is done the failure is gone
+  await start(
+    home,
+    'deploy2-x',
+    '--kind',
+    'helper',
+    '--task',
+    'deploy it',
+    '--replaces',
+    'deploy-x',
+  );
+  const row = new AgentRegistry(home)
+    .events()
+    .find((one) => one.op === 'start' && one.name === 'deploy2-x');
+  assert.equal(row?.replaces, 'deploy-x');
+  assert.ok(names(await cardsOf(home)).includes('deploy-x'));
+  assert.equal((await agent(home, 'finish', 'deploy2-x')).code, 0);
+  assert.ok(!names(await cardsOf(home)).includes('deploy-x'), 'replaced by the retry');
+  assert.ok(failed.card);
+  // the run is still in the ledger
+  assert.equal(
+    new AgentRegistry(home).agents().some((one) => one.name === 'deploy-x'),
+    true,
+  );
+  // a run cannot replace itself
+  assert.notEqual(
+    (
+      await agent(
+        home,
+        'start',
+        'deploy3-x',
+        '--kind',
+        'helper',
+        '--task',
+        't',
+        '--replaces',
+        'deploy3-x',
+      )
+    ).code,
+    0,
+  );
+});
+
+test('backlog drop of an implicit card takes its finished run off the board; the run stays in the ledger', async () => {
+  const home = tmp('implicit-drop-board');
+  const helper = await start(home, 'deploy-x', '--kind', 'helper', '--task', 'deploy it');
+  assert.equal((await agent(home, 'finish', 'deploy-x', '--state', 'failed')).code, 0);
+  assert.ok(names(await cardsOf(home)).includes('deploy-x'));
+  assert.equal((await backlog(home, 'drop', helper.card)).code, 0);
+  assert.ok(!names(await cardsOf(home)).includes('deploy-x'), 'the dropped card is off the board');
+  assert.equal(
+    new AgentRegistry(home).agents().some((one) => one.name === 'deploy-x'),
+    true,
+  );
 });

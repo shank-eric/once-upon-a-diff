@@ -56,6 +56,29 @@ const AGENT_STATUS: Record<LedgerAgent['state'], BoardStatus> = {
 export const isFinished = (agent: Pick<LedgerAgent, 'state'>): boolean =>
   agent.state === 'done' || agent.state === 'failed' || agent.state === 'stopped';
 
+/**
+ * A failed helper run that a retry replaced: another run of the same session started with `--replaces <this run's name>` and
+ * finished done (a deploy that failed, then the deploy that worked). It is not news, so it has no card. Only the link the retry
+ * registered is read, never the task or outcome text, the repo or the order of the runs. A failed run nobody replaced stays in
+ * Waiting until its `finishedWaitMinutes` pass, as any finished run does.
+ */
+export function replacedByRetry(agent: LedgerAgent, all: LedgerAgent[]): boolean {
+  return (
+    agent.state === 'failed' &&
+    agent.kind === 'helper' &&
+    all.some(
+      (other) => other.state === 'done' && other.sid === agent.sid && other.replaces === agent.name,
+    )
+  );
+}
+
+/** A finished run of an implicit card (`ic_`) that `backlog drop` took into the backlog and dropped: the card is gone from the board, the run stays in the ledger. */
+const droppedImplicit = (agent: LedgerAgent, items: BacklogItem[]): boolean =>
+  isFinished(agent) &&
+  !!agent.card &&
+  isImplicitCard(agent.card) &&
+  items.some((item) => item.id === agent.card && item.state === 'dropped');
+
 export function agentOf(
   agent: LedgerAgent,
   now: number,
@@ -204,6 +227,8 @@ export function placeAgents(
   const shown = agents.filter(
     (agent) =>
       !held.has(agentKey(agent)) &&
+      !replacedByRetry(agent, agents) &&
+      !droppedImplicit(agent, items) &&
       (agent.state === 'running' ||
         !!pendingOf.get(agent) ||
         (agent.state === 'waiting' && !forgotten(agent, nowMs)) ||

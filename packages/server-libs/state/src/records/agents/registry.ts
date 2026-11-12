@@ -78,6 +78,8 @@ export interface StartInput extends Target {
   newCard?: boolean;
   /** what the run does on a card (`--role`): checked at start, and kept on the start row (a fixer's finish can carry an approval) */
   role?: AgentRole | null;
+  /** the name of the earlier run of this session that this one retries: once this run is done, a failed one of that name is off the board */
+  replaces?: string | null;
   lane?: string | null;
   notes?: string | null;
   /** an editor's build slots (1..99, default 3); only an editor has them */
@@ -363,6 +365,10 @@ export class AgentRegistry {
     let repo = optional(input.repo, 'the repo', REPO_RE);
     let branch = optional(input.branch, 'the branch', CARD_BRANCH_RE);
     const typedLane = optional(input.lane, 'the lane', AGENT_NAME_RE);
+    const replaces = optional(input.replaces, 'the replaced run', AGENT_NAME_RE);
+    if (replaces === name) {
+      throw new Error('--replaces names an earlier run: it cannot be this run');
+    }
     const cwd = clean(input.cwd, 'the cwd', 500) || null;
     // a restart of the same sid:name (a fix round) stays on the earlier run's card, as the kind does, while that card is open
     let cardId = optional(input.card, 'the card', BACKLOG_ID_RE);
@@ -480,6 +486,7 @@ export class AgentRegistry {
       pr: pr || null,
       cwd,
       card: cardId,
+      ...(replaces ? { replaces } : {}),
       ...(input.role ? { role: input.role } : {}),
       // nothing reads a lane tag (a run's lane is its repo's): it is not written
       lane: null,

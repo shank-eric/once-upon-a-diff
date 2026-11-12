@@ -53,6 +53,8 @@ export interface LedgerAgent {
   pr?: number | null;
   cwd?: string | null;
   card?: string | null;
+  /** the name of the earlier run of the same session this run retries (`--replaces`): that run, if it failed, is not news once this one is done */
+  replaces?: string | null;
   /** what the run said it does on its card (`--role`; only a fixer is told from an author by it), null on an old row */
   role?: AgentRole | null;
   /** an editor's build slots (kind `editor`) */
