@@ -4,7 +4,7 @@
  * are fields. The format (AgentEvent) is the contracts package's: contracts/src/files/schemas.ts.
  * ledgerLine and beatLine write each event as a log line for people and scripts (registry.ts).
  *
- *   {op:'start',  v, id, sid8, session, name, at, by, run, kind, standing, task, model, effort, repo, branch, tip, pr, cwd, card, lane, notes}
+ *   {op:'start',  v, id, sid8, session, name, at, by, run, kind, role, standing, task, model, effort, repo, branch, tip, pr, cwd, card, lane, notes}
  *   {op:'state',  ..., state: running|waiting|review|plan|fixing, outcome, findings, notes}
  *   {op:'beat',   ..., n, of, step, note}                 also the heartbeat: it counts as the agent's last sign of life
  *   {op:'branch', ..., run, branch}                       the open run's branch moved (a rename)
@@ -92,6 +92,7 @@ export function foldAgentEvents(events: AgentEvent[]): LedgerAgent[] {
         run: event.run ?? null,
         session: event.session ?? null,
         kind: canonicalKind(event.kind),
+        role: event.role ?? null,
         standing: event.standing === true,
         repo: event.repo ?? null,
         branch: event.branch ?? null,

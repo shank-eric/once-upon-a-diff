@@ -8,7 +8,8 @@
  *             launching session is the next actor, not you. Above working, because the session is busy exactly while it
  *             checks the plan or fixes the findings, and a running critic is a running agent
  *   working   a session or agent on it is busy, or a session is building, rebuilding or fixing its story
- *   done      the PR merged (the board drops it an hour later)
+ *   done      the PR merged, or its card landed (`once-upon backlog done`) with no PR: a local story whose work reached the
+ *             default branch some other way than a merge you can see (a cherry-pick). The board drops it an hour later
  *   ship      a local story you approved for its current head: ready to ship, with no PR yet and still on this Mac (a new
  *             commit clears the approval; the board drops it after APPROVED_DAYS)
  *   back      something is on you: its PR story has a version you haven't opened since it was built (a rebuild, say), or
@@ -60,6 +61,8 @@ export interface ColumnInput {
     approved?: boolean;
     /** questions you asked in the story whose answers you haven't read: Claude handed something back, so Back to you on your own PR (Ready with no PR); on someone else's PR it is only a chip */
     answered?: number;
+    /** its card landed (`backlog done`): a local story with no PR is Done, approved or not */
+    landed?: boolean;
   } | null;
   /** a session is building, rebuilding or fixing for it */
   building?: boolean;
@@ -102,7 +105,7 @@ export function columnOf(input: ColumnInput): BoardColumn {
   ) {
     return 'working';
   }
-  if (pr?.state === 'merged') {
+  if (pr?.state === 'merged' || (story?.local && story.landed && !pr)) {
     return 'done';
   }
   // a failed agent on the card (nested by its branch, PR or card, or the claimed author) needs a look, as its own card

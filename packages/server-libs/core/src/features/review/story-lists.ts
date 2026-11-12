@@ -104,7 +104,7 @@ export interface LocalEntry {
   head_oid: string | null;
   /** meta.json's `head`: the ref the story follows (HEAD or a branch), for finding where it is now */
   head_ref: string | null;
-  /** the raw approved.json, which the background check clears when the head has moved on */
+  /** the raw approved.json (null once it has lapsed), which the background check lets go of when the head has moved on */
   approval: Approval | null;
   /** a reviewed.json exists (marked or unmarked by hand, or by a check): the checks leave the story alone */
   marked: boolean;
@@ -160,6 +160,7 @@ export function localEntries(
       position?.at,
       ...Object.values(reads).map((read) => read.at),
     ]);
+    const current = readApproval(stories, story.id);
     const approved = approvalOf(
       stories,
       story.id,
@@ -200,7 +201,7 @@ export function localEntries(
       base_oid: typeof meta.base_oid === 'string' ? meta.base_oid : null,
       head_oid: typeof meta.head_oid === 'string' ? meta.head_oid : null,
       head_ref: typeof meta.head === 'string' ? meta.head : null,
-      approval: readApproval(stories, story.id),
+      approval: current?.lapsed ? null : current,
       marked: state !== null,
     });
   }

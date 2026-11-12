@@ -8,6 +8,7 @@ import { createLocalStory, reviewBranch } from '@once-upon-a-diff/stories/local-
 import { StoryStore } from '@once-upon-a-diff/stories/store';
 import { readSettings, shipRuleFor } from '@once-upon-a-diff/foundation/settings';
 import { shipMode } from '@once-upon-a-diff/stories/push-default';
+import { approvalOf, readApproval } from '@once-upon-a-diff/stories/approval';
 import {
   boardKey,
   pageKey,
@@ -190,8 +191,9 @@ test('Push fast-forwards the approved commit to origin, never beyond it, and the
     assert.notEqual(head(), approved);
     assert.ok(git(remote, 'log', '--format=%s', 'master').includes('b.txt'));
     assert.ok(!git(remote, 'log', '--format=%s', 'master').includes('d.txt'));
-    // the story's head moved on (d.txt), so the approval is gone and the story is back in review
-    assert.equal(store.readState(id, 'approved.json', null), null);
+    // the story's head moved on (d.txt), so the approval has lapsed (kept for a fixer's commit to carry) and the story is back in review
+    assert.equal(readApproval(store, id)?.lapsed, true);
+    assert.equal(approvalOf(store, id, approved), null);
     assert.ok(!fake.calls().some((call) => /--method|-X/.test(call)), 'gh was only read from');
     assert.ok(fake.calls().every((call) => call.startsWith('api repos/acme/widgets/')));
   } finally {

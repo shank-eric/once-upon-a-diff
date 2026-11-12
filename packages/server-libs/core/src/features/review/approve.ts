@@ -30,8 +30,11 @@ export interface ApproveInput {
  * writes approved.json, marks the story reviewed unless it already is, and appends the `approved` event.
  */
 export function approveStory(stories: StoryStore, inbox: Inbox, input: ApproveInput): boolean {
-  const before = readApproval(stories, input.id);
-  if (before && before.head_oid === input.headOid) {
+  const prior = readApproval(stories, input.id);
+  // a lapsed approval is no approval: its mark bookkeeping was undone with it, so it is not carried into this one
+  const before = prior?.lapsed ? null : prior;
+  // (a carried approval is also the approval of the story as told at the commit it was first given for)
+  if (before && (before.head_oid === input.headOid || before.carried?.from === input.headOid)) {
     return false;
   }
   // the line is checked before anything is saved: a refusal is then an approval that never happened
@@ -65,16 +68,27 @@ export function approveStory(stories: StoryStore, inbox: Inbox, input: ApproveIn
 
 /**
  * Clears the approval, and the reviewed mark approving wrote (so the story is in Ready again). False when there was none.
+ * `lapsed` is for the background check, when the branch moved: the file stays, marked `lapsed`, so a fixer's commit on the
+ * card can still carry it (carry-approval.ts); an explicit clear (`--undo`, Approve off) deletes it, so it is never carried.
  * The mark goes back to how it was before approving: no file at all, so the background checks can still find the story
  * delivered or its PR merged, unless it had been unmarked by hand (that unmark returns).
  */
-export function clearApproval(stories: StoryStore, id: string): boolean {
+export function clearApproval(
+  stories: StoryStore,
+  id: string,
+  { lapsed = false }: { lapsed?: boolean } = {},
+): boolean {
   const found = readApproval(stories, id);
   if (!found) {
     return false;
   }
-  stories.writeState(id, APPROVAL_FILE, null);
-  if (found.marked && storyHasState(stories, id)) {
+  stories.writeState(
+    id,
+    APPROVAL_FILE,
+    lapsed ? ({ ...found, lapsed: true } satisfies Approval) : null,
+  );
+  // a lapsed approval's mark was already taken back when it lapsed, and may since have been set by hand
+  if (found.marked && !found.lapsed && storyHasState(stories, id)) {
     if (found.unmarked) {
       markStoryReviewed(stories, id, false);
     } else {

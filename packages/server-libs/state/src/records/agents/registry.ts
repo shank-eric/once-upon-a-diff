@@ -22,7 +22,7 @@ import { checkWrite } from '@once-upon-a-diff/foundation/shared-files';
 import { readAgentEvent } from '@once-upon-a-diff/contracts/files/schemas';
 import { strictAgentEvent } from '@once-upon-a-diff/contracts/files/strict';
 import { lastActivity } from './ledger.ts';
-import { AGENT_KINDS, type AgentKind, type AgentResult } from './agent-types.ts';
+import { AGENT_KINDS, type AgentKind, type AgentResult, type AgentRole } from './agent-types.ts';
 import {
   KIND_ALIASES,
   canonicalKind,
@@ -76,8 +76,8 @@ export interface StartInput extends Target {
   card?: string | null;
   /** with a card checked (ADR-25): no card named and none to carry over mints an implicit card, unless this says not to (ADR-27) */
   newCard?: boolean;
-  /** what the run does on a card (`--role`), used for the checks only and never stored */
-  role?: 'author' | 'fixer' | 'critic' | 'storyteller' | 'helper' | 'research' | null;
+  /** what the run does on a card (`--role`): checked at start, and kept on the start row (a fixer's finish can carry an approval) */
+  role?: AgentRole | null;
   lane?: string | null;
   notes?: string | null;
   /** an editor's build slots (1..99, default 3); only an editor has them */
@@ -480,6 +480,7 @@ export class AgentRegistry {
       pr: pr || null,
       cwd,
       card: cardId,
+      ...(input.role ? { role: input.role } : {}),
       // nothing reads a lane tag (a run's lane is its repo's): it is not written
       lane: null,
       notes: clean(input.notes, 'the notes path', 500) || null,

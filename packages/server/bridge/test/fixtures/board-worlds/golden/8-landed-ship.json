@@ -1,0 +1,112 @@
+{
+  "board": {
+    "at": "2026-10-26T19:00:00.000Z",
+    "blank": [],
+    "editors": [],
+    "helpers": [],
+    "lanes": [
+      {
+        "cards": [
+          {
+            "agents": [],
+            "ahead": null,
+            "branch": "feat/landed-a",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "done",
+            "detail": null,
+            "focus_session": null,
+            "from_backlog": [
+              {
+                "id": "bl_landeda",
+                "title": "Landed a"
+              }
+            ],
+            "id": "branch:acme/widgets@feat/landed-a",
+            "kind": "work",
+            "landed": {
+              "at": "2026-10-26T18:40:00.000Z",
+              "card": "bl_landeda"
+            },
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/widgets",
+            "sessions": [],
+            "since": "2026-10-26T18:40:00.000Z",
+            "story": {
+              "approved_at": "2026-10-26T15:00:00Z",
+              "id": "story-a",
+              "kind": "local",
+              "reviewed": false,
+              "ship": "pr",
+              "unread": false,
+              "unread_answers": 0,
+              "url": null
+            },
+            "title": "Story of story-a"
+          },
+          {
+            "agents": [],
+            "ahead": null,
+            "branch": "feat/shipping",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "ship",
+            "detail": null,
+            "focus_session": null,
+            "from_backlog": [
+              {
+                "id": "bl_landedc",
+                "title": "Not landed"
+              }
+            ],
+            "id": "branch:acme/widgets@feat/shipping",
+            "kind": "work",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/widgets",
+            "sessions": [],
+            "since": "2026-10-26T15:00:00Z",
+            "story": {
+              "approved_at": "2026-10-26T15:00:00Z",
+              "id": "story-c",
+              "kind": "local",
+              "reviewed": false,
+              "ship": "pr",
+              "unread": false,
+              "unread_answers": 0,
+              "url": null
+            },
+            "title": "Story of story-c"
+          }
+        ],
+        "key": "acme/widgets",
+        "name": "widgets"
+      }
+    ],
+    "listeners": [],
+    "phone": null,
+    "status_source": "iterm",
+    "usage": null,
+    "voice": null,
+    "voice_paused": false,
+    "voice_start": null,
+    "warning": null,
+    "worktrees": {
+      "at": null,
+      "items": [],
+      "on_cards": 0,
+      "prunable": [],
+      "removable": 0,
+      "scanning": true,
+      "size_kb": "<kb>",
+      "total": 0
+    }
+  }
+}

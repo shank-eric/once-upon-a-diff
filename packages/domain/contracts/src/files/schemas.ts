@@ -40,6 +40,7 @@ import {
 } from 'valibot';
 import { AGENT_NAME_RE, BACKLOG_ID_RE, SESSION_RE, SID_RE } from '@once-upon-a-diff/terms/patterns';
 import type { ChapterRef, LocalNote } from '../story/types.ts';
+import { AGENT_KINDS, AGENT_ROLES, KIND_ALIASES } from './agent-kinds.ts';
 
 /** An output type without the index signature `looseObject` adds: the fields the schema lists, as an interface would say them. */
 type Listed<T> = T extends unknown
@@ -68,18 +69,8 @@ const reader =
 
 // ---- agents.jsonl: the registry's events (state/src/records/agents) ----
 
-/** What an agent is. `storyteller` writes a card's local story (old rows say `helper`). `editor` is a session, not an agent. */
-export const AGENT_KINDS = [
-  'author',
-  'critic',
-  'helper',
-  'research',
-  'storyteller',
-  'editor',
-] as const;
-export type AgentKind = (typeof AGENT_KINDS)[number];
-/** Old names for a kind, still read from old agents.jsonl lines and still accepted by `agent start --kind`. */
-export const KIND_ALIASES = { builder: 'author', reviewer: 'critic' } as const;
+export { AGENT_KINDS, AGENT_ROLES, KIND_ALIASES } from './agent-kinds.ts';
+export type { AgentKind, AgentRole } from './agent-kinds.ts';
 
 const AgentResultSchema = looseObject({
   commit: lenient(string()),
@@ -91,7 +82,7 @@ const AgentResultSchema = looseObject({
 export type AgentResult = Listed<InferOutput<typeof AgentResultSchema>>;
 
 /**
- *   {op:'start',  v, id, sid8, session, name, at, by, run, kind, standing, task, model, effort, repo, branch, tip, pr, cwd, card, lane, notes, slots}
+ *   {op:'start',  v, id, sid8, session, name, at, by, run, kind, role, standing, task, model, effort, repo, branch, tip, pr, cwd, card, lane, notes, slots}
  *   {op:'state',  ..., state: running|waiting|review|plan|fixing, outcome, findings, notes}
  *   {op:'beat',   ..., n, of, step, note}                 also the heartbeat: it counts as the agent's last sign of life
  *   {op:'branch', ..., run, branch}                       the open run's branch moved (a rename): `backlog branch` writes it with the card's
@@ -111,6 +102,8 @@ export const AgentEventSchema = looseObject({
   kind: lenient(
     picklist([...AGENT_KINDS, ...(Object.keys(KIND_ALIASES) as (keyof typeof KIND_ALIASES)[])]),
   ),
+  /** start only: what the run does on its card (`--role`), when it said; an old row has none */
+  role: lenient(picklist(AGENT_ROLES)),
   /** a long-lived agent reached by SendMessage, never finished between requests: the board's Helpers row, no card */
   standing: lenient(boolean()),
   task: lenient(string()),

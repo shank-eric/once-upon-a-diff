@@ -19,7 +19,17 @@ export interface Approval {
   marked: boolean;
   /** the story had been unmarked by hand before approving, so unapproving puts that unmark back (else it clears the file) */
   unmarked?: boolean;
+  /** the branch moved on and the background check let go of this approval: it counts for nothing, but a fixer's commit on the card may still carry it */
+  lapsed?: boolean;
+  /** a fixer's commit carried the approval to `head_oid` from `from`, the commit it was first given for (`at` stays the first approval's time, so APPROVED_DAYS counts from it) */
+  carried?: { from: string; at: string; run: string };
 }
+
+/** Whether an approval is under APPROVED_DAYS old. */
+export const approvalFresh = (found: Pick<Approval, 'at'>, now = Date.now()): boolean => {
+  const approvedMs = Date.parse(found.at);
+  return !Number.isNaN(approvedMs) && now - approvedMs <= APPROVED_DAYS * 24 * 3600 * 1000;
+};
 
 /** The raw approved.json, or null. */
 export const readApproval = (stories: StoryStateReader, id: string): Approval | null =>
@@ -36,11 +46,15 @@ export function approvalOf(
   now = Date.now(),
 ): Approval | null {
   const found = readApproval(stories, id);
-  if (!found || !headOid || found.head_oid !== headOid) {
+  // a carried approval also counts for the story as told at the commit it was first given for: a story pinned to its
+  // told-over commits (`--head <branch>`) keeps that head while the approval moves with the fixer's commits
+  if (
+    !found ||
+    found.lapsed ||
+    !headOid ||
+    (found.head_oid !== headOid && found.carried?.from !== headOid)
+  ) {
     return null;
   }
-  const approvedMs = Date.parse(found.at);
-  return Number.isNaN(approvedMs) || now - approvedMs > APPROVED_DAYS * 24 * 3600 * 1000
-    ? null
-    : found;
+  return approvalFresh(found, now) ? found : null;
 }

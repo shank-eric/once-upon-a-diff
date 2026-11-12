@@ -43,7 +43,12 @@ import type { BoardData, BoardStatus } from '@once-upon-a-diff/contracts/types';
 import { claimViews, placeAgents } from './agents.ts';
 import { editorsOf } from './editors.ts';
 import { carriedKeys } from '@once-upon-a-diff/state/queues/backlog/phase';
-import { addBacklogCards, nestClaimedAgents, readBacklogLinks } from './backlog.ts';
+import {
+  addBacklogCards,
+  markLandedWorks,
+  nestClaimedAgents,
+  readBacklogLinks,
+} from './backlog.ts';
 import { buildCards, placeCards } from './cards.ts';
 import type { CardFacts } from './cards.ts';
 import { isStandingHelper, standingHelpers } from './helpers.ts';
@@ -159,11 +164,12 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
 
   // a claimed agent goes on its card's branch's card now, so its state counts when the columns are decided
   nestClaimedAgents(backlogItems, cards, claimed);
-
-  // the columns, now that every card has its sessions and agents
   const byStory = new Map<string, StoryFacts>(
     [...stories, ...localStoryList].map((story) => [story.id, story]),
   );
+  markLandedWorks(backlogItems, cards, nowMs, byStory);
+
+  // the columns, now that every card has its sessions and agents
   placeCards(cards, byStory);
 
   const { listening, sessionViews } = markListening(ctx, cards, {

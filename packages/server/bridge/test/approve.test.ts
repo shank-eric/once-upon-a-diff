@@ -205,7 +205,11 @@ test('an approval counts only for its head and for APPROVED_DAYS, and the backgr
     commit(repo, 'four.txt');
     review.kickLocal(localEntries(store, { now }), now + 1000);
     await review.idle();
-    assert.equal(store.readState(id, 'approved.json', null), null, 'cleared');
+    assert.equal(
+      store.readState<{ lapsed?: boolean } | null>(id, 'approved.json', null)?.lapsed,
+      true,
+      'lapsed: it counts for nothing, and only a fixer’s commit on the card can carry it',
+    );
     const after = localStories(store, { now })[0];
     assert.equal(after.approved_at, null);
     assert.equal(after.reviewed_at, null, 'the mark approving wrote went with it: back in Ready');

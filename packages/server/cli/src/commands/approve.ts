@@ -9,6 +9,7 @@ import { StoryStore } from '@once-upon-a-diff/stories/store';
 import { readMeta, storyRepo } from '@once-upon-a-diff/stories/meta';
 import { refreshLocal } from '@once-upon-a-diff/stories/local-diff';
 import { approveStory, clearApproval } from '@once-upon-a-diff/core/features/review/approve';
+import { finishStoryRuns } from '@once-upon-a-diff/core/features/review/approve-runs';
 import { localStory } from '@once-upon-a-diff/core/features/review/story-lists';
 import { out } from '../output.ts';
 import type { Config } from '@once-upon-a-diff/foundation/settings';
@@ -47,8 +48,18 @@ function approve(home: string, cfg: Config, opts: CliOpts) {
     headOid: meta.head_oid,
     baseOid: meta.base_oid || null,
   });
+  // the card's story run is done once you have approved (not on a second click at the same head)
+  const finished = added
+    ? finishStoryRuns(
+        home,
+        { repo: storyRepo(meta), branch: meta.branch || null },
+        meta.head_oid,
+        (line) => process.stderr.write(line + '\n'),
+      )
+    : 0;
   return out(
-    `${id} ${added ? 'approved' : 'already approved'} at ${shortSha(meta.head_oid)}: ${story.title}`,
+    `${id} ${added ? 'approved' : 'already approved'} at ${shortSha(meta.head_oid)}: ${story.title}` +
+      (finished ? ` (${finished} story run${finished === 1 ? '' : 's'} finished)` : ''),
   );
 }
 

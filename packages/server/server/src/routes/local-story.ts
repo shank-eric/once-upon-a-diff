@@ -10,6 +10,8 @@ import { parseBody } from '../validate.ts';
 import { unwrittenCount } from '@once-upon-a-diff/stories/skeleton';
 import { approvalOf } from '@once-upon-a-diff/stories/approval';
 import { approveStory, clearApproval } from '@once-upon-a-diff/core/features/review/approve';
+import { finishStoryRuns } from '@once-upon-a-diff/core/features/review/approve-runs';
+import { storyRepo } from '@once-upon-a-diff/stories/meta';
 import type { LocalStory, StoryData } from '@once-upon-a-diff/contracts/types';
 import { refreshLocal } from '@once-upon-a-diff/stories/local-diff';
 import type { LocalMeta, ServedStory } from '@once-upon-a-diff/stories/types';
@@ -65,7 +67,7 @@ function approve({ app, body: raw, send }: Call, story: ServedStory) {
       'the branch has moved since this page showed it: reload before approving',
     );
   }
-  approveStory(app.stories, app.inbox, {
+  const added = approveStory(app.stories, app.inbox, {
     id: story.id,
     ref: story.ref,
     branch: meta.branch || null,
@@ -74,6 +76,9 @@ function approve({ app, body: raw, send }: Call, story: ServedStory) {
     headOid,
     baseOid: meta.base_oid || null,
   });
+  if (added) {
+    finishStoryRuns(app.home, { repo: storyRepo(meta), branch: meta.branch || null }, headOid);
+  }
   app.board.refresh(); // its card moves to Ready to ship on the page's next poll
   return send(200, answer());
 }

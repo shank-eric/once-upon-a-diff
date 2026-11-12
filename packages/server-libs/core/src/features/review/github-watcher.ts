@@ -519,10 +519,11 @@ export class AutoReview {
         if (
           code === 0 &&
           tip &&
+          !current?.lapsed &&
           current?.head_oid === approval.head_oid &&
           tip !== approval.head_oid
         ) {
-          clearApproval(this.stories, entry.story.id);
+          clearApproval(this.stories, entry.story.id, { lapsed: true });
         }
       })
       .finally(() => this.running.delete(job));

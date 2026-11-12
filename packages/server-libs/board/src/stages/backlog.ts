@@ -13,6 +13,7 @@ import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
 import { sameAgentView } from '@once-upon-a-diff/state/queues/backlog/claims';
 import {
   cardPhase,
+  DONE_HOURS,
   namedByRuns,
   runsOf,
   type CardPhase,
@@ -29,7 +30,7 @@ import type {
   BoardStartedLinks,
 } from '@once-upon-a-diff/contracts/types';
 import { AGENT_OPEN } from './agents.ts';
-import type { BuildContext, PinnedVoice, Work } from './types.ts';
+import type { BuildContext, PinnedVoice, StoryFacts, Work } from './types.ts';
 import { dirOf } from './worktrees.ts';
 import { branchOfWork } from './works.ts';
 
@@ -49,6 +50,49 @@ export function nestClaimedAgents(
       if (card && !card.agents.some((one) => sameAgentView(one, view))) {
         card.agents.push(view);
       }
+    }
+  }
+}
+
+/**
+ * A card that landed (`backlog done`, with or without a sha; its state may still be `open` if no `start` was written) has
+ * finished the local story on its branch's work card, whether or not git can see it (a cherry-pick leaves the story's
+ * head in no branch). Before the columns are decided, the work card is marked landed, so it is Done; DONE_HOURS after the
+ * landing it is taken off the board, which the approval's APPROVED_DAYS never undoes, unless a session or an agent is
+ * still on it (then it stays, without the story). It changes `cards`. The story must be the card's own: one told before the
+ * card started or after it landed (or approved after) is another piece of work on the branch. A card with a PR follows its
+ * PR, and a session card has no story.
+ */
+export function markLandedWorks(
+  items: BacklogItem[],
+  cards: BoardCard[],
+  nowMs: number,
+  stories: Map<string, StoryFacts>,
+): void {
+  for (const item of items) {
+    if (item.state === 'dropped' || !item.branch || !item.landed_at) {
+      continue;
+    }
+    const card = cardOnBranch(item, cards);
+    if (!card || card.kind !== 'work' || card.pr || card.story?.kind !== 'local') {
+      continue;
+    }
+    const landedMs = Date.parse(item.landed_at);
+    const builtMs = Date.parse(stories.get(card.story.id)?.built_at ?? '');
+    const approvedMs = Date.parse(card.story.approved_at ?? '');
+    if (
+      builtMs > landedMs ||
+      approvedMs > landedMs ||
+      builtMs < Date.parse(item.started_at ?? '')
+    ) {
+      continue;
+    }
+    if (nowMs - landedMs <= DONE_HOURS * 3600 * 1000) {
+      card.landed = { card: item.id, at: item.landed_at };
+    } else if (card.sessions.length || card.agents.length) {
+      card.story = null;
+    } else {
+      cards.splice(cards.indexOf(card), 1);
     }
   }
 }

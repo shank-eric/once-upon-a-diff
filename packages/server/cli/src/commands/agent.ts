@@ -22,6 +22,8 @@ import {
 } from '@once-upon-a-diff/state/records/agents/registry';
 import { agentKey } from '@once-upon-a-diff/state/queues/backlog/claims';
 import { BacklogStore, cardLookup } from '@once-upon-a-diff/state/queues/backlog/backlog';
+import { carryApproval } from '@once-upon-a-diff/core/features/review/carry-approval';
+import { shortSha } from '@once-upon-a-diff/terms/text';
 import { out } from '../output.ts';
 import { warnTypedRepo } from '../typed-repo.ts';
 import type { Config } from '@once-upon-a-diff/foundation/settings';
@@ -269,7 +271,7 @@ async function agent(home: string, _cfg: Config, opts: CliOpts) {
     return out(`${name} ${step} ${label}`);
   }
   if (verb === 'finish') {
-    registry.finish(
+    const finished = registry.finish(
       name,
       {
         state: (text(opts.state) ?? undefined) as 'done' | undefined,
@@ -289,7 +291,12 @@ async function agent(home: string, _cfg: Config, opts: CliOpts) {
       },
       warn,
     );
-    return out(`${name} finished`);
+    // a fixer's commit on an approved story's card keeps the approval (carry-approval.ts)
+    const carried = carryApproval(home, finished);
+    return out(
+      `${name} finished` +
+        (carried ? `, approval carried ${shortSha(carried.from)} -> ${shortSha(carried.to)}` : ''),
+    );
   }
   throw new Error(USAGE);
 }

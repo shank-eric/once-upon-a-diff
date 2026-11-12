@@ -182,6 +182,8 @@ export interface BoardCard {
     /** the idle sessions Assign can offer, and the exact line it would type into each; null once started */
     assign: BoardAssign | null;
   } | null;
+  /** the card this local story's work card began as landed (`backlog done`), and when: the story is Done, then off the board */
+  landed?: { card: string; at: string };
   /** backlog items this work card began as: the work's story and column carry on from here */
   from_backlog?: { id: string; title: string }[];
   /** the git worktrees tied to this card (same repo and branch, a session inside, or listed by a started backlog item) */

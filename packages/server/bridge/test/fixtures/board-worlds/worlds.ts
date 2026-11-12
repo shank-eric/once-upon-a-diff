@@ -1537,6 +1537,103 @@ async function record(
   await record('7-implicit-cards', board);
 }
 
+// ---- 8. a landed card takes its approved local story to Done, then off the board: the work reached the default branch
+// by a cherry-pick (the card's landed_sha is in no history of the checkout), so nothing in git says it shipped
+{
+  const home = tmp('home');
+  const sessions = tmp('sessions');
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
+  const et = (hour: number, minute: number) => new Date(Date.UTC(2026, 9, 26, hour + 4, minute));
+  const approvedAt = '2026-10-26T15:00:00Z';
+  const approved = (head: string) => ({
+    at: approvedAt,
+    head_oid: head,
+    base_oid: null,
+    marked: true,
+  });
+  const landing = (id: string, branch: string, head: string, landedAt: Date) => {
+    localStory(
+      home,
+      `story-${id}`,
+      checkoutOf('widgets', branch),
+      branch,
+      { head_oid: head },
+      { 'approved.json': approved(head) },
+    );
+    return [
+      {
+        op: 'add',
+        id: `bl_landed${id}`,
+        title: `Landed ${id}`,
+        note: null,
+        repo: 'acme/widgets',
+        branch,
+        by: 'cli',
+        at: et(9, 0).toISOString(),
+      },
+      {
+        op: 'start',
+        id: `bl_landed${id}`,
+        branch,
+        repo: 'acme/widgets',
+        by: 'cli',
+        at: et(9, 1).toISOString(),
+      },
+      {
+        op: 'done',
+        id: `bl_landed${id}`,
+        sha: 'c'.repeat(40),
+        by: 'cli',
+        at: landedAt.toISOString(),
+      },
+    ];
+  };
+  // a: landed 20 minutes ago: Done. b: landed 2 hours ago: gone. c: approved, not landed: still Ready to ship
+  const events = [
+    ...landing('a', 'feat/landed-a', 'a'.repeat(40), new Date(NOW.getTime() - 20 * 60000)),
+    ...landing('b', 'feat/landed-b', 'b'.repeat(40), new Date(NOW.getTime() - 2 * 3600000)),
+  ];
+  localStory(
+    home,
+    'story-c',
+    checkoutOf('widgets', 'feat/shipping'),
+    'feat/shipping',
+    { head_oid: 'd'.repeat(40) },
+    { 'approved.json': approved('d'.repeat(40)) },
+  );
+  events.push(
+    {
+      op: 'add',
+      id: 'bl_landedc',
+      title: 'Not landed',
+      note: null,
+      repo: 'acme/widgets',
+      branch: 'feat/shipping',
+      by: 'cli',
+      at: et(9, 0).toISOString(),
+    },
+    {
+      op: 'start',
+      id: 'bl_landedc',
+      branch: 'feat/shipping',
+      repo: 'acme/widgets',
+      by: 'cli',
+      at: et(9, 1).toISOString(),
+    },
+  );
+  writeFileSync(
+    path.join(home, 'backlog.jsonl'),
+    events.map((event) => JSON.stringify(event)).join('\n') + '\n',
+  );
+  const { watcher } = fakeWatcher([], {});
+  const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
+    source: sourceSaying({}),
+    now: () => NOW,
+    repoOf,
+  });
+  await record('8-landed-ship', board);
+}
+
 // ---- normalize paths and pids
 export const snapshots: Record<string, string> = {};
 for (const [name, value] of Object.entries(results)) {

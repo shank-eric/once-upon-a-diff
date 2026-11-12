@@ -281,6 +281,7 @@ function placeCard(card: BoardCard, byStory: Map<string, StoryFacts>): void {
           answered: card.story.unread_answers,
           local: card.story.kind === 'local',
           approved: !!card.story.approved_at,
+          landed: !!card.landed,
         }
       : null,
     building: !!card.building,
@@ -321,7 +322,7 @@ function placeCard(card: BoardCard, byStory: Map<string, StoryFacts>): void {
       break;
     case 'done':
     case 'ship':
-      card.since = card.pr?.merged_at ?? card.story?.approved_at ?? null;
+      card.since = card.landed?.at ?? card.pr?.merged_at ?? card.story?.approved_at ?? null;
       break;
     case 'back':
       card.since = card.pr?.others_at ?? null;

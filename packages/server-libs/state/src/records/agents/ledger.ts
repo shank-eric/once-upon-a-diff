@@ -15,7 +15,7 @@
  * records the click (adapters/stores/finished-agents.ts).
  */
 import type { BoardBeat, BoardGate } from '@once-upon-a-diff/contracts/types';
-import type { AgentKind, AgentResult } from './agent-types.ts';
+import type { AgentKind, AgentResult, AgentRole } from './agent-types.ts';
 
 /** One agent as its registered events tell it. */
 export interface LedgerAgent {
@@ -53,6 +53,8 @@ export interface LedgerAgent {
   pr?: number | null;
   cwd?: string | null;
   card?: string | null;
+  /** what the run said it does on its card (`--role`; only a fixer is told from an author by it), null on an old row */
+  role?: AgentRole | null;
   /** an editor's build slots (kind `editor`) */
   slots?: number | null;
   result?: AgentResult | null;
