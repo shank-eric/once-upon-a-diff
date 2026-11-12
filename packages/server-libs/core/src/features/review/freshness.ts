@@ -7,7 +7,7 @@
  *   repos/{o}/{r}/compare/{story head}...{head}   commits and files since
  */
 import { diffText } from '@once-upon-a-diff/adapters/git';
-import { parseUnifiedDiff } from '@once-upon-a-diff/stories/diff';
+import { parseHunkHeader, parseUnifiedDiff } from '@once-upon-a-diff/stories/diff';
 import { ghApiJson } from '@once-upon-a-diff/foundation/gh';
 import { prKey } from '@once-upon-a-diff/terms/ids';
 import { SHA_RE, sameSha } from '@once-upon-a-diff/terms/text';
@@ -49,10 +49,12 @@ export const clearFreshness = () => cache.clear();
 
 /** A patch's hunks, old side: [{oldStart, oldLines}] */
 const hunksOf = (patch: string | undefined) =>
-  [...String(patch || '').matchAll(/^@@ -(\d+)(?:,(\d+))? \+\d+(?:,\d+)? @@/gm)].map((match) => ({
-    oldStart: +match[1],
-    oldLines: match[2] === undefined ? 1 : +match[2],
-  }));
+  String(patch || '')
+    .split(/\r?\n/)
+    .flatMap((line) => {
+      const hunk = parseHunkHeader(line);
+      return hunk ? [{ oldStart: hunk.oldStart, oldLines: hunk.oldLines }] : [];
+    });
 const KIND: Record<string, DiffFile['kind']> = {
   added: 'created',
   removed: 'deleted',

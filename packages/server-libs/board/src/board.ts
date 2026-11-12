@@ -53,6 +53,7 @@ import { BoardError } from '@once-upon-a-diff/foundation/errors';
 import type { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
 import type { StoryStore } from '@once-upon-a-diff/stories/store';
 import type { BoardCard, BoardData, BoardStatus } from '@once-upon-a-diff/contracts/types';
+import { isFinished } from './stages/agents.ts';
 import { prOfFacts } from './stages/worktrees.ts';
 import { buildBoard } from './stages/index.ts';
 import { liveSessions } from '@once-upon-a-diff/adapters/claude-sessions/live-sessions';
@@ -650,7 +651,7 @@ export class Board {
       );
     }
     const open = agent.state === 'waiting';
-    if (!open && agent.state !== 'done' && agent.state !== 'failed' && agent.state !== 'stopped') {
+    if (!open && !isFinished(agent)) {
       throw new BoardError(409, 'that agent is still working');
     }
     // closed by an event, which writes its own ledger line when the settings name a ledger
@@ -668,11 +669,7 @@ export class Board {
     // an implicit card's other finished runs (a critic of the work) are on this card: Finish clears the piece of work, not one run of it
     if (agent.card && isImplicitCard(agent.card)) {
       for (const other of agents) {
-        if (
-          other !== agent &&
-          other.card === agent.card &&
-          ['done', 'failed', 'stopped'].includes(other.state)
-        ) {
+        if (other !== agent && other.card === agent.card && isFinished(other)) {
           const seen = lastActivity(other)?.getTime() ?? 0;
           markFinished(this.home, agentId(other.sid, other.name), Math.max(now.getTime(), seen));
         }

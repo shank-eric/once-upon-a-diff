@@ -4,6 +4,7 @@
  * shows it in a row at the bottom, like the listeners, for as long as its session lives and it has been heard from.
  * Only the registered field says so: not the name, the kind or the task text.
  */
+import { isFinished } from './agents.ts';
 import { lastActivity, type LedgerAgent } from '@once-upon-a-diff/state/records/agents/ledger';
 import type { BoardHelper, BoardSession } from '@once-upon-a-diff/contracts/types';
 import type { LiveSession } from '@once-upon-a-diff/adapters/claude-sessions/live-sessions';
@@ -29,9 +30,7 @@ export function standingHelpers(
     const last = lastActivity(agent);
     if (
       !isStandingHelper(agent) ||
-      agent.state === 'done' ||
-      agent.state === 'failed' ||
-      agent.state === 'stopped' ||
+      isFinished(agent) ||
       !last ||
       nowMs - last.getTime() > HELPER_IDLE_MS
     ) {

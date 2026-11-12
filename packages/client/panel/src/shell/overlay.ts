@@ -82,6 +82,7 @@
  *   commentsTitle  heading for the chapter's drafted comments ("Draft comments")
  */
 
+import { STILL_OPEN_MS } from '@once-upon-a-diff/terms/timing';
 import { createStoryModel } from '../state/story-model.ts';
 import { createPanelState, stateHelpers } from '../state/panel-state.ts';
 import { createShell } from './shell.ts';
@@ -118,7 +119,6 @@ export { draftView, shownIn } from '../drafts/drafts.ts';
 export { fixSummary } from '../fixes/fixes.ts';
 export { changingOf } from '../fixes/working.ts';
 export { chapterKeyOf, finishedInOf, chapterNumbers } from '@once-upon-a-diff/terms/chapters';
-export { READ_MS } from '../reading/reading.ts';
 export { inferReadSteps, viewedEarlyCheck } from '../reading/read-checks.ts';
 export { placePills, pillMarker } from '../components/file-refs.ts';
 export { requestLine } from '../rebuild/freshness.ts';
@@ -133,8 +133,6 @@ const PANEL_ID = 'ou-panel'; // both are spelled out in panel/css/page.css, pane
 const TICK_MS = 5000;
 const STATUS_EVERY = 6;
 const SLOW_EVERY = 12;
-// a hidden tab doesn't tick, but its page is still open: opts.stillOpen says so about once a minute (a createPoll with whenHidden), and nothing else
-const STILL_OPEN_MS = 60000;
 
 /** A pulse, or {down: true} when the bridge didn't answer. */
 type PulseLook = Partial<Pulse> & { down?: boolean };

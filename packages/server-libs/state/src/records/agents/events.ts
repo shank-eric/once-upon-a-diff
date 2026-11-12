@@ -40,9 +40,6 @@ export function canonicalKind(raw: unknown): AgentKind | null {
 /** A run with no event this long is taken to be dead: it holds no build slot, and an unnamed beat does not land on it. */
 export const STALE_MS = 24 * 3600 * 1000;
 
-export const OPEN_STATES = ['running', 'waiting', 'review', 'plan', 'fixing'] as const;
-export const END_STATES = ['done', 'failed', 'stopped'] as const;
-
 /** The events in a file's text, in order. Lines that aren't events are skipped. */
 export function parseAgentEvents(text: string): AgentEvent[] {
   return jsonLines(text).flatMap((value) => readAgentEvent(value) ?? []);

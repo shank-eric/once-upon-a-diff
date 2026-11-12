@@ -14,6 +14,7 @@
 import { html } from '/assets/preact.mjs';
 import { Section } from '../components/section.ts';
 import { LinkButton } from '@once-upon-a-diff/ui-kit/components/link-button';
+import { COPIED_LABEL_MS } from '@once-upon-a-diff/ui-kit/components/copy-button';
 import { capitalize, shortSha } from '@once-upon-a-diff/terms/text';
 import { writeClipboard } from '@once-upon-a-diff/ui-kit/clipboard';
 import { draftView, shownIn, type DraftShow } from './drafts.ts';
@@ -35,7 +36,6 @@ const settling = new Set<string>();
 
 const ALL_COMMENTS_OPEN = 4; // more drafts than this and the Overview's list starts folded
 const REFRESH_MS = 10000;
-const COPY_LABEL_MS = 1500;
 const SCRIPT_TITLE =
   'Copies a shell script that puts these line drafts into one pending review with gh api. It only copies: ' +
   'nothing is posted until you run it, and the review stays unsubmitted until you submit it on GitHub.';
@@ -340,7 +340,7 @@ export function createDrafts(context: PanelContext) {
         copyTimers.delete(key);
         copied.delete(key);
         shell.redraw();
-      }, COPY_LABEL_MS),
+      }, COPIED_LABEL_MS),
     );
     shell.redraw();
   }

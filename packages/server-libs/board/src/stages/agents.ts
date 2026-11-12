@@ -7,6 +7,7 @@ import { finishedColumn, finishedSummary, landedFor, pendingReview } from '../ag
 import { agentKey } from '@once-upon-a-diff/state/queues/backlog/claims';
 import { agentsOnCard } from '@once-upon-a-diff/state/queues/backlog/phase';
 import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
+import { isEndState } from '@once-upon-a-diff/contracts/files/agent-states';
 import { STALE_MS } from '@once-upon-a-diff/state/records/agents/events';
 import {
   gateOf,
@@ -53,8 +54,7 @@ const AGENT_STATUS: Record<LedgerAgent['state'], BoardStatus> = {
 };
 
 /** An agent that has finished for good: no more work to do, with or without a result to read. */
-export const isFinished = (agent: Pick<LedgerAgent, 'state'>): boolean =>
-  agent.state === 'done' || agent.state === 'failed' || agent.state === 'stopped';
+export const isFinished = (agent: Pick<LedgerAgent, 'state'>): boolean => isEndState(agent.state);
 
 /**
  * A failed helper run that a retry replaced: another run of the same session started with `--replaces <this run's name>` and

@@ -85,6 +85,19 @@ export function runGitAsync(
   });
 }
 
+/**
+ * Runs a `git push` (`args` is the whole argument list, `push` first) in a checkout, waiting up to 5 minutes (a pre-push hook
+ * may run checks). Resolves to git's lines; rejects with them on failure.
+ */
+export async function gitPush(repo: string, args: string[]): Promise<string> {
+  const pushed = await runGitAsync(repo, args, { timeout: 5 * 60 * 1000 });
+  const output = `${pushed.stdout}${pushed.stderr}`.trim();
+  if (pushed.code !== 0) {
+    throw new Error(output || 'git push failed');
+  }
+  return output;
+}
+
 export const revParse = (repo: string, ref: string): string =>
   runGit(repo, ['rev-parse', '--verify', '--quiet', '--end-of-options', `${ref}^{commit}`]).trim();
 

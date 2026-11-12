@@ -19,6 +19,7 @@ import { agentEventsIn } from './events-file.ts';
 import { appendLine } from '@once-upon-a-diff/adapters/stores/fs/lines';
 import { withLock } from '@once-upon-a-diff/adapters/stores/fs/lock';
 import { checkWrite } from '@once-upon-a-diff/foundation/shared-files';
+import { END_STATES, OPEN_STATES } from '@once-upon-a-diff/contracts/files/agent-states';
 import { readAgentEvent } from '@once-upon-a-diff/contracts/files/schemas';
 import { strictAgentEvent } from '@once-upon-a-diff/contracts/files/strict';
 import { lastActivity } from './ledger.ts';
@@ -26,8 +27,6 @@ import { AGENT_KINDS, type AgentKind, type AgentResult, type AgentRole } from '.
 import {
   KIND_ALIASES,
   canonicalKind,
-  END_STATES,
-  OPEN_STATES,
   STALE_MS,
   beatLine,
   foldAgentEvents,

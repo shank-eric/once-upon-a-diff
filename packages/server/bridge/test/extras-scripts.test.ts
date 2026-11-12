@@ -5,6 +5,9 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { tmp, writeJson } from './helpers.ts';
+import { OPEN_STATES, END_STATES } from '@once-upon-a-diff/contracts/files/agent-states';
+import { ledgerLine } from '@once-upon-a-diff/state/records/agents/events';
+import type { LedgerAgent } from '@once-upon-a-diff/state/records/agents/ledger';
 import { ROOT, runScript } from './script-helpers.ts';
 
 const has = (cmd: string) => {
@@ -137,6 +140,66 @@ test(
     assert.match(await content('with-model'), /^with-model · sonnet · tests/);
     assert.match(await content('no-model'), /^no-model · tests/);
     assert.match(await content('effort-only'), /^effort-only · tests/);
+  },
+);
+
+test(
+  'subagent-statusline.py clears a waiting row on every other state the ledger can write',
+  { skip: !has('python3') },
+  async () => {
+    const home = tmp('substatus-states');
+    const ledger = path.join(home, 'ledger.md');
+    writeJson(path.join(home, 'config.json'), { board_ledger_file: ledger });
+    const line = (state: string) =>
+      ledgerLine(
+        {
+          v: 1,
+          op: 'state',
+          id: 'abcdef01:w',
+          sid8: 'abcdef01',
+          name: 'w',
+          at: new Date().toISOString(),
+          state,
+        },
+        { sid: 'abcdef01', name: 'w', state, notes: null } as unknown as LedgerAgent,
+      ) + '\n';
+    let extra = '';
+    const rows = async (...states: string[]) => {
+      writeFileSync(ledger, states.map(line).join('') + extra);
+      const run = await runScript(
+        '/usr/bin/env',
+        ['python3', path.join(ROOT, 'extras/subagent-statusline.py')],
+        { ONCE_UPON_HOME: home },
+        JSON.stringify({
+          id: 't1',
+          name: 'x',
+          description: 'x',
+          status: 'running',
+          session_id: 'abcdef01xyz',
+        }),
+      );
+      assert.equal(run.code, 0, run.stderr);
+      return run.stdout
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .map((row) => JSON.parse(row).id as string);
+    };
+    assert.deepEqual(await rows('waiting'), ['waiting:w']);
+    extra = '- [deploying] sid:abcdef01 w main to live\n- [note] sid:abcdef01 w hi\n';
+    assert.deepEqual(await rows('waiting'), ['waiting:w'], 'a [deploying] line is not a state');
+    extra = '';
+    const listed = /^LEDGER_STATES = \((.*)\)$/m.exec(
+      readFileSync(path.join(ROOT, 'extras/subagent-statusline.py'), 'utf8'),
+    );
+    assert.deepEqual(
+      [...(listed?.[1] ?? '').matchAll(/"(\w+)"/g)].map((one) => one[1]),
+      [...OPEN_STATES, ...END_STATES],
+      'the Python state list matches the contracts',
+    );
+    for (const state of [...OPEN_STATES, ...END_STATES].filter((one) => one !== 'waiting')) {
+      assert.deepEqual(await rows('waiting', state), [], `a ${state} line clears the waiting row`);
+    }
   },
 );
 

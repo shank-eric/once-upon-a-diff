@@ -43,8 +43,10 @@ def configured_file(key):
 
 LEDGER_FILE = configured_file("board_ledger_file")
 PROGRESS_FILE = configured_file("board_progress_file")
+# the registry's states (contracts OPEN_STATES + END_STATES; extras-scripts.test.ts fails if this list drifts): each clears a waiting row, and a hand-written `[deploying]` or `[note]` line is not one
+LEDGER_STATES = ("running", "waiting", "review", "plan", "fixing", "done", "failed", "stopped")
 LEDGER_PATTERN = re.compile(
-    r"^- \[(?P<kind>running|waiting|done|failed|stopped)\] sid:(?P<sid>\w+)(?: lane:\S+)? (?P<name>\S+)(?P<rest>.*)$"
+    r"^- \[(?P<kind>" + "|".join(LEDGER_STATES) + r")\] sid:(?P<sid>\w+)(?: lane:\S+)? (?P<name>\S+)(?P<rest>.*)$"
 )
 WAITING_PATTERN = re.compile(
     r"^ — (?P<time>\d{1,2}:\d{2}(?: [AP]M)?)(?: ET)?, (?P<date>\d{1,2}/\d{1,2}) — needs [^:]+:\s*(?P<question>.*?)(?: — \S.*)?$"

@@ -22,6 +22,7 @@ import {
   remoteBranchSha,
   revParse,
   runGitAsync,
+  gitPush,
   setUpstream,
 } from '@once-upon-a-diff/adapters/git';
 import { storyRepo } from './meta.ts';
@@ -30,7 +31,6 @@ import type { StoryMeta } from './types.ts';
 
 export const DRAFT_FILE = 'pr-draft.json';
 const LS_REMOTE_MS = 20000;
-const PUSH_MS = 5 * 60 * 1000; // a pre-push hook may run checks
 
 /** A git ref for this checkout's branch, or null when it has none. */
 function headOf(repoPath: string, branch: string): string | null {
@@ -185,13 +185,7 @@ async function pushWith(
   sha: string | null,
   upstream: boolean,
 ): Promise<string> {
-  const pushed = await runGitAsync(repoPath, branchPushArgs(branch, sha, upstream), {
-    timeout: PUSH_MS,
-  });
-  const output = `${pushed.stdout}${pushed.stderr}`.trim();
-  if (pushed.code !== 0) {
-    throw new Error(output || 'git push failed');
-  }
+  const output = await gitPush(repoPath, branchPushArgs(branch, sha, upstream));
   if (sha) {
     await setUpstream(repoPath, branch);
   }

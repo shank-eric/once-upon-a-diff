@@ -21,12 +21,12 @@ import { readSettings } from '@once-upon-a-diff/foundation/settings';
 import { readJson, writeFileAtomic } from '@once-upon-a-diff/adapters/stores/fs/json-file';
 import { plural } from '@once-upon-a-diff/terms/text';
 import path from 'node:path';
+import { SEEN_WRITE_MS } from '@once-upon-a-diff/terms/timing';
 import { sameRepo } from '@once-upon-a-diff/foundation/repos';
 import type { StoryStore } from '@once-upon-a-diff/stories/store';
 import { ensureDir, appendText } from '@once-upon-a-diff/adapters/stores/fs/files';
 
 export const SEEN_FILE = 'seen.json';
-const SEEN_WRITE_MS = 30000;
 export const DEFAULT_IDLE_MINUTES = 10;
 
 /** When each story's seen.json was last written by this bridge, so a pulse every 5s writes it twice a minute. */

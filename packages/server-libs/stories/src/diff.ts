@@ -98,6 +98,21 @@ export function headerPaths(line: string): { from: string; to: string } | null {
     : null;
 }
 
+/** A hunk's header line (`@@ -5,2 +5,3 @@ fn`) as its numbers and trailing text; a count left out is 1. Null for any other line. */
+export function parseHunkHeader(line: string): Omit<DiffHunk, 'lines'> | null {
+  const found = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@([^\n]*)$/.exec(line);
+  if (!found) {
+    return null;
+  }
+  return {
+    oldStart: +found[1],
+    oldLines: found[2] === undefined ? 1 : +found[2],
+    newStart: +found[3],
+    newLines: found[4] === undefined ? 1 : +found[4],
+    header: found[5].trim(),
+  };
+}
+
 /** Unified diff -> Map(rel -> DiffFile). */
 export function parseUnifiedDiff(text: string): Map<string, DiffFile> {
   const files = new Map<string, DiffFile>();
@@ -148,16 +163,9 @@ export function parseUnifiedDiff(text: string): Map<string, DiffFile> {
       cur.binary = true;
       continue;
     }
-    const hunkHeader = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)$/.exec(line);
+    const hunkHeader = parseHunkHeader(line);
     if (hunkHeader) {
-      hunk = {
-        oldStart: +hunkHeader[1],
-        oldLines: hunkHeader[2] === undefined ? 1 : +hunkHeader[2],
-        newStart: +hunkHeader[3],
-        newLines: hunkHeader[4] === undefined ? 1 : +hunkHeader[4],
-        header: hunkHeader[5].trim(),
-        lines: [],
-      };
+      hunk = { ...hunkHeader, lines: [] };
       cur.hunks.push(hunk);
       continue;
     }

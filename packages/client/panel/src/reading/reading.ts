@@ -7,13 +7,12 @@
  *
  * inferReadSteps and viewedEarlyCheck, which have no DOM, are in read-checks.ts.
  */
+import { READ_MS } from '@once-upon-a-diff/terms/timing';
 import { chapterKeyOf } from '@once-upon-a-diff/terms/chapters';
 import type { ReadEvent, ReadInfo } from '@once-upon-a-diff/contracts/types';
 import { inferReadSteps } from './read-checks.ts';
 import type { StepProgress } from './read-checks.ts';
 import type { PanelContext } from '../host/context.ts';
-
-export const READ_MS = 30000;
 
 /**
  * Each build of a story that's told chapter by chapter remounts the panel. So the time on the step isn't lost to it,

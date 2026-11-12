@@ -1,7 +1,7 @@
 /**
  * What the reviewer has read: one record per chapter, with the commit that was
  * current when they read it. The panel reports a read when they leave a chapter
- * they spent real time on (READ_MIN_SECONDS, counted only while the tab is
+ * they spent real time on (READ_MS in terms/timing.ts, counted only while the tab is
  * showing), or when they've marked all its files viewed. A chapter whose files
  * were all Viewed already when the panel opened, with no record here, counts
  * too (reason 'inferred'): they reviewed it before reads were tracked.
@@ -52,7 +52,6 @@ export interface Since {
   read: { chapter: string; title: string; sha: string | null; at: string }[];
 }
 
-export const READ_MIN_SECONDS = 30;
 /** time: they stayed on it; viewed: they ticked its last file; inferred: its files were all Viewed already when the panel opened (a review before read tracking, or with the panel closed) */
 export const READ_REASONS = ['time', 'viewed', 'inferred'];
 

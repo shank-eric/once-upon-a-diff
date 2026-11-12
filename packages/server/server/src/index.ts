@@ -36,6 +36,7 @@ import {
 import { Board } from '@once-upon-a-diff/board/board';
 import { BoardError } from '@once-upon-a-diff/foundation/errors';
 import { codeOfStatus } from '@once-upon-a-diff/terms/error-code';
+import { SEEN_WRITE_MS } from '@once-upon-a-diff/terms/timing';
 import { HttpError, sameToken, readBody } from './request.ts';
 import { COOKIE_NAMES, cookieFor, cookiesOf } from './session-cookie.ts';
 import { assetFor } from './assets.ts';
@@ -118,7 +119,6 @@ const ROUTE_KEY = new Map<AnyRoute, string>(
 /** The usage routes are not counted as use: they are the counting. */
 const NOT_COUNTED = new Set<AnyRoute>([ROUTES.usageCount, ROUTES.storyUsageCount] as AnyRoute[]);
 const STORY_PATH = /^\/api\/stories\/([^/]+)(?:\/([a-z]+)(?:\/([^/]+))?)?$/;
-const SEEN_WRITE_MS = 30000;
 const HTML = 'text/html; charset=utf-8';
 
 /** The server, with the stores it serves from, for the CLI's startup line and the tests. Call .listen(port, '127.0.0.1'). */

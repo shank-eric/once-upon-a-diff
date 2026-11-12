@@ -42,6 +42,7 @@ import {
 import { RUN_ID_RE, agentId, prKey } from '@once-upon-a-diff/terms/ids';
 import { SHA_RE } from '@once-upon-a-diff/terms/text';
 import { AGENT_KINDS } from './schemas.ts';
+import { END_STATES, OPEN_STATES } from './agent-states.ts';
 
 const problemsOf = (schema: GenericSchema, value: unknown): string[] => {
   const result = safeParse(schema, value);
@@ -68,9 +69,6 @@ const text = string();
 const filled = pipe(string(), minLength(1, 'is empty'));
 
 // ---- agents.jsonl ----
-
-const OPEN_STATES = ['running', 'waiting', 'review', 'plan', 'fixing'] as const;
-const END_STATES = ['done', 'failed', 'stopped'] as const;
 
 const agentCommon = {
   v: maybe(number()),

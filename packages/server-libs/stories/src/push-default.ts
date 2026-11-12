@@ -26,6 +26,7 @@ import {
   isAncestorAsync,
   revParse,
   runGitAsync,
+  gitPush,
 } from '@once-upon-a-diff/adapters/git';
 import { readApproval, approvalFresh } from './approval.ts';
 import type { PushView, ShipMode } from '@once-upon-a-diff/contracts/types';
@@ -33,7 +34,6 @@ import type { StoryMeta, StoryStateReader } from './types.ts';
 import { shortSha } from '@once-upon-a-diff/terms/text';
 
 const FETCH_MS = 30000;
-const PUSH_MS = 5 * 60 * 1000; // a pre-push hook may run checks
 /** Ruleset rules that stop a straight push (or only let a pull request or a merge queue through). */
 const BLOCKING_RULES = new Set(['pull_request', 'required_status_checks', 'merge_queue', 'update']);
 
@@ -229,12 +229,5 @@ export async function pushView(
 
 /** git push origin <sha>:refs/heads/<branch>: a fast-forward of the approved commit, never forced. Resolves to git's lines; rejects with them on failure. */
 export async function pushApproved(repoPath: string, branch: string, sha: string): Promise<string> {
-  const pushed = await runGitAsync(repoPath, ['push', 'origin', `${sha}:refs/heads/${branch}`], {
-    timeout: PUSH_MS,
-  });
-  const output = `${pushed.stdout}${pushed.stderr}`.trim();
-  if (pushed.code !== 0) {
-    throw new Error(output || 'git push failed');
-  }
-  return output;
+  return gitPush(repoPath, ['push', 'origin', `${sha}:refs/heads/${branch}`]);
 }
