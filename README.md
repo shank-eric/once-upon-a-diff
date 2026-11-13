@@ -450,7 +450,7 @@ The bridge also checks each request:
 | `POST /api/stories/:id/questions/marks` | `{action, ids}`: `dismiss`, `restore`, `collapse`, `expand`, `read` or `unread` those questions, `{action: 'read_all'}` to mark every unread answer read, or `{action: 'clear'}` to dismiss every one (the answer says which, as `cleared`) |
 | `POST /api/builds` | ask for a story: `{repo, number, url, requested_at}` (`once-upon builds` lists them) |
 | `POST /api/stories/:id/viewed` | local stories: `{path, viewed}` |
-| `POST /api/stories/:id/notes[/:note]` | fix-before-push notes: add `{path, side, line, body}` (or `{chapter, index}`, a drafted comment), or update `{done}`, `{body}` or `{delete: true}`; a sent note only takes `{done}` |
+| `POST /api/stories/:id/notes[/:note]` | fix-before-push notes: add `{path, side, line, body}` (or `{chapter, index}`, a drafted comment, with the row's `key` so a story that changed under it answers 409), or update `{done}`, `{body}` or `{delete: true}`; a sent note only takes `{done}` |
 | `GET`/`POST /api/stories/:id/fixes` | the notes with their state, `auto_send`, who a send goes to (`to`) and the recent requests; or `{action: 'send', ids?}`, `{action: 'auto', on}`, `{action: 'take_back', request}` |
 | `GET /api/stories/:id/working` | the "being changed" marks that still stand, and the last one cleared |
 

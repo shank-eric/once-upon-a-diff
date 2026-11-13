@@ -470,22 +470,24 @@ export function createQuestions(context: PanelContext) {
     await mark(action, [id], action === 'read' && asked ? { seen: seenOf([asked]) } : {});
   }
 
+  /** Looks at the bridge's questions; true when it got an answer (a failed look is told apart, so a pulse's counter can wait for a good one). */
   async function refresh() {
     if (!opts.loadQuestions) {
-      return;
+      return true;
     }
     try {
       const next = await opts.loadQuestions();
       if (!Array.isArray(next)) {
-        return;
+        return false;
       }
       const changed = JSON.stringify(next) !== JSON.stringify(questions);
       questions = next;
       if (changed) {
         render();
       }
+      return true;
     } catch {
-      /* the bridge may be down; try again on the next tick */
+      return false; // the bridge may be down; try again on the next tick
     }
   }
 
@@ -515,8 +517,8 @@ export function createQuestions(context: PanelContext) {
   async function send(event: Event) {
     event.preventDefault();
     const text = (askText?.value ?? '').trim();
-    if (!text || !opts.ask || !askText) {
-      return;
+    if (sending || !text || !opts.ask || !askText) {
+      return; // one send at a time: Cmd+Enter submits whatever the button says
     }
     sending = true;
     shell.redraw();
@@ -527,8 +529,11 @@ export function createQuestions(context: PanelContext) {
         chapter: context.navigation.stepLabel(),
         file: context.navigation.topFile || context.page.fileAtTop(),
       });
-      askText.value = '';
-      askDrafts.forget(storyId);
+      // what was typed while the question was out stays (and stays kept)
+      if (askText && askText.value.trim() === text) {
+        askText.value = '';
+        askDrafts.forget(storyId);
+      }
       const health = context.statusLight.current;
       shell.message(
         health && !health.listening

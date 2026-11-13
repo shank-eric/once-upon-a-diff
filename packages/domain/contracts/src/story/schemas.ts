@@ -96,6 +96,8 @@ export const STORY_BODIES = {
   draftsAct: object({
     chapter: whole,
     index: whole,
+    /** the draft's key as the panel saw it: a story that changed meanwhile answers 409 instead of acting on another draft */
+    key: optional(string()),
     action: picklist(['dismiss', 'restore', 'review', 'fix', 'settle']),
   }),
   /** POST .../read: a chapter the reviewer read */
@@ -121,6 +123,7 @@ export const STORY_BODIES = {
     line: whole,
     chapter: whole,
     index: whole,
+    key: optional(string()),
   }),
   /** POST .../notes/<id> */
   noteUpdate: object({

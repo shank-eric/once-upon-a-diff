@@ -34,10 +34,10 @@ function statusError(err: BridgeError): never {
 }
 
 /** Add to fix before push: the bridge makes the draft a note (once), which joins the checklist and the diff. */
-async function addToFixBeforePush(chapter: number, index: number) {
+async function addToFixBeforePush(chapter: number, index: number, key?: string) {
   const note = (await bridge.ask(ROUTES.noteAdd, {
     params: PARAMS,
-    body: { chapter, index },
+    body: { chapter, index, key },
   })) as LocalNote;
   upsertNote(note);
   store.flush();
@@ -93,10 +93,10 @@ export function mount(initial: InitialUi) {
       },
       drafts: {
         ...common.drafts,
-        act: (chapter, index, action) =>
+        act: (chapter, index, action, key) =>
           action === 'fix'
-            ? addToFixBeforePush(chapter, index)
-            : common.drafts.act(chapter, index, action),
+            ? addToFixBeforePush(chapter, index, key)
+            : common.drafts.act(chapter, index, action, key),
       },
       // the story or the commits moved: local.js reloads and redraws
       onPulse: (pulse) => {

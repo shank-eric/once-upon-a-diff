@@ -15,6 +15,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dom, clock, clipboardEnv, FakeIntersectionObserver } from './panel-env.ts';
 import {
+  DRAFTS,
   FIXES,
   QUESTIONS,
   READS,
@@ -37,6 +38,7 @@ import type {
 } from '@once-upon-a-diff/contracts/types';
 
 const { storyOverlay } = await import('../src/shell/overlay.ts');
+const { editDrafts } = await import('../src/fixes/fixes-part.ts');
 const { parseMarkup } = await import('@once-upon-a-diff/ui-kit/parse-markup');
 const { render, h } = await import('/assets/preact.mjs');
 const { document, tick, fire, window } = dom;
@@ -202,6 +204,7 @@ async function mount(
     shot: () => snapshot(world),
     done() {
       overlay.destroy();
+      editDrafts.clear(); // a note's text kept for a remount belongs to one test
       document.getElementById('diff-page')?.remove();
     },
   };
@@ -519,7 +522,7 @@ await test('flow-questions-and-drafts-and-fixes', async () => {
       [
         ['markQuestions', 'dismiss', ['q1'], {}],
         ['markQuestions', 'restore', ['q1'], {}],
-        ['drafts.act', 1, 1, 'dismiss'],
+        ['drafts.act', 1, 1, 'dismiss', undefined],
         ['fixes.act', { action: 'send' }],
       ].filter(Boolean) as unknown[][],
     );
@@ -1416,8 +1419,8 @@ const draftOptions =
           calls.push(['drafts.load']);
           return { drafts: rows(), error: null };
         },
-        act: async (chapter, index, action) => {
-          calls.push(['drafts.act', chapter, index, action]);
+        act: async (chapter, index, action, key) => {
+          calls.push(['drafts.act', chapter, index, action, ...(key === undefined ? [] : [key])]);
           return act ? act(chapter, index, action) : { drafts: rows(), error: null };
         },
       },
@@ -1742,6 +1745,11 @@ await test('a draft added to the review turns pending once its comment is on the
       calling(panel.calls, 'drafts.act').filter((call) => call[3] === 'settle').length,
       1,
       'one settle however often it is drawn',
+    );
+    assert.equal(
+      calling(panel.calls, 'drafts.act').find((call) => call[3] === 'settle')?.[4],
+      'k-2-1',
+      'the settle names its draft by key',
     );
     check('drafts-on-page-and-settled', panel.shot());
   } finally {
@@ -2840,6 +2848,325 @@ await test('closing the panel stops the copy labels’ timers, and answers that 
   } finally {
     clipboardEnv.gate = null;
     timers.stop();
+    panel.done();
+    stopClock();
+  }
+});
+
+// ---------- the panel's minor gaps (deep review 11/11, findings 8 to 12)
+
+await test('a part whose one look failed after its pulse counter moved looks again on the next tick', async () => {
+  startClock();
+  const revs = { questions_rev: '1', fixes_rev: '1', working_rev: '1' };
+  const failing = { questions: false, fixes: false, working: false };
+  const panel = await mount(
+    story(),
+    (calls) =>
+      fullOptions(calls, {
+        pulse: async () => ({ version: 'v1', ...revs, rebuild: null, request: null }) as never,
+        loadQuestions: async () => {
+          calls.push(['loadQuestions']);
+          if (failing.questions) {
+            throw new Error('down');
+          }
+          return QUESTIONS;
+        },
+        fixes: {
+          load: async () => {
+            calls.push(['fixes.load']);
+            if (failing.fixes) {
+              throw new Error('down');
+            }
+            return FIXES;
+          },
+          act: async () => FIXES,
+          note: async () => ({}),
+        },
+        working: async () => {
+          calls.push(['working']);
+          if (failing.working) {
+            throw new Error('down');
+          }
+          return { marks: WORKING };
+        },
+      }),
+    { n: 1 },
+    { wait: pumpOnce },
+  );
+  try {
+    await pump(5200);
+    const counts = () => [
+      calling(panel.calls, 'loadQuestions').length,
+      calling(panel.calls, 'fixes.load').length,
+      calling(panel.calls, 'working').length,
+    ];
+    const before = counts();
+    revs.questions_rev = revs.fixes_rev = revs.working_rev = '2';
+    failing.questions = failing.fixes = failing.working = true;
+    await pump(5200);
+    assert.deepEqual(
+      counts().map((count, i) => count - before[i]),
+      [1, 1, 1],
+      'each part looked once when its counter moved, and failed',
+    );
+    failing.questions = failing.fixes = failing.working = false;
+    await pump(5200); // the counter has not moved again
+    assert.deepEqual(
+      counts().map((count, i) => count - before[i]),
+      [2, 2, 2],
+      'and looked again on the next tick',
+    );
+    await pump(10400);
+    assert.deepEqual(
+      counts().map((count, i) => count - before[i]),
+      [2, 2, 2],
+      'a look that worked is not repeated',
+    );
+  } finally {
+    panel.done();
+    stopClock();
+  }
+});
+
+await test('the Ask box sends once while a send is out and keeps what was typed meanwhile', async () => {
+  const gate = deferred<unknown>();
+  const panel = await mount(
+    story(),
+    (calls) =>
+      fullOptions(calls, {
+        pulse: undefined,
+        ask: async (...args: unknown[]) => {
+          calls.push(['ask', ...args]);
+          return gate.promise as never;
+        },
+      }),
+    { n: 2, chatOpen: true },
+  );
+  try {
+    const box = () => $<HTMLTextAreaElement>('.ou-ask textarea');
+    box().value = 'First question';
+    fire(box(), 'input');
+    fire($('.ou-ask'), 'submit');
+    fire($('.ou-ask'), 'submit'); // a second Cmd+Enter submits the form whatever the button says
+    box().value = 'First question and then a second one';
+    fire(box(), 'input');
+    assert.equal(calling(panel.calls, 'ask').length, 1, 'one send is out');
+    gate.resolve({ ok: true });
+    await settle();
+    assert.equal(calling(panel.calls, 'ask').length, 1, 'still one send');
+    assert.equal(
+      box().value,
+      'First question and then a second one',
+      'what was typed meanwhile stays',
+    );
+    panel.overlay.go(1);
+    assert.equal(
+      box().value,
+      'First question and then a second one',
+      'and is kept across a redraw',
+    );
+    box().value = '';
+    fire(box(), 'input');
+  } finally {
+    panel.done();
+  }
+});
+
+await test('a part whose first look failed looks again on the first tick, though the pulse counter has not moved', async () => {
+  startClock();
+  const failing = { on: true };
+  const panel = await mount(
+    story(),
+    (calls) =>
+      fullOptions(calls, {
+        pulse: async () =>
+          ({
+            version: 'v1',
+            questions_rev: '1',
+            fixes_rev: '1',
+            working_rev: '1',
+            rebuild: null,
+            request: null,
+          }) as never,
+        loadQuestions: async () => {
+          calls.push(['loadQuestions']);
+          if (failing.on) {
+            throw new Error('down');
+          }
+          return QUESTIONS;
+        },
+        fixes: {
+          load: async () => {
+            calls.push(['fixes.load']);
+            if (failing.on) {
+              throw new Error('down');
+            }
+            return FIXES;
+          },
+          act: async () => FIXES,
+          note: async () => ({}),
+        },
+        working: async () => {
+          calls.push(['working']);
+          if (failing.on) {
+            throw new Error('down');
+          }
+          return { marks: WORKING };
+        },
+      }),
+    { n: 1 },
+    { wait: pumpOnce },
+  );
+  try {
+    const counts = () => [
+      calling(panel.calls, 'loadQuestions').length,
+      calling(panel.calls, 'fixes.load').length,
+      calling(panel.calls, 'working').length,
+    ];
+    const before = counts();
+    failing.on = false;
+    await pump(5200);
+    assert.deepEqual(
+      counts().map((count, i) => count - before[i]),
+      [1, 1, 1],
+      'each part looked again on the first tick',
+    );
+    await pump(10400);
+    assert.deepEqual(
+      counts().map((count, i) => count - before[i]),
+      [1, 1, 1],
+      'a look that worked is not repeated',
+    );
+  } finally {
+    panel.done();
+    stopClock();
+  }
+});
+
+await test('a draft action names the draft as drawn, not the one the rows hold after the story changed under it', async () => {
+  let rows = DRAFTS.drafts.map((row, i) => ({ ...row, key: `old-${i}` }));
+  const panel = await mount(
+    story(),
+    (calls) =>
+      fullOptions(calls, {
+        pulse: undefined,
+        drafts: {
+          load: async () => ({ ...DRAFTS, drafts: rows }),
+          act: async (...args: unknown[]) => {
+            calls.push(['drafts.act', ...args]);
+            return { ...DRAFTS, drafts: rows };
+          },
+        },
+      }),
+    { n: 1, chatOpen: true },
+  );
+  try {
+    // a publish changed the story on disk: the rows reload (a focus does it) before the panel is drawn again
+    rows = DRAFTS.drafts.map((row, i) => ({ ...row, key: `new-${i}` }));
+    window.dispatchEvent(new window.Event('focus'));
+    await settle();
+    fire($('[data-draft-act="dismiss"]'), 'click');
+    await settle();
+    const [call] = calling(panel.calls, 'drafts.act');
+    assert.ok(call, 'a draft action was sent');
+    assert.match(String(call[4]), /^old-/, 'the key of the draft on screen');
+  } finally {
+    panel.done();
+  }
+});
+
+await test('a draft action names the draft by its key, and the key of the row the panel has', async () => {
+  const rows = DRAFTS.drafts.map((row, i) => ({ ...row, key: `key-${i}` }));
+  const panel = await mount(
+    story(),
+    (calls) =>
+      fullOptions(calls, {
+        pulse: undefined,
+        drafts: {
+          load: async () => ({ ...DRAFTS, drafts: rows }),
+          act: async (...args: unknown[]) => {
+            calls.push(['drafts.act', ...args]);
+            return { ...DRAFTS, drafts: rows };
+          },
+        },
+      }),
+    { n: 1, chatOpen: true },
+  );
+  try {
+    fire($('[data-draft-act="dismiss"]'), 'click');
+    await settle();
+    const [call] = calling(panel.calls, 'drafts.act');
+    assert.ok(call, 'a draft action was sent');
+    assert.equal(
+      call[4],
+      rows.find((row) => row.chapter === call[1] && row.index === call[2])?.key,
+    );
+    assert.ok(call[4], 'with the draft’s key');
+  } finally {
+    panel.done();
+  }
+});
+
+await test('a refused fix click says it is still saving while a change is out', async () => {
+  const current = { view: structuredClone(FIXES) };
+  const panel = await mount(
+    story(),
+    fixesOptions(current, () => new Promise<never>(() => {})),
+    { n: 0 },
+  );
+  try {
+    fire(fixButton('send'), 'click');
+    fire(fixButton('auto'), 'click');
+    await settle();
+    assert.match($('.ou-msg').textContent!, /still saving/i, 'a refused click says why');
+  } finally {
+    panel.done();
+  }
+});
+
+await test('a note being edited keeps its text when the panel is mounted again under the reader', async () => {
+  const current = { view: structuredClone(FIXES) };
+  const panel = await mount(story(), fixesOptions(current), { n: 0 });
+  fire(fixButton('edit', 'n1'), 'click');
+  editor().value = 'typed and not saved';
+  fire(editor(), 'input');
+  const again = await mount(story(), fixesOptions(current), { n: 0 });
+  try {
+    assert.equal(editor().value, 'typed and not saved');
+    fire(fixButton('cancel', 'n1'), 'click');
+  } finally {
+    again.done();
+    panel.done();
+  }
+});
+
+await test('after the panel is gone a late working answer does not dim the page and a click leaves no timer', async () => {
+  startClock();
+  const gate = deferred<{ marks: typeof WORKING }>();
+  const panel = await mount(
+    story(),
+    (calls) => fullOptions(calls, { pulse: undefined, working: () => gate.promise }),
+    { n: 1 },
+    { wait: pumpOnce },
+  );
+  let reads = 0;
+  const get = panel.world.viewed.get.bind(panel.world.viewed);
+  panel.world.viewed.get = (rel: string) => {
+    reads++;
+    return get(rel);
+  };
+  try {
+    fire(document.body, 'click');
+    panel.overlay.destroy();
+    gate.resolve({ marks: WORKING });
+    await pump(2000);
+    assert.equal(
+      panel.world.blocks.filter((block) => block.el.hasAttribute('data-ou-changing')).length,
+      0,
+      'the page is not dimmed again',
+    );
+    assert.equal(reads, 0, 'no look at the page after destroy');
+  } finally {
     panel.done();
     stopClock();
   }

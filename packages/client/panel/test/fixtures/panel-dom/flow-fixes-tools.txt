@@ -608,6 +608,7 @@ panel
         "Re-tell from scratch"
     <div class="ou-rebuilding" hidden role="status">
     <span class="ou-msg">
+      "Still saving the last change. Try again in a moment."
   <div class="ou-body">
     <div class="ou-working">
       <div class="ou-ui-banner ou-ui-banner-warn ou-beingchg" role="status">

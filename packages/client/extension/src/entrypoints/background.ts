@@ -10,7 +10,7 @@ import { storeCall, type StoreRequest } from '../store-call.ts';
 import { isPageLink, type PageKind } from '../page-links.ts';
 import type { BridgeAbort, BridgeRequest } from '../content/bridge.ts';
 
-/** The fetches out for a call that has an id (a poll's), so a page's `bridge-abort` can close one. */
+/** The fetches out for a call that has an id (every call from the content script has one), so a page's `bridge-abort` can close one. */
 const cancellable = new Map<string, AbortController>();
 
 const callBridge = createBridgeCaller({

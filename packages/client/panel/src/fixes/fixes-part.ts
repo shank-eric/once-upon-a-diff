@@ -21,9 +21,14 @@ const SEND_TITLE =
   'as your repo rules say and never pushes. Sent notes are locked until it reports back.';
 const TAKE_BACK_TITLE = 'Brings these notes back as drafts, to edit or send again';
 
+/** The note being edited and its text so far, by story: kept across a remount of the panel (a story redraw), as the Ask box's text is. */
+export const editDrafts = new Map<string, { id: string; text: string }>();
+
 /** A note being edited: a textarea that takes focus when it appears and keeps what is typed, and Save and Cancel. */
 function NoteEditor(props: {
   note: FixNote;
+  text: string;
+  keep(text: string): void;
   off: (control: string) => boolean;
   save(text: string): void;
   cancel(): void;
@@ -33,13 +38,14 @@ function NoteEditor(props: {
     area.current?.focus(); // just opened (a redraw keeps the same editor, so it does not take focus again)
   }, []);
   const { note } = props;
-  return html`<textarea class="ou-fixedit" rows="3" ref=${area}>${note.body}</textarea><div class="ou-fixeditbtns"><button data-fix-act="save" disabled=${props.off(`save:${note.id}`)} onClick=${() => props.save(area.current ? area.current.value : '')}>Save</button> <button data-fix-act="cancel" onClick=${props.cancel}>Cancel</button></div>`;
+  return html`<textarea class="ou-fixedit" rows="3" ref=${area} onInput=${() => props.keep(area.current ? area.current.value : '')}>${props.text}</textarea><div class="ou-fixeditbtns"><button data-fix-act="save" disabled=${props.off(`save:${note.id}`)} onClick=${() => props.save(area.current ? area.current.value : '')}>Save</button> <button data-fix-act="cancel" onClick=${props.cancel}>Cancel</button></div>`;
 }
 
 export function createFixes(context: PanelContext) {
   const { state, opts, shell } = context;
   let view: FixesView | null = null; // the bridge's {notes, auto_send, to, requests}
-  let editing: string | null = null; // the id of the note whose text is being edited
+  const storyId = String(context.story.data.id || '');
+  let editing: string | null = editDrafts.get(storyId)?.id ?? null; // the id of the note whose text is being edited
   let busy = false;
   let busyKey: string | null = null; // the control a change in flight was started by (it is off meanwhile)
   let pendingAuto = false; // what the Auto-send box was ticked to, until the bridge answers
@@ -99,7 +105,7 @@ export function createFixes(context: PanelContext) {
       html`<button data-fix-act="edit" onClick=${() => edit(note.id)}>Edit</button><button data-fix-act="remove" disabled=${off(`remove:${note.id}`)} onClick=${() => remove(note.id)}>Remove</button>`;
     const text =
       draft && editing === note.id
-        ? html`<${NoteEditor} note=${note} off=${off} save=${(body: string) => save(note.id, body)} cancel=${cancel} />`
+        ? html`<${NoteEditor} note=${note} text=${editDrafts.get(storyId)?.text ?? note.body} keep=${(text: string) => editDrafts.set(storyId, { id: note.id, text })} off=${off} save=${(body: string) => save(note.id, body)} cancel=${cancel} />`
         : html`<pre>${note.body}</pre>`;
     const head = html`<div class="ou-where"><span>${placeView(note)}</span><span class="ou-cbtns">${buttons}</span></div>`;
     return html`<div key=${note.id} class=${`ou-comment ou-fixnote ou-fx-${note.state}`} data-note-id=${note.id}>${head}${text}<div class="ou-cstate">${stateView(note)}</div></div>`;
@@ -159,14 +165,17 @@ export function createFixes(context: PanelContext) {
     context.drafts.refresh(true);
   }
 
+  /** Looks at the bridge's fix view; true when it got an answer (so the pulse's counter waits for a good look). */
   async function refresh() {
     if (!opts.fixes) {
-      return;
+      return true;
     }
     try {
-      take(await opts.fixes.load());
+      const next = await opts.fixes.load();
+      take(next);
+      return !!next && Array.isArray(next.notes);
     } catch {
-      /* the bridge may be down; the next pulse looks again */
+      return false; // the bridge may be down; the pulse's counter has not been answered, so the next tick looks again
     }
   }
 
@@ -174,11 +183,13 @@ export function createFixes(context: PanelContext) {
 
   function edit(id: string) {
     editing = id;
+    editDrafts.set(storyId, { id, text: view?.notes.find((note) => note.id === id)?.body ?? '' });
     shell.redraw();
   }
 
   function cancel() {
     editing = null;
+    editDrafts.delete(storyId);
     shell.redraw();
   }
 
@@ -189,6 +200,7 @@ export function createFixes(context: PanelContext) {
         await opts.fixes!.note(id, { body: text });
       }
       editing = null;
+      editDrafts.delete(storyId);
       await refresh();
       shell.redraw();
     });
@@ -229,7 +241,11 @@ export function createFixes(context: PanelContext) {
 
   /** Runs one change one at a time, with its control (if it has one) off meanwhile, and says why it failed. */
   async function guarded(control: string | null, work: () => Promise<void>) {
-    if (busy || !opts.fixes) {
+    if (!opts.fixes) {
+      return;
+    }
+    if (busy) {
+      shell.message('Still saving the last change. Try again in a moment.');
       return;
     }
     busy = true;

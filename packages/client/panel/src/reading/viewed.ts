@@ -264,9 +264,17 @@ export function createViewedTracker(context: PanelContext) {
 
   // Classic /files ticks a checkbox (no attribute change), and Refined GitHub's batch
   // helpers click many toggles at once, so also look again shortly after any click or change.
+  const rechecks = new Set<ReturnType<typeof setTimeout>>();
+  const later = (millis: number) => {
+    const handle = setTimeout(() => {
+      rechecks.delete(handle);
+      render();
+    }, millis);
+    rechecks.add(handle);
+  };
   const recheck = () => {
-    setTimeout(render, 300);
-    setTimeout(render, 1200);
+    later(300);
+    later(1200);
   };
   document.addEventListener('change', recheck, true);
   document.addEventListener('click', recheck, true);
@@ -310,6 +318,8 @@ export function createViewedTracker(context: PanelContext) {
   function destroy() {
     document.removeEventListener('change', recheck, true);
     document.removeEventListener('click', recheck, true);
+    rechecks.forEach(clearTimeout); // a look that comes after the panel is gone would read a page nobody draws for
+    rechecks.clear();
   }
 
   return {

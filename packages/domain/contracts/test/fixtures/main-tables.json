@@ -2060,6 +2060,18 @@
       },
       "default": null
      },
+     "key": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(string | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "string",
+       "expects": "string",
+       "async": false
+      }
+     },
      "action": {
       "kind": "schema",
       "type": "picklist",
@@ -2596,6 +2608,18 @@
        ]
       },
       "default": null
+     },
+     "key": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(string | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "string",
+       "expects": "string",
+       "async": false
+      }
      }
     }
    }

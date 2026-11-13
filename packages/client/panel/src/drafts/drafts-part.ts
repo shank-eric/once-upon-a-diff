@@ -113,6 +113,9 @@ export function createDrafts(context: PanelContext) {
   const copyTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   const keyOf = (step: number, index: number) => `${step}:${index}`;
+  // the key of each drawn comment, as the rows had it when the panel first drew it: rows are reloaded with the story on disk,
+  // which may have another draft at that place by now, and an action must name the one on screen
+  const drawnKeys = new WeakMap<object, string>();
 
   // ---------- views
 
@@ -293,7 +296,13 @@ export function createDrafts(context: PanelContext) {
     }
     const key = rowKey(step, index);
     try {
-      const result = await opts.drafts!.act(step, index, action); // its buttons show only with opts.drafts
+      // the draft's key says which one this was: the bridge refuses (409) if the story on disk has another there now
+      const result = await opts.drafts!.act(
+        step,
+        index,
+        action,
+        drawnKeys.get(data.chapters[step - 1]?.comments?.[index] as object),
+      ); // its buttons show only with opts.drafts
       rows = result.drafts || rows;
       loadError = result.error || null;
       loadedAt = Date.now();
@@ -562,6 +571,9 @@ export function createDrafts(context: PanelContext) {
     for (const { step, index, comment } of comments) {
       const row: DraftRow =
         byKey.get(keyOf(step, index)) || ({ status: 'draft', dismissed: false } as DraftRow);
+      if (row.key && !drawnKeys.has(comment)) {
+        drawnKeys.set(comment, row.key);
+      }
       const { show, model } = modelComment(row, comment, step, index, settle);
       next.set(keyOf(step, index), model);
       if (show === 'added') {
@@ -600,7 +612,7 @@ export function createDrafts(context: PanelContext) {
 
   /** The bridge can drop an add's mark once it is confirmed: asked once, after the draw that found it due. */
   function settleDraft(step: number, index: number, key: string) {
-    opts.drafts!.act(step, index, 'settle').then(
+    opts.drafts!.act(step, index, 'settle', key).then(
       (result) => {
         rows = result.drafts || rows;
         render();

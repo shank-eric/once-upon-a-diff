@@ -17,7 +17,7 @@ export interface BridgeRequest {
   path: string;
   body?: unknown;
   settings?: BridgeSettings;
-  /** Set on a call with a signal (a poll's load): a later `bridge-abort` with the same id cancels its fetch in the service worker. */
+  /** Set on every call (a poll's load has the poll's signal, any other the call limit): a later `bridge-abort` with the same id cancels its fetch in the service worker. */
   id?: string;
 }
 
@@ -44,11 +44,24 @@ export type BridgeAnswer<T = unknown> = Reply<T>;
 /** false once the extension has been reloaded or removed under this page: chrome.* calls would throw. */
 export const extensionAlive = () => !!(globalThis.chrome && chrome.runtime && chrome.runtime.id);
 
+/** How long a call with no signal of its own (a poll's) may wait for the service worker: past it the call answers "timed out" and the worker's fetch is closed. */
+export const CALL_LIMIT_MS = 30000;
+/** Adding a draft to the pending review makes up to three GitHub calls of 20 s each in the bridge, which carries on after an abort: a retry of a timed-out one would add the comment twice. */
+export const REVIEW_LIMIT_MS = 90000;
+
+const limitFor = (method: BridgeMethod, path: string, body: unknown) =>
+  method === 'POST' &&
+  /\/drafts$/.test(path) &&
+  (body as { action?: unknown } | undefined)?.action === 'review'
+    ? REVIEW_LIMIT_MS
+    : CALL_LIMIT_MS;
+
 /**
  * Calls the bridge through the service worker.
  * Resolves to {ok, status, body, error}; it never rejects, and status is 0 when the call didn't get there.
  * With a `signal`, an abort resolves it at once ("aborted") and tells the service worker to abort its fetch too, so the
  * request to the bridge is closed and not only forgotten here. (If that message doesn't get there, the worker's fetch runs on.)
+ * A call with no signal gets CALL_LIMIT_MS, so one the worker never answers can't leave a button off for good.
  */
 export async function callBridge<T = unknown>(
   method: BridgeMethod,
@@ -59,11 +72,18 @@ export async function callBridge<T = unknown>(
   if (!extensionAlive()) {
     return { ok: false, status: 0, error: 'extension reloaded' };
   }
-  const aborted: BridgeAnswer<T> = { ok: false, status: 0, error: 'aborted' };
+  const limit = signal ? null : new AbortController();
+  const watched = signal ?? limit!.signal;
+  const aborted: BridgeAnswer<T> = {
+    ok: false,
+    status: 0,
+    error: limit ? 'timed out' : 'aborted',
+  };
   if (signal?.aborted) {
     return aborted;
   }
-  const id = signal ? crypto.randomUUID() : undefined;
+  const id = crypto.randomUUID();
+  const timer = limit ? setTimeout(() => limit.abort(), limitFor(method, path, body)) : undefined;
   let onAbort: (() => void) | undefined;
   try {
     const sent: Promise<BridgeAnswer<T> | undefined> = chrome.runtime.sendMessage({
@@ -71,33 +91,32 @@ export async function callBridge<T = unknown>(
       method,
       path,
       body,
-      ...(id ? { id } : {}),
+      id,
     } satisfies BridgeRequest);
-    const raced = signal
-      ? Promise.race([
-          sent,
-          new Promise<BridgeAnswer<T>>((resolve) => {
-            onAbort = () => {
-              resolve(aborted);
-              try {
-                chrome.runtime
-                  .sendMessage({ type: 'bridge-abort', id: id as string } satisfies BridgeAbort)
-                  .catch(() => {});
-              } catch {
-                /* the extension was reloaded: its worker's fetch went with it */
-              }
-            };
-            signal.addEventListener('abort', onAbort, { once: true });
-          }),
-        ])
-      : sent;
+    const raced = Promise.race([
+      sent,
+      new Promise<BridgeAnswer<T>>((resolve) => {
+        onAbort = () => {
+          resolve(aborted);
+          try {
+            chrome.runtime
+              .sendMessage({ type: 'bridge-abort', id } satisfies BridgeAbort)
+              .catch(() => {});
+          } catch {
+            /* the extension was reloaded: its worker's fetch went with it */
+          }
+        };
+        watched.addEventListener('abort', onAbort, { once: true });
+      }),
+    ]);
     const answer = await raced;
     return answer || { ok: false, status: 0, error: 'no answer' };
   } catch {
     return { ok: false, status: 0, error: 'extension reloaded' };
   } finally {
+    clearTimeout(timer);
     if (onAbort) {
-      signal?.removeEventListener('abort', onAbort);
+      watched.removeEventListener('abort', onAbort);
     }
   }
 }

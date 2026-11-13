@@ -198,3 +198,37 @@ test('without gh, posted detection says why and Dismiss still works', async () =
     process.env.ONCE_UPON_GH = saved;
   }
 });
+
+test('a draft action that names its draft by key is refused (409) when the story has another draft there now', async () => {
+  clearCache();
+  const saved = process.env.ONCE_UPON_GH;
+  process.env.ONCE_UPON_GH = '/nonexistent/gh';
+  const home = tmp('home');
+  githubStory(path.join(home, 'acme-widgets-7'));
+  const bridge = await startBridge({ home });
+  try {
+    const url = '/api/stories/acme-widgets-7/drafts';
+    const rows = (await bridge.call<DraftsBody>('GET', url)).body.drafts;
+    const key = rows[0].key as string;
+    assert.ok(key, 'a row carries its draft’s key');
+    const wrong = await bridge.call<DraftsBody>('POST', url, {
+      chapter: 1,
+      index: 0,
+      action: 'dismiss',
+      key: 'not-this-one',
+    });
+    assert.equal(wrong.status, 409, wrong.text);
+    assert.equal((await bridge.call<DraftsBody>('GET', url)).body.drafts[0].dismissed, false);
+    const right = await bridge.call<DraftsBody>('POST', url, {
+      chapter: 1,
+      index: 0,
+      action: 'dismiss',
+      key,
+    });
+    assert.equal(right.status, 200, right.text);
+    assert.equal(right.body.drafts[0].dismissed, true);
+  } finally {
+    await bridge.close();
+    process.env.ONCE_UPON_GH = saved;
+  }
+});

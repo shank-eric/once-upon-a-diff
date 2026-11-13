@@ -119,6 +119,8 @@ test('drafts, fixes, pr and push take the actions they take and say so otherwise
     'action must be dismiss, restore or settle',
   );
   assert.equal(ok('draftsAct', { chapter: '1', index: 0, action: 'review' })!.chapter, 1);
+  assert.equal(ok('draftsAct', { chapter: 1, index: 0, action: 'fix', key: 'abc' })!.key, 'abc');
+  assert.equal(ok('noteAdd', { path: 'a', line: 1, chapter: 1, index: 0, key: 'abc' })!.key, 'abc');
   bad('fixesAct', { action: 'drop' }, 'action is one of send, auto, take_back');
   assert.deepEqual(ok('fixesAct', { action: 'take_back', request: null })!.request, null);
   bad('prPush', { action: 'force' }, 'action must be push or push-ahead');

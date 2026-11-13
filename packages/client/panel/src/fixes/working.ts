@@ -109,22 +109,29 @@ export function createWorking(context: PanelContext) {
     dimPage();
   }
 
+  /** Looks at the bridge's working marks; true when it got an answer (so the pulse's counter waits for a good look). */
   async function refresh() {
     if (!opts.working) {
-      return;
+      return true;
     }
     try {
       const next = ((await opts.working()) || {}).marks || [];
+      if (!alive) {
+        return true; // the panel is gone: a late answer must not dim the page again
+      }
       if (JSON.stringify(next) !== JSON.stringify(marks)) {
         marks = next;
         render();
       }
+      return true;
     } catch {
-      /* the bridge may be down; the next pulse looks again */
+      return false; // the bridge may be down; the pulse's counter has not been answered, so the next tick looks again
     }
   }
 
+  let alive = true;
   function destroy() {
+    alive = false;
     marks = [];
     dimPage();
   }

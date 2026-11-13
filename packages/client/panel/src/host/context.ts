@@ -88,7 +88,7 @@ export interface PanelOptions {
   };
   drafts?: {
     load(): Promise<DraftsAnswer>;
-    act(chapter: number, index: number, action: DraftAction): Promise<DraftsAnswer>;
+    act(chapter: number, index: number, action: DraftAction, key?: string): Promise<DraftsAnswer>;
   };
   fixes?: {
     load(): Promise<FixesView>;

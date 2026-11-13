@@ -10,15 +10,21 @@ import type { DraftComment, StoryData } from '@once-upon-a-diff/contracts/types'
 import type { ServedStory } from '@once-upon-a-diff/stories/types';
 import type { App } from '../types.ts';
 
-/** The drafted comment a request names by chapter (1-based) and index, else 404. */
+/**
+ * The drafted comment a request names by chapter (1-based) and index, else 404. A request that carries the draft's `key`
+ * (what the panel was showing) gets a 409 when the story on disk has another draft there now.
+ */
 export function draftOf(
   chapters: StoryData['chapters'],
-  where: { chapter: number | null; index: number | null },
+  where: { chapter: number | null; index: number | null; key?: string | null },
 ): DraftComment {
   const chapter = chapters[(where.chapter as number) - 1];
   const comment = chapter && chapter.comments[where.index as number];
   if (!comment) {
     throw new HttpError(404, 'no such draft');
+  }
+  if (where.key && where.key !== draftKey(comment)) {
+    throw new HttpError(409, 'the story changed under that draft: look at it again');
   }
   return comment;
 }
@@ -33,7 +39,7 @@ function relsOf(app: App, story: ServedStory): string[] {
 export function noteFromDraft(
   app: App,
   story: ServedStory,
-  where: { chapter: number | null; index: number | null },
+  where: { chapter: number | null; index: number | null; key?: string | null },
 ) {
   const comment = draftOf((app.stories.load(story.id) as StoryData).chapters, where);
   const rel = relOfPath(comment.path, relsOf(app, story));

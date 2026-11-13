@@ -46,8 +46,8 @@ export function bridgeOptions({ client, storyId, pageUrl }: PanelHost): Shared {
       client.ask(ROUTES.questionMarks, { params, body: { action, ids, ...extra } }),
     drafts: {
       load: () => client.ask(ROUTES.draftsRead, { params }),
-      act: (chapter, index, action) =>
-        client.ask(ROUTES.draftsAct, { params, body: { chapter, index, action } }),
+      act: (chapter, index, action, key) =>
+        client.ask(ROUTES.draftsAct, { params, body: { chapter, index, action, key } }),
     },
     // fix before push: notes to send to the session working the branch
     fixes: {

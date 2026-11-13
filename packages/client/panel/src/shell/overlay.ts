@@ -136,6 +136,8 @@ const SLOW_EVERY = 12;
 
 /** A pulse, or {down: true} when the bridge didn't answer. */
 type PulseLook = Partial<Pulse> & { down?: boolean };
+/** The pulse's counters for the parts that look on their own look when it moves. */
+type PartRev = 'questions_rev' | 'fixes_rev' | 'working_rev';
 
 export function storyOverlay(input: StoryData, opts: PanelOptions, host: PanelHost) {
   if (window.__onceUponOverlay) {
@@ -162,8 +164,11 @@ export function storyOverlay(input: StoryData, opts: PanelOptions, host: PanelHo
   Object.assign(context, stateHelpers(context));
   const { state } = context;
 
-  // the previous pulse. The poll's first load is asked before the parts' first loads, so nothing that changes after them is missed.
+  // the previous pulse. The parts' first loads go out when they are built, before the poll's first load, and a part that failed its
+  // first look must not read as up to date, so the first pulse sets only the starting point and answeredTo stays empty until a good look.
   let last: PulseLook | null = null;
+  // per part, the counter its last good look answered to
+  const answeredTo: Partial<Record<PartRev, string | number>> = {};
   let ticks = 0;
   let asked = false;
   let slowedOnFocus = false;
@@ -224,7 +229,7 @@ export function storyOverlay(input: StoryData, opts: PanelOptions, host: PanelHo
   context.chatDock = createChatDock(context);
   context.questions = createQuestions(context);
   context.shell.isolateKeys();
-  // the parts are built (a constructor that throws leaves no poll behind), and the first pulse is asked before their first loads
+  // the parts are built (a constructor that throws leaves no poll behind), and their first loads are already out
   pulsePoll.start();
 
   // every part's look at the bridge, on the tick and when the tab gets focus again (a comment drafted or a session
@@ -251,18 +256,25 @@ export function storyOverlay(input: StoryData, opts: PanelOptions, host: PanelHo
     if (opts.onPulse && !pulse.down) {
       opts.onPulse(pulse as Pulse);
     }
-    if (moved('questions_rev')) {
-      context.questions.refresh();
-    }
+    // a part looks again while the pulse's counter is not the one its last good look answered to (a failed look leaves it behind)
+    const lookAt = (key: PartRev, look: () => Promise<boolean>) => {
+      if (pulse.down) {
+        delete answeredTo[key]; // the bridge may come back reset: every part looks again then
+      } else if (pulse[key] !== answeredTo[key]) {
+        const seen = pulse[key];
+        void look().then((ok) => {
+          if (ok) {
+            answeredTo[key] = seen;
+          }
+        });
+      }
+    };
+    lookAt('questions_rev', context.questions.refresh);
     if (moved('drafts_rev')) {
       context.drafts.refresh(true);
     }
-    if (moved('fixes_rev')) {
-      context.fixes.refresh();
-    }
-    if (moved('working_rev')) {
-      context.working.refresh();
-    }
+    lookAt('fixes_rev', context.fixes.refresh);
+    lookAt('working_rev', context.working.refresh);
     if (moved('listening') || moved('answering') || moved('agent') || moved('down')) {
       context.statusLight.refresh();
     }
