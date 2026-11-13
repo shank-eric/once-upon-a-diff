@@ -4,8 +4,9 @@
 #
 # Removes the worktree checked out on <branch> under <worktrees-dir> when <branch> is an ancestor of
 # <landed-into-ref>. With "patch" (batch deploys, which cherry-pick), landed means every commit of <branch> has a
-# patch-id match in <landed-into-ref> (git cherry) instead. Untracked symlinks and regenerable ignored paths (node_modules, dist, build, .venv*, __pycache__, *.log, .yarn/cache, tool cache files such as .eslintcache and .prettiercache; never a generic folder like .cache or coverage, which can hold hand-made files) are forced past. Any other untracked, ignored or modified
-# file makes it refuse and say so. Prints one "deploy-local:" line either way. Never fails the caller.
+# patch-id match in <landed-into-ref> (git cherry) instead. Untracked symlinks and regenerable ignored paths (node_modules, dist, build, .venv*, __pycache__, *.log, .yarn/cache, tool cache files such as .eslintcache and .prettiercache; never a generic folder like .cache or coverage, which can hold hand-made files) are forced past. A local story's folder (ignored `.once-upon/<id>/` holding meta.json and chapters.json) is moved
+# to <home>/<id>/ (home is $ONCE_UPON_HOME, else ~/.once-upon), where the bridge still serves it, before the worktree goes; a
+# folder already there keeps the worktree. Any other untracked, ignored or modified file makes it refuse and say so. Prints one "deploy-local:" line either way. Never fails the caller.
 # Ignored paths that an install or build recreates. Anything else ignored (.env, *.pem, ...) blocks removal.
 _regenerable() {
   case "$1" in
@@ -21,19 +22,37 @@ _regenerable() {
   return 1
 }
 
-# Succeeds only when every commit of local branch $2 has a patch-id match in local branch $3 and $2 has no merge
-# commits of its own. Uses refs/heads/ names (a tag of the same name must not win) and no pipe (grep -q plus pipefail
-# once let a big "+" list through). Any git failure means not landed.
+# Succeeds only when local branch $2 is landed in local branch $3 and has no merge commits of its own. Landed means
+# every commit of $2 has a patch-id match in $3 (git cherry), or else merging $2 into $3 changes nothing: `git
+# merge-tree --write-tree` succeeds without a conflict and prints a tree equal to $3's. That second test covers a
+# cherry-pick onto lines main has since changed (the patch-id hashes the context, so git cherry says "+") and, unlike
+# a patch-id of the bare added and removed lines, cannot match an unrelated main commit that edits the same text
+# elsewhere in the file. Uses refs/heads/ names (a tag of the same name must not win) and no pipe into grep -q (grep -q
+# plus pipefail once let a big "+" list through). Any git failure or conflict means not landed.
 _patch_landed() {
-  local repo="$1" branch="$2" into="$3" out merges
+  local repo="$1" branch="$2" into="$3" out merges merged
   out="$(git -C "$repo" cherry "refs/heads/$into" "refs/heads/$branch" 2>/dev/null)" || return 1
-  case $'\n'"$out" in *$'\n+'*) return 1 ;; esac
   merges="$(git -C "$repo" rev-list --merges "refs/heads/$into..refs/heads/$branch" 2>/dev/null)" || return 1
-  [ -z "$merges" ]
+  [ -z "$merges" ] || return 1
+  case $'\n'"$out" in *$'\n+'*) ;; *) return 0 ;; esac
+  merged="$(git -C "$repo" merge-tree --write-tree "refs/heads/$into" "refs/heads/$branch" 2>/dev/null)" || return 1
+  merged="${merged%%$'\n'*}"
+  [ -n "$merged" ] || return 1
+  [ "$merged" = "$(git -C "$repo" rev-parse "refs/heads/$into^{tree}" 2>/dev/null)" ]
+}
+
+# A local story's folder in worktree $1: succeeds (prints nothing) when `.once-upon/<id>` is a real folder with meta.json
+# and chapters.json under a plain id. Sets nothing; callers move it.
+_story_folder() {
+  local wt="$1" id="$2"
+  case "$id" in "" | . | .. | */* | .* | *[!A-Za-z0-9._-]*) return 1 ;; esac
+  [ -d "$wt/.once-upon/$id" ] && [ ! -L "$wt/.once-upon/$id" ] || return 1
+  [ -f "$wt/.once-upon/$id/meta.json" ] && [ -f "$wt/.once-upon/$id/chapters.json" ]
 }
 
 cleanup_landed_worktree() {
-  local repo="$1" root="$2" branch="$3" into="$4" mode="${5:-}" wt="" line cur dirt p out
+  local repo="$1" root="$2" branch="$3" into="$4" mode="${5:-}" wt="" line cur dirt p out id home d
+  local stories=()
   cur=""
   while IFS= read -r line; do
     case "$line" in
@@ -63,7 +82,26 @@ cleanup_landed_worktree() {
     p="${line:3}"
     case "${line:0:2}" in
       "??") [ -L "$wt/${p%/}" ] && continue ;;
-      "!!") _regenerable "${p%/}" && continue ;;
+      "!!")
+        _regenerable "${p%/}" && continue
+        case "${p%/}" in
+          .once-upon | .once-upon/*)
+            id="${p%/}"
+            id="${id#.once-upon}"
+            id="${id#/}"
+            if [ -z "$id" ]; then # the whole folder, listed as one: every child must be a story folder
+              for d in "$wt/.once-upon"/* "$wt/.once-upon"/.[!.]*; do
+                [ -e "$d" ] || [ -L "$d" ] || continue
+                if _story_folder "$wt" "${d##*/}"; then stories+=("${d##*/}"); else dirt="$dirt
+  !! .once-upon/${d##*/}"; fi
+              done
+              continue
+            fi
+            id="${id%%/*}"
+            if _story_folder "$wt" "$id"; then stories+=("$id"); continue; fi
+            ;;
+        esac
+        ;;
     esac
     dirt="$dirt
   $line"
@@ -74,6 +112,19 @@ EOS
     echo "deploy-local: worktree $wt kept: it has changes besides untracked symlinks and regenerable ignored paths:$dirt"
     return 0
   fi
+  home="${ONCE_UPON_HOME:-$HOME/.once-upon}"
+  for id in ${stories[@]+"${stories[@]}"}; do
+    [ -d "$wt/.once-upon/$id" ] || continue # listed once per file, moved once
+    if [ -e "$home/$id" ] || [ -L "$home/$id" ]; then
+      echo "deploy-local: worktree $wt kept: its story folder .once-upon/$id has no place to go, $home/$id exists"
+      return 0
+    fi
+    mkdir -p "$home" && mv "$wt/.once-upon/$id" "$home/$id" 2>/dev/null || {
+      echo "deploy-local: worktree $wt kept: could not move its story folder .once-upon/$id to $home/$id"
+      return 0
+    }
+    echo "deploy-local: moved story folder .once-upon/$id to $home/$id"
+  done
   if git -C "$repo" worktree remove --force "$wt" 2>/dev/null; then
     echo "deploy-local: removed worktree $wt"
   else

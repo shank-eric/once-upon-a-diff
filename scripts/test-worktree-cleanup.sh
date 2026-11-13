@@ -133,4 +133,51 @@ git -C "$W/mg" merge -q --no-commit --no-ff side 2>/dev/null || true
 echo evil >"$W/mg/evil.txt"; git -C "$W/mg" add .; git -C "$W/mg" commit -qm merge
 out="$(cleanup_landed_branch "$R" "$W" mg main)"
 git -C "$R" rev-parse -q --verify refs/heads/mg >/dev/null && [ -e "$W/mg/evil.txt" ] || fail "merge branch deleted: $out"
+# 14. a landed worktree's local story folder (.once-upon/<id>/, ignored) moves to <home>/<id>/ and the worktree goes
+printf '# x\n/.once-upon/\n' >>"$R/.git/info/exclude"
+export ONCE_UPON_HOME="$T/home"
+story() { mkdir -p "$W/$1/.once-upon/$2"; echo '{}' >"$W/$1/.once-upon/$2/meta.json"; echo '{}' >"$W/$1/.once-upon/$2/chapters.json"; echo d >"$W/$1/.once-upon/$2/local.diff"; }
+mk st; story st local-st-feat; echo 1 >"$W/st/.eslintcache"
+out="$(cleanup_landed_worktree "$R" "$W" st main)"
+echo "$out" | grep -q "moved story folder .once-upon/local-st-feat to $T/home/local-st-feat" && echo "$out" | grep -q "removed worktree $W/st" || fail "story: $out"
+[ ! -e "$W/st" ] && [ -f "$T/home/local-st-feat/chapters.json" ] && [ -f "$T/home/local-st-feat/local.diff" ] || fail "story folder not kept outside"
+# two story folders, patch mode through cleanup_landed_branch: both kept, worktree and branch go
+mk st2; story st2 local-a; story st2 local-b; echo 3 >"$W/st2/s2.txt"; git -C "$W/st2" add s2.txt; git -C "$W/st2" commit -qm s2
+GIT_COMMITTER_DATE=2001-01-01T00:00:00 git -C "$R" cherry-pick "$(git -C "$W/st2" rev-parse HEAD)" >/dev/null
+out="$(cleanup_landed_branch "$R" "$W" st2 main)"
+[ ! -e "$W/st2" ] && [ -f "$T/home/local-a/meta.json" ] && [ -f "$T/home/local-b/meta.json" ] && echo "$out" | grep -q "deleted branch st2" || fail "two stories: $out"
+# a story folder plus another real file: nothing moves, worktree kept
+mk st3; story st3 local-c; echo x >"$W/st3/new.txt"
+out="$(cleanup_landed_worktree "$R" "$W" st3 main)"
+echo "$out" | grep -q "new.txt" && [ -f "$W/st3/.once-upon/local-c/meta.json" ] && [ ! -e "$T/home/local-c" ] || fail "story+dirt: $out"
+# the home already has that id: worktree kept, nothing overwritten
+mk st4; story st4 local-st-feat; echo mine >"$T/home/local-st-feat/keep.txt"
+out="$(cleanup_landed_worktree "$R" "$W" st4 main)"
+echo "$out" | grep -q "no place to go" && [ -e "$W/st4" ] && [ -f "$T/home/local-st-feat/keep.txt" ] || fail "story exists: $out"
+# a folder under .once-upon that is not a story (no chapters.json) is still unknown ignored files
+mk st5; mkdir -p "$W/st5/.once-upon/notes"; echo n >"$W/st5/.once-upon/notes/n.txt"
+out="$(cleanup_landed_worktree "$R" "$W" st5 main)"
+echo "$out" | grep -q "kept: it has changes" && [ -e "$W/st5" ] || fail "non-story: $out"
+unset ONCE_UPON_HOME
+# 15. a cherry-pick onto changed context is still landed (git cherry says "+": patch-id hashes context); a different change is not
+printf '%s\n' l1 l2 l3 l4 l5 l6 l7 l8 l9 l10 >"$R/ctx"; git -C "$R" add ctx; git -C "$R" commit -qm ctx
+mk idle; mk idle2
+for b in idle idle2; do sed -i.bak "s/^l7\$/l7 changed by $b/" "$W/$b/ctx"; rm -f "$W/$b/ctx.bak"; git -C "$W/$b" commit -qam "$b"; done
+sed -i.bak 's/^l4$/l4 reworded/' "$R/ctx"; rm -f "$R/ctx.bak"; git -C "$R" commit -qam "reword l4, in the context of both"
+git -C "$R" cherry-pick "$(git -C "$W/idle" rev-parse HEAD)" >/dev/null
+git -C "$R" cherry main idle | grep -q '^+' && git -C "$R" cherry main idle2 | grep -q '^+' || fail "idle fixture: git cherry matched, so it tests nothing"
+out="$(cleanup_landed_branch "$R" "$W" idle main)"
+echo "$out" | grep -q "deleted branch idle " && [ ! -e "$W/idle" ] || fail "idle (changed context): $out"
+out="$(cleanup_landed_branch "$R" "$W" idle2 main)"
+echo "$out" | grep -q "branch idle2 kept" && [ -e "$W/idle2" ] || fail "idle2 (other change): $out"
+# 16. a branch whose +/- lines match a different main commit in the same file, but is not on main, is kept
+printf '%s\n' a b c d e f g h i j k l >"$R/lines"; git -C "$R" add lines; git -C "$R" commit -qm lines
+mk lineb
+sed -i.bak 's/^b$/b\
+NEW/' "$W/lineb/lines"; rm -f "$W/lineb/lines.bak"; git -C "$W/lineb" commit -qam "lineb adds NEW after b"
+sed -i.bak 's/^j$/j\
+NEW/' "$R/lines"; rm -f "$R/lines.bak"; git -C "$R" commit -qam "main adds NEW after j"
+git -C "$R" cherry main lineb | grep -q '^+' || fail "lineb fixture: git cherry matched, so it tests nothing"
+out="$(cleanup_landed_branch "$R" "$W" lineb main)"
+echo "$out" | grep -q "branch lineb kept" && [ -e "$W/lineb" ] && git -C "$R" rev-parse -q --verify refs/heads/lineb >/dev/null || fail "lineb (same lines elsewhere): $out"
 echo "worktree-cleanup self-test: ok"
