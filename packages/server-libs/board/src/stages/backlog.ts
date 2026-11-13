@@ -6,7 +6,7 @@ import { branchKey, repoKey } from '@once-upon-a-diff/terms/ids';
 import { checkoutFor, sameRepo, seenCheckouts } from '@once-upon-a-diff/foundation/repos';
 import { backlogCards, cardOnBranch } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
-import { sameAgentView } from '@once-upon-a-diff/state/queues/backlog/claims';
+import { agentKey, sameAgentView } from '@once-upon-a-diff/state/queues/backlog/claims';
 import {
   cardPhase,
   DONE_HOURS,
@@ -25,7 +25,7 @@ import type {
   BoardSession,
   BoardStartedLinks,
 } from '@once-upon-a-diff/contracts/types';
-import { AGENT_OPEN } from './agents.ts';
+import { AGENT_OPEN, forgotten } from './agents.ts';
 import type { BuildContext, PinnedVoice, StoryFacts, Work } from './types.ts';
 import { dirOf } from './worktrees.ts';
 import { branchOfWork } from './works.ts';
@@ -41,7 +41,9 @@ export function nestClaimedAgents(
   views: Map<string, BoardAgent[]>,
 ): void {
   for (const item of items) {
-    const card = item.state === 'started' && item.branch ? cardOnBranch(item, cards) : null;
+    // a landed item may still be `open` (a `done` with no `start`): its agents still ride its card
+    const rides = item.state === 'started' || (item.state === 'open' && !!item.landed_at);
+    const card = rides && item.branch ? cardOnBranch(item, cards) : null;
     for (const view of card ? (views.get(item.id) ?? []) : []) {
       if (card && !card.agents.some((one) => sameAgentView(one, view))) {
         card.agents.push(view);
@@ -54,8 +56,9 @@ export function nestClaimedAgents(
  * A card that landed (`backlog done`, with or without a sha; its state may still be `open` if no `start` was written) has
  * finished the local story on its branch's work card, whether or not git can see it (a cherry-pick leaves the story's
  * head in no branch). Before the columns are decided, the work card is marked landed, so it is Done; DONE_HOURS after the
- * landing it is taken off the board, which the approval's APPROVED_DAYS never undoes, unless a session or an agent is
- * still on it (then it stays, without the story). It changes `cards`. The story must be the card's own: one told before the
+ * landing it is taken off the board, which the approval's APPROVED_DAYS never undoes, unless a session or an unfinished
+ * agent is still on it, or one that ended after the landing within DONE_HOURS (then it stays, without the story). A forgotten
+ * agent (silent past STALE_MS) is not unfinished. It changes `cards`. The story must be the card's own: one told before the
  * card started or after it landed (or approved after) is another piece of work on the branch. A card with a PR follows its
  * PR, and a session card has no story.
  */
@@ -64,7 +67,10 @@ export function markLandedWorks(
   cards: BoardCard[],
   nowMs: number,
   stories: Map<string, StoryFacts>,
+  agents: LedgerAgent[] = [],
 ): void {
+  const silent = new Set(agents.filter((agent) => forgotten(agent, nowMs)).map(agentKey));
+  const doneMs = DONE_HOURS * 3600 * 1000;
   for (const item of items) {
     if (item.state === 'dropped' || !item.branch || !item.landed_at) {
       continue;
@@ -83,9 +89,17 @@ export function markLandedWorks(
     ) {
       continue;
     }
-    if (nowMs - landedMs <= DONE_HOURS * 3600 * 1000) {
+    if (nowMs - landedMs <= doneMs) {
       card.landed = { card: item.id, at: item.landed_at };
-    } else if (card.sessions.length || card.agents.length) {
+    } else if (
+      card.sessions.length ||
+      card.agents.some((agent) => {
+        const endedMs = Date.parse(agent.ended_at ?? '');
+        return AGENT_OPEN.includes(agent.state)
+          ? !silent.has(agent.key)
+          : endedMs > landedMs && nowMs - endedMs <= doneMs;
+      })
+    ) {
       card.story = null;
     } else {
       cards.splice(cards.indexOf(card), 1);

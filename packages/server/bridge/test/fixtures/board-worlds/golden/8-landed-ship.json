@@ -82,6 +82,56 @@
               "url": null
             },
             "title": "Story of story-c"
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": null,
+                "gate": null,
+                "key": "dddddddd:ou-landed-d",
+                "kind": "author",
+                "model": null,
+                "name": "ou-landed-d",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "dddddddd",
+                "stale": false,
+                "started_at": "2026-10-26T13:05:00.000Z",
+                "state": "running",
+                "status": "working",
+                "summary": null,
+                "task": "build d"
+              }
+            ],
+            "ahead": null,
+            "branch": "feat/landed-d",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "working",
+            "detail": null,
+            "focus_session": null,
+            "from_backlog": [
+              {
+                "id": "bl_landedd",
+                "title": "Landed d"
+              }
+            ],
+            "id": "branch:acme/widgets@feat/landed-d",
+            "kind": "work",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/widgets",
+            "sessions": [],
+            "since": "2026-10-26T13:05:00.000Z",
+            "story": null,
+            "title": "Landed d"
           }
         ],
         "key": "acme/widgets",

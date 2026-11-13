@@ -1588,11 +1588,35 @@ async function record(
       },
     ];
   };
-  // a: landed 20 minutes ago: Done. b: landed 2 hours ago: gone. c: approved, not landed: still Ready to ship
+  // a: landed 20 minutes ago: Done. b: landed 2 hours ago, its only agent finished: gone. d: landed 2 hours ago with an
+  // agent still running: stays, without the story. c: approved, not landed: still Ready to ship
   const events = [
     ...landing('a', 'feat/landed-a', 'a'.repeat(40), new Date(NOW.getTime() - 20 * 60000)),
     ...landing('b', 'feat/landed-b', 'b'.repeat(40), new Date(NOW.getTime() - 2 * 3600000)),
+    ...landing('d', 'feat/landed-d', 'e'.repeat(40), new Date(NOW.getTime() - 2 * 3600000)),
   ];
+  const landedRuns = new AgentRegistry(home);
+  landedRuns.start({
+    sid: 'dddddddd',
+    name: 'ou-landed-b',
+    kind: 'author',
+    task: 'build b',
+    card: 'bl_landedb',
+    at: et(9, 5),
+  });
+  landedRuns.finish('ou-landed-b', {
+    sid: 'dddddddd',
+    result: { branch: 'feat/landed-b' },
+    at: et(9, 40),
+  });
+  landedRuns.start({
+    sid: 'dddddddd',
+    name: 'ou-landed-d',
+    kind: 'author',
+    task: 'build d',
+    card: 'bl_landedd',
+    at: et(9, 5),
+  });
   localStory(
     home,
     'story-c',

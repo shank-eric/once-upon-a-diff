@@ -167,7 +167,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
   const byStory = new Map<string, StoryFacts>(
     [...stories, ...localStoryList].map((story) => [story.id, story]),
   );
-  markLandedWorks(backlogItems, cards, nowMs, byStory);
+  markLandedWorks(backlogItems, cards, nowMs, byStory, agents);
 
   // the columns, now that every card has its sessions and agents
   placeCards(cards, byStory);

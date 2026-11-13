@@ -11,7 +11,7 @@ import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { AutoReview } from '@once-upon-a-diff/core/features/review/github-watcher';
 import { localEntries } from '@once-upon-a-diff/core/features/review/story-lists';
 import { columnOf } from '@once-upon-a-diff/board/columns';
-import { markLandedWorks } from '@once-upon-a-diff/board/stages/backlog';
+import { markLandedWorks, nestClaimedAgents } from '@once-upon-a-diff/board/stages/backlog';
 
 // The card's side of Approve: approving finishes the card's story run, and a fixer's finish carries the approval to its
 // commit. (The landed card going to Done is the 8-landed-ship board world.)
@@ -582,8 +582,8 @@ function landing(
   }
   const stories = new Map([['s1', { built_at: iso(over.built ?? START - 3 * HOUR) }]]);
   const cards = [card];
-  const run = (now: number) =>
-    markLandedWorks([item] as never, cards as never, now, stories as never);
+  const run = (now: number, agents: unknown[] = []) =>
+    markLandedWorks([item] as never, cards as never, now, stories as never, agents as never);
   return { card, cards, run };
 }
 
@@ -615,7 +615,7 @@ test('a story told or approved after the landing, or before the card started, is
   );
 });
 
-test('an hour after the landing the card leaves, unless a session or an agent is on it', () => {
+test('an hour after the landing the card leaves, unless a session or an unfinished agent is on it', () => {
   const alone = landing();
   alone.run(START + 2 * HOUR);
   assert.equal(alone.cards.length, 0);
@@ -623,7 +623,63 @@ test('an hour after the landing the card leaves, unless a session or an agent is
   busy.run(START + 2 * HOUR);
   assert.equal(busy.cards.length, 1);
   assert.equal((busy.card as { story: unknown }).story, null, 'without the landed story');
-  const running = landing({ card: { agents: [{ id: 'a' }] } });
+  const running = landing({ card: { agents: [{ id: 'a', state: 'running' }] } });
   running.run(START + 2 * HOUR);
   assert.equal(running.cards.length, 1);
+  const finished = landing({ card: { agents: [{ id: 'a', state: 'done' }] } });
+  finished.run(START + 2 * HOUR);
+  assert.equal(finished.cards.length, 0, 'an agent that is done does not hold it');
+});
+
+test('an agent that ended after the landing, within the hour, keeps the card a while longer', () => {
+  const ended = (when: number) => ({
+    key: 'aaaaaaaa:fix',
+    state: 'failed',
+    ended_at: iso(when),
+  });
+  const late = landing({ card: { agents: [ended(START + 90 * 60000)] } });
+  late.run(START + 2 * HOUR);
+  assert.equal(late.cards.length, 1, 'a failed fixer after the landing is still news');
+  assert.equal((late.card as { story: unknown }).story, null);
+  const old = landing({ card: { agents: [ended(START + 90 * 60000)] } });
+  old.run(START + 3 * HOUR);
+  assert.equal(old.cards.length, 0, 'an hour after it ended it leaves too');
+  const before = landing({ card: { agents: [ended(START - 40 * 60000)] } });
+  before.run(START + 2 * HOUR);
+  assert.equal(before.cards.length, 0, 'an agent that ended before the landing does not hold it');
+});
+
+test('a landed card whose item is still open shows its running agent', () => {
+  const item = {
+    id: 'bl_one',
+    state: 'open',
+    repo: 'acme/widgets',
+    branch: 'feature',
+    landed_at: iso(START),
+  };
+  const work = { kind: 'work', repo: 'acme/widgets', branch: 'feature', agents: [] as unknown[] };
+  const view = { key: 'aaaaaaaa:ou-x', name: 'ou-x', state: 'running' };
+  nestClaimedAgents([item] as never, [work] as never, new Map([['bl_one', [view]]]) as never);
+  assert.deepEqual(work.agents, [view]);
+  const unlanded = { ...work, agents: [] as unknown[] };
+  nestClaimedAgents(
+    [{ ...item, landed_at: null }] as never,
+    [unlanded] as never,
+    new Map([['bl_one', [view]]]) as never,
+  );
+  assert.equal(unlanded.agents.length, 0, 'an open item that has not landed nests nothing');
+});
+
+test('a forgotten waiting agent does not keep a landed card', () => {
+  const agent = { key: 'aaaaaaaa:ou-x', state: 'waiting', ended_at: null };
+  const quiet = landing({ card: { agents: [agent] } });
+  const now = START + 2 * HOUR;
+  const ledger = (since: number) => [
+    { sid: 'aaaaaaaa', name: 'ou-x', state: 'waiting', started: new Date(since), ended: null },
+  ];
+  quiet.run(now, ledger(now - 25 * HOUR));
+  assert.equal(quiet.cards.length, 0, 'silent for a day: left behind');
+  const recent = landing({ card: { agents: [agent] } });
+  recent.run(now, ledger(now - 2 * HOUR));
+  assert.equal(recent.cards.length, 1, 'a waiting agent that is still in touch holds it');
 });
