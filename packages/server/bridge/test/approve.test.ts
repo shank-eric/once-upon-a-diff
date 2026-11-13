@@ -306,6 +306,33 @@ test('once-upon approve approves at the current head, tells a story listener onl
   }
 });
 
+test('approve --undo writes no reviewed.json, and says so when there was no approval to clear', async () => {
+  const { home, id, bridge, store } = await setup();
+  try {
+    writeJson(path.join(home, 'config.json'), { port: 1, token: TOKEN });
+    const undone = await runCli(home, ['approve', id, '--undo']);
+    assert.equal(undone.code, 0, undone.stderr);
+    assert.match(undone.stdout, /has no approval to clear/);
+    assert.equal(store.readState(id, 'reviewed.json', null), null);
+
+    // the background check ended the approval of a shipped story and marked it `pr`: --undo leaves that mark alone
+    store.writeState(id, 'reviewed.json', { at: new Date().toISOString(), by: 'pr' });
+    const again = await runCli(home, ['approve', id, '--undo']);
+    assert.match(again.stdout, /has no approval to clear/);
+    assert.equal(store.readState<{ by: string } | null>(id, 'reviewed.json', null)?.by, 'pr');
+
+    // an approval that is there is cleared, with the mark approving wrote, and nothing is written in its place
+    store.writeState(id, 'reviewed.json', null);
+    assert.equal((await runCli(home, ['approve', id])).code, 0);
+    assert.equal(store.readState<{ by: string } | null>(id, 'reviewed.json', null)?.by, 'approved');
+    assert.match((await runCli(home, ['approve', id, '--undo'])).stdout, /approval cleared/);
+    assert.equal(store.readState(id, 'approved.json', null), null);
+    assert.equal(store.readState(id, 'reviewed.json', null), null);
+  } finally {
+    await bridge.close();
+  }
+});
+
 const squashed =
   (head: () => string): BranchCheck =>
   async () => ({

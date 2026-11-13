@@ -2,7 +2,7 @@
  * `once-upon approve ID [--undo]`: approve a local story from a session, for when you have said "approved" in
  * conversation. The same thing the story page's Approve button does (core/src/features/review/approve.ts), in-process: it approves
  * the story at its head as it is now, marks it reviewed, and appends the `approved` event a listening session hears.
- * --undo clears the approval.
+ * --undo clears the approval (and says so when there was none: it writes nothing then).
  */
 import { Inbox } from '@once-upon-a-diff/state/queues/requests/inbox';
 import { StoryStore } from '@once-upon-a-diff/stories/store';
@@ -32,8 +32,11 @@ function approve(home: string, cfg: Config, opts: CliOpts) {
     throw new Error(`no local story ${id} (once-upon list shows them)`);
   }
   if (opts.undo) {
-    clearApproval(stories, id);
-    return out(`${id} approval cleared: ${story.title}`);
+    // false when there was no approval to clear (a shipped story's approval is ended by the background check, which marks it `pr` or `delivered`)
+    const cleared = clearApproval(stories, id);
+    return out(
+      `${id} ${cleared ? 'approval cleared' : 'has no approval to clear'}: ${story.title}`,
+    );
   }
   const meta = refreshLocal(dir, readMeta(dir) as LocalMeta);
   if (!meta.head_oid) {
