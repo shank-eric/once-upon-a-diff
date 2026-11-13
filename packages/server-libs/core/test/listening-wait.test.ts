@@ -7,6 +7,7 @@ import { githubStory } from '@once-upon-a-diff/test-kit/stories';
 import { Inbox } from '@once-upon-a-diff/state/queues/requests/inbox';
 import { markQuestions, noteHanded } from '@once-upon-a-diff/state/queues/requests/conversation';
 import { Listening } from '../src/features/listeners/service.ts';
+import { pollMsOf } from '../src/features/listeners/wait.ts';
 import { handOverLines, stoppedEvent, stoppedLines } from '../src/features/listeners/hand-over.ts';
 
 // `wait` as the service returns it, with no process to run: what it took, or why it stopped. The text a session reads
@@ -137,4 +138,25 @@ test('the stop notice, in words and as the --json event', () => {
     reason: 'because',
     at: '1970-01-01T00:00:00.000Z',
   });
+});
+
+test('a poll of a finite number from 10 ms to an hour is kept, anything else is the 2 s default', () => {
+  assert.equal(pollMsOf(0.2), 200);
+  assert.equal(pollMsOf(2), 2000);
+  assert.equal(pollMsOf(3600), 3_600_000);
+  for (const bad of [
+    undefined,
+    NaN,
+    0,
+    -1,
+    Infinity,
+    -Infinity,
+    0.0001,
+    0.009,
+    3601,
+    2147484,
+    1e12,
+  ]) {
+    assert.equal(pollMsOf(bad), 2000, String(bad));
+  }
 });

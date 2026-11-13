@@ -65,6 +65,8 @@ export interface WaitOptions {
   timeout?: Flag;
   noAutoStop?: boolean;
   noRelay?: boolean;
+  /** seconds between looks at the inbox when nothing has changed (default 2); tests shorten it so a short --timeout ends at once */
+  pollSeconds?: number;
   cwd: string;
 }
 
@@ -95,6 +97,15 @@ export type WaitOutcome =
 
 const BEAT_MS = 5000;
 const POLL_MS = 2000;
+
+/**
+ * The poll in ms from a seconds value: only a finite number from 10 ms to an hour counts, anything else (NaN, Infinity,
+ * 0, a negative, a delay setTimeout would clamp to 1 ms) is the default, so a bad ONCE_UPON_WAIT_POLL cannot spin the wait.
+ */
+export function pollMsOf(seconds: number | undefined): number {
+  const millis = seconds === undefined ? NaN : Math.round(seconds * 1000);
+  return Number.isFinite(millis) && millis >= 10 && millis <= 3_600_000 ? millis : POLL_MS;
+}
 
 /** One listener per repo or story: its own cursor and heartbeat unless --consumer says otherwise. */
 function consumerOf(opts: { consumer?: Flag; story?: Flag; repo?: Flag }): string {
@@ -194,8 +205,8 @@ function noteCheckout(home: string, repo: string, cwd: string): void {
   }
 }
 
-/** Resolves when the inbox file changes, or after POLL_MS. */
-const inboxChange = (file: string) =>
+/** Resolves when the inbox file changes, or after `pollMs`. */
+const inboxChange = (file: string, pollMs: number) =>
   new Promise<void>((resolve) => {
     const watcher = watch(file, () => {
       watcher.close();
@@ -204,7 +215,7 @@ const inboxChange = (file: string) =>
     setTimeout(() => {
       watcher.close();
       resolve();
-    }, POLL_MS);
+    }, pollMs);
   });
 
 /** What to print for what was handed over: each entry with its relay (if its story's agent takes it) and its lines. */
@@ -256,6 +267,7 @@ export async function wait(home: string, opts: WaitOptions): Promise<WaitOutcome
     // the beat says it takes fix requests, so the panel names this session on Send
     ...(takesFixes ? { fixes: true } : {}),
   };
+  const pollMs = pollMsOf(opts.pollSeconds);
   const deadline = opts.timeout ? Date.now() + Number(opts.timeout) * 1000 : Infinity;
   // a story's wait ends on its own once no page has shown the story for the idle window
   const autoStop =
@@ -399,7 +411,7 @@ export async function wait(home: string, opts: WaitOptions): Promise<WaitOutcome
         logStop(home, `${consumer} stopped listening for ${repoStop!.repo}: ${repoReason}`);
         return { kind: 'stopped', scope: { repo: repoStop!.repo }, reason: repoReason };
       }
-      await inboxChange(messages.file);
+      await inboxChange(messages.file, pollMs);
     }
   } finally {
     clearInterval(heartbeat); // an error mustn't leave the heartbeat running

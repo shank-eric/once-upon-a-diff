@@ -197,20 +197,6 @@ test('an editor with no --slots has three; slots are for an editor only, 1 to 99
   assert.throws(() => registry.start({ ...build('ou-a'), slots: 3 }), /slots/);
 });
 
-test('a silent author is no author: one with no event for a day is likely dead, a beat is a sign of life', async () => {
-  const { registry, live, snapshot } = world();
-  registry.start({ ...EDITOR, at: ago(3000) });
-  live(EDITOR_SESSION);
-  registry.start({ ...build('ou-silent'), at: ago(30 * 60) });
-  registry.start({ ...build('ou-beating'), at: ago(31 * 60) });
-  registry.beat('ou-beating', { n: 2, of: 6, step: 'read', at: ago(20 * 60) });
-  const [editor] = (await snapshot()).editors;
-  assert.deepEqual(
-    editor.authors.map((one) => one.name),
-    ['ou-beating'],
-  );
-});
-
 test('a resumed author for a fix round is an author again once the editor starts it again; its earlier run is kept', async () => {
   const home = tmp('editors-fix-home');
   const env = { CLAUDE_CODE_SESSION_ID: EDITOR_SESSION };

@@ -58,6 +58,17 @@ export type { AgentRun } from '@once-upon-a-diff/state/test/helpers';
 
 const BIN = fileURLToPath(new URL('../bin/once-upon.mjs', import.meta.url));
 
+/**
+ * What a test's CLI spawn gets so it starts and waits faster, neither changing what the CLI prints: Node's compile cache (a
+ * folder in the OS temp dir, shared by the spawns of every test file and kept between runs: the TypeScript load is most of a
+ * spawn's 0.3 s CPU), and a 0.2 s inbox poll for `wait`, which polls every 2 s in production, so a `--timeout 1` wait ends
+ * at its second. A test of the production poll passes its own `ONCE_UPON_WAIT_POLL`.
+ */
+export const FAST_CLI_ENV = {
+  NODE_COMPILE_CACHE: path.join(os.tmpdir(), 'once-upon-test-compile-cache'),
+  ONCE_UPON_WAIT_POLL: '0.2',
+};
+
 export const TOKEN = 'test-token-0123456789abcdef';
 
 /** A bridge on a random port with the test token, and `call` for its API: the answer's JSON is T, as the test expects it. */
@@ -125,7 +136,7 @@ export const runCli = (
     const child = execFile(
       process.execPath,
       [BIN, ...args],
-      { env: { ...process.env, ONCE_UPON_HOME: home, ...env }, cwd },
+      { env: { ...process.env, ...FAST_CLI_ENV, ONCE_UPON_HOME: home, ...env }, cwd },
       (err, stdout, stderr) => resolve({ code: err ? err.code : 0, stdout, stderr }),
     );
     // `input` is the run's stdin (a flag that reads `-`); the run's argv stays short, as long text must

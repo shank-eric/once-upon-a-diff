@@ -22,7 +22,7 @@ import { dirOf } from '../../../../../../configs/layers.mjs';
 import { fileURLToPath } from 'node:url';
 import { voiceState } from '@once-upon-a-diff/adapters/larmor';
 import { runCommand } from '@once-upon-a-diff/adapters/os';
-import { fakeLarmorIn } from '../fake-larmor.ts';
+import { fakeLarmorIn } from '@once-upon-a-diff/test-kit/fake-larmor';
 import path from 'node:path';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../../..');

@@ -66,6 +66,8 @@ async function wait(home: string, cfg: Config, opts: CliOpts) {
     timeout: flag(opts.timeout),
     noAutoStop: !!opts['no-auto-stop'],
     noRelay: !!opts['no-relay'],
+    // ONCE_UPON_WAIT_POLL (seconds) is for tests: a wait with a short --timeout then ends within it, not a whole 2 s poll later
+    pollSeconds: Number(process.env.ONCE_UPON_WAIT_POLL) || undefined,
     cwd: process.cwd(),
   });
   if (outcome.kind === 'timeout') {

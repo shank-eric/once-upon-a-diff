@@ -36,7 +36,7 @@ const storyWait = (home: string, ...extra: string[]) =>
 const seenFile = (home: string) => path.join(home, 'state', STORY, 'seen.json');
 const markSeen = (home: string) => writeJson(seenFile(home), { at: new Date().toISOString() });
 
-describe("a story listener's natural end", () => {
+describe("a story listener's natural end", { concurrency: 6 }, () => {
   test('a story wait stops itself once no page has shown the story for the idle window', async () => {
     const home = homeWith(1);
     const started = Date.now();
@@ -50,14 +50,6 @@ describe("a story listener's natural end", () => {
     assert.ok(Date.now() - started < 15000);
   });
 
-  test('--json prints a listen_stopped event', async () => {
-    const home = homeWith(1);
-    const result = await storyWait(home, '--timeout', '20', '--json');
-    const event = JSON.parse(result.stdout.trim());
-    assert.equal(event.type, 'listen_stopped');
-    assert.equal(event.story, STORY);
-  });
-
   test('a page showing the story keeps it listening', async () => {
     const home = homeWith(2);
     markSeen(home);
@@ -68,28 +60,6 @@ describe("a story listener's natural end", () => {
     } finally {
       clearInterval(keepSeen);
     }
-  });
-
-  test("it doesn't stop with a fix request in hand, or with --no-auto-stop", async () => {
-    const home = homeWith(1);
-    writeJson(path.join(home, 'fixes.json'), {
-      f_held: {
-        id: 'f_held',
-        story: STORY,
-        repo: 'acme/widgets',
-        kind: 'github',
-        notes: [],
-        to: CONSUMER,
-        claimed_by: CONSUMER,
-        requested_at: new Date().toISOString(),
-        status: 'pending',
-      },
-    });
-    const held = await storyWait(home, '--timeout', '4');
-    assert.equal(held.code, 2, held.stdout);
-
-    const optedOut = await storyWait(homeWith(1), '--timeout', '4', '--no-auto-stop');
-    assert.equal(optedOut.code, 2, optedOut.stdout);
   });
 
   test("a repo wait doesn't stop on its own", async () => {

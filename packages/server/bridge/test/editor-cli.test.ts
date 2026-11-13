@@ -54,51 +54,6 @@ test('agent start --kind editor is refused and names editor start', async () => 
   assert.deepEqual(new AgentRegistry(home).agents(), []);
 });
 
-test('editor slots --json counts the editor’s running, plan and fixing authors and no one else’s', async () => {
-  const home = tmp('editor-cli-slots');
-  assert.equal((await editor(home, 'start', '--slots', '3')).code, 0);
-  for (const name of ['ou-a', 'ou-b', 'ou-c']) {
-    assert.equal(
-      (await agent(home, 'start', name, '--kind', 'author', '--branch', name, '--task', name)).code,
-      0,
-    );
-  }
-  assert.equal((await agent(home, 'state', 'ou-b', '--state', 'plan')).code, 0);
-  assert.equal((await agent(home, 'state', 'ou-c', '--state', 'waiting')).code, 0);
-  assert.equal(
-    (
-      await agent(
-        home,
-        'start',
-        'ou-x',
-        '--kind',
-        'author',
-        '--branch',
-        'ou-x',
-        '--sid',
-        '12345678',
-        '--task',
-        'x',
-      )
-    ).code,
-    0,
-  );
-  const slots = await editor(home, 'slots', '--json');
-  assert.equal(slots.code, 0, slots.stderr);
-  const found = JSON.parse(slots.stdout);
-  assert.equal(found.sid, SID);
-  assert.equal(found.slots, 3);
-  assert.equal(found.in_use, 2);
-  assert.equal(found.free, 1);
-  assert.deepEqual(found.authors.map((one: { name: string }) => one.name).sort(), [
-    'ou-a',
-    'ou-b',
-    'ou-c',
-  ]);
-  const text = await editor(home, 'slots');
-  assert.match(text.stdout, /2 of 3 slots in use/);
-});
-
 test('editor slots is the board’s in_use for the same store', async () => {
   const home = tmp('editor-cli-board');
   const sessions = tmp('editor-cli-board-live');
@@ -123,6 +78,11 @@ test('editor slots is the board’s in_use for the same store', async () => {
   assert.equal(data.editors[0].in_use, 2);
   assert.equal(cli.in_use, data.editors[0].in_use);
   assert.equal(cli.slots, data.editors[0].slots);
+  // the command's own answer: the editor's session, the free slots and its authors by name, and the one-line text
+  assert.equal(cli.sid, SID);
+  assert.equal(cli.free, 2);
+  assert.deepEqual(cli.authors.map((one: { name: string }) => one.name).sort(), ['ou-a', 'ou-b']);
+  assert.match((await editor(home, 'slots')).stdout, /2 of 4 slots in use/);
 });
 
 test('editor slots exits non-zero when the editor is not registered', async () => {

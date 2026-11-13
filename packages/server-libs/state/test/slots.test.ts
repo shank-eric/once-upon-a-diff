@@ -65,17 +65,16 @@ test('running, plan and fixing authors hold a slot; waiting, review and finished
   ]);
 });
 
-test('an author silent for a day is dead and holds nothing; another editor session’s author is not this editor’s', () => {
-  const { author, answer } = world();
+test('an author silent for a day is dead and holds nothing, a beat is a sign of life; another editor session’s author is not this editor’s', () => {
+  const { registry, author, answer } = world();
   author('ou-silent', EDITOR_SID, 30 * 60);
+  author('ou-beating', EDITOR_SID, 31 * 60);
+  registry.beat('ou-beating', { n: 2, of: 6, step: 'read', at: ago(20 * 60) });
   author('ou-other', '22222222');
   author('ou-live');
   const found = answer();
-  assert.deepEqual(
-    found.authors.map((one) => one.name),
-    ['ou-live'],
-  );
-  assert.equal(found.free, 2);
+  assert.deepEqual(found.authors.map((one) => one.name).sort(), ['ou-beating', 'ou-live']);
+  assert.equal(found.free, 1);
 });
 
 test('an author launched from another session is the editor’s when the editor’s session claimed its card', () => {
