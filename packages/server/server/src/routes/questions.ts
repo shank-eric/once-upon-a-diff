@@ -59,7 +59,7 @@ function storyQuestions(call: Call, story: ServedStory) {
   if (req.method === 'GET') {
     return send(200, { questions: questionsOf(app, story) });
   }
-  const { text, step, chapter, file, url } = parseBody('questionAsk', body);
+  const { text, step, chapter, chapter_key, file, url } = parseBody('questionAsk', body);
   if (!text.trim()) {
     throw new HttpError(400, 'text is required');
   }
@@ -69,6 +69,7 @@ function storyQuestions(call: Call, story: ServedStory) {
     ...story.ref,
     step,
     chapter,
+    chapter_key,
     file,
     text: text.trim(),
     url,

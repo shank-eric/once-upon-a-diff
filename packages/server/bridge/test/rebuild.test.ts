@@ -6,6 +6,7 @@ import { tmp, writeJson, githubStory, startBridge, runCli, localRepo } from './h
 import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
 import { Inbox } from '@once-upon-a-diff/state/queues/requests/inbox';
 import { withMarks } from '@once-upon-a-diff/state/queues/requests/conversation';
+import { chapterKeyOf } from '@once-upon-a-diff/terms/chapters';
 import { parseUnifiedDiff } from '@once-upon-a-diff/stories/diff';
 import { noteRead, readReads } from '@once-upon-a-diff/stories/reads';
 import { createLocalStory } from '@once-upon-a-diff/stories/local-story';
@@ -224,6 +225,84 @@ describe('the rebuild rules', () => {
   });
 });
 
+describe('questions after a "Since you read it" update', () => {
+  // an update put S first: the story the reader sees is [S, A, B], and a question asked on B has step 2 still
+  const since = {
+    title: 'Since you read it',
+    key: 'since',
+    since: { head: 'x' },
+    files: ['src/g.ts'],
+  };
+  const chapterA = { title: 'Chapter 1: A', key: 'a', files: ['src/a.js'] };
+  const chapterB = { title: 'Chapter 2: B', key: 'b', files: ['src/g.ts'] };
+  const plan = (chapters: object[]) => ({ chapters }) as Plan;
+
+  test('a question is read on the chapter its key names, not the one its stale step points at', () => {
+    const before = plan([since, chapterA, chapterB]);
+    const after = plan([since, chapterA, { ...chapterB, title: 'Chapter 2: B again' }]);
+    const stale = { id: 'q1', step: 2, chapter_key: 'b', file: 'src/g.ts' };
+    assert.deepEqual(questionMoves([stale], before, after, 1), {}, 'B still tells g.ts: no move');
+    assert.deepEqual(
+      questionMoves([stale], before, plan([since, chapterA, { ...chapterB, key: 'b2' }]), 1),
+      { q1: 1 },
+      'its chapter is gone: the first chapter that tells g.ts',
+    );
+    assert.deepEqual(
+      questionMoves([{ ...stale, step: 3 }], before, plan([since, chapterA, chapterB]), 3),
+      {},
+      'rebuild_from skips by the chapter it is on (3), not by the stale step',
+    );
+    assert.deepEqual(
+      questionMoves(
+        [{ id: 'q2', step: 2, file: 'src/a.js' }],
+        before,
+        plan([since, chapterA, chapterB]),
+        1,
+      ),
+      {},
+      'a question with no key reads its step',
+    );
+  });
+
+  test('a moved question keeps its chapter through a later update that inserts one first', async () => {
+    const home = tmp('home');
+    const src = tmp('scratch');
+    githubStory(src, { meta: { head_oid: 'a'.repeat(40) } });
+    writeFileSync(path.join(src, 'pr.diff'), PR_DIFF);
+    writeJson(path.join(src, 'chapters.json'), published());
+    await runCli(home, ['publish', '--dir', src]);
+    new Inbox(home).append({
+      type: 'question',
+      id: 'q_big',
+      story: STORY_ID,
+      step: 2,
+      chapter_key: 'finish',
+      file: 'src/big.js',
+      text: 'Why?',
+    });
+    new Builds(home).requestRebuild({
+      story: STORY_ID,
+      meta: { kind: 'github', repo: 'acme/widgets', number: 7, head_oid: 'a'.repeat(40) },
+      mode: 'rebuild_from',
+      from_step: 2,
+      chapters: 2,
+    });
+    writeJson(path.join(src, 'chapters.json'), retoldFromTwo());
+    const ok = await runCli(home, ['publish', '--dir', src]);
+    assert.equal(ok.code, 0, ok.stderr);
+    const [moved] = withMarks(home, STORY_ID, new Inbox(home).questions(STORY_ID));
+    assert.equal(moved.step, 3);
+    // the story as an update leaves it: a chapter first, so the big file is the fourth chapter now
+    const chapters = [{ title: 'Since you read it', key: 'since' }, ...retoldFromTwo().chapters];
+    // the panel resolves a question's chapter_key against the chapters it is shown now (questionStepOf)
+    assert.equal(
+      chapters.findIndex((chapter) => chapterKeyOf(chapter) === moved.chapter_key) + 1,
+      4,
+      'still on the chapter it was moved to',
+    );
+  });
+});
+
 describe('asking for a rebuild', () => {
   const scratchFor = () => {
     const src = tmp('scratch');
@@ -320,6 +399,7 @@ describe('asking for a rebuild', () => {
       id: 'q_big',
       story: STORY_ID,
       step: 2,
+      chapter_key: 'big',
       file: 'src/big.js',
       text: 'Why?',
     });
@@ -378,6 +458,11 @@ describe('asking for a rebuild', () => {
     const [question] = withMarks(home, STORY_ID, inbox.questions(STORY_ID));
     assert.equal(question.step, 3, 'the question follows big.js to chapter 3');
     assert.equal(question.asked_on, 2);
+    assert.equal(
+      question.chapter_key,
+      'the big file',
+      'the move names the chapter it went to, so a later update leaves it there',
+    );
     const reads = readReads(home, 'pr-acme-widgets-7');
     assert.ok(reads.start, 'a kept chapter keeps its read');
     assert.equal(reads.finish, undefined);

@@ -188,7 +188,7 @@ export function createQuestions(context: PanelContext) {
       .join(' · ');
     const classes = [
       'ou-qa',
-      askedOnStep(question, state.n) && 'ou-qa-here',
+      askedOnStep(question, state.n, context.steps()) && 'ou-qa-here',
       collapsed && 'ou-qa-collapsed',
       question.dismissed && 'ou-qa-dismissed',
       question.unread && 'ou-qa-new',
@@ -527,6 +527,7 @@ export function createQuestions(context: PanelContext) {
         text,
         step: state.n,
         chapter: context.navigation.stepLabel(),
+        chapter_key: context.chapter()?.key ?? null,
         file: context.navigation.topFile || context.page.fileAtTop(),
       });
       // what was typed while the question was out stays (and stays kept)

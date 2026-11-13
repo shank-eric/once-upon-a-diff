@@ -7,6 +7,8 @@
 export interface PanelUi {
   /** the step: 0 is the Overview, 1..N the chapters */
   n: number;
+  /** the step's chapter key ('' is the Overview), so the place survives a chapter inserted first; absent in a place saved before keys: use `n` */
+  key?: string;
   /** Show all files */
   all: boolean;
   collapsed: boolean;

@@ -569,7 +569,43 @@ describe('questions by voice', () => {
     const [question] = new Inbox(home).questions(STORY);
     assert.equal(question.id, id);
     assert.equal(question.channel, 'voice');
+    assert.equal(question.chapter_key, null, 'no --step: no chapter');
     assert.equal((await runCli(home, ['ask', '--story', STORY, '--text', ' '])).code, 1);
+    const onTwo = await runCli(home, [
+      'ask',
+      '--story',
+      STORY,
+      '--text',
+      'And here?',
+      '--step',
+      '2',
+    ]);
+    assert.equal(onTwo.code, 0, onTwo.stderr);
+    const stamped = new Inbox(home)
+      .questions(STORY)
+      .find((entry) => entry.id === onTwo.stdout.trim());
+    assert.deepEqual(
+      [stamped?.step, stamped?.chapter_key],
+      [2, 'finish'],
+      'stamped with the chapter key',
+    );
+    const noChapter = await runCli(home, [
+      'ask',
+      '--story',
+      STORY,
+      '--text',
+      'Past the end?',
+      '--step',
+      '9',
+    ]);
+    const past = new Inbox(home)
+      .questions(STORY)
+      .find((entry) => entry.id === noChapter.stdout.trim());
+    assert.deepEqual(
+      [past?.step, past?.chapter_key],
+      [9, null],
+      'a chapter it cannot read leaves the key off',
+    );
     assert.equal((await runCli(home, ['ask', '--story', 'nope-1', '--text', 'x'])).code, 1);
 
     const [handed] = await waitJson(

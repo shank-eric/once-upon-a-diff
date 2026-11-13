@@ -79,6 +79,9 @@ test('the panel’s state keeps the numbers whole and the flags true or false', 
     chatHeight: null,
   });
   assert.equal(ok('ui', {})!.n, 0);
+  assert.equal(ok('ui', { n: 2, key: 'loader' })!.key, 'loader');
+  assert.equal(ok('ui', { n: 0, key: '' })!.key, '', 'the Overview survives');
+  assert.equal('key' in ok('ui', { n: 2 })!, false, 'absent stays absent');
 });
 
 test('a question needs its text, and is clipped where the bridge always clipped it', () => {
@@ -87,11 +90,14 @@ test('a question needs its text, and is clipped where the bridge always clipped 
   const out = ok('questionAsk', {
     text: 'x'.repeat(9000),
     chapter: 'c'.repeat(400),
+    chapter_key: 'k'.repeat(300),
     step: 2,
     file: null,
   })!;
   assert.equal(out.text.length, 8000);
   assert.equal(out.chapter!.length, 300);
+  assert.equal(out.chapter_key!.length, 200);
+  assert.equal(ok('questionAsk', { text: 'x' })!.chapter_key, null);
   assert.equal(out.file, null);
   assert.equal(out.url, null);
   assert.equal(out.step, 2);

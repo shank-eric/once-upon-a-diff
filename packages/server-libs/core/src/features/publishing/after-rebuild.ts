@@ -1,5 +1,6 @@
 import { Inbox } from '@once-upon-a-diff/state/queues/requests/inbox';
-import { moveQuestions } from '@once-upon-a-diff/state/queues/requests/conversation';
+import { moveQuestions, readQaMarks } from '@once-upon-a-diff/state/queues/requests/conversation';
+import { chapterKeyOf } from '@once-upon-a-diff/terms/chapters';
 import { readReads, retireReads } from '@once-upon-a-diff/stories/reads';
 import {
   firstRetold,
@@ -33,8 +34,24 @@ export function afterRebuild(
   },
 ): string {
   const from = firstRetold(build);
-  const moves = questionMoves(new Inbox(home).questions(id), before, after, from);
-  moveQuestions(home, id, moves);
+  // a question an earlier rebuild moved is on the chapter that move named, not the one it was asked on
+  const marks = readQaMarks(home, id);
+  const questions = new Inbox(home).questions(id).map((question) =>
+    question.id in marks.moved
+      ? {
+          ...question,
+          step: marks.moved[question.id],
+          chapter_key: marks.moved_key?.[question.id] || null,
+        }
+      : question,
+  );
+  const moves = questionMoves(questions, before, after, from);
+  const keys = Object.fromEntries(
+    Object.entries(moves)
+      .filter(([, step]) => step > 0)
+      .map(([question, step]) => [question, chapterKeyOf((after.chapters || [])[step - 1])]),
+  );
+  moveQuestions(home, id, moves, keys);
   const retired = retireReads(
     home,
     stateKey,

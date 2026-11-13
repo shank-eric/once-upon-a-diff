@@ -5,7 +5,7 @@
  * `id`, `at` (ISO time), `type` and `story`. The format of each entry is the contracts package's
  * (contracts/src/files/schemas.ts); a line that isn't one of the types below is skipped.
  *
- *   {"type":"question","id":"q_…","story":"octo-org-web-app-42","step":2,"chapter":"Chapter 2: …","file":"…","text":"…","url":"…"}
+ *   {"type":"question","id":"q_…","story":"octo-org-web-app-42","step":2,"chapter":"Chapter 2: …","chapter_key":"loader","file":"…","text":"…","url":"…"}
  *   {"type":"answer","id":"a_…","question":"q_…","story":"…","text":"markdown","by":"<the consumer that answered>"}
  *   {"type":"note","story":"…","note":{"id":"n_…","path":"…","side":"R","line":12,"body":"…"}}
  *   {"type":"read","story":"…","chapter":"<chapter key>","step":2,"title":"Chapter 2: …","head_sha":"…","story_head":"…","reason":"time|viewed|inferred"}
@@ -50,6 +50,7 @@ export interface QuestionWithAnswers {
   story: string;
   step: number | null;
   chapter: string | null;
+  chapter_key: string | null;
   file: string | null;
   text: string;
   channel: 'voice' | null;
@@ -164,6 +165,7 @@ export class Inbox {
           story: e.story,
           step: e.step ?? null,
           chapter: e.chapter || null,
+          chapter_key: e.chapter_key || null,
           file: e.file || null,
           text: e.text,
           channel: e.channel === 'voice' ? 'voice' : null,

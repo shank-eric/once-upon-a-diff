@@ -902,6 +902,34 @@
       },
       "default": 0
      },
+     "key": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(string | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "string",
+       "expects": "string",
+       "async": false,
+       "pipe": [
+        {
+         "kind": "schema",
+         "type": "string",
+         "expects": "string",
+         "async": false
+        },
+        {
+         "kind": "transformation",
+         "type": "transform",
+         "async": false,
+         "operation": {
+          "function": "(value)=>value.slice(0,200)"
+         }
+        }
+       ]
+      }
+     },
      "all": {
       "kind": "schema",
       "type": "optional",
@@ -1620,6 +1648,47 @@
       "default": null
      },
      "chapter": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "((string | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "(string | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       },
+       "pipe": [
+        {
+         "kind": "schema",
+         "type": "nullable",
+         "expects": "(string | null)",
+         "async": false,
+         "wrapped": {
+          "kind": "schema",
+          "type": "string",
+          "expects": "string",
+          "async": false
+         }
+        },
+        {
+         "kind": "transformation",
+         "type": "transform",
+         "async": false,
+         "operation": {
+          "function": "(value)=>(value==null?null:value.slice(0,max))"
+         }
+        }
+       ]
+      },
+      "default": null
+     },
+     "chapter_key": {
       "kind": "schema",
       "type": "optional",
       "expects": "((string | null) | undefined)",

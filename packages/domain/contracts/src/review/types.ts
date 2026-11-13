@@ -19,6 +19,8 @@ export interface Question {
   id: string;
   at: string;
   step: number;
+  /** the key of the chapter it was asked on, so it keeps that chapter when one is inserted first; none on an old row (use `step`) */
+  chapter_key?: string | null;
   text: string;
   file: string | null;
   dismissed?: boolean;
@@ -62,6 +64,7 @@ export interface QuestionAsk {
   text: string;
   step: number;
   chapter: string;
+  chapter_key?: string | null;
   file: string | null;
 }
 

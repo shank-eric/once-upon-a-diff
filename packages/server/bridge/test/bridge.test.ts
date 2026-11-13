@@ -42,6 +42,7 @@ type StoryListItem = Omit<ReturnType<StoryStore['list']>[number], 'dir'>;
 /** The panel's state as POST .../ui saves it. */
 type SavedUi = {
   n: number;
+  key?: string;
   all: boolean;
   collapsed: boolean;
   width: number | null;
@@ -281,6 +282,7 @@ describe('GitHub stories', () => {
         text: '  Why is a.js split?  ',
         step: 1,
         chapter: 'Chapter 1: Start',
+        chapter_key: 'start',
         file: 'src/a.js',
         url: 'https://github.com/acme/widgets/pull/7/changes',
       },
@@ -320,6 +322,16 @@ describe('GitHub stories', () => {
     const back = body.questions.find((entry) => entry.id === question.body.id);
     assert.equal(back!.answers.length, 1);
     assert.equal(back!.answers[0].text, 'Because **chapter 2** finishes it.');
+    assert.equal(back!.chapter_key, 'start');
+    const old = await bridge.call<QuestionEntry>('POST', '/api/stories/acme-widgets-7/questions', {
+      text: 'No key',
+      step: 1,
+    });
+    const list = await bridge.call<{ questions: Question[] }>(
+      'GET',
+      '/api/stories/acme-widgets-7/questions',
+    );
+    assert.equal(list.body.questions.find((entry) => entry.id === old.body.id)!.chapter_key, null);
   });
 
   test('positions are kept in position.json, not the inbox', async () => {
@@ -343,11 +355,13 @@ describe('GitHub stories', () => {
   test('keeps the panel state per story', async () => {
     await bridge.call<SavedUi>('POST', '/api/stories/acme-widgets-7/ui', {
       n: 2,
+      key: 'loader',
       collapsed: true,
       width: 500,
     });
     const { body } = await bridge.call<SavedUi>('GET', '/api/stories/acme-widgets-7/ui');
     assert.equal(body.n, 2);
+    assert.equal(body.key, 'loader');
     assert.equal(body.collapsed, true);
     assert.equal(body.width, 500);
   });

@@ -4,7 +4,7 @@
  * which listener a question goes to.
  *
  *   <home>/state/<story id>/questions.json   {dismissed: {<question id>: at}, collapsed: {<question id>: true},
- *                                             moved: {<question id>: step}, read: {<question id>: when its answer was last read}}
+ *                                             moved: {<question id>: step}, moved_key: {<question id>: chapter key}, read: {<question id>: when its answer was last read}}
  *
  * `moved` is where a rebuild put a question asked on a chapter it re-told (0: the Overview), so it shows with the
  * chapter that tells its file now (stories/src/rebuild.ts).
@@ -31,6 +31,8 @@ export interface QaMarks {
   dismissed: Record<string, string>;
   collapsed: Record<string, boolean>;
   moved: Record<string, number>;
+  /** the key of the chapter each moved question went to, so a later update that inserts a chapter first leaves it there; none on an old mark (use `moved`) */
+  moved_key?: Record<string, string>;
   /** when the reviewer last read each question's answer: an answer newer than this is unread */
   read: Record<string, string>;
   /** Mark unread was clicked: looking at the answer doesn't read it again until Mark read or Mark all read */
@@ -65,18 +67,35 @@ export function readQaMarks(home: string, story: string | null | undefined): QaM
     dismissed: saved.dismissed || {},
     collapsed: saved.collapsed || {},
     moved: saved.moved || {},
+    ...(saved.moved_key ? { moved_key: saved.moved_key } : {}),
     read: saved.read || {},
     held: saved.held || {},
   };
 }
 
-/** A rebuild moved these questions: {<question id>: step}. */
-export function moveQuestions(home: string, story: string, moves: Record<string, number>): void {
+/** A rebuild moved these questions: {<question id>: step}, and `keys` is the key of the chapter each went to (none for the Overview). */
+export function moveQuestions(
+  home: string,
+  story: string,
+  moves: Record<string, number>,
+  keys: Record<string, string> = {},
+): void {
   if (!Object.keys(moves).length || !STORY_ID_RE.test(String(story || ''))) {
     return;
   }
   const marks = readQaMarks(home, story);
   Object.assign(marks.moved, moves);
+  const moveKeys = marks.moved_key || {};
+  for (const id of Object.keys(moves)) {
+    if (keys[id]) {
+      moveKeys[id] = keys[id];
+    } else {
+      delete moveKeys[id];
+    }
+  }
+  if (Object.keys(moveKeys).length) {
+    marks.moved_key = moveKeys;
+  }
   writeJsonAtomic(stateFileToWrite(home, story, MARKS), marks);
 }
 
@@ -291,7 +310,12 @@ export function statusOf(
  * it was asked on as `asked_on`.
  */
 export function withMarks<
-  Q extends { id: string; step?: number | null; answers: { at: string }[] },
+  Q extends {
+    id: string;
+    step?: number | null;
+    chapter_key?: string | null;
+    answers: { at: string }[];
+  },
 >(home: string, story: string, questions: Q[], now = Date.now()) {
   const marks = readQaMarks(home, story);
   const handed = readHanded(home);
@@ -305,7 +329,11 @@ export function withMarks<
   return questions.map((question) => ({
     ...question,
     ...(question.id in marks.moved
-      ? { step: marks.moved[question.id], asked_on: question.step ?? null }
+      ? {
+          step: marks.moved[question.id],
+          asked_on: question.step ?? null,
+          chapter_key: marks.moved_key?.[question.id] || null,
+        }
       : {}),
     dismissed: !!marks.dismissed[question.id],
     collapsed: !!marks.collapsed[question.id],

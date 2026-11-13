@@ -232,6 +232,7 @@ const InboxEntrySchema = variant('type', [
     story: string(),
     step: lenient(number()),
     chapter: lenient(string()),
+    chapter_key: lenient(string()),
     file: lenient(string()),
     text: string(),
     url: lenient(string()),

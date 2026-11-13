@@ -484,7 +484,15 @@ await test('flow-ask', async () => {
     check('flow-ask', panel.shot());
     assert.deepEqual(
       panel.calls.filter((call) => call[0] === 'ask').map((call) => call[1]),
-      [{ text: 'Why this?', step: 2, chapter: 'Chapter 2: Finish', file: 'src/a.ts' }],
+      [
+        {
+          text: 'Why this?',
+          step: 2,
+          chapter: 'Chapter 2: Finish',
+          chapter_key: 'c2',
+          file: 'src/a.ts',
+        },
+      ],
     );
     assert.equal(text.value, '');
   } finally {

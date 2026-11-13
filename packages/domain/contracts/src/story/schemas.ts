@@ -33,6 +33,13 @@ export const STORY_BODIES = {
       ),
       0,
     ),
+    // absent stays absent ('' is the Overview), unlike `clipped`, which turns absent into null
+    key: optional(
+      pipe(
+        string(),
+        transform((value) => value.slice(0, 200)),
+      ),
+    ),
     all: flag,
     collapsed: flag,
     width: whole,
@@ -70,6 +77,7 @@ export const STORY_BODIES = {
     ),
     step: whole,
     chapter: clipped(300),
+    chapter_key: clipped(200),
     file: clipped(1000),
     url: clipped(2000),
   }),

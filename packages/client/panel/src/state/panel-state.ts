@@ -12,6 +12,8 @@ import type { PanelContext } from '../host/context.ts';
 /** The panel's state: what it saves, and whether the Overview's list of every draft is open this time. */
 export interface PanelState extends PanelUi {
   allCommentsOpen?: boolean;
+  /** the key of the chapter the step is on ('' for the Overview), computed from the step: a copy of the state keeps the one it had */
+  readonly key?: string;
 }
 
 /** The step clamped to the story's steps (0 is the Overview). */
@@ -20,6 +22,16 @@ function clampStep(story: StoryModel, step: number): number {
 }
 
 function storyStartOf(story: StoryModel, initial: InitialUi): number {
+  // a saved chapter key finds its chapter wherever an update has put it; one that names none (or a place saved before keys) uses the step
+  if (typeof initial.key === 'string') {
+    if (initial.key === '') {
+      return 0;
+    }
+    const found = story.data.chapters.findIndex((chapter) => chapter.key === initial.key);
+    if (found >= 0) {
+      return found + 1;
+    }
+  }
   if (Number.isFinite(initial.n)) {
     return initial.n as number;
   }
@@ -30,6 +42,9 @@ function storyStartOf(story: StoryModel, initial: InitialUi): number {
 export function createPanelState(story: StoryModel, initial: InitialUi): PanelState {
   return {
     n: clampStep(story, storyStartOf(story, initial)),
+    get key() {
+      return this.n ? story.data.chapters[this.n - 1]?.key : '';
+    },
     all: !!initial.all,
     collapsed: !!initial.collapsed,
     width: Number.isFinite(initial.width) ? (initial.width as number) : 460,
@@ -58,6 +73,7 @@ export function stateHelpers(
     }
     opts.onState({
       n: state.n,
+      key: state.key,
       all: state.all,
       collapsed: state.collapsed,
       width: state.width,

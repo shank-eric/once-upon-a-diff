@@ -22,7 +22,7 @@ import {
   stoppedLines,
 } from '@once-upon-a-diff/core/features/listeners/service';
 import { StoryStore } from '@once-upon-a-diff/stories/store';
-import { readMeta, storyRepo } from '@once-upon-a-diff/stories/meta';
+import { chapterKeyAt, readMeta, storyRepo } from '@once-upon-a-diff/stories/meta';
 import { answerRefs } from '@once-upon-a-diff/stories/validate';
 
 import { out, describe } from '../output.ts';
@@ -163,6 +163,9 @@ function ask(home: string, cfg: Config, opts: CliOpts) {
   }
   const meta = readMeta(dir);
   const step = typeof opts.step === 'string' ? Number(opts.step) : NaN;
+  const stepOk = Number.isInteger(step) && step >= 0;
+  // the chapter's key, so the question stays on it when an update puts a chapter first; none for the Overview or an unreadable story
+  const chapterKey = stepOk && step > 0 ? chapterKeyAt(dir, step) : null;
   const added = new Inbox(home).append({
     type: 'question',
     id: newId('q'),
@@ -170,8 +173,9 @@ function ask(home: string, cfg: Config, opts: CliOpts) {
     kind: meta.kind,
     title: meta.title,
     repo: storyRepo(meta),
-    step: Number.isInteger(step) && step >= 0 ? step : null,
+    step: stepOk ? step : null,
     chapter: null,
+    ...(chapterKey ? { chapter_key: chapterKey } : {}),
     file: null,
     text: text.slice(0, 8000),
     ...(opts.voice ? { channel: 'voice' as const } : {}),

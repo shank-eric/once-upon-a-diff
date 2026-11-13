@@ -221,11 +221,16 @@ export function carryDrafts(
 
 /**
  * Where each question asked on a re-told chapter shows now: {<question id>: step}, 0 for the Overview (which shows
- * every question). The chapter with the same key while it still lists the question's file, else the first re-told
+ * every question). A question is read on the chapter its `chapter_key` names, else on its `step`. The chapter with the same key while it still lists the question's file, else the first re-told
  * one that does, else the one with the same key.
  */
 export function questionMoves(
-  questions: { id: string; step: number | null; file: string | null }[],
+  questions: {
+    id: string;
+    step: number | null;
+    file: string | null;
+    chapter_key?: string | null;
+  }[],
   before: Plan,
   after: Plan,
   from = 1,
@@ -234,7 +239,13 @@ export function questionMoves(
   const rels = (chapter: PlanChapter) => (chapter.files || []).map((entry) => entryOf(entry).rel);
   const now = (after.chapters || []).map((chapter, index) => ({ chapter, step: index + 1 }));
   for (const question of questions) {
-    const step = Number(question.step);
+    // the chapter it is on in `before`: the one its key names (an update can insert chapters first, which leaves `step` stale), else `step`
+    const keyed = question.chapter_key
+      ? (before.chapters || []).findIndex(
+          (chapter) => chapterKeyOf(chapter) === question.chapter_key,
+        )
+      : -1;
+    const step = keyed >= 0 ? keyed + 1 : Number(question.step);
     if (!(step >= from)) {
       continue;
     }

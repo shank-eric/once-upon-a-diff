@@ -9,6 +9,7 @@ import {
   unreadAnswersOf,
   withRead,
   questionStepLabel,
+  questionStepOf,
   questionTotals,
   waitingText,
 } from '../src/ask/question-list.ts';
@@ -34,11 +35,11 @@ test('a question is labelled with the step it was asked on', () => {
 test('only the step on screen is marked, the others stay in the list', () => {
   const list = [ask('a', 0), ask('b', 1), ask('c', 2)];
   assert.deepEqual(
-    list.filter((question) => askedOnStep(question, 2)).map((question) => question.id),
+    list.filter((question) => askedOnStep(question, 2, chapters)).map((question) => question.id),
     ['c'],
   );
   assert.deepEqual(
-    list.filter((question) => askedOnStep(question, 0)).map((question) => question.id),
+    list.filter((question) => askedOnStep(question, 0, chapters)).map((question) => question.id),
     ['a'],
     'the Overview is a step of its own',
   );
@@ -327,4 +328,39 @@ test('a relayed question reads as sent to the agent only once the agent has spok
     waitingText({ handed_to: 'ou-fix-cache', status }).text,
     'ou-fix-cache is working on it',
   );
+});
+
+test('a question keeps its chapter when an update inserts one first', () => {
+  const was = [
+    { key: 'loader', title: 'The loader' },
+    { key: 'first-command', title: 'First command' },
+  ];
+  const now = [
+    { key: 'since-abc-def', title: 'Since you read it: 2 new commits', since: {} },
+    ...was,
+  ];
+  const asked = ask('a', 1, { chapter_key: 'loader' });
+  assert.equal(askedOnStep(asked, 2, now), true);
+  assert.equal(askedOnStep(asked, 1, now), false);
+  assert.equal(
+    questionStepLabel(asked, now),
+    'Chapter 1: The loader',
+    'the number the reader sees',
+  );
+  assert.equal(
+    questionStepLabel(ask('b', 1, { chapter_key: 'since-abc-def' }), now),
+    'Since you read it: 2 new commits',
+    'an update chapter is not numbered',
+  );
+});
+
+test('an old row with no key, or a key the story lost, uses its step', () => {
+  const now = [
+    { key: 'x', title: 'X' },
+    { key: 'y', title: 'Y' },
+  ];
+  assert.equal(questionStepOf(ask('a', 2), now), 2);
+  assert.equal(questionStepOf(ask('a', 2, { chapter_key: null }), now), 2);
+  assert.equal(questionStepOf(ask('a', 2, { chapter_key: 'gone' }), now), 2);
+  assert.equal(questionStepLabel(ask('a', 2), now), 'Chapter 2: Y');
 });

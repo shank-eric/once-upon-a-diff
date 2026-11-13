@@ -237,7 +237,7 @@ export function createFilesChangedPage() {
     current.overlay = storyOverlay(
       current.data,
       {
-        initial: jump ? { ...base, n: jump, all: false } : base,
+        initial: jump ? { ...base, n: jump, key: undefined, all: false } : base,
         ...panelOptions(current.key, storyId),
       },
       panelHost(storyId),

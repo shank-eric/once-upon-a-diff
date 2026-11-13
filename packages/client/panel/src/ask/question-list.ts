@@ -4,23 +4,51 @@
  * was asked on, and the ones from the step on screen are marked.
  */
 import type { Answer, Question } from '@once-upon-a-diff/contracts/types';
+import { chapterNumbers } from '@once-upon-a-diff/terms/chapters';
 
-/** A chapter's number and title are all the label needs. */
-type Titled = { title: string };
+/** A chapter's title is all the label needs; its key and `since` say which chapter it is and whether it is numbered. */
+type Titled = { title: string; key?: string; since?: unknown };
 
-/** Where a question was asked: "Overview" for step 0, else "Chapter N: title" (just "Chapter N" when the story has no such chapter). */
-export function questionStepLabel(question: Pick<Question, 'step'>, chapters: Titled[]): string {
-  const step = Number(question.step);
+/**
+ * The step a question belongs to: the chapter its `chapter_key` names, wherever the chapters sit now (an update can insert
+ * one first), else its `step` (an old row has no key, and a key a rebuild dropped names no chapter).
+ */
+export function questionStepOf(
+  question: Pick<Question, 'step' | 'chapter_key'>,
+  chapters: Partial<Titled>[],
+): number {
+  if (question.chapter_key) {
+    const found = chapters.findIndex((chapter) => chapter.key === question.chapter_key);
+    if (found >= 0) {
+      return found + 1;
+    }
+  }
+  return Number(question.step);
+}
+
+/** Where a question was asked: "Overview" for step 0, else "Chapter N: title" (just "Chapter N" when the story has no such chapter, just the title for a "Since you read it" chapter). */
+export function questionStepLabel(
+  question: Pick<Question, 'step' | 'chapter_key'>,
+  chapters: Titled[],
+): string {
+  const step = questionStepOf(question, chapters);
   if (!Number.isInteger(step) || step <= 0) {
     return 'Overview';
   }
   const title = chapters[step - 1]?.title;
-  return title ? `Chapter ${step}: ${title}` : `Chapter ${step}`;
+  if (!title) {
+    return `Chapter ${step}`;
+  }
+  const number = chapterNumbers(chapters)[step - 1];
+  return number ? `Chapter ${number}: ${title}` : title;
 }
 
 /** Is this question from the step on screen? The Overview (0) is a step too. */
-export const askedOnStep = (question: Pick<Question, 'step'>, step: number): boolean =>
-  Number(question.step) === step;
+export const askedOnStep = (
+  question: Pick<Question, 'step' | 'chapter_key'>,
+  step: number,
+  chapters: Partial<Titled>[],
+): boolean => questionStepOf(question, chapters) === step;
 
 /** A session has the question and has not answered it yet. */
 const isWorking = (question: Question) =>

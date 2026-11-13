@@ -13,6 +13,7 @@ import type { Prefs } from '@once-upon-a-diff/foundation/settings';
 import type { StoryMeta } from './types.ts';
 import { prUrl } from '@once-upon-a-diff/terms/github-urls';
 import { shortSha } from '@once-upon-a-diff/terms/text';
+import { chapterKeyOf } from '@once-upon-a-diff/terms/chapters';
 import { FULL_SHA_RE } from '@once-upon-a-diff/terms/patterns';
 import { inCheckout, realPathOf, recordKind, recordedKind } from './placement.ts';
 import { homeDir } from '@once-upon-a-diff/foundation/settings';
@@ -134,6 +135,15 @@ export function refusalOf(home: string, id: string, dir: string): string | null 
     recordKind(home, id, meta.kind);
   }
   return null;
+}
+
+/** The key of the chapter at 1-based `step` in the story's chapters.json, or null when the story or the chapter can't be read. */
+export function chapterKeyAt(dir: string, step: number): string | null {
+  const plan = readJson<{ chapters?: unknown[] }>(path.join(dir, 'chapters.json'), {}) || {};
+  const chapter = Array.isArray(plan.chapters) ? plan.chapters[step - 1] : null;
+  return chapter && typeof chapter === 'object'
+    ? chapterKeyOf(chapter as { key?: unknown; title?: unknown }) || null
+    : null;
 }
 
 /** What a story folder is about, from its meta.json (checked: see checkedMeta): {kind, repo, number, title, url, head_oid, ...}. */
