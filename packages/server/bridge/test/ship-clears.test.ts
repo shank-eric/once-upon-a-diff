@@ -248,6 +248,138 @@ test('a fixer on an implicit card (no backlog row) carries by its own repo and b
   assert.notEqual(first, second);
 });
 
+/** A repo on `main` (a.txt, b.txt) with `feature` one commit ahead (it edits a.txt's first line), the story told main..HEAD over it, and a card on `feature`. */
+function rebaseWorld(extra = 0) {
+  const home = tmp('home');
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: tmp('sessions') });
+  const repo = tmp('repo');
+  git(repo, 'init', '-q', '-b', 'main');
+  git(repo, 'remote', 'add', 'origin', 'git@github.com:acme/widgets.git');
+  writeFileSync(path.join(repo, 'a.txt'), '1\n2\n3\n4\n5\n6\n');
+  writeFileSync(path.join(repo, 'b.txt'), 'b\n');
+  git(repo, 'add', '.');
+  git(repo, 'commit', '-q', '-m', 'base');
+  git(repo, 'checkout', '-q', '-b', 'feature');
+  const edit = (file: string, text: string, message: string) => {
+    writeFileSync(path.join(repo, file), text);
+    git(repo, 'add', '.');
+    git(repo, 'commit', '-q', '-m', message);
+  };
+  edit('a.txt', 'one\n2\n3\n4\n5\n6\n', 'edit the top');
+  for (let one = 0; one < extra; one += 1) {
+    edit(`more${one}.txt`, 'more\n', `more ${one}`);
+  }
+  const chapters = path.join(tmp('ch'), 'chapters.json');
+  writeJson(chapters, {
+    title: 'One commit',
+    chapters: [{ refs: [], title: 'Chapter 1', narrative: 'Told.', files: ['a.txt'] }],
+  });
+  const { id } = createLocalStory({ home, repo, base: 'main', head: 'HEAD', chapters });
+  const backlog = new BacklogStore(home);
+  const item = backlog.add({ title: 'The work', repo: 'acme/widgets' });
+  backlog.start(item.id, { branch: 'feature' });
+  claimAt(backlog, item.id, 'ship-author', new Date().toISOString(), SID);
+  const store = new StoryStore({ home });
+  const cli = (...args: string[]) => runCli(home, args);
+  const startRun = (name: string, role: string) =>
+    cli('agent', 'start', name, '--role', role, '--card', item.id, '--task', 't', '--sid', SID);
+  /** main moves on: a new commit on it (touching `file`), as a deploy's cherry-pick or another merge would */
+  const moveMain = (file: string, text: string) => {
+    git(repo, 'checkout', '-q', 'main');
+    edit(file, text, `main moves ${file}`);
+    git(repo, 'checkout', '-q', 'feature');
+  };
+  const head = () => git(repo, 'rev-parse', 'HEAD');
+  return { home, repo, id, card: item.id, store, cli, startRun, moveMain, head, edit };
+}
+
+/** git stamps commits to the second: a run starts in a later one than the commits before it */
+const nextSecond = () => new Promise((resolve) => setTimeout(resolve, 1100));
+
+test('a fixer’s rebase of the approved commit onto a moved main carries the approval, recorded as a rebase', async () => {
+  const { id, card, store, cli, startRun, moveMain, head, repo } = rebaseWorld();
+  assert.equal((await cli('approve', id)).code, 0);
+  const first = head();
+  const approvedAt = readApproval(store, id)?.at;
+  moveMain('b.txt', 'b2\n');
+  await nextSecond();
+  assert.equal((await startRun('rebase-it', 'fixer')).code, 0);
+  git(repo, 'rebase', 'main');
+  const second = head();
+  assert.notEqual(first, second);
+  const done = await cli(...finishArgs('rebase-it', second, card));
+  assert.equal(done.code, 0, done.stderr);
+  assert.match(done.stdout, /approval carried .*rebase/);
+  const carried = readApproval(store, id);
+  assert.equal(carried?.head_oid, second);
+  assert.equal(carried?.base_oid, git(repo, 'rev-parse', 'main'));
+  assert.equal(carried?.at, approvedAt);
+  assert.equal(carried?.carried?.from, first);
+  assert.equal(carried?.carried?.via, 'rebase');
+  assert.ok(localEntries(store, { now: Date.now() })[0].story.approved_at, 'still Ready to ship');
+});
+
+test('a fixer’s rebase with a conflict resolved in the commit carries the approval too', async () => {
+  const { id, card, store, cli, startRun, moveMain, head, repo } = rebaseWorld();
+  assert.equal((await cli('approve', id)).code, 0);
+  const first = head();
+  moveMain('a.txt', 'uno\n2\n3\n4\n5\n6\n');
+  await nextSecond();
+  assert.equal((await startRun('rebase-it', 'fixer')).code, 0);
+  assert.throws(() => git(repo, 'rebase', 'main'));
+  writeFileSync(path.join(repo, 'a.txt'), 'one\n2\n3\n4\n5\n6\nseven\n');
+  git(repo, 'add', '.');
+  git(repo, '-c', 'core.editor=true', 'rebase', '--continue');
+  const second = head();
+  assert.notEqual(first, second);
+  const done = await cli(...finishArgs('rebase-it', second, card));
+  assert.match(done.stdout, /approval carried .*rebase/, done.stderr);
+  const carried = readApproval(store, id);
+  assert.equal(carried?.head_oid, second);
+  assert.equal(carried?.carried?.via, 'rebase');
+});
+
+test('a rebase by a run that is not a fixer carries nothing', async () => {
+  const { id, card, store, cli, startRun, moveMain, head, repo } = rebaseWorld();
+  assert.equal((await cli('approve', id)).code, 0);
+  const first = head();
+  moveMain('b.txt', 'b2\n');
+  await nextSecond();
+  assert.equal((await startRun('rebase-it', 'author')).code, 0);
+  git(repo, 'rebase', 'main');
+  const done = await cli(...finishArgs('rebase-it', head(), card));
+  assert.doesNotMatch(done.stdout, /carried/);
+  assert.equal(readApproval(store, id)?.head_oid, first);
+});
+
+test('a fixer’s rebase that also adds a commit carries nothing', async () => {
+  const world = rebaseWorld();
+  assert.equal((await world.cli('approve', world.id)).code, 0);
+  const first = world.head();
+  world.moveMain('b.txt', 'b2\n');
+  await nextSecond();
+  assert.equal((await world.startRun('rebase-add', 'fixer')).code, 0);
+  git(world.repo, 'rebase', 'main');
+  world.edit('extra.txt', 'x\n', 'something else');
+  const done = await world.cli(...finishArgs('rebase-add', world.head(), world.card));
+  assert.doesNotMatch(done.stdout, /carried/);
+  assert.equal(readApproval(world.store, world.id)?.head_oid, first);
+});
+
+test('a fixer’s rebase that also drops a commit carries nothing', async () => {
+  const world = rebaseWorld(1);
+  assert.equal((await world.cli('approve', world.id)).code, 0);
+  const first = world.head();
+  world.moveMain('b.txt', 'b2\n');
+  await nextSecond();
+  assert.equal((await world.startRun('rebase-drop', 'fixer')).code, 0);
+  git(world.repo, 'rebase', 'main');
+  git(world.repo, 'reset', '-q', '--hard', 'HEAD~1');
+  const done = await world.cli(...finishArgs('rebase-drop', world.head(), world.card));
+  assert.doesNotMatch(done.stdout, /carried/);
+  assert.equal(readApproval(world.store, world.id)?.head_oid, first);
+});
+
 test('approve leaves a storyteller that is still running, and finishes an implicit card’s parked one', async () => {
   const { id, card, cli, runs, startRun } = world();
   assert.equal((await startRun('still-writing', 'storyteller')).code, 0);

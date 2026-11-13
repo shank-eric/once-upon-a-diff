@@ -21,8 +21,8 @@ export interface Approval {
   unmarked?: boolean;
   /** the branch moved on and the background check let go of this approval: it counts for nothing, but a fixer's commit on the card may still carry it */
   lapsed?: boolean;
-  /** a fixer's commit carried the approval to `head_oid` from `from`, the commit it was first given for (`at` stays the first approval's time, so APPROVED_DAYS counts from it) */
-  carried?: { from: string; at: string; run: string };
+  /** a fixer's commit (or its rebase, `via`) carried the approval to `head_oid` from `from`, the commit it was first given for (`at` stays the first approval's time, so APPROVED_DAYS counts from it) */
+  carried?: { from: string; at: string; run: string; via?: 'rebase' };
 }
 
 /** Whether an approval is under APPROVED_DAYS old. */

@@ -297,7 +297,9 @@ async function agent(home: string, _cfg: Config, opts: CliOpts) {
     const carried = carryApproval(home, finished);
     return out(
       `${name} finished` +
-        (carried ? `, approval carried ${shortSha(carried.from)} -> ${shortSha(carried.to)}` : ''),
+        (carried
+          ? `, approval carried ${shortSha(carried.from)} -> ${shortSha(carried.to)}${carried.via ? ` (${carried.via})` : ''}`
+          : ''),
     );
   }
   throw new Error(USAGE);
