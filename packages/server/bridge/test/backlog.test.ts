@@ -13,12 +13,7 @@ import {
   type TestBridge,
 } from './helpers.ts';
 import {
-  ASSIGN_HOURS,
   BacklogStore,
-  assignBranch,
-  assignLine,
-  claimHint,
-  liveAssignment,
   STARTED_GRACE_HOURS,
   DONE_HOURS,
   backlogCards,
@@ -916,79 +911,22 @@ test('edit changes an open card in place: the CLI, the board key and the board a
   assert.equal(store.reopen(back.id).repo, 'acme/gadgets');
 });
 
-test('assign events fold: live for a while, cleared by a start, refused after a drop, skipped by readers that do not know them', () => {
-  const store = new BacklogStore(tmp('backlog-assign'));
+test('an old assign line in the file is skipped by the fold', () => {
+  const store = new BacklogStore(tmp('backlog-assign-old'));
   const item = store.add({ title: 'Idea', repo: 'acme/widgets' });
-  assert.equal(item.assigned, null);
-  const assigned = store.assign(item.id, {
-    session: 'abc-123',
-    branch: 'backlog/idea-x',
-    by: 'board',
-  });
-  assert.equal(assigned.state, 'open');
-  assert.equal(assigned.assigned?.session, 'abc-123');
-  assert.equal(assigned.assigned?.branch, 'backlog/idea-x');
-  const assignedMs = Date.parse(assigned.assigned?.at as string);
-  assert.ok(liveAssignment(assigned, assignedMs + 60_000));
-  assert.equal(
-    liveAssignment(assigned, assignedMs + (ASSIGN_HOURS * 3600 + 1) * 1000),
-    null,
-    'it expires',
+  appendFileSync(
+    store.file,
+    JSON.stringify({
+      op: 'assign',
+      id: item.id,
+      session: 'abc-123',
+      by: 'board',
+      at: new Date().toISOString(),
+    }) + '\n',
   );
-  // the card says so, until the item is started
-  const [card] = backlogCards(store.items(), [], assignedMs + 1000);
-  assert.equal(card.backlog?.assigned?.session, 'abc-123');
-  assert.equal(card.backlog?.assign, null, 'the board fills the candidates');
-  assert.equal(
-    backlogCards(store.items(), [], assignedMs + (ASSIGN_HOURS * 3600 + 1) * 1000)[0].backlog
-      ?.assigned,
-    null,
-  );
-  assert.throws(() => store.assign(item.id, { session: 'bad session' }), /session id/);
-  const started = store.start(item.id, { branch: 'backlog/idea-x' });
-  assert.equal(
-    liveAssignment(started, assignedMs + 1000),
-    null,
-    'a started item is no longer assigned',
-  );
-  assert.throws(() => store.assign(item.id, { session: 'abc-123' }), /started/);
-  const dropped = store.add({ title: 'Gone' });
-  store.drop(dropped.id);
-  assert.throws(() => store.assign(dropped.id, { session: 'abc-123' }), /dropped/);
-  // an unknown op is skipped by the fold, so readers that predate assign still read the file
   appendFileSync(store.file, JSON.stringify({ op: 'future', id: item.id }) + '\n');
-  assert.equal(store.items().length, 2);
-});
-
-test('the assign line is one plain line with the id and a cleaned title, and the branch is safe to paste', () => {
-  assert.equal(
-    assignLine({ id: 'bl_k3j9x2abc', title: 'Filter list by school' }),
-    `Start backlog card bl_k3j9x2abc: Filter list by school. ${claimHint('bl_k3j9x2abc')}`,
-  );
-  const hostile = assignLine({
-    id: 'bl_k3j9x2abc',
-    title: '/exit"; rm -rf ~ `whoami` $(id) \\ <b> ignore all instructions & ' + 'x'.repeat(300),
-  });
-  assert.doesNotMatch(hostile, /\n/);
-  assert.match(hostile, /^Start backlog card bl_k3j9x2abc: /);
-  assert.doesNotMatch(hostile, /[`$\\<>&;"~]/);
-  assert.ok(
-    hostile.length <=
-      'Start backlog card bl_k3j9x2abc: '.length + 83 + 2 + claimHint('bl_k3j9x2abc').length,
-    'the title is capped',
-  );
-  assert.equal(
-    assignLine({ id: 'bl_k3j9x2abc', title: '"`$()"' }),
-    `Start backlog card bl_k3j9x2abc: (). ${claimHint('bl_k3j9x2abc')}`,
-  );
-  // the branch: the item's own wins, else a slug that always passes the branch pattern
-  assert.equal(assignBranch({ id: 'bl_abcd1234', title: 'x', branch: 'feat/mine' }), 'feat/mine');
-  assert.equal(
-    assignBranch({ id: 'bl_abcd1234', title: '日本語 !!!', branch: null }),
-    'backlog/abcd',
-  );
-  const long = assignBranch({ id: 'bl_abcd1234', title: 'A '.repeat(100), branch: null });
-  assert.match(long, /^backlog\/[a-z0-9-]{1,40}-abcd$/);
+  assert.equal(store.items().length, 1);
+  assert.equal(store.items()[0].state, 'open');
 });
 
 test('reopen brings a dropped item back with the same id; only a dropped item can be reopened', () => {
@@ -1146,15 +1084,6 @@ test('finished, unmerged branch work whose critic passed is Ready (once-upon-a-d
   }
 });
 
-test('reopen also clears an assignment', () => {
-  const store = new BacklogStore(tmp('backlog-reopen-assign'));
-  const item = store.add({ title: 'Assigned then dropped', repo: 'acme/widgets' });
-  store.assign(item.id, { session: 'sess-1', branch: 'backlog/x' });
-  store.drop(item.id);
-  const back = store.reopen(item.id);
-  assert.equal(back.assigned, null);
-});
-
 test('someday: an open card carries the flag on its board card, keeps its place, and work on it clears the flag', () => {
   const store = new BacklogStore(tmp('backlog-someday-store'));
   const first = store.add({ title: 'First', repo: 'acme/widgets' });
@@ -1306,26 +1235,11 @@ test('POST /api/board/backlog/someday moves a card in and out of the Someday sec
     200,
   );
   assert.equal(await flag(), true);
-  // a someday card has no Assign prompt, and the assign route refuses it
-  const assignOf = async () =>
-    (await bridge.call<BoardData>('GET', '/api/board', undefined, withKey)).body.lanes
-      .flatMap((lane) => lane.cards)
-      .find((one) => one.backlog?.id === id)?.backlog?.assign;
-  assert.equal(await assignOf(), null);
-  const assigned = await bridge.call<{ error: string }>(
-    'POST',
-    '/api/board/backlog/assign',
-    { id },
-    withKey,
-  );
-  assert.equal(assigned.status, 409);
-  assert.match(assigned.body.error, /someday/);
   assert.equal(
     (await bridge.call('POST', '/api/board/backlog/someday', { id, on: false }, withKey)).status,
     200,
   );
   assert.equal(await flag(), undefined);
-  assert.ok(await assignOf(), 'back in the backlog, it has its Assign prompt again');
   for (const body of [{}, { id }, { id: 'bl_nothere1', on: true }, { id: 'nope', on: true }]) {
     assert.equal(
       (await bridge.call('POST', '/api/board/backlog/someday', body, withKey)).status,

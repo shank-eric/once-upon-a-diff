@@ -10,8 +10,6 @@ export interface AnswerBits {
   note: string | null;
   /** the card offers Open story: it is in Ready or Ready to ship, or has an answer to read */
   openable: boolean;
-  /** the card offers Mark reviewed: a local story in Ready that isn't marked, or was rebuilt after it was */
-  markable: boolean;
   /** appended to a PR story's link, so the panel opens with the Ask dock open */
   hash: string;
 }
@@ -29,8 +27,6 @@ export function answerBits(card: Pick<BoardCard, 'column' | 'story'>): AnswerBit
         ? `Claude answered ${plural ? 'a question' : `${answers} questions`} you asked in the story. Open the story to read ${plural ? 'it' : 'them'}.`
         : null,
     openable: card.column === 'ready' || approved || answers > 0,
-    markable:
-      card.column === 'ready' && story?.kind === 'local' && (!story.reviewed || story.unread),
     hash: answers > 0 ? '#ou-ask' : '',
   };
 }

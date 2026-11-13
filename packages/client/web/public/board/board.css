@@ -83,7 +83,6 @@
 .ou-board-bar span { display: block; height: 100%; border-radius: 2px; background: var(--ou-fg-muted); }
 .ou-board-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
 .ou-board-actions:empty { display: none; }
-.ou-board-assign-note { font-size: 11px; }
 .ou-board-from { padding: 0; border: 0; background: none; color: var(--ou-accent); font-size: inherit; text-decoration: underline; cursor: pointer; }
 .ou-board-note { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .ou-board-startline { margin-top: 4px; font-size: 11px; overflow-wrap: anywhere; color: var(--ou-fg-muted); }
@@ -96,7 +95,7 @@
 .ou-board-lane-count { font-weight: 400; color: var(--ou-fg); }
 .ou-board-clickable { cursor: pointer; }
 .ou-board-clickable:hover { border-color: var(--ou-fg-muted); }
-.ou-board-open, .ou-board-push { font-size: 12px; padding: 3px 10px; border: 1px solid var(--ou-border); border-radius: 6px; text-decoration: none; white-space: nowrap; }
+.ou-board-open { font-size: 12px; padding: 3px 10px; border: 1px solid var(--ou-border); border-radius: 6px; text-decoration: none; white-space: nowrap; }
 /* a column's colour, which its header rule and its cards' left edges take (error shares Back to you's red) */
 .ou-board-c-backlog { --ou-board-color: var(--ou-board-backlog); }
 .ou-board-c-working { --ou-board-color: var(--ou-board-working); }

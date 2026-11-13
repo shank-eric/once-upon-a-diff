@@ -41,7 +41,6 @@
               "id": "story-a",
               "kind": "local",
               "reviewed": false,
-              "ship": "pr",
               "unread": false,
               "unread_answers": 0,
               "url": null
@@ -78,7 +77,6 @@
               "id": "story-c",
               "kind": "local",
               "reviewed": false,
-              "ship": "pr",
               "unread": false,
               "unread_answers": 0,
               "url": null

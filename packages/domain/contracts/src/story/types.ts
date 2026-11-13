@@ -198,11 +198,9 @@ export interface LocalStory {
   approved: { at: string; head_oid: string } | null;
   /** a story pinned to a branch (not HEAD) whose branch or base has moved since it was told: the current commit of each ref that did, else null; null when nothing moved */
   moved: LocalMoved | null;
-  /** what ships it: `push` for commits on the repo's default branch (or a repo set to push), else `pr` (Create pull request) */
-  ship: ShipMode;
   /**
    * a storyless review (a by-folder story: no story was told, the diff by folder). It has no Approve: seeing the diff and
-   * clicking Push or Create pull request is the approval
+   * clicking Create pull request is the approval
    */
   storyless: boolean;
 }
@@ -212,9 +210,6 @@ export interface LocalMoved {
   base_oid: string | null;
   head_oid: string | null;
 }
-
-/** How a local story ships: pushed to the default branch, or through a pull request. */
-export type ShipMode = 'push' | 'pr';
 
 /** The PR title and body a session handed over for a local story's branch (`once-upon pr-draft`). */
 export interface PrDraft {
@@ -253,40 +248,6 @@ export interface PrView {
 export interface PrPushAnswer {
   output: string;
   view: PrView;
-}
-
-/**
- * Where origin's default branch stands against the approved commit, for the page's Push box (GET .../push): same (it has
- * the commit), ahead (the commit is new there: a fast-forward), behind (it already has the commit and more), diverged
- * (it has commits this checkout doesn't), missing (no such branch on origin) or unreachable (the fetch failed).
- */
-type PushRemoteState = 'same' | 'ahead' | 'behind' | 'diverged' | 'missing' | 'unreachable';
-
-export interface PushView {
-  /** owner/name, from the checkout's origin; null when origin isn't on GitHub */
-  repo: string | null;
-  /** origin's default branch, where the push goes; null when the checkout doesn't say */
-  branch: string | null;
-  /** the approved commit: a push sends up to it and no further; null when the story isn't approved */
-  approved_sha: string | null;
-  approved_at: string | null;
-  /** commits on the local branch after the approved one, which stay local */
-  later: number;
-  remote: { state: PushRemoteState; sha: string | null; error?: string };
-  /** what a push sends, newest first */
-  to_push: LocalCommit[];
-  /** whether GitHub protects the branch or requires pull requests (unknown when gh couldn't say, which also stops a push) */
-  protection: { state: 'open' | 'protected' | 'unknown'; reason?: string };
-  /** why a push can't go ahead; null when it can */
-  blocker: string | null;
-  /** the blocker is one a pull request goes around, so the box offers Create pull request */
-  pr_instead: boolean;
-}
-
-/** POST .../push {action: 'push', head_sha}: git's own lines, and the view after it. */
-export interface PushAnswer {
-  output: string;
-  view: PushView;
 }
 
 /** A story as the panel takes it (GET /api/stories/<id>). */

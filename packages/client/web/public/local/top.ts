@@ -11,7 +11,6 @@ import { page, usage } from '/assets/local/page.ts';
 import { setPref } from '/assets/local/actions.ts';
 import { NotesList, toggleText } from '/assets/local/diff/notes.ts';
 import { ApproveButton } from '/assets/local/ship/approve.ts';
-import { PushButton } from '/assets/local/ship/push.ts';
 import { PrButtons } from '/assets/local/ship/pull-request.ts';
 import type { LocalStoryData } from '/assets/local/page.ts';
 import type { LocalState } from '/assets/local/store.ts';
@@ -119,7 +118,6 @@ export function Top(props: { state: LocalState }) {
     }}>${toggleText(local.notes)}</button>
     <span class="ou-local-send-holder"><${SendButton} story=${story} panelOpen=${state.panelOpen} /></span>
     <span class="ou-local-approve-holder"><${ApproveButton} story=${story} ship=${state.ship} /></span>
-    <span class="ou-local-push-holder"><${PushButton} story=${story} ship=${state.ship} /></span>
     <span class="ou-local-pr-holder"><${PrButtons} story=${story} ship=${state.ship} /></span>
   </header>
   <${NotesList} notes=${local.notes} storyId=${story.id} open=${notesOpen} />`;

@@ -6,7 +6,6 @@ import {
   boolean,
   check,
   fallback,
-  literal,
   nullable,
   number,
   object,
@@ -140,12 +139,7 @@ export const STORY_BODIES = {
   }),
   /** POST .../pr */
   prPush: object({
-    action: picklist(['push', 'push-ahead']),
-    head_sha: optional(nullable(string())),
-  }),
-  /** POST .../push */
-  pushApproved: object({
-    action: literal('push'),
+    action: picklist(['push']),
     head_sha: optional(nullable(string())),
   }),
 } satisfies Record<string, GenericSchema>;
@@ -161,6 +155,5 @@ export const STORY_MESSAGES: Partial<Record<keyof typeof STORY_BODIES, Record<st
   draftsAct: { action: 'action must be dismiss, restore or settle' },
   readNote: { chapter: 'a chapter key is needed' },
   fixesAct: { action: 'action is one of send, auto, take_back' },
-  prPush: { action: 'action must be push or push-ahead' },
-  pushApproved: { action: 'action must be push' },
+  prPush: { action: 'action must be push' },
 };

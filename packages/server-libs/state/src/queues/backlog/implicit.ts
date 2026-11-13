@@ -31,7 +31,6 @@ export function implicitItems(
       dropped_at: null,
       landed_at: null,
       landed_sha: null,
-      assigned: null,
       // the first run's own session holds the claim: there is no claim row
       claim: {
         agent: card.agent,

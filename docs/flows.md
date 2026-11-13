@@ -117,7 +117,7 @@ The click names its card (`card` in the body), so a session that builds for seve
 | R3 | `app` | the route finds the card in the board's own snapshot. The branch and folder are the card's, never the body's | `packages/server/server/src/routes/board.ts` (`review`) |
 | R4 | `service` | the base is the merge-base with origin's default branch, the head the branch's name | `packages/server-libs/stories/src/local-story.ts` (`reviewBranch`) |
 | R5 | `service` | **writes the story** in the checkout's `.once-upon/`, as `once-upon local` with no chapters does | `packages/server-libs/stories/src/local-story.ts` (`createLocalStory`) |
-| R6 | `app` | Push on a storyless review sends the head the diff was drawn at, with no Approve. Create pull request refuses a branch that has moved past it | `packages/server/server/src/routes/push.ts` (`isStoryless`) |
+| R6 | `app` | Create pull request on a storyless review pushes the head the diff was drawn at, with no Approve, and refuses a branch that has moved past it | `packages/server/server/src/routes/pull-request.ts` (`isStoryless`) |
 
 ## 2. Ask
 

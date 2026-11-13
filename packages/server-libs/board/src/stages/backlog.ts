@@ -4,11 +4,7 @@
  */
 import { branchKey, repoKey } from '@once-upon-a-diff/terms/ids';
 import { checkoutFor, sameRepo, seenCheckouts } from '@once-upon-a-diff/foundation/repos';
-import {
-  assignLine,
-  backlogCards,
-  cardOnBranch,
-} from '@once-upon-a-diff/state/queues/backlog/backlog';
+import { backlogCards, cardOnBranch } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
 import { sameAgentView } from '@once-upon-a-diff/state/queues/backlog/claims';
 import {
@@ -241,16 +237,15 @@ export async function readBacklogLinks(
   return links;
 }
 
-/** What the open items' cards are worked out from: the sessions' views (for the title of the one an item was sent to) and the sessions an item may stand in for. */
+/** The sessions an open item's card may stand in for. */
 export interface AssignFacts {
-  sessionViews: Map<string, BoardSession>;
   quietViews: BoardSession[];
   pin: PinnedVoice | null;
   repoBySession: Map<string, string | null>;
 }
 
 /**
- * The backlog's cards: an open item is a card in Backlog with who may be handed it (Assign), a started one is marked
+ * The backlog's cards: an open item is a card in Backlog, a started one is marked
  * onto the card of its branch (`from_backlog`, which changes the card given) or is a card of its own while it is worked
  * or done. Returns the new cards, to go after the others.
  */
@@ -259,7 +254,7 @@ export function addBacklogCards(
   cards: BoardCard[],
   backlogItems: BacklogItem[],
   links: Map<string, BoardStartedLinks>,
-  { sessionViews, quietViews, pin, repoBySession }: AssignFacts,
+  { quietViews, pin, repoBySession }: AssignFacts,
   views: Map<string, BoardAgent[]> = new Map(),
   agents: LedgerAgent[] = [],
 ): BoardCard[] {
@@ -283,33 +278,5 @@ export function addBacklogCards(
     }
   }
   const added = backlogCards(backlogItems, cards, nowMs, cardless, links, views, phases);
-  const all = [...cards, ...added];
-
-  // Assign: sends the voice session "Start backlog card ...", so every open item the board is not already working has it
-  for (const card of all) {
-    const item = card.backlog && backlogItems.find((one) => one.id === card.backlog?.id);
-    // (a claimed item has its agent's chip, not an Assign)
-    if (!card.backlog || !item || item.state !== 'open') {
-      continue;
-    }
-    if (card.backlog.started || (card.backlog.claim && !card.backlog.agent?.tried)) {
-      continue;
-    }
-    // (a card whose runs are working it, an adopted implicit card with no branch yet, has nothing to assign either; one sent back to Backlog still does)
-    const phase = phases.get(item.id);
-    if (phase && phase.column !== 'backlog') {
-      continue;
-    }
-    // (a someday card is out of the pick order: no Assign until it is back in the backlog)
-    if (item.someday) {
-      continue;
-    }
-    card.backlog.assign = { prompt: assignLine(item) };
-    if (card.backlog.assigned) {
-      const sent = card.backlog.assigned.session;
-      const view = sessionViews.get(sent) ?? (pin?.view.id === sent ? pin.view : undefined);
-      card.backlog.assigned.session_title = view?.title ?? null;
-    }
-  }
   return added;
 }

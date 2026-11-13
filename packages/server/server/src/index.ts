@@ -70,7 +70,6 @@ import { readRoutes } from './routes/reads.ts';
 import { localStoryRoutes } from './routes/local-story.ts';
 import { fixRoutes } from './routes/fixes.ts';
 import { pullRequestRoutes } from './routes/pull-request.ts';
-import { pushRoutes } from './routes/push.ts';
 import { boardRoutes } from './routes/board.ts';
 import { githubRoutes } from './routes/github.ts';
 import { AutoReview } from '@once-upon-a-diff/core/features/review/github-watcher';
@@ -111,7 +110,6 @@ export const STORY_ROUTES: StoryRoute[] = [
   ...localStoryRoutes,
   ...fixRoutes,
   ...pullRequestRoutes,
-  ...pushRoutes,
   ...storyStatusRoutes,
   ...storyUsageRoutes,
 ];

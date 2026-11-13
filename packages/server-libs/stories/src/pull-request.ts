@@ -8,10 +8,8 @@
  * The push is a plain `git push -u origin <branch>` with the reviewer's own git login. It never forces: a branch
  * whose GitHub copy has commits this checkout doesn't is reported as diverged and not pushed.
  *
- * Push for a branch that already has an open PR (a fix made after review): aheadOf counts the local commits origin's
- * copy lacks (`git ls-remote` and `git rev-list --count`, no fetch), and pushAhead sends them with a plain
- * `git push origin <branch>`, a fast-forward that never forces and is refused when origin has commits this checkout
- * doesn't (pushAheadBlocker).
+ * aheadOf counts the local commits origin's copy lacks (`git ls-remote` and `git rev-list --count`, no fetch), for the
+ * page's "N commits ahead" and the board's PR card.
  */
 import { FULL_SHA_RE } from '@once-upon-a-diff/terms/patterns';
 import { ghOpenPullList } from '@once-upon-a-diff/foundation/gh';
@@ -58,7 +56,7 @@ export function namedBase(repoPath: string, base: string | undefined): string | 
   return hasRemoteBranch(repoPath, name) ? name : null;
 }
 
-/** origin's default branch (as Push finds it), else main. */
+/** origin's default branch, else main. */
 function defaultBranch(repoPath: string): string {
   return defaultBranchOf(repoPath) || 'main';
 }
@@ -141,6 +139,9 @@ export function pushBlocker(view: PrView, expectedSha: unknown): string | null {
   if (!view.branch || !view.head_sha) {
     return view.remote.error || 'no branch to push';
   }
+  if (view.branch === view.base) {
+    return `${view.branch} is the base branch: a pull request needs a branch of its own, so it isn't pushed from here.`;
+  }
   if (expectedSha !== view.head_sha) {
     return `${view.branch} moved since the box opened. Look again before pushing.`;
   }
@@ -158,16 +159,11 @@ export function pushBlocker(view: PrView, expectedSha: unknown): string | null {
  * (`<sha>:refs/heads/<branch>`, a storyless review's shown head), so a commit made since the check can't go out with it.
  * A sha has no local branch to track, so the push sets no upstream: pushWith sets it after.
  */
-export function branchPushArgs(branch: string, sha: string | null, upstream: boolean): string[] {
+export function branchPushArgs(branch: string, sha: string | null): string[] {
   if (sha) {
     return ['push', 'origin', `${sha}:refs/heads/${branch}`];
   }
-  return [
-    'push',
-    ...(upstream ? ['-u'] : []),
-    'origin',
-    `refs/heads/${branch}:refs/heads/${branch}`,
-  ];
+  return ['push', '-u', 'origin', `refs/heads/${branch}:refs/heads/${branch}`];
 }
 
 /** git push -u origin <branch> (or `sha` only: branchPushArgs): never forced. Resolves to git's own lines; rejects with them when it fails. */
@@ -176,20 +172,9 @@ export async function pushBranch(
   branch: string,
   sha: string | null = null,
 ): Promise<string> {
-  return pushWith(repoPath, branch, sha, true);
-}
-
-/**
- * Runs the push. After a sha push it makes origin/<branch> the branch's upstream, with no push, as `-u` would have: the
- * fix-round relay tells an author that a branch with an upstream holding its tip is pushed (new commit, not an amend).
- */
-async function pushWith(
-  repoPath: string,
-  branch: string,
-  sha: string | null,
-  upstream: boolean,
-): Promise<string> {
-  const output = await gitPush(repoPath, branchPushArgs(branch, sha, upstream));
+  const output = await gitPush(repoPath, branchPushArgs(branch, sha));
+  // After a sha push, make origin/<branch> the branch's upstream, with no push, as `-u` would have: the fix-round relay
+  // tells an author that a branch with an upstream holding its tip is pushed (new commit, not an amend).
   if (sha) {
     await setUpstream(repoPath, branch);
   }
@@ -220,33 +205,4 @@ export async function aheadOf(repoPath: string, branch: string): Promise<number 
   const counted = await runGitAsync(repoPath, ['rev-list', '--count', `${remoteSha}..${headSha}`]);
   const count = Number(counted.stdout.trim());
   return counted.code === 0 && Number.isInteger(count) ? count : null;
-}
-
-/** Why a push of an open PR's branch can't go ahead, or null when it can. expectedSha is the commit the box showed. */
-export function pushAheadBlocker(view: PrView, expectedSha: unknown): string | null {
-  if (!view.pull) {
-    return `${view.branch || 'This branch'} has no open PR here: use Create pull request.`;
-  }
-  const blocker = pushBlocker(view, expectedSha);
-  if (blocker) {
-    return view.remote.state === 'diverged'
-      ? `GitHub's ${view.branch} has commits this checkout doesn't, so a push would be refused. Pull first.`
-      : blocker;
-  }
-  if (view.remote.state === 'missing') {
-    return `origin has no ${view.branch}: use Create pull request.`;
-  }
-  if (view.remote.state === 'same') {
-    return `${view.branch} is on GitHub and up to date: nothing to push.`;
-  }
-  return null;
-}
-
-/** git push origin <branch>: a fast-forward of the branch, never forced. Resolves to git's own lines; rejects with them when it fails. */
-export async function pushAhead(
-  repoPath: string,
-  branch: string,
-  sha: string | null = null,
-): Promise<string> {
-  return pushWith(repoPath, branch, sha, false);
 }

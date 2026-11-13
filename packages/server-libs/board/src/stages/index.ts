@@ -101,7 +101,6 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
   const { works, stories, localStoryList } = collected;
   const cardFacts: CardFacts = {
     unreadById,
-    shipById: collected.shipById,
     localCheckouts: collected.localCheckouts,
   };
 
@@ -203,7 +202,6 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
       backlogItems,
       links,
       {
-        sessionViews,
         quietViews,
         pin,
         repoBySession,

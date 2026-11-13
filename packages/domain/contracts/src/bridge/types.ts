@@ -3,7 +3,7 @@
  * statuses and the small acknowledgements. Types only: nothing here runs.
  */
 
-/** A built local story: a branch's story before any PR. The board's Open story goes to its local page, Mark reviewed ticks it off. */
+/** A built local story: a branch's story before any PR. The board's Open story goes to its local page, `once-upon reviewed` ticks it off. */
 export interface InboxLocalStory {
   id: string;
   /** owner/name from its checkout's origin, null when the checkout has none or is gone */
@@ -40,7 +40,7 @@ export interface InboxStory {
   url: string;
   /** when the story was last built */
   built_at: string;
-  /** when you last opened or reviewed it: the latest of your reads, where you stopped, and a Mark reviewed (null: never) */
+  /** when you last opened or reviewed it: the latest of your reads, where you stopped, and a `reviewed` mark (null: never) */
   seen_at: string | null;
   reviewed_at: string | null;
   /** why it is reviewed: marked by hand, or marked by itself because you submitted a review after it was built or viewed every file */

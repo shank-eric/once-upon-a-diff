@@ -5,8 +5,8 @@ import { BODIES } from '../src/schemas.ts';
 
 const ENTRIES = Object.entries(ROUTES as Record<string, AnyRoute>);
 
-test('the table has 66 routes, each method and path once', () => {
-  assert.equal(ENTRIES.length, 66);
+test('the table has 62 routes, each method and path once', () => {
+  assert.equal(ENTRIES.length, 62);
   const seen = new Set<string>();
   for (const [name, route] of ENTRIES) {
     const key = `${route.method} ${route.path}`;
@@ -47,7 +47,7 @@ test('every key scope is one the bridge knows, and the board and read-only flags
   assert.ok(boardKeyMay(ROUTES.boardFocus));
   assert.ok(!boardKeyMay(ROUTES.boardLink), 'only the bridge token is handed the board key');
   assert.ok(viewKeyAllowed(ROUTES.questionAsk));
-  assert.ok(!viewKeyAllowed(ROUTES.prPush) && !viewKeyAllowed(ROUTES.pushApproved));
+  assert.ok(!viewKeyAllowed(ROUTES.prPush));
   assert.ok(!viewKeyAllowed(ROUTES.approve) && !viewKeyAllowed(ROUTES.storyListen));
 });
 

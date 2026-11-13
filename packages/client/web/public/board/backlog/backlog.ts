@@ -48,33 +48,6 @@ const findItem = (board: BoardData, id: string) =>
   board.lanes.flatMap((lane) => lane.cards).find((one) => one.backlog?.id === id);
 
 /**
- * Assign: asks the bridge to tell the voice session to start the item ("Start backlog card <id>: <title>", typed into its
- * tab; the page sends only the id). Always on. The answer, or the reason it was refused, shows beside the button for a few
- * seconds. The board refreshes whether it was sent or refused, and the button is off until it has.
- */
-function Assign(props: { id: string; again: boolean; api: Api }) {
-  const { id, again, api } = props;
-  const [note, setNote] = useState<{ text: string; bad: boolean } | null>(null);
-  useEffect(() => {
-    if (!note) {
-      return;
-    }
-    const timer = setTimeout(() => setNote(null), 6000);
-    return () => clearTimeout(timer);
-  }, [note]);
-  const run = async () => {
-    try {
-      const sent = await api.bridge.ask(ROUTES.boardBacklogAssign, { body: { id } });
-      setNote({ text: `Sent to ${sent.session}`, bad: false });
-    } catch (err) {
-      setNote({ text: `Not sent: ${(err as Error).message}`, bad: true });
-    }
-    await api.refresh();
-  };
-  return html`<${ActionButton} attrs=${{ 'data-backlog-assign': id }} onClick=${run} title="Tell the voice session to start this card">${again ? 'Send again' : 'Assign'}</${ActionButton}>${note && html`<span class="ou-local-muted ou-board-assign-note" data-backlog-assign-note=${note.bad ? 'refused' : 'sent'} role="status">${note.text}</span>`}`;
-}
-
-/**
  * Edit: a form on the card with its title, note and repo (empty for none). Save sends only the fields that changed, and
  * closes the form (nothing changed: nothing sent). The inputs keep what is typed through every redraw, like the Add panel's.
  */
@@ -187,11 +160,9 @@ export function BacklogCard(props: { card: BoardCard; now: number; api: Api; dnd
     ${item?.started && html`<${Chips} items=${startedChips(item.started)} />`}
     ${item?.agent && !item.started && html`<${Chips} items=${agentOnlyChips(item.agent)} />`}
     ${item?.claim?.pending && html`<${Chips} items=${[pendingClaimChip(item.claim.agent)]} />`}
-    ${item?.assigned && !item.started && html`<${Chips} items=${[`assigned to ${item.assigned.session_title ?? 'a session that has ended'} ${ago(item.assigned.at, now)}, not started yet`]} />`}
     ${item && !item.started && !(item.claim && !item.agent?.tried) && html`<div class="ou-board-startline"><code>${item.start_line}</code></div>`}
     <${CardTrees} card=${card} now=${now} api=${api} />
     <div class="ou-board-actions">
-      ${item?.assign && !item.started && !item.someday && html`<${Assign} id=${item.id} again=${!!item.assigned} api=${api} />`}
       ${item && !item.started && !editing && html`<button type="button" data-backlog-edit=${item.id} onClick=${() => setEditing(true)} title="Change its title, note or repo">Edit</button>`}
       ${item && card.column === 'backlog' && !item.started && !item.claim?.pending && html`<${ActionButton} attrs=${{ 'data-backlog-someday': item.id }} onClick=${() => someday(item.id, !item.someday)} title=${item.someday ? 'Back in the main Backlog, in its old place' : 'Maybe someday: out of the main Backlog, into the Someday section'}>${item.someday ? 'Back to backlog' : 'Someday'}</${ActionButton}>`}
       ${item && html`<${ActionButton} attrs=${{ 'data-backlog-drop': item.id }} onClick=${() => drop(item.id)} title="Drop it from the backlog (the line stays in the file)">Drop</${ActionButton}>`}

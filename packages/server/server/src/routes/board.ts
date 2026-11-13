@@ -22,15 +22,11 @@
  *   POST /api/board/review      {card}: Review on a card with a branch and no story: a storyless review (a by-folder local
  *                               story over the branch's own commits) made in the branch's checkout, and its page link with
  *                               its full key. The branch and folder are the card's as the bridge built it, never the body's
- *   POST /api/board/reviewed    {story, reviewed?}: mark a local story reviewed (a card's Mark reviewed), or unmark it with
- *                               reviewed: false. A local story only: PR stories are marked on GitHub
  *   POST /api/board/backlog     {title, note?, repo?}: add a backlog item (the Backlog column's Add)
  *   POST /api/board/backlog/move {id, before | edge}: reorder (before another item's id, or edge top or bottom)
  *   POST /api/board/backlog/edit {id, title?, note?, repo?}: change an open item (a field left out stays; '' clears a note or repo)
  *   POST /api/board/backlog/someday {id, on}: put an open card in the Someday section, or back in the main list in its old place
  *   POST /api/board/backlog/drop {id}: drop one. Start is the CLI's (`once-upon backlog start`), not the page's
- *   POST /api/board/backlog/assign {id, session}: type the item's start line (built here from the store, the body has no
- *                               text) into an idle session in the item's repo, which then runs `once-upon backlog start`
  *   POST /api/board/agent/finish {sid, name}: Finish on a finished agent's card in Waiting: the card leaves the board now and
  *                               returns only if the agent does something more. The agent is looked up in the registry; a
  *                               waiting one is finished there (and gets its `[done]` ledger line). 409 for one still working or parked on your story review
@@ -49,7 +45,7 @@ import { publicOriginOf } from '@once-upon-a-diff/state/records/page-links/addre
 import { BoardError } from '@once-upon-a-diff/foundation/errors';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
-import { localStory, markStoryReviewed } from '@once-upon-a-diff/core/features/review/story-lists';
+import { localStory } from '@once-upon-a-diff/core/features/review/story-lists';
 import { reviewBranch } from '@once-upon-a-diff/stories/local-story';
 import type { MoveTo } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import type { ApiRoute, Call } from '../types.ts';
@@ -149,17 +145,6 @@ function asBadRequest<T>(run: () => T): T {
   }
 }
 
-/** POST {story, reviewed?}: a local story marked reviewed by hand (or unmarked). A PR story's id is a 404 here. */
-function reviewLocal({ app, body: raw, send }: Call) {
-  const { story: id, reviewed } = parseBody('boardReviewed', raw);
-  if (!localStory(app.stories, id)) {
-    throw new HttpError(404, 'no local story with that id');
-  }
-  markStoryReviewed(app.stories, id, reviewed !== false);
-  app.board.refresh(); // the card moves on the page's next poll, not when the kept answer runs out
-  return send(200, { ok: true });
-}
-
 /** POST {title, note?, repo?}: a new backlog item, by "board". */
 function addBacklog({ app, body: raw, send }: Call) {
   const { title, note, repo } = parseBody('boardBacklogAdd', raw);
@@ -200,13 +185,6 @@ function dropBacklog({ app, body, send }: Call) {
   const { id } = parseBody('boardBacklogDrop', body);
   asBadRequest(() => app.board.dropBacklog(id, 'board'));
   return send(200, { ok: true });
-}
-
-/** POST {id}: Assign, "Start backlog card ..." typed into the voice session's tab (the bridge picks the session). */
-async function assignBacklog({ app, body: raw, send }: Call) {
-  const { id } = parseBody('boardBacklogAssign', raw);
-  const sent = await app.board.assignBacklog(id, 'board');
-  return send(200, { ok: true, ...sent });
 }
 
 /** POST {paused}: pause (true) or resume (false) voice. */
@@ -276,13 +254,11 @@ export const boardRoutes: ApiRoute[] = [
   { route: ROUTES.boardFocus, handle: focus },
   { route: ROUTES.boardOpenStory, handle: openStory },
   { route: ROUTES.boardReview, handle: review },
-  { route: ROUTES.boardReviewed, handle: reviewLocal },
   { route: ROUTES.boardBacklogMove, handle: moveBacklog },
   { route: ROUTES.boardBacklogEdit, handle: editBacklog },
   { route: ROUTES.boardBacklogSomeday, handle: somedayBacklog },
   { route: ROUTES.boardBacklogDrop, handle: dropBacklog },
   { route: ROUTES.boardWorktreeClean, handle: cleanWorktree },
-  { route: ROUTES.boardBacklogAssign, handle: assignBacklog },
   { route: ROUTES.boardBacklogAdd, handle: addBacklog },
   { route: ROUTES.board, handle: data },
   { route: ROUTES.boardLink, handle: boardLink },

@@ -4,7 +4,6 @@
  * bridge's state (viewed files, notes).
  */
 import { approvalOf } from './approval.ts';
-import { shipMode } from './push-default.ts';
 import path from 'node:path';
 import { pathSha } from './diff.ts';
 import { readPrefs } from '@once-upon-a-diff/foundation/settings';
@@ -150,7 +149,6 @@ export function storyData(store: StoryStateReader, id: string, dir: string): Sto
         return found ? { at: found.at, head_oid: found.head_oid } : null;
       })(),
       moved: movedSince(local),
-      ship: shipMode(local, store.home),
       storyless: isStoryless(dir),
     };
   }

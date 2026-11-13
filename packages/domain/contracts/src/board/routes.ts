@@ -61,7 +61,6 @@ export const BOARD_ROUTES = {
     '/api/board/review',
     'token+board',
   ),
-  boardReviewed: api<In<'boardReviewed'>, Ok>('POST', '/api/board/reviewed', 'token+board'),
   boardBacklogAdd: api<In<'boardBacklogAdd'>, Ok & { id: string }>(
     'POST',
     '/api/board/backlog',
@@ -85,11 +84,6 @@ export const BOARD_ROUTES = {
   boardBacklogSomeday: api<In<'boardBacklogSomeday'>, Ok>(
     'POST',
     '/api/board/backlog/someday',
-    'token+board',
-  ),
-  boardBacklogAssign: api<In<'boardBacklogAssign'>, Ok & { typed: string; session: string }>(
-    'POST',
-    '/api/board/backlog/assign',
     'token+board',
   ),
   boardWorktreeClean: api<In<'boardWorktreeClean'>, WorktreeCleaned>(

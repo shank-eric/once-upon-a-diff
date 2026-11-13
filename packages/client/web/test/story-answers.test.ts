@@ -16,7 +16,6 @@ const card = (
     unread: false,
     unread_answers: 0,
     approved_at: null,
-    ship: null,
     ...story,
   },
 });
@@ -41,29 +40,4 @@ test('the answer is still on the card in PR open: a chip and Open story', () => 
   const bits = answerBits(card('pr_open', { unread_answers: 1 }));
   assert.equal(bits.chip, '1 unread answer');
   assert.ok(bits.openable);
-});
-
-test('Mark reviewed is for a local story in Ready that is not marked, or was rebuilt after it was', () => {
-  const local = { kind: 'local' as const, url: null };
-  assert.equal(answerBits(card('ready', { ...local })).markable, true);
-  assert.equal(
-    answerBits(card('ready', { ...local, reviewed: true })).markable,
-    false,
-    'marked, and nothing new',
-  );
-  assert.equal(
-    answerBits(card('ready', { ...local, reviewed: true, unread: true })).markable,
-    true,
-    'marked reviewed, then rebuilt: the card is in Ready again and the button clears it',
-  );
-  assert.equal(
-    answerBits(card('ready', { ...local, reviewed: true, unread_answers: 1 })).markable,
-    false,
-  );
-  assert.equal(
-    answerBits(card('back', { kind: 'pr' })).markable,
-    false,
-    'a PR story is marked on GitHub',
-  );
-  assert.equal(answerBits(card('idle', null)).openable, false);
 });

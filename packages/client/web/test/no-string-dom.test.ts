@@ -72,14 +72,14 @@ test('the code cell takes HTML only from highlight.js’s output, never from a l
 });
 
 test('the boxes are drawn by ActionDialog, from the store: no box builds markup strings or its own dialog element', () => {
-  for (const file of ['push.ts', 'push-ahead.ts', 'pull-request.ts', 'dialogs.ts']) {
+  for (const file of ['pull-request.ts', 'dialogs.ts']) {
     const source = code(readFileSync(path.join(LOCAL, 'ship', file), 'utf8'));
     assert.ok(
       !/createElement\(['"]dialog|openActionDialog/.test(source),
       `${file} makes its own dialog`,
     );
   }
-  for (const file of ['push.ts', 'push-ahead.ts', 'pull-request.ts']) {
+  for (const file of ['pull-request.ts']) {
     assert.match(readFileSync(path.join(LOCAL, 'ship', file), 'utf8'), /ActionSpec</, file);
   }
   assert.match(readFileSync(path.join(LOCAL, 'ship', 'dialogs.ts'), 'utf8'), /ActionDialog/);

@@ -55,8 +55,6 @@
             "backlog": {
               "added_by": "cli",
               "agent": null,
-              "assign": null,
-              "assigned": null,
               "claim": {
                 "agent": "lm-built",
                 "at": "2026-10-26T17:02:00.000Z",
@@ -160,8 +158,6 @@
             "backlog": {
               "added_by": "cli",
               "agent": null,
-              "assign": null,
-              "assigned": null,
               "claim": {
                 "agent": "ou-fix",
                 "at": "2026-10-26T17:02:00.000Z",
@@ -256,8 +252,6 @@
             "backlog": {
               "added_by": "cli",
               "agent": null,
-              "assign": null,
-              "assigned": null,
               "claim": {
                 "agent": "ou-wrong",
                 "at": "2026-10-26T17:02:00.000Z",
@@ -355,8 +349,6 @@
             "backlog": {
               "added_by": "cli",
               "agent": null,
-              "assign": null,
-              "assigned": null,
               "claim": {
                 "agent": "ou-old",
                 "at": "2026-10-26T17:02:00.000Z",
@@ -475,8 +467,6 @@
             "backlog": {
               "added_by": "cli",
               "agent": null,
-              "assign": null,
-              "assigned": null,
               "claim": {
                 "agent": "ou-story",
                 "at": "2026-10-26T17:02:00.000Z",
@@ -577,8 +567,6 @@
             "backlog": {
               "added_by": "cli",
               "agent": null,
-              "assign": null,
-              "assigned": null,
               "claim": {
                 "agent": "ou-built",
                 "at": "2026-10-26T17:02:00.000Z",

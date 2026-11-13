@@ -16,8 +16,6 @@ export interface BacklogItem {
   /** when a `done` event recorded the work as landed (started items only), and the sha it landed as, when given */
   landed_at: string | null;
   landed_sha: string | null;
-  /** the latest session an Assign typed the item into; kept until a start or a drop (shown for ASSIGN_HOURS) */
-  assigned: { session: string; branch: string | null; at: string } | null;
   /**
    * the agent that claimed the card (named as it registered, with its launching session's first 8 when given); cleared when it
    * lands (`done`) or by a reopen. `session` is the claimer's full session id (the editor's, so its slots can tell its cards)

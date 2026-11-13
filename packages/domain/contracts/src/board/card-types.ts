@@ -4,7 +4,6 @@
  */
 
 import type { StoryRequest } from '../panel/types.ts';
-import type { ShipMode } from '../story/types.ts';
 import type { BoardAgent, BoardBeat, BoardStatus } from './agent-types.ts';
 
 /** The board's columns, in the order the work moves through them: `research` and `error` show only when a card is in them, and idle cards are a lane of their own. */
@@ -110,14 +109,12 @@ export interface BoardCard {
     unread_answers: number;
     /** a local story approved for its current head: ready to ship (null: not approved) */
     approved_at: string | null;
-    /** a local story approved and ready to ship: Push when its commits go straight to the default branch, else Create pull request (null otherwise) */
-    ship: ShipMode | null;
     /** a storyless review (a by-folder local story): Build story still tells one */
     storyless?: true;
   } | null;
   /**
    * a work card with an open PR whose local checkout has commits origin's branch lacks (a fix made after review), and
-   * the local story whose page has the Push box; absent when no local story of the branch is known
+   * the local story of that checkout; absent when no local story of the branch is known
    */
   ahead?: { count: number; story: string } | null;
   /** a session is building, rebuilding or fixing for it (a claimed request) */
@@ -172,15 +169,6 @@ export interface BoardCard {
      * no registered event yet, so the card says "claimed, not started" until it does (or the claim is old and drops)
      */
     claim?: { agent: string; at: string | null; pending: boolean } | null;
-    /** an Assign typed it into this session lately and no start followed (the title is filled from the live view) */
-    assigned: {
-      session: string;
-      session_title: string | null;
-      branch: string | null;
-      at: string | null;
-    } | null;
-    /** the idle sessions Assign can offer, and the exact line it would type into each; null once started */
-    assign: BoardAssign | null;
   } | null;
   /** the card this local story's work card began as landed (`backlog done`), and when: the story is Done, then off the board */
   landed?: { card: string; at: string };
@@ -266,11 +254,6 @@ export interface BoardListening {
   session: string | null;
   title: string | null;
   can_focus: boolean;
-}
-
-/** The Assign button on a backlog card: the message it sends the voice session (the same for every click). */
-interface BoardAssign {
-  prompt: string;
 }
 
 /** A branch to review without a story: its name and the checkout it is in. */

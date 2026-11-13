@@ -86,10 +86,7 @@ test('a report on partial data says how much it has, and what has no evidence of
   assert.equal(backlog.commandRuns, 2);
   assert.deepEqual(
     backlog.routesZero.sort(),
-    ['boardBacklogDrop', 'boardBacklogEdit', 'boardBacklogMove']
-      .sort()
-      .concat(['boardBacklogAssign', 'boardBacklogSomeday'])
-      .sort(),
+    ['boardBacklogDrop', 'boardBacklogEdit', 'boardBacklogMove', 'boardBacklogSomeday'].sort(),
   );
   assert.equal(backlog.uncoveredLines, 3);
   assert.equal(backlog.codeLines, 4);

@@ -4,11 +4,11 @@
  * story, and the panel's saved state, draws the page (local/app.ts, from the store in local/store.ts), and mounts the panel.
  */
 import { ROUTES } from '/assets/contracts/routes.ts';
-import { page, bridge, PARAMS, OPEN_PUSH } from '/assets/local/page.ts';
+import { page, bridge, PARAMS } from '/assets/local/page.ts';
 import { store, storyOf } from '/assets/local/store.ts';
 import { drawInto } from '/assets/local/app.ts';
 import { mount } from '/assets/local/mount.ts';
-import { openDialog, reloadIfChanged } from '/assets/local/actions.ts';
+import { reloadIfChanged } from '/assets/local/actions.ts';
 import type { LocalStoryData } from '/assets/local/page.ts';
 import type { InitialUi } from '/assets/panel/shell/overlay.ts';
 import { withLayout, type Layout } from '/assets/panel/shell/layout.ts';
@@ -52,9 +52,5 @@ async function start() {
     },
   };
   page.onVersion = reloadIfChanged;
-  if (OPEN_PUSH) {
-    // the board's Push: its link asks for the box (Push to the default branch, or Push for the open PR's branch)
-    openDialog(story.local.ship === 'push' ? 'push' : 'push-ahead');
-  }
 }
 start();

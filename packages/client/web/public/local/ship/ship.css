@@ -3,7 +3,7 @@
 .ou-local-pr-link { font-size: 12px; white-space: nowrap; }
 .ou-local-approved { font-size: 12px; white-space: nowrap; color: var(--ou-ok); }
 button.ou-local-approve, button.ou-local-unapprove { white-space: nowrap; }
-button.ou-local-pr, button.ou-local-push, button.ou-local-push-ahead { white-space: nowrap; }
+button.ou-local-pr { white-space: nowrap; }
 .ou-local-ahead { font-size: 12px; white-space: nowrap; color: var(--ou-fg-muted); }
 #ou-local-pr-box { width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 64px); padding: 16px 20px; border: 1px solid var(--ou-border); border-radius: 8px; background: var(--ou-bg); color: var(--ou-fg); }
 #ou-local-pr-box::backdrop { --ou-local-scrim: rgba(0, 0, 0, 0.4); background: var(--ou-local-scrim); }

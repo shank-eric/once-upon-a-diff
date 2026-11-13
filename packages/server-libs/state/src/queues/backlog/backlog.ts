@@ -63,8 +63,6 @@ import type { BacklogItem } from './types.ts';
 
 export const STARTED_GRACE_HOURS = 24;
 export { DONE_HOURS };
-/** An assignment that no `start` followed is a hint for this long, then the item is free to hand to another session. */
-export const ASSIGN_HOURS = 2;
 
 const TITLE_MAX = 200;
 const NOTE_MAX = BACKLOG_NOTE_MAX; // long enough for a plan or a repro: the CLI takes one from a file or stdin
@@ -110,10 +108,6 @@ export interface BacklogStorage {
   drop(id: string, who?: string | null): BacklogItem;
   reopen(id: string, who?: string | null): BacklogItem;
   done(id: string, input?: { sha?: string | null; by?: string | null }): BacklogItem;
-  assign(
-    id: string,
-    input: { session: string; branch?: string | null; by?: string | null },
-  ): BacklogItem;
   claim(id: string, input: ClaimInput): BacklogItem;
   hold(id: string, held: boolean, who?: string | null): BacklogItem;
   someday(
@@ -159,7 +153,6 @@ export function foldBacklog(text: string): BacklogItem[] {
         dropped_at: null,
         landed_at: null,
         landed_sha: null,
-        assigned: null,
         claim: null,
         hold: false,
         someday: false,
@@ -180,8 +173,6 @@ export function foldBacklog(text: string): BacklogItem[] {
       found.landed_at = null;
       found.landed_sha = null;
       found.someday = false;
-    } else if (found && found.state === 'open' && event.op === 'assign') {
-      found.assigned = { session: event.session, branch: event.branch || null, at: when };
     } else if (
       found &&
       (found.state === 'started' || found.state === 'open') &&
@@ -222,7 +213,6 @@ export function foldBacklog(text: string): BacklogItem[] {
       found.landed_sha = null;
       found.branch = added.get(id)?.branch ?? null;
       found.repo = added.get(id)?.repo ?? null;
-      found.assigned = null;
       found.claim = null;
       found.hold = false;
       found.someday = false;
@@ -324,28 +314,6 @@ export class BacklogStore implements BacklogStorage {
       id,
       branch,
       repo: optional(input.repo, 'the repo', REPO_RE),
-      by: clean(input.by, 'the name', BY_MAX) || 'cli',
-    });
-    return this.find(id);
-  }
-
-  /** Records that an Assign typed this item into a session (after the typing worked). */
-  assign(
-    id: string,
-    input: { session: string; branch?: string | null; by?: string | null },
-  ): BacklogItem {
-    const item = this.find(id);
-    if (item.state !== 'open') {
-      throw new Error(`${id} is ${item.state}`);
-    }
-    if (!SESSION_RE.test(input.session)) {
-      throw new Error('a session id is needed');
-    }
-    this.append({
-      op: 'assign',
-      id,
-      session: input.session,
-      branch: optional(input.branch, 'the branch', CARD_BRANCH_RE),
       by: clean(input.by, 'the name', BY_MAX) || 'cli',
     });
     return this.find(id);
@@ -535,53 +503,6 @@ export const claimHint = (id: string): string =>
 export const startLine = (item: Pick<BacklogItem, 'id' | 'branch'>): string =>
   `once-upon backlog start ${item.id} --branch ${item.branch || '<branch>'}`;
 
-/** The assignment still in force: the item is open and the assign is under ASSIGN_HOURS old. */
-export function liveAssignment(item: BacklogItem, nowMs: number): BacklogItem['assigned'] {
-  const assignedMs = Date.parse(item.assigned?.at ?? '');
-  if (item.state !== 'open' || !item.assigned || Number.isNaN(assignedMs)) {
-    return null;
-  }
-  return nowMs - assignedMs > ASSIGN_HOURS * 3600 * 1000 ? null : item.assigned;
-}
-
-const TITLE_IN_LINE_MAX = 80;
-
-/** A title safe to type: letters, digits, spaces and a little punctuation, collapsed, capped. Never anything that quotes or runs. */
-export function lineTitle(title: string): string {
-  const text = title
-    .replace(/[^\p{L}\p{N} .,:()'-]/gu, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  return text.length > TITLE_IN_LINE_MAX
-    ? text.slice(0, TITLE_IN_LINE_MAX).trimEnd() + '...'
-    : text;
-}
-
-/** The branch an Assign gives the work: the item's own, else backlog/<slug>-<first 4 of the id>. Always matches CARD_BRANCH_RE. */
-export function assignBranch(item: Pick<BacklogItem, 'id' | 'title' | 'branch'>): string {
-  if (item.branch && CARD_BRANCH_RE.test(item.branch)) {
-    return item.branch;
-  }
-  const slug = item.title
-    .toLowerCase()
-    .normalize('NFKD')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 40)
-    .replace(/-+$/, '');
-  const tail = item.id.replace(/^bl_/, '').slice(0, 4);
-  return `backlog/${slug ? `${slug}-` : ''}${tail}`;
-}
-
-/**
- * The message Assign sends the voice session: one line (Enter submits) with the id and a sanitized, capped title. The note and
- * the full title stay in the store; the session reads them with `once-upon backlog show <id>` when it starts the card.
- */
-export function assignLine(item: Pick<BacklogItem, 'id' | 'title'>): string {
-  const title = lineTitle(item.title);
-  return `Start backlog card ${item.id}${title ? `: ${title}` : ''}. ${claimHint(item.id)}`;
-}
-
 /**
  * Whether a started item's work has landed or merged, with when: landed (`done`, a local deploy) is Done at that time,
  * merged is Done at its merge time (else the start). Null while the work is going on. What its runs say is `cardPhase`.
@@ -770,16 +691,6 @@ export function backlogCards(
         claim: claim
           ? { agent: claim.claim.agent, at: claim.claim.at || null, pending: claim.pending }
           : null,
-        assigned:
-          item.state === 'open' && liveAssignment(item, nowMs)
-            ? {
-                session: (item.assigned as NonNullable<BacklogItem['assigned']>).session,
-                session_title: null,
-                branch: item.assigned?.branch ?? null,
-                at: item.assigned?.at ?? null,
-              }
-            : null,
-        assign: null,
       },
     });
   }

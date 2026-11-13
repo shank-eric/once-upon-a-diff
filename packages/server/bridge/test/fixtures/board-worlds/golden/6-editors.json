@@ -529,8 +529,6 @@
                 },
                 "tried": false
               },
-              "assign": null,
-              "assigned": null,
               "claim": {
                 "agent": "e-claimed",
                 "at": "2026-10-26T16:01:00.000Z",

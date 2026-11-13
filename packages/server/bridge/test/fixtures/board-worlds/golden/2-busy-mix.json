@@ -159,7 +159,6 @@
               "id": "local-main",
               "kind": "local",
               "reviewed": false,
-              "ship": null,
               "unread": false,
               "unread_answers": 0,
               "url": null
@@ -667,7 +666,6 @@
               "id": "acme-widgets-7",
               "kind": "pr",
               "reviewed": false,
-              "ship": null,
               "unread": false,
               "unread_answers": 0,
               "url": "https://github.com/acme/widgets/pull/7/files"
@@ -717,7 +715,6 @@
               "id": "acme-widgets-8",
               "kind": "pr",
               "reviewed": false,
-              "ship": null,
               "unread": false,
               "unread_answers": 0,
               "url": "https://github.com/acme/widgets/pull/8/files"
@@ -767,7 +764,6 @@
               "id": "acme-widgets-10",
               "kind": "pr",
               "reviewed": true,
-              "ship": null,
               "unread": false,
               "unread_answers": 0,
               "url": "https://github.com/acme/widgets/pull/10/files"
@@ -817,7 +813,6 @@
               "id": "acme-widgets-11",
               "kind": "pr",
               "reviewed": true,
-              "ship": null,
               "unread": false,
               "unread_answers": 0,
               "url": "https://github.com/acme/widgets/pull/11/files"
@@ -867,7 +862,6 @@
               "id": "acme-widgets-14",
               "kind": "pr",
               "reviewed": false,
-              "ship": null,
               "unread": false,
               "unread_answers": 0,
               "url": "https://github.com/acme/widgets/pull/14/files"
@@ -917,7 +911,6 @@
               "id": "acme-widgets-15",
               "kind": "pr",
               "reviewed": false,
-              "ship": null,
               "unread": false,
               "unread_answers": 0,
               "url": "https://github.com/acme/widgets/pull/15/files"
@@ -967,7 +960,6 @@
               "id": "acme-widgets-17",
               "kind": "pr",
               "reviewed": true,
-              "ship": null,
               "unread": true,
               "unread_answers": 0,
               "url": "https://github.com/acme/widgets/pull/17/files"
@@ -1021,7 +1013,6 @@
               "id": "acme-widgets-18",
               "kind": "pr",
               "reviewed": true,
-              "ship": null,
               "unread": false,
               "unread_answers": 0,
               "url": "https://github.com/acme/widgets/pull/18/files"
@@ -1138,7 +1129,6 @@
               "id": "local-nobranch",
               "kind": "local",
               "reviewed": false,
-              "ship": null,
               "unread": false,
               "unread_answers": 0,
               "url": null
@@ -1169,7 +1159,6 @@
               "id": "local-merged-branch",
               "kind": "local",
               "reviewed": false,
-              "ship": null,
               "unread": false,
               "unread_answers": 0,
               "url": null
@@ -1200,7 +1189,6 @@
               "id": "local-approved",
               "kind": "local",
               "reviewed": false,
-              "ship": null,
               "unread": false,
               "unread_answers": 0,
               "url": null
@@ -1289,7 +1277,6 @@
               "id": "local-y",
               "kind": "local",
               "reviewed": false,
-              "ship": null,
               "unread": false,
               "unread_answers": 0,
               "url": null

@@ -45,7 +45,7 @@ test.beforeEach(() => {
   requests.length = 0;
   reply('GET pr', pr());
   store.set({
-    ship: { dialog: null, approveFailure: '', hasPull: false, pushedAt: null, prView: null },
+    ship: { dialog: null, approveFailure: '', hasPull: false, prView: null },
   });
 });
 test.afterEach(() => {
@@ -100,7 +100,7 @@ test('an Approve the bridge refuses says why beside the button, and the next try
   assert.doesNotMatch(one('.ou-local-top')!.textContent!, /the branch moved/);
 });
 
-test('Approve goes once the branch has a PR or the commit is pushed, and stays gone across a reload of the story', async () => {
+test('Approve goes once the branch has a PR, and stays gone across a reload of the story', async () => {
   await open();
   store.set((state) => ({ ship: { ...state.ship, hasPull: true } }));
   await settle();
@@ -111,52 +111,21 @@ test('Approve goes once the branch has a PR or the commit is pushed, and stays g
   assert.ok(one('.ou-local-approve') === null, 'a reload does not bring it back');
 });
 
-test('Push is off until the story is approved, opens its box when it is, and the header says "Pushed" after', async () => {
-  await open({ ship: 'push', branch: 'main' });
-  const push = () => one('.ou-local-push')!;
-  assert.ok(push().hasAttribute('disabled'));
-  assert.match(push().getAttribute('title')!, /Approve the story first/);
-  reply('POST approve', { approved });
-  one('.ou-local-approve')!.click();
-  await settle();
-  assert.ok(!push().hasAttribute('disabled'), 'the approval turns it on');
-  reply('GET push', {
-    repo: 'acme/widgets',
-    branch: 'main',
-    approved_sha: 'a'.repeat(40),
-    approved_at: null,
-    later: 0,
-    remote: { state: 'ahead', sha: 'f'.repeat(40) },
-    to_push: [commit('a1b2c3d', 'x')],
-    protection: { state: 'open' },
-    blocker: null,
-    pr_instead: false,
-  });
-  reply('POST push', { output: '' });
-  push().click();
-  await settle();
-  assert.ok(box());
-  (box()!.querySelector('form') as HTMLElement).dispatchEvent(
-    new window.Event('submit', { bubbles: true, cancelable: true }),
-  );
-  await settle();
-  assert.match(one('.ou-local-push-holder')!.textContent!, /^Pushed aaaaaaa$/);
-  assert.ok(one('.ou-local-approve') === null, 'and Approve is gone');
-});
-
-test('Create pull request shows on a branch that ships by PR, and opens the box', async () => {
+test('Create pull request shows on a branch, and opens the box', async () => {
   await open();
   assert.ok(one('.ou-local-pr'));
-  assert.ok(one('.ou-local-push') === null);
   one('.ou-local-pr')!.click();
   await settle();
   assert.match(box()!.textContent!, /Create pull request/);
 });
 
-test('no Create pull request where Push ships it, or on a detached head', async () => {
-  await open({ ship: 'push' });
-  assert.ok(one('.ou-local-pr') === null && one('.ou-local-pr-link') === null);
-  app!.unmount();
+test('no Create pull request on the base branch, which a push would send whole', async () => {
+  reply('GET pr', pr({ branch: 'main', base: 'main' }));
+  await open({ branch: 'main' });
+  assert.ok(one('.ou-local-pr') === null);
+});
+
+test('no Create pull request on a detached head', async () => {
   await open({ branch: null });
   assert.ok(one('.ou-local-pr') === null);
 });
@@ -171,7 +140,7 @@ test('the look for a PR at start turns the button into Open PR #N and takes Appr
   assert.ok(one('.ou-local-pr') === null);
 });
 
-test('a branch that is ahead of its PR shows how far and a Push for it, which opens its box', async () => {
+test('a branch that is ahead of its PR shows how far, with no Push', async () => {
   reply(
     'GET pr',
     pr({
@@ -182,9 +151,7 @@ test('a branch that is ahead of its PR shows how far and a Push for it, which op
   );
   await open();
   assert.equal(one('.ou-local-ahead')!.textContent, '2 commits ahead');
-  one('.ou-local-push-ahead')!.click();
-  await settle();
-  assert.match(box()!.textContent!, /Push work/);
+  assert.ok(one('.ou-local-push-ahead') === null);
 });
 
 test('the page follows the story while the panel is closed, and stops when it is taken away', async () => {

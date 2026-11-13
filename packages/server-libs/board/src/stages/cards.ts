@@ -9,7 +9,6 @@ import type {
   InboxLocalStory,
   InboxStory,
   PrInfo,
-  ShipMode,
 } from '@once-upon-a-diff/contracts/types';
 import { gateText } from '@once-upon-a-diff/terms/text';
 import type { LiveSession } from '@once-upon-a-diff/adapters/claude-sessions/live-sessions';
@@ -101,8 +100,6 @@ const earliest = (times: (string | null | undefined)[]): string | null =>
 export interface CardFacts {
   /** each story's questions whose answer you haven't read */
   unreadById: Map<string, number>;
-  /** how each approved local story ships */
-  shipById: Map<string, ShipMode>;
   /** the newest local story's checkout for each repo and branch, for a PR card's commits-ahead count */
   localCheckouts: Map<string, { story: string; checkout: string }>;
 }
@@ -213,7 +210,6 @@ function workCard(ctx: BuildContext, facts: CardFacts, work: Work): BoardCard | 
           unread: unreadOf(story),
           unread_answers: facts.unreadById.get(story.id) ?? 0,
           approved_at: 'number' in story ? null : story.approved_at,
-          ship: 'number' in story ? null : (facts.shipById.get(story.id) ?? null),
           ...(!('number' in story) && story.storyless ? { storyless: true as const } : {}),
         }
       : null,

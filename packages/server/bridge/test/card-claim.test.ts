@@ -131,7 +131,6 @@ test('a claimed card is ONE Working card with its agent, and the agent has no ca
   assert.equal(mine[0].backlog?.claim?.agent, 'ou-scout');
   assert.equal(mine[0].backlog?.claim?.pending, false);
   assert.equal(mine[0].backlog?.agent?.links.agent?.beat?.step, 'plan');
-  assert.equal(mine[0].backlog?.assign, null, 'a claimed card is not offered to Assign');
 });
 
 test('an unclaimed agent with `card bl_x` in its task, its `by` name or its folder name does NOT link', async () => {

@@ -40,14 +40,14 @@ export async function act(what: string, call: () => Promise<unknown>, api?: Api)
   await api?.refresh();
 }
 
-/** Opens a local story's page in a tab (the bridge makes the link), with the Push box open when `push`. */
-export const openStory = (api: Api, story: string, push: boolean) =>
+/** Opens a local story's page in a tab (the bridge makes the link). */
+export const openStory = (api: Api, story: string) =>
   act('open the story', async () => {
     const { url } = await api.bridge.ask(ROUTES.boardOpenStory, { body: { story } });
-    window.open(push ? `${url}&push=1` : url, '_blank', 'noopener');
+    window.open(url, '_blank', 'noopener');
   });
 
-/** Review: the bridge makes a storyless review of the card's branch (the diff, Create pull request and Push), and its page opens. */
+/** Review: the bridge makes a storyless review of the card's branch (the diff and Create pull request), and its page opens. */
 export const reviewCard = (api: Api, card: string) =>
   act('open the review', async () => {
     const { url } = await api.bridge.ask(ROUTES.boardReview, { body: { card } });

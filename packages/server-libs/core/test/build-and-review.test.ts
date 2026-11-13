@@ -72,7 +72,6 @@ const localStory = (over: Partial<NonNullable<BoardCard['story']>> = {}) => ({
   unread: false,
   unread_answers: 0,
   approved_at: null,
-  ship: null,
   ...over,
 });
 

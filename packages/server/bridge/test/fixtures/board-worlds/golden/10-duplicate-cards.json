@@ -58,8 +58,6 @@
             "backlog": {
               "added_by": "cli",
               "agent": null,
-              "assign": null,
-              "assigned": null,
               "claim": {
                 "agent": "ou-dup",
                 "at": "2026-10-26T18:30:00.000Z",
@@ -111,10 +109,6 @@
             "backlog": {
               "added_by": "cli",
               "agent": null,
-              "assign": {
-                "prompt": "Start backlog card bl_ddddd02: Another branch. Claim it first: once-upon backlog claim bl_ddddd02 --agent NAME (the agent's name in the ledger), plus --branch BRANCH when it has one"
-              },
-              "assigned": null,
               "claim": null,
               "id": "bl_ddddd02",
               "start_line": "once-upon backlog start bl_ddddd02 --branch dup-other",
@@ -144,8 +138,6 @@
             "backlog": {
               "added_by": "cli",
               "agent": null,
-              "assign": null,
-              "assigned": null,
               "claim": {
                 "agent": "ou-claimer",
                 "at": "2026-10-26T17:02:00.000Z",
@@ -217,8 +209,6 @@
                 },
                 "tried": false
               },
-              "assign": null,
-              "assigned": null,
               "claim": null,
               "id": "bl_ddddd04",
               "start_line": "once-upon backlog start bl_ddddd04 --branch dup-named",

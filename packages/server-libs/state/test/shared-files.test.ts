@@ -224,7 +224,6 @@ test('everything the stores write reads back through the formats, and none of it
     const item = backlog.add({ title: 'a', note: 'n', repo: 'acme/widgets' });
     const other = backlog.add({ title: 'b' });
     backlog.start(item.id, { branch: 'feat-x' });
-    backlog.assign(other.id, { session: 'abcd1234-aaaa' });
     backlog.claim(item.id, { agent: 'author-x', sid });
     backlog.hold(item.id, true);
     backlog.move(other.id, { edge: 'top' });
@@ -236,7 +235,7 @@ test('everything the stores write reads back through the formats, and none of it
     const lines = readFileSync(path.join(home, 'backlog.jsonl'), 'utf8')
       .split('\n')
       .filter(Boolean);
-    assert.equal(lines.length, 12);
+    assert.equal(lines.length, 11);
     assert.equal(foldBacklog(lines.join('\n')).length, 2);
 
     const inbox = new Inbox(home);

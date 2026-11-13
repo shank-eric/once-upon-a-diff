@@ -14,7 +14,7 @@ import type {
 
 /*
  * The board page itself, loaded as the browser loads it with a fake bridge behind fetch and linkedom for a DOM: one Preact
- * tree in the app element, the poll feeding it, and each region's main interactions (add, assign, drag, filter, the Idle
+ * tree in the app element, the poll feeding it, and each region's main interactions (add, drag, filter, the Idle
  * fold, the phone buttons, Clean up) driven with the events a browser would send.
  */
 const voice: BoardVoice = {
@@ -66,8 +66,6 @@ const backlog = (id: string, lane = 'widgets'): BoardCard =>
       added_by: 'board',
       started: null,
       start_line: `once-upon backlog start ${id}`,
-      assigned: null,
-      assign: { prompt: `Start backlog card ${id}: Item ${id}` },
     },
   });
 const tree: BoardWorktree = {
@@ -522,34 +520,6 @@ test('the Add panel’s repo menu picks the repo the item is for', async () => {
   });
 });
 
-test('Assign is always on and asks the bridge to tell the voice session: the id only, no confirm, and the answer shows', async () => {
-  requests.length = 0;
-  confirmed.length = 0;
-  const button = $('[data-backlog-assign="bl_1"]') as HTMLButtonElement;
-  assert.equal(button.disabled, false);
-  assert.equal(button.hasAttribute('aria-haspopup'), false, 'no menu of sessions');
-  await click(button);
-  await tick();
-  assert.deepEqual(sentTo('/api/board/backlog/assign')[0].body, { id: 'bl_1' });
-  assert.deepEqual(confirmed, [], 'nothing is asked first');
-  assert.match($('[data-backlog-assign-note="sent"]')?.textContent as string, /Sent to clarifi-da/);
-
-  // the bridge's reason for a refusal shows beside the button, not in an alert
-  alerts.length = 0;
-  refused.set('/api/board/backlog/assign', {
-    status: 409,
-    error: 'the session is waiting for you',
-  });
-  await click($('[data-backlog-assign="bl_2"]'));
-  await tick();
-  assert.match(
-    $('[data-backlog-assign-note="refused"]')?.textContent as string,
-    /Not sent: the session is waiting for you/,
-  );
-  assert.deepEqual(alerts, []);
-  refused.clear();
-});
-
 test('Drop is on the card, Copy start line is not: Drop asks the bridge to drop that item', async () => {
   requests.length = 0;
   assert.equal(all('[data-backlog-copy]').length, 0);
@@ -624,21 +594,10 @@ async function bothWays(
   return refusedOne;
 }
 
-test('rule: Assign, Drop and Someday load the board after a call that worked and after one that was refused', async () => {
+test('rule: Drop and Someday load the board after a call that worked and after one that was refused', async () => {
   requests.length = 0;
   answer = () => board();
   await pollNow();
-  const assign = await bothWays(
-    '/api/board/backlog/assign',
-    () => click($('[data-backlog-assign="bl_2"]')),
-    () => $('[data-backlog-assign="bl_2"]'),
-    null,
-  );
-  assert.deepEqual(assign.alerts, [], 'Assign says why beside its button, not in an alert');
-  assert.match(
-    $('[data-backlog-assign-note="refused"]')?.textContent as string,
-    /Not sent: it moved on/,
-  );
   await bothWays(
     '/api/board/backlog/drop',
     () => click($('[data-backlog-drop="bl_3"]')),
@@ -682,7 +641,7 @@ async function offThroughRefresh(
   assert.equal(after, false, 'back once the load is done');
 }
 
-test('rule: a button stays off until the board load after its call is done, for a backlog action, an act() action and the header', async () => {
+test('rule: a button stays off until the board load after its call is done, for a backlog action and the header', async () => {
   answer = () => board({ voice_start: START });
   await pollNow();
   await offThroughRefresh(
@@ -691,34 +650,10 @@ test('rule: a button stays off until the board load after its call is done, for 
     () => $('[data-backlog-drop="bl_3"]'),
   );
   await offThroughRefresh(
-    '/api/board/backlog/assign',
-    () => click($('[data-backlog-assign="bl_2"]')),
-    () => $('[data-backlog-assign="bl_2"]'),
-  );
-  await offThroughRefresh(
     '/api/board/voice/pause',
     () => click($('[data-voice-pause="pause"]')),
     () => $('[data-voice-pause]'),
   );
-  const story = {
-    id: 'st-ready',
-    kind: 'local' as const,
-    url: null,
-    reviewed: false,
-    unread: false,
-    unread_answers: 0,
-    approved_at: null,
-    ship: null,
-  };
-  answer = () => withCards(card({ id: 'r-1', title: 'To review', column: 'ready', story }));
-  await pollNow();
-  await offThroughRefresh(
-    '/api/board/reviewed',
-    () => click($('[data-mark-local="st-ready"]')),
-    () => $('[data-mark-local="st-ready"]'),
-  );
-  answer = () => board();
-  await pollNow();
 });
 
 test('rule: a second click on Drop while its call is out sends nothing more', async () => {
@@ -864,7 +799,7 @@ test('rule: the Phone menu’s calls load the board after, and wait on, a call t
   await pollNow();
 });
 
-test('rule: Finish, Mark reviewed, Stop listening and Build story load the board after a call that worked and after a refused one', async () => {
+test('rule: Finish, Stop listening and Build story load the board after a call that worked and after a refused one', async () => {
   requests.length = 0;
   sure = true;
   const story = {
@@ -875,7 +810,6 @@ test('rule: Finish, Mark reviewed, Stop listening and Build story load the board
     unread: false,
     unread_answers: 0,
     approved_at: null,
-    ship: null,
   };
   answer = () =>
     ({
@@ -950,12 +884,6 @@ test('rule: Finish, Mark reviewed, Stop listening and Build story load the board
     /Couldn't finish it: it moved on/,
   );
   await bothWays(
-    '/api/board/reviewed',
-    () => click($('[data-mark-local="st-ready"]')),
-    () => $('[data-mark-local="st-ready"]'),
-    /Couldn't mark it reviewed: it moved on/,
-  );
-  await bothWays(
     '/api/board/stop-listening',
     () => click($('[data-stop-listening="acme/gadgets"]')),
     () => $('[data-stop-listening="acme/gadgets"]'),
@@ -999,7 +927,6 @@ test('rule: Open story, Push and Review are off while the link is made, and load
     unread: false,
     unread_answers: 0,
     approved_at: null,
-    ship: null,
     ...over,
   });
   answer = () =>
@@ -1009,7 +936,7 @@ test('rule: Open story, Push and Review are off while the link is made, and load
         id: 's-1',
         title: 'To ship',
         column: 'ship',
-        story: story('st-ship', { approved_at: '2026-10-29T11:00:00Z', ship: 'push' }),
+        story: story('st-ship', { approved_at: '2026-10-29T11:00:00Z' }),
       }),
       card({
         id: 'agent:aaaaaaaa:one',
@@ -1040,12 +967,6 @@ test('rule: Open story, Push and Review are off while the link is made, and load
     '/api/board/open-story',
     () => click($('[data-open-local="st-ready"]')),
     '[data-open-local="st-ready"]',
-    /Couldn't open the story: it moved on/,
-  );
-  await quiet(
-    '/api/board/open-story',
-    () => click($('[data-push-local="st-ship"]')),
-    '[data-push-local="st-ship"]',
     /Couldn't open the story: it moved on/,
   );
   await quiet(
@@ -1091,7 +1012,6 @@ test('a someday card is out of the Backlog lanes and its count, in a Someday sec
   const shown = cardOf('bl_later');
   assert.ok(shown, 'the open section lists it');
   assert.ok($('[data-someday]')?.contains(shown));
-  assert.equal(shown.querySelector('[data-backlog-assign]'), null, 'no Assign on a someday card');
   // Alt+Arrow on a someday card moves nothing: it is not in the lane's order, so a move would lose its old place
   fire(shown, 'keydown', { key: 'ArrowDown', altKey: true });
   fire(shown, 'keydown', { key: 'ArrowUp', altKey: true });
@@ -2420,7 +2340,7 @@ test('standing helpers are a row under the Listeners, with the session and the l
   assert.equal(all('[data-helper]').length, 0);
 });
 
-test('Open story, Push and Mark reviewed each ask the bridge for the right thing', async () => {
+test('Open story asks the bridge for the story link, and the card has no Push or Mark reviewed', async () => {
   requests.length = 0;
   opened.length = 0;
   const story = (id: string, over: Partial<NonNullable<BoardCard['story']>> = {}) => ({
@@ -2431,7 +2351,6 @@ test('Open story, Push and Mark reviewed each ask the bridge for the right thing
     unread: false,
     unread_answers: 0,
     approved_at: null,
-    ship: null,
     ...over,
   });
   answer = () =>
@@ -2441,7 +2360,7 @@ test('Open story, Push and Mark reviewed each ask the bridge for the right thing
         id: 's-1',
         title: 'To ship',
         column: 'ship',
-        story: story('st-ship', { approved_at: '2026-10-29T11:00:00Z', ship: 'push' }),
+        story: story('st-ship', { approved_at: '2026-10-29T11:00:00Z' }),
       }),
     );
   await pollNow();
@@ -2449,23 +2368,8 @@ test('Open story, Push and Mark reviewed each ask the bridge for the right thing
   assert.deepEqual(sentTo('/api/board/open-story')[0].body, { story: 'st-ready' });
   assert.deepEqual(opened, ['http://x/story?k=1']);
 
-  await click($('[data-push-local="st-ship"]'));
-  assert.deepEqual(sentTo('/api/board/open-story')[1].body, { story: 'st-ship' });
-  assert.deepEqual(
-    opened.at(-1),
-    'http://x/story?k=1&push=1',
-    'Push opens the story with its Push box',
-  );
-
-  await click($('[data-mark-local="st-ready"]'));
-  assert.deepEqual(sentTo('/api/board/reviewed'), [
-    { method: 'POST', path: '/api/board/reviewed', body: { story: 'st-ready' } },
-  ]);
-  assert.equal(
-    $('[data-mark-local="st-ship"]'),
-    null,
-    'a story ready to ship is not marked reviewed',
-  );
+  assert.equal($('[data-mark-local]'), null, 'no Mark reviewed on the board');
+  assert.equal($('[data-push-local]'), null, 'no Push on the board');
   answer = () => board();
   await pollNow();
 });

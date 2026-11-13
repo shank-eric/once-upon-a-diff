@@ -231,7 +231,6 @@ test('every asset the local page and the board page load, and every module under
       '/assets/local/diff/split.ts',
       '/assets/local/diff/narrow.ts',
       '/assets/local/diff/syntax.ts',
-      '/assets/local/ship/push.ts',
       '/assets/local/ship/pull-request.ts',
       '/assets/local/ship/approve.ts',
       '/assets/local/page.ts',

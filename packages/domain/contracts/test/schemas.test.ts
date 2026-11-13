@@ -123,10 +123,10 @@ test('drafts, fixes, pr and push take the actions they take and say so otherwise
   assert.equal(ok('noteAdd', { path: 'a', line: 1, chapter: 1, index: 0, key: 'abc' })!.key, 'abc');
   bad('fixesAct', { action: 'drop' }, 'action is one of send, auto, take_back');
   assert.deepEqual(ok('fixesAct', { action: 'take_back', request: null })!.request, null);
-  bad('prPush', { action: 'force' }, 'action must be push or push-ahead');
-  bad('pushApproved', { action: 'push-ahead' }, 'action must be push');
-  ok('pushApproved', { action: 'push', head_sha: 'abc' });
-  bad('pushApproved', { action: 'push', head_sha: 5 });
+  bad('prPush', { action: 'force' }, 'action must be push');
+  bad('prPush', { action: 'push-ahead' }, 'action must be push');
+  ok('prPush', { action: 'push', head_sha: 'abc' });
+  bad('prPush', { action: 'push', head_sha: 5 });
 });
 
 test('the board’s bodies keep their messages: a session id, a kind, a flag, an edge', () => {
@@ -159,8 +159,6 @@ test('the board’s bodies keep their messages: a session id, a kind, a flag, an
     id: 'bl_abcdef',
     note: null,
   });
-  bad('boardBacklogAssign', { id: 'nope' }, 'a backlog item id is needed');
-  assert.deepEqual(ok('boardBacklogAssign', { id: 'bl_abcdef' }), { id: 'bl_abcdef' });
 });
 
 test('worktree clean: ack and ignored take a string or a list, empty ones dropped, at most 100', () => {

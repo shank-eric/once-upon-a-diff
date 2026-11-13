@@ -40,7 +40,6 @@ export const BOARD_BODIES = {
   boardFocus: object({ session: sessionId }),
   boardOpenStory: object({ story: optional(string(), '') }),
   boardReview: object({ card: optional(string(), '') }),
-  boardReviewed: object({ story: optional(string(), ''), reviewed: optional(boolean()) }),
   boardBacklogAdd: object({
     title: optional(string(), ''),
     note: optional(nullable(string())),
@@ -62,7 +61,6 @@ export const BOARD_BODIES = {
   }),
   boardBacklogDrop: object({ id: optional(string(), '') }),
   boardBacklogSomeday: object({ id: pipe(string(), regex(BACKLOG_ID_RE)), on: boolean() }),
-  boardBacklogAssign: object({ id: pipe(string(), regex(BACKLOG_ID_RE)) }),
   boardAgentFinish: object({
     sid: pipe(string(), regex(/^[0-9a-f]{8}$/)),
     name: pipe(string(), regex(/^[\w.-]+$/)),
@@ -85,7 +83,6 @@ export const BOARD_MESSAGES: Partial<Record<keyof typeof BOARD_BODIES, Record<st
   boardVoiceStart: { session: 'session must be a session id' },
   boardFocus: { session: 'a session id is needed' },
   boardBacklogMove: { edge: MOVE_NEEDS },
-  boardBacklogAssign: { id: 'a backlog item id is needed' },
   boardBacklogEdit: { id: 'a backlog item id is needed' },
   boardBacklogSomeday: {
     id: 'a backlog item id is needed',

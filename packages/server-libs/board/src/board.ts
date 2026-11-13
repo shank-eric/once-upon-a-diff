@@ -21,11 +21,7 @@ import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
 import { markFinished } from '@once-upon-a-diff/adapters/stores/finished-agents';
 import { BlankSessions } from '@once-upon-a-diff/adapters/claude-sessions/blank-sessions';
 import { SessionTitles } from '@once-upon-a-diff/adapters/claude-sessions/titles';
-import {
-  BacklogStore,
-  assignBranch,
-  assignLine,
-} from '@once-upon-a-diff/state/queues/backlog/backlog';
+import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import type { AddInput, EditInput, MoveTo } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
 import { MergeLander } from '@once-upon-a-diff/state/queues/backlog/land-merged';
@@ -585,53 +581,6 @@ export class Board {
     story: string | null = null,
   ): Promise<string> {
     return this.sessions.type(kind, sessionId, repo, story);
-  }
-
-  /**
-   * Assign: tells the voice session to start a backlog card, by typing "Start backlog card <id>: <title>" into its tab (the
-   * board snapshot's voice session, else the most recent live interactive session). The id and title are the bridge's own,
-   * the title cleaned and capped. The voice session may be mid-turn (Claude Code queues the line); a session that is not the
-   * voice one must be at its prompt, and one waiting on you is refused either way. An item already started is refused.
-   * Sending again is fine. Nothing is recorded unless the typing worked.
-   */
-  async assignBacklog(id: string, who: string): Promise<{ typed: string; session: string }> {
-    const item = this.backlog.items().find((one) => one.id === id);
-    if (!item || item.state === 'dropped') {
-      throw new BoardError(404, 'no backlog item with that id');
-    }
-    if (item.state === 'started') {
-      throw new BoardError(409, 'that item is already started');
-    }
-    if (item.someday) {
-      throw new BoardError(409, 'that item is someday: bring it back to the backlog first');
-    }
-    // voice that has ended (the card stays pinned for the day) is just another session
-    const voice = (await this.snapshot()).voice;
-    const live = voice && voice.status !== 'ended' ? voice : null;
-    let target = live ? { id: live.session, name: live.name } : null;
-    if (!target) {
-      // never the voice session or one that listens (the same set Start listening leaves out)
-      const apart = this.listeningNow?.input.apart;
-      const recent = (await this.sessions.live())
-        .filter((one) => (!one.kind || one.kind === 'interactive') && !apart?.has(one.session))
-        .sort(
-          (first, second) =>
-            (second.statusAt ?? second.startedAt ?? 0) - (first.statusAt ?? first.startedAt ?? 0),
-        )[0];
-      if (!recent) {
-        throw new BoardError(409, 'there is no voice session or live session to send it to');
-      }
-      target = { id: recent.session, name: recent.name ?? path.basename(recent.cwd) };
-    }
-    const { it2, session } = await this.sessions.typeable(target.id, !!live);
-    const prompt = assignLine(item);
-    const failed = await this.sessions.send(it2, session, prompt);
-    if (failed) {
-      throw new BoardError(409, failed);
-    }
-    this.backlog.assign(id, { session: target.id, branch: assignBranch(item), by: who });
-    this.invalidate();
-    return { typed: prompt, session: target.name };
   }
 
   /**

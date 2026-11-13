@@ -90,7 +90,7 @@ export const setStory = (next: ReturnType<typeof story>) => {
   store.flush();
 };
 /** Opens a box, drawn now. */
-export const openBox = (name: 'push' | 'push-ahead' | 'pr') => {
+export const openBox = (name: 'pr') => {
   openDialog(name);
   store.flush();
 };
@@ -143,7 +143,6 @@ export function story(overrides: Record<string, unknown> = {}) {
       head: 'work',
       base_oid: 'a'.repeat(40),
       branch: 'work',
-      ship: 'pr',
       head_oid: 'b'.repeat(40),
       approved: null,
       storyless: false,

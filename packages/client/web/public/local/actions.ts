@@ -292,12 +292,6 @@ export async function toggleApprove(approve: boolean) {
   }
 }
 
-/** A push to the default branch went through: the header says so, and the commit is on GitHub, so there is nothing left to approve. */
-export function pushed(sha: string) {
-  patchLocal({ approved: null });
-  patchShip({ pushedAt: sha, hasPull: true });
-}
-
 /** Takes a look pos where the branch stands (after a push), for the header's buttons. */
 export function takeView(view: PrView) {
   patchShip({ prView: view });

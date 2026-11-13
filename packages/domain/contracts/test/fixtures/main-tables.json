@@ -185,14 +185,6 @@
    "token+board"
   ],
   [
-   "boardReviewed",
-   "POST",
-   "/api/board/reviewed",
-   null,
-   null,
-   "token+board"
-  ],
-  [
    "boardBacklogAdd",
    "POST",
    "/api/board/backlog",
@@ -228,14 +220,6 @@
    "boardBacklogSomeday",
    "POST",
    "/api/board/backlog/someday",
-   null,
-   null,
-   "token+board"
-  ],
-  [
-   "boardBacklogAssign",
-   "POST",
-   "/api/board/backlog/assign",
    null,
    null,
    "token+board"
@@ -509,22 +493,6 @@
    "POST",
    "/api/stories/:id/pr",
    "pr",
-   null,
-   "token+page"
-  ],
-  [
-   "pushView",
-   "GET",
-   "/api/stories/:id/push",
-   "push",
-   null,
-   "token+page"
-  ],
-  [
-   "pushApproved",
-   "POST",
-   "/api/stories/:id/push",
-   "push",
    null,
    "token+page"
   ]
@@ -2776,48 +2744,11 @@
      "action": {
       "kind": "schema",
       "type": "picklist",
-      "expects": "(\"push\" | \"push-ahead\")",
-      "async": false,
-      "options": [
-       "push",
-       "push-ahead"
-      ]
-     },
-     "head_sha": {
-      "kind": "schema",
-      "type": "optional",
-      "expects": "((string | null) | undefined)",
-      "async": false,
-      "wrapped": {
-       "kind": "schema",
-       "type": "nullable",
-       "expects": "(string | null)",
-       "async": false,
-       "wrapped": {
-        "kind": "schema",
-        "type": "string",
-        "expects": "string",
-        "async": false
-       }
-      }
-     }
-    }
-   }
-  ],
-  [
-   "pushApproved",
-   {
-    "kind": "schema",
-    "type": "object",
-    "expects": "Object",
-    "async": false,
-    "entries": {
-     "action": {
-      "kind": "schema",
-      "type": "literal",
       "expects": "\"push\"",
       "async": false,
-      "literal": "push"
+      "options": [
+       "push"
+      ]
      },
      "head_sha": {
       "kind": "schema",
@@ -3177,42 +3108,6 @@
    }
   ],
   [
-   "boardReviewed",
-   {
-    "kind": "schema",
-    "type": "object",
-    "expects": "Object",
-    "async": false,
-    "entries": {
-     "story": {
-      "kind": "schema",
-      "type": "optional",
-      "expects": "(string | undefined)",
-      "async": false,
-      "wrapped": {
-       "kind": "schema",
-       "type": "string",
-       "expects": "string",
-       "async": false
-      },
-      "default": ""
-     },
-     "reviewed": {
-      "kind": "schema",
-      "type": "optional",
-      "expects": "(boolean | undefined)",
-      "async": false,
-      "wrapped": {
-       "kind": "schema",
-       "type": "boolean",
-       "expects": "boolean",
-       "async": false
-      }
-     }
-    }
-   }
-  ],
-  [
    "boardBacklogAdd",
    {
     "kind": "schema",
@@ -3527,40 +3422,6 @@
       "type": "boolean",
       "expects": "boolean",
       "async": false
-     }
-    }
-   }
-  ],
-  [
-   "boardBacklogAssign",
-   {
-    "kind": "schema",
-    "type": "object",
-    "expects": "Object",
-    "async": false,
-    "entries": {
-     "id": {
-      "kind": "schema",
-      "type": "string",
-      "expects": "string",
-      "async": false,
-      "pipe": [
-       {
-        "kind": "schema",
-        "type": "string",
-        "expects": "string",
-        "async": false
-       },
-       {
-        "kind": "validation",
-        "type": "regex",
-        "async": false,
-        "expects": "/^(?:bl|ic)_[a-z0-9]{6,24}$/",
-        "requirement": {
-         "regex": "/^(?:bl|ic)_[a-z0-9]{6,24}$/"
-        }
-       }
-      ]
      }
     }
    }

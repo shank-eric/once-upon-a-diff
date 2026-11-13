@@ -8,7 +8,7 @@ Decided 11/4 by Eric, from the research of that day (`notes/research/2026-11-04-
 
 ## Context
 
-`services/` held 14 folders with no direction among them when the graph was measured (15 by the split, with `publishing/`), plus a few loose files. Parsing the import graph on 11/4 showed one cluster of four folders that imported each other at run time (stories, inbox, review, listeners), joined by two more through type-only imports, and one file-level cycle (`approve.ts`, `story-lists.ts`, `local-story.ts`, `push-default.ts`). Nothing else was tangled: if eight small symbols and six files moved, every folder fell into one of five levels. A reader could not say from the folder list which service might call which, and the cycles meant a change in one folder could not be reasoned about without the others.
+`services/` held 14 folders with no direction among them when the graph was measured (15 by the split, with `publishing/`), plus a few loose files. Parsing the import graph on 11/4 showed one cluster of four folders that imported each other at run time (stories, inbox, review, listeners), joined by two more through type-only imports, and one file-level cycle (`approve.ts`, `story-lists.ts`, `local-story.ts`, `push-default.ts`, since removed). Nothing else was tangled: if eight small symbols and six files moved, every folder fell into one of five levels. A reader could not say from the folder list which service might call which, and the cycles meant a change in one folder could not be reasoned about without the others.
 
 ## Decision
 

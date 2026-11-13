@@ -5,14 +5,13 @@
  */
 import { branchKey, branchWorkKey, prWorkKey, storyWorkKey } from '@once-upon-a-diff/terms/ids';
 import { sameRepo } from '@once-upon-a-diff/foundation/repos';
-import { shipMode } from '@once-upon-a-diff/stories/push-default';
 import { DEFAULT_BRANCHES } from '@once-upon-a-diff/foundation/settings';
 import {
   localEntries,
   mergedStories,
   prStories,
 } from '@once-upon-a-diff/core/features/review/story-lists';
-import type { InboxLocalStory, InboxStory, ShipMode } from '@once-upon-a-diff/contracts/types';
+import type { InboxLocalStory, InboxStory } from '@once-upon-a-diff/contracts/types';
 import type { PrWatcher } from './pr-watcher.ts';
 import type { BuildContext, Work } from './types.ts';
 
@@ -34,8 +33,6 @@ export interface CollectedWorks {
   stories: InboxStory[];
   /** every local story, newest first */
   localStoryList: InboxLocalStory[];
-  /** how each approved local story ships, worked out once per snapshot */
-  shipById: Map<string, ShipMode>;
   /** the newest local story's checkout for each repo and branch, for a PR card's commits-ahead count */
   localCheckouts: Map<string, { story: string; checkout: string }>;
 }
@@ -104,7 +101,7 @@ function linkBranchWorks(
 
 /** Reads the stories and the PR lists into works. Asks the GitHub watcher about what it reads (kick, kickRequested, kickLocal), in this order. */
 export function collectWorks(ctx: BuildContext): CollectedWorks {
-  const { home, nowMs, review, builds } = ctx;
+  const { nowMs, review, builds } = ctx;
   // the units of work: every built PR story, and the PRs merged in the last day
   const stories = prStories(ctx.stories, { now: nowMs });
   review.kick(stories, nowMs);
@@ -177,24 +174,6 @@ export function collectWorks(ctx: BuildContext): CollectedWorks {
   // branch-only work of its own; a PR story already on the branch is the card's story, so a local one is not
   const localEntryList = localEntries(ctx.stories, { now: nowMs });
   review.kickLocal(localEntryList, nowMs);
-  // how each approved story ships (Push or Create pull request), for its Ready to ship card
-  const shipById = new Map<string, ShipMode>(
-    localEntryList
-      .filter((entry) => entry.story.approved_at && entry.repo_path)
-      .map((entry) => [
-        entry.story.id,
-        shipMode(
-          {
-            kind: 'local',
-            repo: entry.story.repo,
-            repo_path: entry.repo_path as string,
-            branch: entry.story.branch,
-            head_oid: entry.head_oid,
-          },
-          home,
-        ),
-      ]),
-  );
   const localCheckouts = new Map<string, { story: string; checkout: string }>();
   for (const entry of localEntryList) {
     const { repo, branch } = entry.story;
@@ -256,5 +235,5 @@ export function collectWorks(ctx: BuildContext): CollectedWorks {
     ]),
   );
   linkBranchWorks(works, review, localCheckouts, headsOf, nowMs);
-  return { works, stories, localStoryList, shipById, localCheckouts };
+  return { works, stories, localStoryList, localCheckouts };
 }

@@ -22,8 +22,6 @@ import type {
   NoteUpdateAnswer,
   PrPushAnswer,
   PrView,
-  PushAnswer,
-  PushView,
   StoryData,
   ViewedAnswer,
 } from './types.ts';
@@ -77,6 +75,4 @@ export const STORY_ROUTES = {
   storyListen: story<In<'listen'>, ListenTyped>('POST', 'listen', 'token+page'),
   approve: story<In<'approve'>, Approval>('POST', 'approve', 'token+page'),
   prPush: story<In<'prPush'>, PrPushAnswer>('POST', 'pr', 'token+page'),
-  pushView: story<undefined, PushView>('GET', 'push', 'token+page'),
-  pushApproved: story<In<'pushApproved'>, PushAnswer>('POST', 'push', 'token+page'),
 } as const;

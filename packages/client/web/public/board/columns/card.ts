@@ -199,7 +199,7 @@ export function Card(props: { card: BoardCard; now: number; api: Api }) {
   const gates = card.agents.filter((agent) => agent.gate).map(gateText);
   // Open story: on a card ready for review, or an approved local story in Ready to ship (a local story is never in Back to you)
   const bits = answerBits(card);
-  const { openable, markable } = bits; // Mark reviewed: a local story's card in Ready (a PR story is marked by reviewing it on GitHub)
+  const { openable } = bits;
   if (bits.chip) {
     chips.push({ text: bits.chip, mark: 'warn' });
   }
@@ -260,11 +260,8 @@ export function Card(props: { card: BoardCard; now: number; api: Api }) {
       ${card.review && (!card.story || card.story.storyless) && html`<${Review} card=${card} api=${api} />`}
       ${finishable(card) && html`<${ActionButton} class="ou-board-finish" attrs=${{ 'data-finish-agent': card.id }} onClick=${() => finishAgent(api, card)} title="Clears this card now. It comes back only if the agent does something more">Finish</${ActionButton}>`}
       ${card.focus_session && html`<button type="button" class="ou-board-focus" data-focus=${card.focus_session} disabled=${!card.can_focus || switching} onClick=${() => focus(card.focus_session as string)} title=${focusTitle}>${switching ? 'Switching…' : 'Open in iTerm'}</button>`}
-      ${card.column === 'ship' && story?.ship === 'push' && html`<${ActionButton} class="ou-board-push" attrs=${{ 'data-push-local': story.id }} onClick=${() => openStory(api, story.id, true)} title="Opens the story's Push box, which checks GitHub first">Push</${ActionButton}>`}
-      ${card.ahead && html`<${ActionButton} class="ou-board-push" attrs=${{ 'data-push-local': card.ahead.story }} onClick=${() => openStory(api, (card.ahead as { story: string }).story, true)} title=${`Opens the story's Push box: the branch is ${card.ahead.count} ahead of GitHub, where this PR is open`}>Push</${ActionButton}>`}
       ${openable && story?.url && html`<a class="ou-board-open" href=${`${story.url}${bits.hash}`} target="_blank" rel="noopener">Open story</a>`}
-      ${openable && story && !story.url && html`<${ActionButton} class="ou-board-open" attrs=${{ 'data-open-local': story.id }} onClick=${() => openStory(api, story.id, false)} title="Opens the local story's page">Open story</${ActionButton}>`}
-      ${markable && story && html`<${ActionButton} attrs=${{ 'data-mark-local': story.id }} onClick=${() => act('mark it reviewed', () => api.bridge.ask(ROUTES.boardReviewed, { body: { story: story.id } }), api)} title="Done with this story: it leaves Ready for your review">Mark reviewed</${ActionButton}>`}
+      ${openable && story && !story.url && html`<${ActionButton} class="ou-board-open" attrs=${{ 'data-open-local': story.id }} onClick=${() => openStory(api, story.id)} title="Opens the local story's page">Open story</${ActionButton}>`}
     </div>
   </li>`;
 }

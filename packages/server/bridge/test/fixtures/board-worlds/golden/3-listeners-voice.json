@@ -199,7 +199,6 @@
               "id": "acme-widgets-7",
               "kind": "pr",
               "reviewed": false,
-              "ship": null,
               "unread": false,
               "unread_answers": 0,
               "url": "https://github.com/acme/widgets/pull/7/files"
@@ -235,7 +234,6 @@
               "id": "local-w",
               "kind": "local",
               "reviewed": false,
-              "ship": null,
               "unread": false,
               "unread_answers": 0,
               "url": null

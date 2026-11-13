@@ -122,13 +122,11 @@ export const ROUTE_AREAS: Record<RouteName, Area> = {
   boardFocus: 'Board backend',
   boardOpenStory: 'Board backend',
   boardReview: 'Review',
-  boardReviewed: 'Review',
   boardBacklogAdd: 'Backlog',
   boardBacklogMove: 'Backlog',
   boardBacklogEdit: 'Backlog',
   boardBacklogDrop: 'Backlog',
   boardBacklogSomeday: 'Backlog',
-  boardBacklogAssign: 'Backlog',
   boardWorktreeClean: 'Worktrees',
   authSession: 'Server shell',
   authHandshake: 'Server shell',
@@ -163,8 +161,6 @@ export const ROUTE_AREAS: Record<RouteName, Area> = {
   storyListen: 'Listeners and sessions',
   approve: 'Review',
   prPush: 'Review',
-  pushView: 'Review',
-  pushApproved: 'Review',
 };
 
 /** Routes a page polls on a timer: a count here is not a person using the feature. */

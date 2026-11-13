@@ -3,8 +3,7 @@
  * GitHub (GET .../pr) and what a push would send, with the title and body a session handed over (`once-upon
  * pr-draft`) to check and edit. Its own button pushes the branch when it needs it (POST .../pr, never forced),
  * then opens GitHub's compare page with the title and body filled in, where the reviewer makes the PR. Once the
- * branch has an open PR, the header's button is a link to it, with how many commits the local branch is ahead of GitHub's
- * and a Push for them (push-ahead.ts).
+ * branch has an open PR, the header's button is a link to it, with how many commits the local branch is ahead of GitHub's.
  */
 import { html as vdom } from '/assets/preact.mjs';
 import { plural } from '/assets/terms/text.ts';
@@ -29,13 +28,18 @@ function aheadCount(view: PrView) {
   return view.remote.state === 'ahead' ? view.to_push.length : 0;
 }
 
-/** The header's button: a link to the open PR once there is one, else Create pull request (on a branch only, and not where Push ships it: push.ts). */
+/** The header's button: a link to the open PR once there is one, else Create pull request (on a branch other than its base). */
 export function PrButtons(props: { story: LocalStoryData; ship: ShipState }) {
   const { story, ship } = props;
-  if (!story.local.branch || story.local.ship === 'push') {
+  const view = ship.prView;
+  // a PR from the base branch into itself makes no sense, and its push would send the whole default branch
+  if (
+    !story.local.branch ||
+    story.local.branch === story.local.base ||
+    (view && view.branch === view.base)
+  ) {
     return null;
   }
-  const view = ship.prView;
   const pull = view && view.pull;
   if (pull) {
     const link = vdom`<a class="ou-local-pr-link" href=${pull.url} target="_blank" rel="noopener">Open PR #${String(pull.number)}</a>`;
@@ -43,10 +47,7 @@ export function PrButtons(props: { story: LocalStoryData; ship: ShipState }) {
     if (!behind) {
       return link;
     }
-    const off = story.read_only
-      ? 'Open this story from the board or `once-upon page` to push it: this link is read-only'
-      : '';
-    return vdom`<span class="ou-local-ahead">${plural(behind, 'commit')} ahead</span><button type="button" class="ou-local-push-ahead" disabled=${!!off} title=${off || 'Fast-forward this branch to GitHub, where the open PR is'} onClick=${() => openDialog('push-ahead')}>Push</button>${link}`;
+    return vdom`<span class="ou-local-ahead">${plural(behind, 'commit')} ahead</span>${link}`;
   }
   return vdom`<button type="button" class="ou-local-pr" title="Push this branch if it needs it, then open GitHub's Create pull request page" onClick=${() => openDialog('pr')}>Create pull request</button>`;
 }
@@ -55,7 +56,7 @@ export function PrButtons(props: { story: LocalStoryData; ship: ShipState }) {
 export async function lookForPull(force = false) {
   const { local } = storyOf();
   // a page opened with the read-only key may look (GET), so its Open PR link shows; only pushing is refused
-  if (!local.branch || local.ship === 'push' || (!force && Date.now() - lastLook < RECHECK_MS)) {
+  if (!local.branch || (!force && Date.now() - lastLook < RECHECK_MS)) {
     return;
   }
   const hadPull = store.get().ship.prView?.pull ?? null;

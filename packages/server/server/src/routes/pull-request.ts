@@ -1,9 +1,7 @@
 /*
  * Create pull request on a local story's page (stories/src/pull-request.ts): GET .../pr says where the branch
  * stands, and POST .../pr {action: 'push', head_sha} pushes it, only from the reviewer's click in the confirm box.
- * The page opens the PR itself on GitHub's compare page. {action: 'push-ahead', head_sha} is Push for a branch that
- * already has an open PR: the same click-only fast-forward of what the PR is behind on, refused when there is no open PR
- * or origin has commits this checkout lacks. On a storyless review the click is the approval, so it pushes only the head
+ * The page opens the PR itself on GitHub's compare page. On a storyless review the click is the approval, so it pushes only the head
  * the page showed, by its sha (`<sha>:refs/heads/<branch>`), and then tracks origin's branch. A branch that has moved past
  * it is refused until Review on its card re-pins the review to the new tip, and a commit made after that check still
  * can't go out. The reviewer opens the PR on GitHub, so the bridge learns its number from gh: whenever a view of the
@@ -19,8 +17,6 @@ import { finishStoryRunsOnPr } from '@once-upon-a-diff/core/features/review/appr
 import {
   DRAFT_FILE,
   prView,
-  pushAhead,
-  pushAheadBlocker,
   pushBlocker,
   pushBranch,
 } from '@once-upon-a-diff/stories/pull-request';
@@ -60,12 +56,9 @@ async function view({ app, send }: Call, story: ServedStory) {
 async function push({ app, body: raw, send }: Call, story: ServedStory) {
   localOnly(story, NOT_LOCAL);
   const body = parseBody('prPush', raw);
-  const ahead = body.action === 'push-ahead';
   return oncePerStory(story.id, async () => {
     const before = await prView(story.meta, draftOf(app, story));
-    const blocker = ahead
-      ? pushAheadBlocker(before, body.head_sha)
-      : pushBlocker(before, body.head_sha);
+    const blocker = pushBlocker(before, body.head_sha);
     if (blocker) {
       throw new HttpError(409, blocker);
     }
@@ -80,17 +73,11 @@ async function push({ app, body: raw, send }: Call, story: ServedStory) {
       finishOnPull(app, story, before);
       return send(200, { output: 'Already on GitHub: nothing to push.', view: before });
     }
-    app.log(
-      `pushing ${branch} for ${story.id}, on the page's ${ahead ? 'Push (open PR)' : 'Create pull request'}`,
-    );
+    app.log(`pushing ${branch} for ${story.id}, on the page's Create pull request`);
     let output: string;
     try {
       // a storyless review pushes the very commit the page showed, never whatever the branch holds by then
-      output = await (ahead ? pushAhead : pushBranch)(
-        story.meta.repo_path as string,
-        branch,
-        storyless ? shown : null,
-      );
+      output = await pushBranch(story.meta.repo_path as string, branch, storyless ? shown : null);
     } catch (err) {
       throw new HttpError(502, (err as Error).message);
     }

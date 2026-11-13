@@ -20,17 +20,15 @@ export interface EditorState {
   focus: number;
 }
 
-export type DialogName = 'push' | 'push-ahead' | 'pr';
+export type DialogName = 'pr';
 
-/** What Approve, Push and Create pull request know across reloads of the story. */
+/** What Approve and Create pull request know across reloads of the story. */
 export interface ShipState {
   dialog: DialogName | null;
   /** why the last Approve failed, shown beside the button */
   approveFailure: string;
   /** the commit is on GitHub or the branch has a PR: nothing left to approve (sticky until the page is reloaded) */
   hasPull: boolean;
-  /** set once a push to the default branch has gone through, so the header says so */
-  pushedAt: string | null;
   /** where the branch last stood on GitHub (the header's PR buttons) */
   prView: PrView | null;
 }
@@ -70,7 +68,7 @@ const initialState = (): LocalState => ({
   step: null,
   opened: {},
   editors: [],
-  ship: { dialog: null, approveFailure: '', hasPull: false, pushedAt: null, prView: null },
+  ship: { dialog: null, approveFailure: '', hasPull: false, prView: null },
   pendingScroll: null,
 });
 
