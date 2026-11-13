@@ -3,8 +3,9 @@
  * report's snapshot). The folder is the user's alone (0700) and every file 0600. Reads of a missing or unreadable file
  * give the fallback, so a damaged file never stops the tool.
  */
-import { mkdirSync, readFileSync, lstatSync, rmdirSync, statSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
+import { lockFolder } from '@once-upon-a-diff/adapters/stores/fs/folder-lock';
 import {
   appendText,
   ensureDir,
@@ -84,45 +85,25 @@ const LOCK_STALE_MS = 5000;
 /**
  * Runs `work` while this process holds `<name>.lock` (a folder, which only one process can make). Read-merge-write on a file
  * several processes share needs it, or the later writer drops what the earlier one added. A lock older than a few seconds
- * is a crashed holder's and is taken over; after a wait the work runs anyway, because the tool must never hang on this.
+ * is a crashed holder's and is taken over; after a wait, or when the lock folder cannot be made or removed, the work runs
+ * anyway, because the tool must never hang on this.
  */
 export function withUsageLock<T>(home: string, name: string, work: () => T): T {
   ownerOnly(home);
   ensureDir(usageDir(home), 0o700);
-  const lock = `${fileOf(home, name)}.lock`;
-  const until = Date.now() + LOCK_WAIT_MS;
-  let held = false;
-  while (!held && Date.now() <= until) {
-    try {
-      mkdirSync(lock, { mode: 0o700 });
-      held = true;
-      break;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
-        break; // the folder cannot be written: no lock to wait for, the work runs without it
-      }
-    }
-    try {
-      if (Date.now() - lstatSync(lock).mtimeMs > LOCK_STALE_MS) {
-        removeDir(lock); // a crashed holder's lock, whatever it is now (an empty folder, a file, a folder with things in it)
-      }
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        break; // the stale lock cannot be removed: the work runs without the lock, no wait for a deadline
-      }
-      /* the holder let go: try the lock again */
-    }
-    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 5);
+  let release: (() => void) | null = null;
+  try {
+    release = lockFolder(fileOf(home, name), {
+      staleMs: LOCK_STALE_MS,
+      waitMs: LOCK_WAIT_MS,
+      leftoverMs: LOCK_STALE_MS,
+    });
+  } catch {
+    /* the folder cannot be written or the lock cannot be cleared: no lock to wait for, the work runs without it */
   }
   try {
     return work();
   } finally {
-    if (held) {
-      try {
-        rmdirSync(lock);
-      } catch {
-        /* taken over as stale */
-      }
-    }
+    release?.();
   }
 }

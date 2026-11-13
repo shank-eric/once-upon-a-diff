@@ -1,21 +1,25 @@
-/** The heavy-run lock's stale takeovers: a live lock is never moved or removed, one reaper at a time, and a lock with no pid ages out. */
+/**
+ * The heavy-run lock: a fresh lock is waited for and named, a crashed holder's lock is taken over, a live holder is never
+ * taken from however long it runs, waiters never run together, and what earlier versions left at the lock path is dealt with.
+ */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   readdirSync,
   readFileSync,
+  rmdirSync,
   rmSync,
-  statSync,
   utimesSync,
   writeFileSync,
 } from 'node:fs';
 import '@once-upon-a-diff/test-kit/env';
 import { tmp } from '@once-upon-a-diff/test-kit/files';
-import { runHeavy, takeoverSeam } from '../src/heavy-lock.ts';
+import { runHeavy } from '../src/heavy-lock.ts';
 
 const heavyLockModule = new URL('../src/heavy-lock.ts', import.meta.url).href;
 
@@ -31,69 +35,84 @@ const lockEnv = (lock: string) => ({
   ONCE_UPON_HEAVY_POLL: '0.05',
 });
 const pause = (millis: number) => new Promise((resolve) => setTimeout(resolve, millis));
-
-test('a waiter that judged a dead holder stale leaves the lock another waiter took over meanwhile alone', async () => {
-  const lock = path.join(tmp('heavy-lock'), 'lock');
-  mkdirSync(lock);
-  writeFileSync(path.join(lock, 'pid'), `${deadPid()}\n`);
-  const lines: string[] = [];
-  // after this waiter judged the dead lock stale, another took it over: a live holder (this process) has a fresh one
-  takeoverSeam.beforeRemove = () => {
-    takeoverSeam.beforeRemove = null;
-    rmSync(lock, { recursive: true });
-    mkdirSync(lock);
-    writeFileSync(path.join(lock, 'pid'), `${process.pid}\n`);
-    writeFileSync(path.join(lock, 'who'), 'first waiter\n');
-  };
-  try {
-    const second = runHeavy('second', ['true'], (line) => lines.push(line), lockEnv(lock));
-    await pause(400);
-    assert.equal(readFileSync(path.join(lock, 'pid'), 'utf8').trim(), String(process.pid));
-    assert.deepEqual(lines, ['once-upon heavy: waiting for first waiter']);
-    assert.deepEqual(
-      readdirSync(path.dirname(lock)).filter((name) => name !== 'lock'),
-      [],
-      'nothing left moved aside',
-    );
-    rmSync(lock, { recursive: true }); // the holder lets go: the second runs
-    assert.equal(await second, 0);
-    assert.equal(existsSync(lock), false);
-  } finally {
-    takeoverSeam.beforeRemove = null;
-  }
-});
-
-test('a lock left by a gone process is taken over at once', async () => {
-  const lock = path.join(tmp('heavy-lock'), 'lock');
-  mkdirSync(lock);
-  writeFileSync(path.join(lock, 'pid'), `${deadPid()}\n`);
-  assert.equal(await runHeavy('one', ['true'], () => {}, lockEnv(lock)), 0);
-  assert.equal(existsSync(lock), false);
-  assert.deepEqual(readdirSync(path.dirname(lock)), [], 'nothing left moved aside');
-});
-
-test('a lock with no pid is waited for while fresh and taken over once it is older than a minute', async () => {
-  const lock = path.join(tmp('heavy-lock'), 'lock');
-  mkdirSync(lock);
-  const lines: string[] = [];
-  let finished = false;
-  const run = runHeavy('one', ['true'], (line) => lines.push(line), lockEnv(lock)).then((code) => {
-    finished = true;
-    return code;
-  });
-  await pause(400);
-  assert.equal(finished, false, 'a fresh lock with no pid may be a holder about to write it');
-  assert.deepEqual(lines, ['once-upon heavy: waiting for another heavy run']);
-  const old = new Date(Date.now() - 61_000);
-  utimesSync(lock, old, old);
-  assert.equal(await run, 0);
-  assert.equal(existsSync(lock), false);
-});
-
 const ageOf = (file: string, seconds: number) => {
   const old = new Date(Date.now() - seconds * 1000);
   utimesSync(file, old, old);
 };
+
+test('a fresh lock is waited for and its holder named once; the run goes when the holder lets go', async () => {
+  const dir = tmp('heavy-lock');
+  const lock = path.join(dir, 'lock');
+  mkdirSync(lock);
+  writeFileSync(`${lock}.who`, 'first waiter\n');
+  const lines: string[] = [];
+  let finished = false;
+  const run = runHeavy('second', ['true'], (line) => lines.push(line), lockEnv(lock)).then(
+    (code) => {
+      finished = true;
+      return code;
+    },
+  );
+  await pause(400);
+  assert.equal(finished, false);
+  assert.deepEqual(lines, ['once-upon heavy: waiting for first waiter']);
+  rmdirSync(lock); // the holder lets go: the second runs
+  assert.equal(await run, 0);
+  assert.deepEqual(readdirSync(dir), [], 'the lock and its name are gone');
+});
+
+test('a name left beside the lock by a crashed holder is not believed: it is older than the lock folder', async () => {
+  const dir = tmp('heavy-lock');
+  const lock = path.join(dir, 'lock');
+  writeFileSync(`${lock}.who`, 'crashed\n');
+  ageOf(`${lock}.who`, 5);
+  mkdirSync(lock); // another holder has it now, and has not written its name yet
+  const lines: string[] = [];
+  const run = runHeavy('waiter', ['true'], (line) => lines.push(line), lockEnv(lock));
+  await pause(300);
+  rmdirSync(lock);
+  assert.equal(await run, 0);
+  assert.deepEqual(lines, ['once-upon heavy: waiting for another heavy run']);
+});
+
+test('a lock nobody has touched for longer than the stale age is a crashed holder’s and is taken over', async () => {
+  const dir = tmp('heavy-lock');
+  const lock = path.join(dir, 'lock');
+  mkdirSync(lock);
+  ageOf(lock, 120);
+  assert.equal(await runHeavy('one', ['true'], () => {}, lockEnv(lock)), 0);
+  assert.deepEqual(readdirSync(dir), []);
+});
+
+test('a live holder is never taken from however long it runs: its lock is kept fresh past the stale age', async () => {
+  const dir = tmp('heavy-lock');
+  const lock = path.join(dir, 'lock');
+  const env = { ...lockEnv(lock), ONCE_UPON_HEAVY_STALE_MS: '2000' };
+  const order: string[] = [];
+  const holder = runHeavy(
+    'holder',
+    [process.execPath, '-e', 'setTimeout(() => {}, 4500)'],
+    () => {},
+    env,
+  ).then((code) => {
+    order.push('holder');
+    return code;
+  });
+  while (!existsSync(`${lock}.who`)) {
+    await pause(20);
+  }
+  const waiter = runHeavy('waiter', ['true'], () => {}, env).then((code) => {
+    order.push('waiter');
+    return code;
+  });
+  assert.deepEqual(await Promise.all([holder, waiter]), [0, 0]);
+  assert.deepEqual(
+    order,
+    ['holder', 'waiter'],
+    'the waiter waited out the holder, 2 s stale or not',
+  );
+  assert.deepEqual(readdirSync(dir), []);
+});
 
 /** Runs a node script in a child under a hard timeout, and resolves to its exit code, stdout and stderr. */
 function child(script: string, args: string[], timeoutMs: number) {
@@ -110,93 +129,6 @@ function child(script: string, args: string[], timeoutMs: number) {
   });
 }
 
-// Counts the moments the lock path was empty while the file `flag` said a live holder had it.
-const WATCH_EMPTY = `
-import { existsSync, readFileSync } from 'node:fs';
-const [lock, flag, stop] = process.argv.slice(1);
-const read = () => { try { return readFileSync(flag, 'utf8'); } catch { return ''; } };
-let seen = 0;
-while (!existsSync(stop)) {
-  const before = read();
-  if (before && !existsSync(lock) && read() === before) seen++;
-}
-process.stdout.write(String(seen));
-`;
-
-test('a reap that races a live holder never moves its lock aside, so the lock path is never empty', async () => {
-  const dir = tmp('heavy-lock');
-  const lock = path.join(dir, 'lock');
-  const flag = path.join(dir, 'live');
-  const stop = path.join(dir, 'stop');
-  const watcher = child(WATCH_EMPTY, [lock, flag, stop], 60_000);
-  let attempt = 0;
-  let armed = false;
-  // after each waiter judged the dead lock stale, another took it over: a live holder (this process) writes its pid in place
-  takeoverSeam.beforeRemove = () => {
-    if (!armed) {
-      return;
-    }
-    armed = false;
-    writeFileSync(path.join(lock, 'pid'), `${process.pid}\n`);
-    writeFileSync(flag, String(attempt));
-  };
-  try {
-    for (attempt = 1; attempt <= 60; attempt++) {
-      mkdirSync(lock);
-      writeFileSync(path.join(lock, 'pid'), `${deadPid()}\n`);
-      armed = true;
-      let waiting!: () => void;
-      const heard = new Promise<void>((resolve) => (waiting = resolve));
-      const run = runHeavy('waiter', ['true'], waiting, {
-        ...lockEnv(lock),
-        ONCE_UPON_HEAVY_POLL: '0.01',
-      });
-      await heard; // it judged the lock stale, found it live under the guard and left it
-      assert.equal(readFileSync(path.join(lock, 'pid'), 'utf8').trim(), String(process.pid));
-      rmSync(flag);
-      writeFileSync(path.join(lock, 'pid'), `${deadPid()}\n`); // the holder is gone: the waiter takes over
-      assert.equal(await run, 0);
-    }
-  } finally {
-    takeoverSeam.beforeRemove = null;
-    writeFileSync(stop, '');
-  }
-  const done = await watcher;
-  assert.equal(done.code, 0, done.err);
-  assert.equal(done.out, '0', 'the lock path was empty while a live holder had it');
-  assert.deepEqual(
-    readdirSync(dir).filter((name) => !['live', 'stop'].includes(name)),
-    [],
-    'no guard or moved-aside lock left',
-  );
-});
-
-test('a fresh lock with no pid is never removed, even when a waiter judged an old one with no pid stale', async () => {
-  const lock = path.join(tmp('heavy-lock'), 'lock');
-  mkdirSync(lock);
-  ageOf(lock, 120);
-  // after the waiter judged the old lock stale, another holder made a fresh one and has not written its pid yet
-  takeoverSeam.beforeRemove = () => {
-    takeoverSeam.beforeRemove = null;
-    ageOf(lock, 0);
-  };
-  try {
-    let finished = false;
-    const run = runHeavy('waiter', ['true'], () => {}, lockEnv(lock)).then((code) => {
-      finished = true;
-      return code;
-    });
-    await pause(400);
-    assert.equal(existsSync(lock), true, 'the fresh lock was removed');
-    assert.equal(finished, false);
-    writeFileSync(path.join(lock, 'pid'), `${process.pid}\n`); // it writes its pid, runs, lets go
-    rmSync(lock, { recursive: true });
-    assert.equal(await run, 0);
-  } finally {
-    takeoverSeam.beforeRemove = null;
-  }
-});
-
 // Waits for the go time, then runs a command holding the lock that fails if another holder is inside.
 const CONTEND = `
 import { runHeavy } from ${JSON.stringify(heavyLockModule)};
@@ -210,16 +142,10 @@ const env = { ...process.env, ONCE_UPON_HEAVY_LOCK: lock, ONCE_UPON_HEAVY_POLL: 
 process.exit(await runHeavy('contender', [process.execPath, '-e', section, inside], () => {}, env));
 `;
 
-test('waiters that judge the same stale lock at once never run together or fail writing their pid', async () => {
-  for (let trial = 0; trial < 8; trial++) {
+test('waiters that queue for one lock at once never run together', async () => {
+  for (let trial = 0; trial < 4; trial++) {
     const dir = tmp('heavy-lock');
     const lock = path.join(dir, 'lock');
-    mkdirSync(lock);
-    if (trial % 2) {
-      writeFileSync(path.join(lock, 'pid'), `${deadPid()}\n`);
-    } else {
-      ageOf(lock, 120); // a holder that died before writing its pid
-    }
     const goAt = String(Date.now() + 500);
     const runs = await Promise.all(
       Array.from({ length: 8 }, () =>
@@ -233,23 +159,168 @@ test('waiters that judge the same stale lock at once never run together or fail 
   }
 });
 
-test('a lock being reaped by another waiter is waited for, and a guard left by a crashed reaper is removed', async () => {
+// What earlier versions left at the lock path.
+
+test('a lock folder as an earlier version made it is taken over when its pid is gone', async () => {
   const dir = tmp('heavy-lock');
   const lock = path.join(dir, 'lock');
-  const guard = `${lock}.reap`;
   mkdirSync(lock);
   writeFileSync(path.join(lock, 'pid'), `${deadPid()}\n`);
-  mkdirSync(guard);
+  writeFileSync(path.join(lock, 'who'), 'gone (1:00 PM): yarn test\n');
+  assert.equal(await runHeavy('one', ['true'], () => {}, lockEnv(lock)), 0);
+  assert.deepEqual(readdirSync(dir), []);
+});
+
+test('an earlier version’s lock folder with a live pid is waited for, however old, and named', async () => {
+  const dir = tmp('heavy-lock');
+  const lock = path.join(dir, 'lock');
+  mkdirSync(lock);
+  writeFileSync(path.join(lock, 'pid'), `${process.pid}\n`);
+  writeFileSync(path.join(lock, 'who'), 'old holder (1:00 PM): yarn test\n');
+  ageOf(lock, 600);
+  const lines: string[] = [];
   let finished = false;
-  const run = runHeavy('waiter', ['true'], () => {}, lockEnv(lock)).then((code) => {
+  const run = runHeavy('new', ['true'], (line) => lines.push(line), lockEnv(lock)).then((code) => {
     finished = true;
     return code;
   });
   await pause(400);
-  assert.equal(finished, false, 'another waiter is reaping: wait');
-  assert.equal(existsSync(guard), true);
-  assert.ok(statSync(lock).isDirectory());
-  ageOf(guard, 30); // its reaper crashed
+  assert.equal(finished, false);
+  assert.deepEqual(lines, ['once-upon heavy: waiting for old holder (1:00 PM): yarn test']);
+  rmSync(lock, { recursive: true }); // the old holder lets go
   assert.equal(await run, 0);
-  assert.deepEqual(readdirSync(dir), [], 'the lock and the guard are gone');
+});
+
+test('an earlier version’s lock folder with a name and no pid is waited for while fresh and taken over once old', async () => {
+  const dir = tmp('heavy-lock');
+  const lock = path.join(dir, 'lock');
+  mkdirSync(lock);
+  writeFileSync(path.join(lock, 'who'), 'died early\n');
+  let finished = false;
+  const run = runHeavy('new', ['true'], () => {}, lockEnv(lock)).then((code) => {
+    finished = true;
+    return code;
+  });
+  await pause(400);
+  assert.equal(finished, false, 'it may be a holder about to write its pid');
+  ageOf(lock, 61);
+  assert.equal(await run, 0);
+  assert.deepEqual(readdirSync(dir), []);
+});
+
+test('a lock folder with no files in it is waited for while fresh and taken over once it is older than the stale age', async () => {
+  const dir = tmp('heavy-lock');
+  const lock = path.join(dir, 'lock');
+  mkdirSync(lock);
+  const lines: string[] = [];
+  let finished = false;
+  const run = runHeavy('one', ['true'], (line) => lines.push(line), lockEnv(lock)).then((code) => {
+    finished = true;
+    return code;
+  });
+  await pause(400);
+  assert.equal(finished, false);
+  assert.deepEqual(lines, ['once-upon heavy: waiting for another heavy run']);
+  ageOf(lock, 61);
+  assert.equal(await run, 0);
+  assert.deepEqual(readdirSync(dir), []);
+});
+
+test('a file left at the lock path is cleared once it is old, and a fresh one is waited for', async () => {
+  const dir = tmp('heavy-lock');
+  const lock = path.join(dir, 'lock');
+  writeFileSync(lock, 'x');
+  const started = Date.now();
+  assert.equal(
+    await runHeavy('one', ['true'], () => {}, lockEnv(lock)),
+    0,
+    'the fresh file ages out',
+  );
+  assert.ok(Date.now() - started >= 1500, 'a fresh file was waited for');
+  writeFileSync(lock, 'x');
+  ageOf(lock, 120);
+  const again = Date.now();
+  assert.equal(await runHeavy('two', ['true'], () => {}, lockEnv(lock)), 0);
+  assert.ok(Date.now() - again < 1000, 'an old file is cleared at once');
+  assert.deepEqual(readdirSync(dir), []);
+});
+
+test(
+  'a lock folder that cannot be made fails the run at once instead of polling for ever',
+  { skip: process.getuid?.() === 0 ? 'root can write anywhere' : false },
+  async () => {
+    const dir = tmp('heavy-lock');
+    chmodSync(dir, 0o500);
+    try {
+      const started = Date.now();
+      await assert.rejects(
+        runHeavy('one', ['true'], () => {}, lockEnv(path.join(dir, 'lock'))),
+        { code: 'EACCES' },
+      );
+      assert.ok(Date.now() - started < 1000);
+    } finally {
+      chmodSync(dir, 0o700);
+    }
+  },
+);
+
+// Holds the heavy lock for a few seconds, running a command that leaves a file when it ends.
+const HOLD = `
+import { runHeavy } from ${JSON.stringify(heavyLockModule)};
+const [lock, ended] = process.argv.slice(1);
+const command = \`setTimeout(() => require('node:fs').writeFileSync(process.argv[1], 'x'), 1000)\`;
+const env = { ...process.env, ONCE_UPON_HEAVY_LOCK: lock, ONCE_UPON_HEAVY_POLL: '0.05', ONCE_UPON_HEAVY_STALE_MS: '2000' };
+process.exit(await runHeavy('holder', [process.execPath, '-e', command, ended], () => {}, env));
+`;
+
+test('a holder that stalled past the stale age but still runs (the Mac slept) is not taken from; a dead one is', async () => {
+  const dir = tmp('heavy-lock');
+  const lock = path.join(dir, 'lock');
+  const ended = path.join(dir, 'ended');
+  const env = { ...lockEnv(lock), ONCE_UPON_HEAVY_STALE_MS: '2000' };
+  const holder = child(HOLD, [lock, ended], 30_000);
+  while (!existsSync(`${lock}.who`) || !readFileSync(`${lock}.who`, 'utf8').includes('pid ')) {
+    await pause(20);
+  }
+  const pid = Number(/^pid (\d+)$/m.exec(readFileSync(`${lock}.who`, 'utf8'))?.[1]);
+  process.kill(pid, 'SIGSTOP'); // its refresh stops, like a sleeping Mac's
+  let sawEnded: boolean | null = null;
+  try {
+    const waiter = runHeavy(
+      'waiter',
+      [
+        process.execPath,
+        '-e',
+        'process.exit(require("node:fs").existsSync(process.argv[1]) ? 0 : 1)',
+        ended,
+      ],
+      () => {},
+      env,
+    ).then((code) => {
+      sawEnded = code === 0;
+      return code;
+    });
+    await pause(3500); // well past the 2 s stale age: the holder's folder is stale by age, its pid is alive
+    assert.equal(sawEnded, null, 'the waiter did not start while the stalled holder was alive');
+    process.kill(pid, 'SIGCONT');
+    assert.equal(await waiter, 0, 'the waiter ran after the holder ended');
+  } finally {
+    try {
+      process.kill(pid, 'SIGCONT');
+    } catch {
+      // gone
+    }
+  }
+  assert.equal((await holder).code, 0);
+  assert.deepEqual(readdirSync(dir).sort(), ['ended']);
+});
+
+test('a stale lock whose holder’s pid is dead is taken over', async () => {
+  const dir = tmp('heavy-lock');
+  const lock = path.join(dir, 'lock');
+  mkdirSync(lock);
+  writeFileSync(`${lock}.who`, `crashed\npid ${deadPid()}\n`);
+  ageOf(lock, 120);
+  assert.equal(await runHeavy('one', ['true'], () => {}, lockEnv(lock)), 0);
+  assert.deepEqual(readdirSync(dir), []);
 });

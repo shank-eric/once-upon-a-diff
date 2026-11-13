@@ -64,11 +64,7 @@ test('a second run waits for the first and runs after it', async () => {
   let ended: Promise<number | null> | undefined;
   try {
     assert.ok(await until(() => existsSync(order), 20000), 'the first run holds the lock');
-    assert.match(
-      readFileSync(path.join(lock, 'who'), 'utf8'),
-      /^first \(\d{1,2}:\d{2} [AP]M\): sh -c/,
-    );
-    assert.equal(Number(readFileSync(path.join(lock, 'pid'), 'utf8')) > 0, true);
+    assert.match(readFileSync(`${lock}.who`, 'utf8'), /^first \(\d{1,2}:\d{2} [AP]M\): sh -c/);
     const second = spawn(
       process.execPath,
       [CLI_BIN, 'heavy', 'second', 'sh', '-c', `echo second >> ${order}`],
@@ -134,14 +130,14 @@ test('with no override the lock is ~/.cache/heavy-run.lock, or under XDG_CACHE_H
   const base = { HOME: userHome, ONCE_UPON_HEAVY_LOCK: '', XDG_CACHE_HOME: '' };
   const seen = await runCli(
     home(),
-    ['heavy', 'x', 'sh', '-c', 'cat "$HOME/.cache/heavy-run.lock/who"'],
+    ['heavy', 'x', 'sh', '-c', 'cat "$HOME/.cache/heavy-run.lock.who"'],
     base,
   );
   assert.match(seen.stdout, /^x \(/);
   const xdg = tmp('heavy-xdg');
   const viaXdg = await runCli(
     home(),
-    ['heavy', 'y', 'sh', '-c', `cat "${xdg}/heavy-run.lock/who"`],
+    ['heavy', 'y', 'sh', '-c', `cat "${xdg}/heavy-run.lock.who"`],
     { ...base, XDG_CACHE_HOME: xdg },
   );
   assert.match(viaXdg.stdout, /^y \(/);

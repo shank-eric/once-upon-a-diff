@@ -1,11 +1,23 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmdirSync,
+  rmSync,
+  symlinkSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs';
+import lockfile from 'proper-lockfile';
 import '@once-upon-a-diff/test-kit/env';
 import { tmp } from '@once-upon-a-diff/test-kit/files';
-import { takeoverSeam, updateJson, waitSeam, withLock } from '../src/stores/fs/lock.ts';
+import { updateJson, waitSeam, withLock } from '../src/stores/fs/lock.ts';
+import { removeLeftover } from '../src/stores/fs/folder-lock.ts';
 
 const LOCK_MODULE = JSON.stringify(path.resolve(import.meta.dirname, '../src/stores/fs/lock.ts'));
 
@@ -29,148 +41,10 @@ for (let n = 0; n < 25; n++) updateJson(process.argv[2], { count: 0 }, (value) =
   assert.ok(!existsSync(`${file}.lock`));
 });
 
-test('a lock left by a process that is gone is taken over at once', () => {
-  const file = path.join(tmp('lock'), 'builds.json');
-  const gone = spawnSync(process.execPath, ['-e', 'process.stdout.write(String(process.pid))'], {
-    encoding: 'utf8',
-  });
-  writeFileSync(
-    `${file}.lock`,
-    JSON.stringify({ pid: Number(gone.stdout), at: new Date().toISOString() }),
-  );
-  const started = Date.now();
-  assert.equal(
-    withLock(file, () => 'ran'),
-    'ran',
-  );
-  assert.ok(Date.now() - started < 1000, 'no wait for the lock to age');
-  assert.ok(!existsSync(`${file}.lock`));
-});
-
-/** A process that stays alive until the test kills it. */
-function sleeper() {
-  return spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], { stdio: 'ignore' });
-}
-
-test('a takeover goes one reaper at a time: while one holds the guard, another process neither reaps nor runs', () => {
-  const file = path.join(tmp('lock'), 'builds.json');
-  const lock = `${file}.lock`;
-  const gone = spawnSync(process.execPath, ['-e', 'process.stdout.write(String(process.pid))'], {
-    encoding: 'utf8',
-  });
-  writeFileSync(lock, JSON.stringify({ pid: Number(gone.stdout), at: new Date().toISOString() }));
-  const script = path.join(tmp('lock-script'), 'second-reaper.ts');
-  writeFileSync(
-    script,
-    `import { waitSeam, withLock } from ${LOCK_MODULE};
-waitSeam.limitMs = 500;
-try { process.stdout.write(withLock(process.argv[2], () => 'ran')); } catch { process.stdout.write('blocked'); }
-`,
-  );
-  let second = '';
-  // this reaper has the guard and has judged the dead holder's lock; a second process wants the lock meanwhile
-  takeoverSeam.beforeRemove = () => {
-    takeoverSeam.beforeRemove = null;
-    second = spawnSync(process.execPath, [script, file], {
-      encoding: 'utf8',
-      timeout: 30_000,
-    }).stdout;
-  };
-  try {
-    assert.equal(
-      withLock(file, () => 'ran'),
-      'ran',
-    );
-  } finally {
-    takeoverSeam.beforeRemove = null;
-  }
-  assert.equal(second, 'blocked', 'the dead holder’s lock is not reaped by two at once');
-});
-
-test('a takeover removes only the lock it judged stale, not a fresh one another process made since', () => {
-  const file = path.join(tmp('lock'), 'builds.json');
-  const lock = `${file}.lock`;
-  const released = `${file}.released`;
-  const gone = spawnSync(process.execPath, ['-e', 'process.stdout.write(String(process.pid))'], {
-    encoding: 'utf8',
-  });
-  writeFileSync(lock, JSON.stringify({ pid: Number(gone.stdout), at: new Date().toISOString() }));
-  // after the dead holder's lock is judged stale, it goes the ordinary way and a live process makes a fresh one,
-  // which it lets go 300 ms later
-  takeoverSeam.beforeRemove = () => {
-    takeoverSeam.beforeRemove = null;
-    rmSync(lock);
-    const letGo = `const fs = require('node:fs'); setTimeout(() => { fs.writeFileSync(${JSON.stringify(released)}, ''); fs.rmSync(${JSON.stringify(lock)}); }, 300);`;
-    const holder = spawn(process.execPath, ['-e', letGo], { stdio: 'ignore' });
-    writeFileSync(lock, JSON.stringify({ pid: holder.pid, at: new Date().toISOString() }));
-  };
-  try {
-    assert.ok(
-      withLock(file, () => existsSync(released)),
-      'the fresh lock was waited for, not removed',
-    );
-  } finally {
-    takeoverSeam.beforeRemove = null;
-  }
-});
-
-test('a lock naming this process that it does not hold is stale: an earlier process had this pid', () => {
-  const file = path.join(tmp('lock'), 'builds.json');
-  writeFileSync(
-    `${file}.lock`,
-    JSON.stringify({ pid: process.pid, token: 'earlier', at: new Date().toISOString() }),
-  );
-  const started = Date.now();
-  assert.equal(
-    withLock(file, () => 'ran'),
-    'ran',
-  );
-  assert.ok(Date.now() - started < 1000);
-  assert.ok(!existsSync(`${file}.lock`));
-});
-
-test('a lock whose live pid started after the lock was made is stale: the pid was reused', () => {
-  const file = path.join(tmp('lock'), 'builds.json');
-  const other = sleeper();
-  try {
-    writeFileSync(
-      `${file}.lock`,
-      JSON.stringify({ pid: other.pid, token: 'crashed', at: '2020-01-01T00:00:00.000Z' }),
-    );
-    assert.equal(
-      withLock(file, () => 'ran'),
-      'ran',
-    );
-    assert.ok(!existsSync(`${file}.lock`));
-  } finally {
-    other.kill('SIGKILL');
-  }
-});
-
-test('a wait for a live holder past the limit throws, naming the lock, and leaves the lock alone', () => {
-  const file = path.join(tmp('lock'), 'builds.json');
-  const lock = `${file}.lock`;
-  const holder = sleeper();
-  const text = JSON.stringify({ pid: holder.pid, token: 'live', at: new Date().toISOString() });
-  writeFileSync(lock, text);
-  const before = waitSeam.limitMs;
-  waitSeam.limitMs = 300;
-  try {
-    const started = Date.now();
-    assert.throws(
-      () => withLock(file, () => 'ran'),
-      (err: Error) =>
-        err.message.includes(lock) &&
-        err.message.includes(`pid ${holder.pid}`) &&
-        err.message.includes('remove the file'),
-    );
-    assert.ok(Date.now() - started >= 300, 'it waited out the limit first');
-    assert.equal(readFileSync(lock, 'utf8'), text, 'the live holder keeps its lock');
-  } finally {
-    waitSeam.limitMs = before;
-    holder.kill('SIGKILL');
-  }
-});
+const ageOf = (target: string, seconds: number) => {
+  const old = new Date(Date.now() - seconds * 1000);
+  utimesSync(target, old, old);
+};
 
 /** Runs withLock on `file` in another process, which writes `<file>.ran` once it holds the lock. */
 function contender(file: string) {
@@ -187,18 +61,31 @@ withLock(process.argv[2], () => writeFileSync(process.argv[2] + '.ran', ''));
 
 const settle = (millis: number) => new Promise((resolve) => setTimeout(resolve, millis));
 
-test('a lock held by a live pid is never taken over, however old', async () => {
+test('a lock folder nobody has touched for over the stale age is taken over at once: a live holder cannot be told from a dead one', () => {
   const file = path.join(tmp('lock'), 'builds.json');
   const lock = `${file}.lock`;
-  writeFileSync(lock, JSON.stringify({ pid: process.pid, at: new Date().toISOString() }));
-  const old = new Date(Date.now() - 60_000);
-  utimesSync(lock, old, old);
+  mkdirSync(lock);
+  ageOf(lock, 60);
+  const started = Date.now();
+  assert.equal(
+    withLock(file, () => 'ran'),
+    'ran',
+  );
+  assert.ok(Date.now() - started < 1000, 'no wait');
+  assert.ok(!existsSync(lock));
+});
+
+test('a lock younger than the stale age is waited for, even one that a holder has not touched for a while', async () => {
+  const file = path.join(tmp('lock'), 'builds.json');
+  const lock = `${file}.lock`;
+  mkdirSync(lock);
+  ageOf(lock, 20);
   const waiter = contender(file);
   try {
     await settle(1500);
     assert.ok(!existsSync(`${file}.ran`), 'the waiter is still waiting');
     assert.equal(waiter.exitCode, null);
-    rmSync(lock); // the holder lets go
+    rmdirSync(lock); // the holder lets go
     await new Promise((resolve) => waiter.on('close', resolve));
     assert.ok(existsSync(`${file}.ran`), 'and runs once the holder let go');
   } finally {
@@ -206,85 +93,105 @@ test('a lock held by a live pid is never taken over, however old', async () => {
   }
 });
 
-test('a lock with no readable pid, older than the stale age, is taken over; a fresh one is waited for', async () => {
+test('a wait past the limit throws, naming the lock, and leaves the lock alone', () => {
   const file = path.join(tmp('lock'), 'builds.json');
   const lock = `${file}.lock`;
-  writeFileSync(lock, '{"pid":');
+  mkdirSync(lock);
+  const before = waitSeam.limitMs;
+  waitSeam.limitMs = 300;
+  try {
+    const started = Date.now();
+    assert.throws(
+      () => withLock(file, () => 'ran'),
+      (err: Error) => err.message.includes(lock) && err.message.includes('remove the folder'),
+    );
+    assert.ok(Date.now() - started >= 300, 'it waited out the limit first');
+    assert.ok(existsSync(lock), 'the holder keeps its lock');
+  } finally {
+    waitSeam.limitMs = before;
+  }
+});
+
+test('a holder whose lock was taken from it finishes normally: its release failing does not turn finished work into an error', () => {
+  const file = path.join(tmp('lock'), 'builds.json');
+  const result = withLock(file, () => {
+    // the package no longer counts the lock as ours (what a takeover leaves in this process): its release throws
+    lockfile.unlockSync(file, { realpath: false });
+    return 'ran';
+  });
+  assert.equal(result, 'ran', 'its finished work is not turned into an error');
+  assert.ok(!existsSync(`${file}.lock`));
+});
+
+test(
+  'a lock that cannot be made fails at once instead of waiting out the limit',
+  {
+    skip: process.getuid?.() === 0 ? 'root can write anywhere' : false,
+  },
+  () => {
+    const dir = tmp('lock');
+    chmodSync(dir, 0o500);
+    try {
+      const started = Date.now();
+      assert.throws(
+        () => withLock(path.join(dir, 'builds.json'), () => 'ran'),
+        (err: NodeJS.ErrnoException) => err.code === 'EACCES',
+      );
+      assert.ok(Date.now() - started < 1000, 'no wait');
+    } finally {
+      chmodSync(dir, 0o700);
+    }
+  },
+);
+
+// `<file>.lock` was a file (made by an earlier version, holding a pid).
+
+test('a lock FILE left by an earlier version is cleared once it is old, whatever its age beyond that', () => {
+  for (const seconds of [5, 600]) {
+    const file = path.join(tmp('lock'), 'builds.json');
+    const lock = `${file}.lock`;
+    writeFileSync(lock, JSON.stringify({ pid: 99999999, at: new Date().toISOString() }));
+    ageOf(lock, seconds);
+    const started = Date.now();
+    assert.equal(
+      withLock(file, () => 'ran'),
+      'ran',
+    );
+    assert.ok(Date.now() - started < 1000, `a ${seconds} s old file: no wait`);
+    assert.ok(!existsSync(lock), 'no lock path is left');
+  }
+});
+
+test('a lock FILE an earlier version made a moment ago is waited for, not removed, and the run goes once it is gone', async () => {
+  const file = path.join(tmp('lock'), 'builds.json');
+  const lock = `${file}.lock`;
+  writeFileSync(lock, JSON.stringify({ pid: process.pid, at: new Date().toISOString() }));
   const waiter = contender(file);
   try {
-    await settle(1500);
-    assert.ok(!existsSync(`${file}.ran`), 'a half-written lock that is new is waited for');
-    const old = new Date(Date.now() - 60_000);
-    utimesSync(lock, old, old);
+    await settle(800);
+    assert.ok(existsSync(lock), 'the young file is left alone');
+    assert.ok(!existsSync(`${file}.ran`), 'and waited for');
+    rmSync(lock); // the old holder lets go
     await new Promise((resolve) => waiter.on('close', resolve));
-    assert.ok(existsSync(`${file}.ran`), 'and taken over once it is old');
+    assert.ok(existsSync(`${file}.ran`));
+    assert.ok(!existsSync(lock));
   } finally {
     waiter.kill('SIGKILL');
   }
 });
 
-test('a holder whose lock another made since lets go of nothing', () => {
+test('a lock FILE that stays young is cleared once it passes two seconds', () => {
   const file = path.join(tmp('lock'), 'builds.json');
   const lock = `${file}.lock`;
-  const theirs = JSON.stringify({
-    pid: process.ppid,
-    token: 'theirs',
-    at: new Date().toISOString(),
-  });
-  withLock(file, () => {
-    rmSync(lock); // taken over (a crash judged it so) and made fresh by another holder
-    writeFileSync(lock, theirs);
-  });
-  assert.equal(readFileSync(lock, 'utf8'), theirs, 'the other holder keeps its lock');
-  // the same pid with another acquire's token is not ours either
-  rmSync(lock);
-  const sameProcess = JSON.stringify({ pid: process.pid, token: 'other', at: 'x' });
-  withLock(file, () => writeFileSync(lock, sameProcess));
-  assert.equal(readFileSync(lock, 'utf8'), sameProcess);
-});
-
-test('a takeover guard left by a crashed reaper is cleared once it is old', () => {
-  const file = path.join(tmp('lock'), 'builds.json');
-  const gone = spawnSync(process.execPath, ['-e', 'process.stdout.write(String(process.pid))'], {
-    encoding: 'utf8',
-  });
-  writeFileSync(`${file}.lock`, JSON.stringify({ pid: Number(gone.stdout), at: 'x' }));
-  writeFileSync(`${file}.lock.reap`, '');
-  const old = new Date(Date.now() - 60_000);
-  utimesSync(`${file}.lock.reap`, old, old);
+  writeFileSync(lock, 'x');
+  const started = Date.now();
   assert.equal(
     withLock(file, () => 'ran'),
     'ran',
   );
-  assert.ok(!existsSync(`${file}.lock`) && !existsSync(`${file}.lock.reap`));
-});
-
-test('a stale guard is removed only if it is still the one judged: a fresh guard made since stays', () => {
-  const file = path.join(tmp('lock'), 'builds.json');
-  const guard = `${file}.lock.reap`;
-  const gone = spawnSync(process.execPath, ['-e', 'process.stdout.write(String(process.pid))'], {
-    encoding: 'utf8',
-  });
-  writeFileSync(`${file}.lock`, JSON.stringify({ pid: Number(gone.stdout), at: 'x' }));
-  writeFileSync(guard, 'old');
-  const old = new Date(Date.now() - 60_000);
-  utimesSync(guard, old, old);
-  // the old guard is judged, then another waiter removes it and a live reaper makes a fresh one
-  takeoverSeam.beforeGuardRemove = () => {
-    takeoverSeam.beforeGuardRemove = null;
-    rmSync(guard);
-    writeFileSync(guard, 'fresh');
-  };
-  const before = waitSeam.limitMs;
-  waitSeam.limitMs = 300;
-  try {
-    assert.throws(() => withLock(file, () => 'ran'), /remove the file/);
-    assert.equal(readFileSync(guard, 'utf8'), 'fresh', 'the live reaper keeps its guard');
-    assert.ok(existsSync(`${file}.lock`), 'and no one reaped under it');
-  } finally {
-    takeoverSeam.beforeGuardRemove = null;
-    waitSeam.limitMs = before;
-  }
+  const waited = Date.now() - started;
+  assert.ok(waited >= 1500 && waited < 5000, `waited ${waited} ms`);
+  assert.ok(!existsSync(lock));
 });
 
 test('a throw lets the lock go and writes nothing; a nested lock on the same file runs at once', () => {
@@ -307,4 +214,29 @@ test('a throw lets the lock go and writes nothing; a nested lock on the same fil
   assert.equal(inner, 3);
   assert.equal(JSON.parse(readFileSync(file, 'utf8')).b, 3);
   assert.ok(!existsSync(`${file}.lock`), 'let go when the outer hold ends');
+});
+
+test('removing a leftover goes by kind: a file or link is unlinked, a filled folder emptied and removed, an empty folder (a fresh lock) never', () => {
+  const dir = tmp('lock');
+  const file = path.join(dir, 'a.lock');
+  writeFileSync(file, 'x');
+  assert.equal(removeLeftover(file), true);
+  assert.ok(!existsSync(file));
+
+  const link = path.join(dir, 'b.lock');
+  symlinkSync(path.join(dir, 'nowhere'), link);
+  assert.equal(removeLeftover(link), true);
+
+  const filled = path.join(dir, 'c.lock');
+  mkdirSync(filled);
+  writeFileSync(path.join(filled, 'pid'), '1');
+  writeFileSync(path.join(filled, 'who'), 'x');
+  assert.equal(removeLeftover(filled), true);
+  assert.ok(!existsSync(filled));
+
+  const fresh = path.join(dir, 'd.lock'); // another process's lock, made after the leftover was judged
+  mkdirSync(fresh);
+  assert.equal(removeLeftover(fresh), false);
+  assert.ok(existsSync(fresh), 'an empty lock folder is left alone');
+  assert.equal(removeLeftover(path.join(dir, 'gone.lock')), false);
 });

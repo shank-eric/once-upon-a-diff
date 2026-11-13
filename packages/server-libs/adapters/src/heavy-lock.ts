@@ -2,13 +2,18 @@
  * The heavy-run lock: heavy commands (a full test suite, a browser run, a whole-repo typecheck or lint, deploy gates) take
  * turns machine-wide, whichever repo or agent runs them, so parallel ones don't use up the memory.
  *
- * The lock is a folder, `$ONCE_UPON_HEAVY_LOCK` or `${XDG_CACHE_HOME:-~/.cache}/heavy-run.lock`, made with mkdir (only one
- * process can make it), holding `pid` (the holder's) and `who` (`<name> (3:40 PM): <command>`). A lock whose pid is gone was
- * left by a crash and is taken over, and so is one with no pid that is older than a minute (a process died between making
- * the folder and writing its pid). A takeover never moves a lock that might be live: one waiter at a time takes
- * `<lock>.reap` (also a mkdir), judges the lock again under it and removes it only if it is still stale. A waiter polls every
- * `$ONCE_UPON_HEAVY_POLL` seconds (default 5). The folder and its two files are the format the shell script this replaced
- * used, so an old run and a new one still take turns.
+ * The lock is a folder, `$ONCE_UPON_HEAVY_LOCK` or `${XDG_CACHE_HOME:-~/.cache}/heavy-run.lock`, made and kept fresh by the
+ * proper-lockfile package (mkdir, so only one process can make it; the holder touches it every half of the stale age while it
+ * runs, and the package removes it when the process exits). A lock nobody has touched for `$ONCE_UPON_HEAVY_STALE_MS`
+ * (default a minute, at least two seconds) was left by a crash (SIGKILL) and is taken over by the next waiter: a killed
+ * holder blocks the others for up to that long. The holder's name goes in `<lock>.who` beside the folder (`<name> (3:40 PM):
+ * <command>`, then `pid <its pid>` on a second line), because the package's folder must stay empty; a waiter says who it waits for, once, and polls every
+ * `$ONCE_UPON_HEAVY_POLL` seconds (default 5). A `.who` older than the lock folder is a crashed holder's and is not believed. A lock folder over the stale age whose
+ * holder's pid still runs (it stalled, for instance across the Mac's sleep) is waited for, not taken over; a dead or missing pid keeps the stale rule.
+ *
+ * A file or link at the lock path is cleared away once it is over two seconds old. The folder with `pid` and `who` files
+ * inside is what the shell script this replaced, and once-upon before the package, made. One at the path is taken over when its pid is gone (or it names none and is over a minute old), and waited for while
+ * its pid is alive, so an old run and a new one still take turns. Once no such lock can be about, that step can go.
  *
  * The command runs in the caller's folder with its stdio. `$ONCE_UPON_PATH`, when set and not empty, is the PATH the command
  * gets (and is not passed on): a caller that must run once-upon under `fnm exec --using=24` passes its own PATH this way, so
@@ -20,6 +25,7 @@
 import { spawn } from 'node:child_process';
 import {
   closeSync,
+  lstatSync,
   mkdirSync,
   openSync,
   readFileSync,
@@ -29,8 +35,10 @@ import {
 } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import lockfile from 'proper-lockfile';
 import { pidAlive } from './os.ts';
 import { ensureDir } from './stores/fs/files.ts';
+import { clearLeftover, removeLeftover } from './stores/fs/folder-lock.ts';
 
 const SIGNALS = { SIGINT: 2, SIGTERM: 15, SIGHUP: 1 } as const;
 
@@ -49,82 +57,124 @@ function clock(now: Date): string {
   return `${hours % 12 || 12}:${minutes} ${hours < 12 ? 'AM' : 'PM'}`;
 }
 
-/** A lock folder with no pid this old was left by a process that died before writing it. */
+/** A lock folder from before the package with no pid this old was left by a process that died before writing it. */
 const PIDLESS_STALE_MS = 60_000;
 
-/** A reaper that crashed holding `<lock>.reap` leaves it behind; one this old may be removed. */
-const REAP_STALE_MS = 10_000;
+/** A lock nobody has touched for this long was left by a crash. The holder touches it every half of this while it runs. */
+const DEFAULT_STALE_MS = 60_000;
 
-/** Test-only: runs under the reap guard between judging a lock stale and judging it again, where another may have made a new one. */
-export const takeoverSeam: { beforeRemove: (() => void) | null } = { beforeRemove: null };
-
-/** Whether the lock was left by a holder that is gone: its pid is dead, or it has none and the folder is over a minute old. */
-function lockIsStale(lock: string): boolean {
-  const pid = Number(readFileSafe(path.join(lock, 'pid')).trim());
-  return pid > 0 ? !pidAlive(pid) : ageMs(lock) > PIDLESS_STALE_MS;
-}
-
-/**
- * Removes a lock judged stale, one reaper at a time. A live lock is never moved or removed: reapers take `<lock>.reap`
- * (mkdir) and judge the lock again under it, so a lock another waiter took over since (or a holder that has made the folder
- * and not yet written its pid) is left alone. Only the holder and a reaper under the guard ever remove the lock, and the
- * holder judged here is gone. Says whether it held the guard (false: another reaper has it, so the caller waits).
- */
-function reap(lock: string): boolean {
-  const guard = `${lock}.reap`;
-  try {
-    mkdirSync(guard);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== 'EEXIST') {
-      throw err;
-    }
-    if (ageMs(guard) > REAP_STALE_MS) {
-      rmSync(guard, { recursive: true, force: true }); // left by a crashed reaper
-    }
-    return false;
-  }
-  try {
-    takeoverSeam.beforeRemove?.();
-    if (lockIsStale(lock)) {
-      rmSync(lock, { recursive: true, force: true });
-    }
-  } finally {
-    rmSync(guard, { recursive: true, force: true });
-  }
-  return true;
-}
+/** A file or link at the lock path (not a folder: never made by a heavy lock) this old is cleared away. */
+const LEFTOVER_MS = 2_000;
 
 const wait = (millis: number) => new Promise((resolve) => setTimeout(resolve, millis));
 
-/** Takes the lock, waiting for a holder to finish (`waiting` hears who, once). */
+/**
+ * What a lock folder made before the package holds, if it holds that: `pid` and `who` files. 'gone' when the holder is gone
+ * (its pid is dead, or it names none and the folder is over a minute old), 'live' while it runs, null for a folder without
+ * them (the package's own lock). The package neither judges nor removes a folder with files in it.
+ */
+function oldFormatHolder(lock: string): 'gone' | 'live' | null {
+  const pidText = readFileSafe(path.join(lock, 'pid')).trim();
+  if (!pidText && !readFileSafe(path.join(lock, 'who')).trim()) {
+    return null;
+  }
+  const pid = Number(pidText);
+  if (pid > 0) {
+    return pidAlive(pid) ? 'live' : 'gone';
+  }
+  return ageMs(lock) > PIDLESS_STALE_MS ? 'gone' : 'live';
+}
+
+/** The holder's `<lock>.who`, when it was written for the lock there now (one older than the folder is a crashed holder's). */
+function holderFile(lock: string): string {
+  try {
+    const written = statSync(`${lock}.who`).mtimeMs;
+    const made = statSync(lock).birthtimeMs;
+    return made > written ? '' : readFileSafe(`${lock}.who`);
+  } catch {
+    return '';
+  }
+}
+
+/** The holder's `who` text: the first line of its `.who`. */
+function holderOf(lock: string): string {
+  return holderFile(lock).split('\n')[0].trim();
+}
+
+/**
+ * Whether the lock there is stale by age but its holder's process (the pid on the `.who`'s second line) still runs: a holder
+ * that stalled, for instance across a Mac's sleep, and has not touched the lock yet. It is not taken from.
+ */
+function stalledHolderLives(lock: string, staleMs: number): boolean {
+  if (ageMs(lock) <= staleMs) {
+    return false;
+  }
+  const pid = Number(/^pid (\d+)$/m.exec(holderFile(lock))?.[1]);
+  return pid > 0 && pidAlive(pid);
+}
+
+/** Takes the lock, waiting for a holder to finish (`waiting` hears who, once), and returns the release. */
 async function take(
   lock: string,
   who: string,
   pollMs: number,
+  staleMs: number,
   waiting: (holder: string) => void,
-): Promise<void> {
+  lost: () => void,
+): Promise<() => Promise<void>> {
   mkdirSync(path.dirname(lock), { recursive: true });
   let said = false;
   for (;;) {
     try {
-      mkdirSync(lock);
-      break;
+      if (stalledHolderLives(lock, staleMs)) {
+        throw Object.assign(new Error('the holder is alive'), { code: 'ELOCKED' });
+      }
+      const release = await lockfile.lock(lock, {
+        lockfilePath: lock,
+        realpath: false,
+        stale: staleMs,
+        onCompromised: lost,
+      });
+      writeFileSync(`${lock}.who`, `${who.replace(/\s+/g, ' ')}\npid ${process.pid}\n`);
+      return async () => {
+        rmSync(`${lock}.who`, { force: true });
+        try {
+          await release();
+        } catch {
+          // taken over after a stall: nothing of ours is left to remove
+        }
+      };
     } catch (err) {
-      if ((err as NodeJS.ErrnoException).code !== 'EEXIST') {
+      const code = (err as NodeJS.ErrnoException).code;
+      const entry = lstatSafe(lock);
+      let old: 'gone' | 'live' | null = null;
+      if (entry?.isDirectory()) {
+        old = oldFormatHolder(lock);
+      } else if (entry && clearLeftover(lock, LEFTOVER_MS)) {
+        continue; // a file or a link where the folder belongs
+      }
+      if (old === 'gone') {
+        removeLeftover(lock);
+        continue;
+      }
+      if (code !== 'ELOCKED' && !(code === 'ENOTEMPTY' && old === 'live')) {
         throw err;
       }
     }
-    if (lockIsStale(lock) && reap(lock)) {
-      continue;
-    }
     if (!said) {
-      waiting(readFileSafe(path.join(lock, 'who')).trim() || 'another heavy run');
+      waiting(holderOf(lock) || readFileSafe(path.join(lock, 'who')).trim() || 'another heavy run');
       said = true;
     }
     await wait(pollMs);
   }
-  writeFileSync(path.join(lock, 'pid'), `${process.pid}\n`);
-  writeFileSync(path.join(lock, 'who'), `${who}\n`);
+}
+
+function lstatSafe(file: string) {
+  try {
+    return lstatSync(file);
+  } catch {
+    return null;
+  }
 }
 
 /** How long ago the folder was made or last changed (0 when it is gone). */
@@ -158,6 +208,8 @@ export async function runHeavy(
   const lock = heavyLockPath(env);
   const poll = Number(env.ONCE_UPON_HEAVY_POLL);
   const pollMs = (poll > 0 ? poll : 5) * 1000;
+  const stale = Number(env.ONCE_UPON_HEAVY_STALE_MS);
+  const staleMs = stale > 0 ? stale : DEFAULT_STALE_MS;
   let logFd: number | undefined;
   if (logFile) {
     ensureDir(path.dirname(logFile));
@@ -165,9 +217,15 @@ export async function runHeavy(
   }
   const tell = (line: string) =>
     logFd === undefined ? say(line) : writeFileSync(logFd, line + '\n');
+  let release: () => Promise<void>;
   try {
-    await take(lock, `${name} (${clock(new Date())}): ${command.join(' ')}`, pollMs, (holder) =>
-      tell(`once-upon heavy: waiting for ${holder}`),
+    release = await take(
+      lock,
+      `${name} (${clock(new Date())}): ${command.join(' ')}`,
+      pollMs,
+      staleMs,
+      (holder) => tell(`once-upon heavy: waiting for ${holder}`),
+      () => tell('once-upon heavy: the lock was taken over while this run held it (it stalled)'),
     );
   } catch (err) {
     if (logFd !== undefined) {
@@ -221,9 +279,9 @@ export async function runHeavy(
       });
     });
   } finally {
+    await release();
     if (logFd !== undefined) {
       closeSync(logFd);
     }
-    rmSync(lock, { recursive: true, force: true });
   }
 }

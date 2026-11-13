@@ -57,8 +57,8 @@ flowchart LR
 | 5 | `service` | `Builds.request` checks the repo and number | `packages/server-libs/state/src/queues/requests/builds.ts` (`Builds`) |
 | 6 | `service` | and changes `builds.json` in one locked step | `packages/server-libs/state/src/queues/requests/builds.ts` (`this.queue.update(`) |
 | 7 | `service` | `RequestQueue.update` | `packages/server-libs/state/src/queues/requests/queue.ts` (`update<T>(`) |
-| 8 | `adapter` | reads, changes and writes the file under its `O_EXCL` lock | `packages/server-libs/adapters/src/stores/fs/lock.ts` (`updateJson`) |
-| 9 | `adapter` | the lock: `builds.json.lock`, taken over when its pid is gone or was reused (never while the holder is alive; a wait past 30 s throws) | `packages/server-libs/adapters/src/stores/fs/lock.ts` (`withLock`) |
+| 8 | `adapter` | reads, changes and writes the file under its lock folder | `packages/server-libs/adapters/src/stores/fs/lock.ts` (`updateJson`) |
+| 9 | `adapter` | the lock: the folder `builds.json.lock`, taken over once it is 30 s old (a holder stalled past 30 s can lose it; a wait past 35 s throws) | `packages/server-libs/adapters/src/stores/fs/lock.ts` (`withLock`) |
 | 10 | `adapter` | **writes `builds.json`** through a temp file and a rename | `packages/server-libs/adapters/src/stores/fs/json-file.ts` (`writeJsonAtomic`) |
 | 11 | `app` | back: the route answers the request's state, and the tag shows Queued | `packages/server/server/src/routes/builds.ts` (`requestBuild`) |
 
