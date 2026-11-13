@@ -6,9 +6,10 @@
 import type { StoryRequest } from '../panel/types.ts';
 import type { BoardAgent, BoardBeat, BoardStatus } from './agent-types.ts';
 
-/** The board's columns, in the order the work moves through them: `research` and `error` show only when a card is in them, and idle cards are a lane of their own. */
+/** The board's columns, in the order the work moves through them: `thinking`, `research` and `error` show only when a card is in them, and idle cards are a lane of their own. */
 export type BoardColumn =
   | 'backlog'
+  | 'thinking'
   | 'working'
   | 'checks'
   | 'waiting'

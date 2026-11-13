@@ -22,6 +22,8 @@
  *             that is not merged. It is the Mac's side: a card with a PR, whoever wrote it and whatever story it has, is on GitHub's
  *             (back or pr_open). A rebuild of a local story since you opened it is a chip on its card
  *   pr_open   pushed with a PR, and nothing waits on you
+ *   thinking  a research agent still running with no card to sit in (set by stages/agents.ts on an agent's own card, never by
+ *             this function: a work card is never in it)
  *   research  a finished research agent with no card to sit in and no result (set by stages/agents.ts on an agent's own card,
  *             never by this function: a work card is never in it)
  *   error     a session whose tab says error

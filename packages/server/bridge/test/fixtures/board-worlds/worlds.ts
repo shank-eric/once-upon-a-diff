@@ -601,6 +601,15 @@ async function record(
     notes: '~/Development/ClariFi/notes/research/2026-10-26-options.md',
     at: et(14, 50),
   });
+  // a research run still out finding something is Thinking, beside the finished one in Research
+  registered.start({
+    ...widgets,
+    sid: sid(onStory),
+    name: 'thinker',
+    kind: 'research',
+    task: 'find the cheaper option',
+    at: et(14, 43),
+  });
   registered.start({
     ...widgets,
     sid: sid(onStory),

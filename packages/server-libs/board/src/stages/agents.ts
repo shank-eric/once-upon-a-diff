@@ -276,6 +276,10 @@ export function placeAgents(
     if (isFinished(agent)) {
       view.summary = finishedSummary(agent, item, pending);
     }
+    // a research run still out finding something is Thinking, not Working with the authors (once finished it is Research)
+    if (agent.kind === 'research' && agent.state === 'running') {
+      column = 'thinking';
+    }
     if (agent.review) {
       column = 'ready';
     }

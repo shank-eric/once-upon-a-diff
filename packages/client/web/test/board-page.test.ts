@@ -363,6 +363,25 @@ test('Research shows only with a card in it, sits right after Waiting, and is no
   assert.ok(!headings().includes('Research'), 'gone with its card');
 });
 
+test('Thinking shows only with a card in it, sits right before Working, and is counted in the summary', async () => {
+  const headings = () =>
+    all('.ou-board-groups .ou-board-col').map((one) => one.getAttribute('aria-label'));
+  assert.ok(!headings().includes('Thinking'), 'no card, no column');
+  try {
+    answer = () =>
+      withCards(card({ id: 'th-1', kind: 'agent', column: 'thinking', title: 'ou-thinker' }));
+    await pollNow();
+    const order = headings();
+    assert.equal(order.indexOf('Thinking'), order.indexOf('Working') - 1, 'before Working');
+    assert.equal($('.ou-board-c-thinking .ou-board-head .ou-local-muted')?.textContent, '1');
+    assert.match($('.ou-local-top-main .ou-local-muted')?.textContent as string, /· 1 thinking · /);
+  } finally {
+    answer = () => board();
+    await pollNow();
+  }
+  assert.ok(!headings().includes('Thinking'), 'gone with its card');
+});
+
 test('a poll redraws in place: the same nodes stay, so focus and scroll are not lost', async () => {
   const button = $('[data-backlog-drop="bl_1"]') as HTMLElement;
   const item = cardOf('bl_1');

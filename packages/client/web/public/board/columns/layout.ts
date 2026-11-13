@@ -3,7 +3,7 @@ import type { BoardCard, BoardColumn, BoardData } from '/assets/types.ts';
 
 /**
  * The columns in the order the work moves through them, from Backlog (kept for later) to Done, in two groups: what is still on this Mac and what is on GitHub.
- * Research and Error appear only when a card is in them; idle cards are a lane along the bottom.
+ * Thinking, Research and Error appear only when a card is in them; idle cards are a lane along the bottom.
  */
 export const COLUMNS: {
   id: BoardColumn;
@@ -12,6 +12,7 @@ export const COLUMNS: {
   always: boolean;
 }[] = [
   { id: 'backlog', label: 'Backlog', group: 'local', always: true },
+  { id: 'thinking', label: 'Thinking', group: 'local', always: false },
   { id: 'working', label: 'Working', group: 'local', always: true },
   { id: 'checks', label: 'Agent checks', group: 'local', always: false },
   { id: 'waiting', label: 'Waiting', group: 'local', always: true },

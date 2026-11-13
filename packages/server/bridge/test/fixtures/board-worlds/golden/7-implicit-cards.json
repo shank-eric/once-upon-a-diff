@@ -78,7 +78,7 @@
             "build": null,
             "building": null,
             "can_focus": false,
-            "column": "working",
+            "column": "thinking",
             "detail": "a-scout's task",
             "focus_session": null,
             "id": "agent:eeeeeeee:a-scout",

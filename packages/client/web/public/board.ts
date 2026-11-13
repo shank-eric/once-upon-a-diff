@@ -1,6 +1,6 @@
 /*
  * The agent board page: the Claude Code sessions running now, one card each, in a column for where they stand
- * (working, agent checks, waiting, done; research, idle and error when there are any, and sessions with no prompt yet as a Blank strip) and a lane for their repo, with the background agents
+ * (working, agent checks, waiting, done; thinking, research, idle and error when there are any, and sessions with no prompt yet as a Blank strip) and a lane for their repo, with the background agents
  * inside their parent's card or, when they registered a lane, on a card in that lane. The data is
  * GET /api/board (board/src/board.ts), polled every few seconds. The page's key (the link's #key=, which
  * the extension's Open board button opens) reaches the board's routes and nothing else.
@@ -227,6 +227,7 @@ function BoardApp() {
   };
   const summary = [
     ...(count('backlog') ? [`${count('backlog')} in backlog`] : []),
+    ...(count('thinking') ? [`${count('thinking')} thinking`] : []),
     `${count('working')} working`,
     `${count('waiting')} waiting`,
     ...(count('research') ? [`${count('research')} research`] : []),

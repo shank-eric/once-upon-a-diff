@@ -770,6 +770,14 @@ test('a critic, a helper, a research run, a stopped author and a landed card kee
   assert.equal(finishedColumn(committer(), true, PENDING), 'done', 'a landing comes first');
 });
 
+test('a running research run is in Thinking, and a finished one in Research', () => {
+  const column = (over: Partial<LedgerAgent>) =>
+    ownCard(committer({ kind: 'research', result: undefined, ...over }), { tree: null })?.column;
+  assert.equal(column({ state: 'running', ended: undefined }), 'thinking');
+  assert.equal(column({ state: 'done' }), 'research');
+  assert.equal(column({ state: 'running', ended: undefined, kind: 'helper' }), 'working');
+});
+
 test('an unpushed commit stays in Ready past the finished wait until Finish clears it', () => {
   const home = tmp('placement-unpushed');
   const old = committer({
