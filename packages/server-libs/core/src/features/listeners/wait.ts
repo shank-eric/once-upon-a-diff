@@ -37,7 +37,7 @@ import {
   touchBinding,
   type Binding,
 } from '@once-upon-a-diff/state/records/listeners/binding';
-import { beat, listeners } from '@once-upon-a-diff/state/records/listeners/listeners';
+import { beat, listeners, wasStopped } from '@once-upon-a-diff/state/records/listeners/listeners';
 import { StoryStore } from '@once-upon-a-diff/stories/store';
 import {
   idleMsOf,
@@ -309,8 +309,15 @@ export async function wait(home: string, opts: WaitOptions): Promise<WaitOutcome
     scope.norelay = true;
   }
   // the heartbeat the panel's "Claude listening" light reads
-  beat(home, consumer, 'waiting', scope);
-  const heartbeat = setInterval(() => beat(home, consumer, 'waiting', scope), BEAT_MS);
+  // a story wait with a --timeout that follows the story's auto-stop is the catch-up the stop notice names: the session
+  // doesn't start it again, so it mustn't leave the story looking listened to when it hands something over
+  const catchUp = !!story && Number.isFinite(deadline) && wasStopped(home, consumer);
+  const marks = catchUp ? { stopped: true } : {};
+  beat(home, consumer, 'waiting', { ...scope, ...marks });
+  const heartbeat = setInterval(
+    () => beat(home, consumer, 'waiting', { ...scope, ...marks }),
+    BEAT_MS,
+  );
   // build requests come from builds.json (queued ones, claimed as they're handed over), so none are missed or given twice
   const builds = takesBuilds ? new Builds(home) : null;
   try {
@@ -385,11 +392,16 @@ export async function wait(home: string, opts: WaitOptions): Promise<WaitOutcome
             noteHanded(home, [id], bound.agent, consumer);
           }
         }
-        beat(home, consumer, 'handling', {
-          ...scope,
-          question: entries[0].id,
-          questions: questions.map((question) => question.id),
-        });
+        if (catchUp) {
+          // the session won't start this wait again, so the beat stays one of a stopped wait, never a handling one
+          beat(home, consumer, 'waiting', { ...scope, stopped: true });
+        } else {
+          beat(home, consumer, 'handling', {
+            ...scope,
+            question: entries[0].id,
+            questions: questions.map((question) => question.id),
+          });
+        }
         return { kind: 'handed', items: itemsFor(entries, relays, consumer) };
       }
       if (Date.now() > deadline) {
@@ -400,6 +412,7 @@ export async function wait(home: string, opts: WaitOptions): Promise<WaitOutcome
       if (reason) {
         clearInterval(heartbeat);
         logStop(home, `${consumer} stopped listening for story ${autoStop!.story}: ${reason}`);
+        beat(home, consumer, 'waiting', { ...scope, stopped: true }); // so a catch-up after it knows to leave no listener
         return { kind: 'stopped', scope: { story: autoStop!.story }, reason };
       }
       const repoReason =

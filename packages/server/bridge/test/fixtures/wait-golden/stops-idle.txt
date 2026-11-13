@@ -3,13 +3,14 @@ args: wait --story acme-widgets-7 --timeout 20
 exit: 0
 --- stdout
 Stopped listening for acme-widgets-7: no page has shown the story for 1 second.
-Don't start this wait again. Its questions go to the repo's listener, if one is running, and the panel's Start listening for this story starts a story listener again.
+Don't start this wait again to keep listening. Its questions go to the repo's listener, if one is running, and the panel's Start listening for this story starts a story listener again.
+An approval or fix request made from now on won't wake this session. When the user says the story is approved or sent notes, run once-upon wait --story acme-widgets-7 --timeout 1 (it hands over any approval or fix request made since, then exits), or once-upon inbox --story acme-widgets-7 --type approved.
 
 --- stderr
 
 --- files
 cursors/story-acme-widgets-7.json: {"offset":0,"at":"<ts>"}
-listeners/story-acme-widgets-7.json: {"consumer":"story-acme-widgets-7","pid":0,"state":"waiting","at":"<ts>","story":"acme-widgets-7","builds":true,"fixes":true}
+listeners/story-acme-widgets-7.json: {"consumer":"story-acme-widgets-7","pid":0,"state":"waiting","at":"<ts>","story":"acme-widgets-7","builds":true,"fixes":true,"stopped":true}
 listeners.log: <ts> story-acme-widgets-7 stopped listening for story acme-widgets-7: no page has shown the story for 1 second
 
 ## story idle, json
@@ -22,7 +23,7 @@ exit: 0
 
 --- files
 cursors/story-acme-widgets-7.json: {"offset":0,"at":"<ts>"}
-listeners/story-acme-widgets-7.json: {"consumer":"story-acme-widgets-7","pid":0,"state":"waiting","at":"<ts>","story":"acme-widgets-7","builds":true,"fixes":true}
+listeners/story-acme-widgets-7.json: {"consumer":"story-acme-widgets-7","pid":0,"state":"waiting","at":"<ts>","story":"acme-widgets-7","builds":true,"fixes":true,"stopped":true}
 listeners.log: <ts> story-acme-widgets-7 stopped listening for story acme-widgets-7: no page has shown the story for 1 second
 
 ## repo idle

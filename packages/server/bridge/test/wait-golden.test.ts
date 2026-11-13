@@ -550,6 +550,22 @@ describe('wait', { concurrency: 2 }, () => {
       );
     });
 
+    test('a bare `wait --story` (no --type) hears an approval and a fix request', async () => {
+      const approved = homeWith();
+      approved.inbox.setCursor(`story-${STORY}`, 0);
+      approve(approved.inbox);
+      const approvalRun = await cli(approved.home, ['wait', '--story', STORY, '--timeout', '5']);
+      assert.equal(approvalRun.code, 0, approvalRun.stderr);
+      assert.match(approvalRun.stdout, /approved acme-widgets-7: ready to ship/);
+
+      const fixed = homeWith({ local: true });
+      addFixes(fixed.home, FIX('fx_default', { kind: 'local', url: null }));
+      const fixRun = await cli(fixed.home, ['wait', '--story', STORY, '--timeout', '5', '--json']);
+      assert.equal(fixRun.code, 0, fixRun.stderr);
+      assert.match(fixRun.stdout, /"type":"fix_request"/);
+      assert.match(fixRun.stdout, /fx_default/);
+    });
+
     test('relay: question, fix, rebuild and approval go to the agent from the owner session; elsewhere they do not', async () => {
       registerSession(OWNER);
       const make = (local: boolean) => {

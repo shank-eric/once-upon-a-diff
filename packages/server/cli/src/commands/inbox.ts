@@ -80,7 +80,11 @@ async function wait(home: string, cfg: Config, opts: CliOpts) {
       out(JSON.stringify(stoppedEvent(outcome.scope, outcome.reason)));
       return;
     }
-    stoppedLines(outcome.scope, outcome.reason).forEach(out);
+    stoppedLines(
+      outcome.scope,
+      outcome.reason,
+      typeof opts.consumer === 'string' ? opts.consumer : undefined,
+    ).forEach(out);
     return;
   }
   for (const { entry, relay, lines } of outcome.items) {
@@ -223,7 +227,7 @@ export const inboxCommands: Command[] = [
     name: 'wait',
     usage: [
       '  once-upon wait    [--repo OWNER/NAME | --story ID] [--type question,build_request,fix_request,approved] [--consumer NAME] [--timeout SECONDS] [--no-auto-stop] [--json]',
-      '                                                                 block until a question, build request or fix request arrives, print it, exit (for a background task);',
+      '                                                                 block until a question, build request, fix request or approval arrives (the default --type), print it, exit (for a background task);',
       "                                                                 --repo takes both for that repo's stories and PRs; --story (an id, owner/name#N, a PR URL",
       "                                                                 or a PR number here) takes one story's questions, and with build_request its Rebuild",
       "                                                                 requests, ahead of a --repo wait while it's live;",

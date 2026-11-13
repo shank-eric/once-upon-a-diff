@@ -83,7 +83,7 @@ export function relayBlock(agent: string, message: string, fallback: string): st
 export type StopScope = { story: string } | { repo: string };
 
 /** The notice printed when a wait stopped itself: the listener says so and doesn't start it again. */
-export function stoppedLines(scope: StopScope, reason: string): string[] {
+export function stoppedLines(scope: StopScope, reason: string, consumer?: string): string[] {
   if ('repo' in scope) {
     return [
       `Stopped listening for ${scope.repo}: ${reason}.`,
@@ -92,7 +92,8 @@ export function stoppedLines(scope: StopScope, reason: string): string[] {
   }
   return [
     `Stopped listening for ${scope.story}: ${reason}.`,
-    "Don't start this wait again. Its questions go to the repo's listener, if one is running, and the panel's Start listening for this story starts a story listener again.",
+    "Don't start this wait again to keep listening. Its questions go to the repo's listener, if one is running, and the panel's Start listening for this story starts a story listener again.",
+    `An approval or fix request made from now on won't wake this session. When the user says the story is approved or sent notes, run once-upon wait --story ${scope.story}${consumer && consumer !== `story-${scope.story}` ? ` --consumer ${consumer}` : ''} --timeout 1 (it hands over any approval or fix request made since, then exits), or once-upon inbox --story ${scope.story} --type approved.`,
   ];
 }
 

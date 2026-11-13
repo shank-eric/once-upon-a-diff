@@ -39,6 +39,8 @@ interface Beat {
   norelay?: boolean;
   builds?: boolean;
   fixes?: boolean;
+  /** a story wait that stopped itself (and the catch-up waits after it): not to be started again, so not a listener */
+  stopped?: boolean;
 }
 
 /** A listener as listeners() reads it: its last beat, and whether it's live. */
@@ -82,6 +84,12 @@ export function beat(
   if (extra.repo && !extra.story) {
     noteListener(home, extra.repo, consumer, Date.now(), STRETCH_GAP_MS);
   }
+}
+
+/** Whether the consumer's last beat is from a wait that stopped itself (or a catch-up after one). */
+export function wasStopped(home: string, consumer: string): boolean {
+  const safe = String(consumer || 'default').replace(/[^A-Za-z0-9._-]/g, '_');
+  return !!readJson<Beat>(path.join(home, 'listeners', `${safe}.json`))?.stopped;
 }
 
 /**

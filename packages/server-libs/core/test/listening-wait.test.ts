@@ -132,6 +132,15 @@ test('the stop notice, in words and as the --json event', () => {
     "Don't start this wait again. Start listening (the panel, the PR pages or the board) starts a repo listener again.",
   ]);
   assert.equal(stoppedLines({ story: 's-1' }, 'because')[0], 'Stopped listening for s-1: because.');
+  assert.match(
+    stoppedLines({ story: 's-1' }, 'because')[2] ?? '',
+    /approval or fix request made from now on won't wake this session.*once-upon wait --story s-1 --timeout 1/,
+  );
+  // a wait run under its own --consumer name keeps its cursor there, so the catch-up names it
+  assert.match(
+    stoppedLines({ story: 's-1' }, 'because', 'mine')[2] ?? '',
+    /once-upon wait --story s-1 --consumer mine --timeout 1 /,
+  );
   assert.deepEqual(stoppedEvent({ story: 's-1' }, 'because', new Date(0)), {
     type: 'listen_stopped',
     story: 's-1',

@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { tmp, githubStory, startBridge, runCli, writeJson, TOKEN } from './helpers.ts';
+import { listeners } from '@once-upon-a-diff/state/records/listeners/listeners';
+import { Inbox } from '@once-upon-a-diff/state/queues/requests/inbox';
 import { pageKey } from '@once-upon-a-diff/state/records/page-links/page-key';
 import type { Pulse } from '@once-upon-a-diff/contracts/types';
 
@@ -48,6 +50,67 @@ describe("a story listener's natural end", { concurrency: 6 }, () => {
     );
     assert.match(result.stdout, /Don't start this wait again/);
     assert.ok(Date.now() - started < 15000);
+  });
+
+  test('the stop notice says how an approval made afterwards is still heard, and that command hears it', async () => {
+    const home = homeWith(1);
+    const stopped = await storyWait(home, '--timeout', '20');
+    assert.match(
+      stopped.stdout,
+      /approval or fix request made from now on won't wake this session/,
+    );
+    assert.ok(stopped.stdout.includes(`once-upon wait --story ${STORY} --timeout 1`));
+    new Inbox(home).append({
+      type: 'approved',
+      id: 'ap_after_stop',
+      at: new Date().toISOString(),
+      story: STORY,
+      repo: 'acme/widgets',
+      branch: 'ou-cache',
+      checkout: '/work/widgets-worktrees/ou-cache',
+      base: 'main',
+      head_sha: 'c'.repeat(40),
+    });
+    const caught = await runCli(home, [
+      'wait',
+      '--story',
+      STORY,
+      '--consumer',
+      CONSUMER,
+      '--timeout',
+      '5',
+    ]);
+    assert.equal(caught.code, 0, caught.stderr);
+    assert.match(caught.stdout, /approved acme-widgets-7: ready to ship/);
+  });
+
+  test("the stop notice's catch-up command names a custom --consumer, and the catch-up leaves no live listener", async () => {
+    const home = homeWith(1);
+    const wait = (timeout: string) =>
+      runCli(home, ['wait', '--story', STORY, '--consumer', 'my-session', '--timeout', timeout]);
+    const stopped = await wait('20');
+    assert.ok(
+      stopped.stdout.includes(`once-upon wait --story ${STORY} --consumer my-session --timeout 1 `),
+      stopped.stdout,
+    );
+    new Inbox(home).append({
+      type: 'approved',
+      id: 'ap_after_stop_2',
+      at: new Date().toISOString(),
+      story: STORY,
+      repo: 'acme/widgets',
+      branch: 'ou-cache',
+      checkout: '/work/widgets-worktrees/ou-cache',
+      base: 'main',
+      head_sha: 'c'.repeat(40),
+    });
+    const caught = await wait('1');
+    assert.match(caught.stdout, /approved acme-widgets-7: ready to ship/);
+    // the session isn't told to start the wait again, so nothing may read it as the story's listener
+    assert.deepEqual(
+      listeners(home).filter((entry) => entry.live),
+      [],
+    );
   });
 
   test('a page showing the story keeps it listening', async () => {
