@@ -264,6 +264,25 @@ await scenario(
 await scenario('collapsed', story(), full, { n: 1, collapsed: true, width: 500 });
 await scenario('small-story-no-comments', smallStory(), bare);
 
+// a story told thinly (a long hunk with refs on a line or two) gets one quiet line on the Overview, and none otherwise
+await test('the Overview says how many hunks are told thinly, and says nothing when none are', async () => {
+  const thin = await mount({ ...story(), thin_hunks: 2 }, bare);
+  try {
+    assert.match(thin.shot(), /2 hunks told thinly/);
+    thin.overlay.go(1);
+    await settle();
+    assert.ok(!thin.shot().includes('told thinly'), 'a chapter says nothing of it');
+  } finally {
+    thin.done();
+  }
+  const none = await mount(story(), bare);
+  try {
+    assert.ok(!none.shot().includes('told thinly'));
+  } finally {
+    none.done();
+  }
+});
+
 // the parts strip: drawn under Steps on the Overview and a chapter when the story has parts, and no trace of it when it has none
 await test('the parts strip shows under Steps on the Overview and on a chapter, and a story without parts has none', async () => {
   const parts = {

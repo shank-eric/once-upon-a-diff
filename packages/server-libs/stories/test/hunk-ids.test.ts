@@ -34,6 +34,8 @@ function byId(): Plan {
   first.refs = first.refs!.filter((ref) => ref.path !== 'src/widgets.js' || ref.id === 'first');
   first.narrative = first.narrative!.replace(/\[([^\]]+)\]\(ref:(?!first\))\w+\)/g, '$1');
   first.hunks = ['h1', 'h2', 'h3'];
+  // a ref counts when the text links it, the ids' refs included
+  first.narrative += ' See [the first](ref:h1), [the second](ref:h2) and [the third](ref:h3).';
   return plan;
 }
 

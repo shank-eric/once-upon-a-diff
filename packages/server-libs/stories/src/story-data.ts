@@ -11,7 +11,7 @@ import { readJson } from '@once-upon-a-diff/adapters/stores/fs/json-file';
 import { checkedMeta, readMeta, storyVersion, localVersion } from './meta.ts';
 import { chaptersOf, addLeftoverChapter, markUnwritten, refOf } from './chapters.ts';
 import { upgradePlan } from './legacy.ts';
-import { uncoveredHunks } from './hunk-coverage.ts';
+import { thinHunks, uncoveredHunks } from './hunk-coverage.ts';
 import {
   loadDiff,
   refreshLocal,
@@ -36,6 +36,8 @@ export interface FileMap {
   pr?: string;
   files?: Record<string, { chapters: number[]; partial_in: number[]; finished_in: number | null }>;
   uncovered_hunks?: UncoveredFile[];
+  /** how many places the build found told thinly (hunk-coverage.ts thinHunks) */
+  thin_hunks?: number;
 }
 
 /** The story's files: file-map.json's, else the diff's. */
@@ -86,6 +88,9 @@ export function storyData(store: StoryStateReader, id: string, dir: string): Sto
   }
   // hunks no chapter points at: a build allowed to publish with them says so in file-map.json, a local story's diff is here
   const uncovered = diff ? uncoveredHunks(chapters, diff) : (map && map.uncovered_hunks) || [];
+  const thin = diff
+    ? thinHunks(chapters, diff, { linked: true }).length
+    : (map && map.thin_hunks) || 0;
   addLeftoverChapter(chapters, rels);
   markUnwritten(chapters, plan);
   // a chapter first published without its text: Viewed ticks made meanwhile say nothing about it (skeleton.ts)
@@ -117,6 +122,7 @@ export function storyData(store: StoryStateReader, id: string, dir: string): Sto
     files: rels.map((rel) => ({ rel, sha: pathSha(rel) })),
     chapters,
     uncovered_hunks: uncovered,
+    ...(thin ? { thin_hunks: thin } : {}),
   };
   // last, so a file that left a local diff and the "Not in a chapter yet" chapter are counted as the panel shows them
   const parts = storyParts(

@@ -12,7 +12,8 @@ import type { Plan } from './chapters.ts';
 const RULE_FIX: Partial<Record<Check, string>> = {
   placement: 'list the file in a chapter, or drop a name the diff does not have',
   partials: 'finish the file in a later chapter, or list it whole',
-  hunks: 'add a ref on the hunk to the chapter that tells it, or mark the file "whole": true',
+  hunks:
+    'add a ref on the hunk to the chapter that tells it and link it in the text, or mark the file "whole": true',
   plan: 'fix what the line says in chapters.json',
   refs: 'point the ref at lines inside a hunk, on the side it names',
   comments: 'move the comment to a line inside a hunk',
@@ -38,6 +39,8 @@ const KIND_FIX: Record<Kind, string> = {
   'no-overview': "write the story's overview",
   'title-long': 'shorten the title',
   'summary-long': 'shorten the summary',
+  'thin-whole': 'split the file across chapters, or point refs at the parts that matter',
+  'thin-hunk': "add refs across the hunk's parts, one for each thing it does",
 };
 
 /** The fix for a finding, or none where the finding does not say what to do. */

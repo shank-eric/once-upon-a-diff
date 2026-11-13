@@ -81,12 +81,21 @@ export function createBody(context: PanelContext) {
       step: 0,
       since: null,
       story: intro,
-      uncovered: uncoveredHtml(),
+      uncovered: quietNotes(),
       comments: () => context.drafts.allCommentsView(),
       filesTitle: `All files (${data.files.length})`,
       filesSummary: `${data.chapters.length} chapters`,
       entries: data.files,
     };
+  }
+
+  /** The Overview's quiet notes: the hunks no chapter points at, and the places told thinly. */
+  function quietNotes() {
+    const missed = uncoveredHtml();
+    const thin = data.thin_hunks
+      ? markup`<p class="ou-quiet ou-thin">${plural(data.thin_hunks, 'hunk')} told thinly: a long hunk with refs on a line or two, or a long file told whole in one chapter.</p>`
+      : null;
+    return missed || thin ? markup`${missed}${thin}` : null;
   }
 
   /** A quiet note on the Overview: changed hunks no chapter points at (once-upon's build allowed them), as line links. */

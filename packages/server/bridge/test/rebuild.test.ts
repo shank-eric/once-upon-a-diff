@@ -87,7 +87,8 @@ const published = (): Plan & { chapters: NonNullable<Plan['chapters']> } => ({
       ],
       comments: [
         { path: 'src/b.js', line: 11, body: 'Is this needed?' },
-        { path: 'src/big.js', line: 300, body: 'This line is long gone' },
+        // its line left the diff before this story was published, so a draft is flagged as one that was kept anyway
+        { path: 'src/big.js', line: 300, body: 'This line is long gone', unmapped: true },
         { path: '(general)', line: 0, body: 'Nice work overall' },
       ],
     },

@@ -88,6 +88,7 @@ export function expandHunks(
           start: entry.start,
           end: entry.end,
           label: labelOf(entry),
+          hunk: true, // the chapter listed the hunk by id, which counts as linking it (hunk-coverage.ts)
         };
         // an old ref with the hunk's id (a leftover of an earlier telling) is replaced by the hunk's own
         const old = refs.findIndex((other) => other.id === id);

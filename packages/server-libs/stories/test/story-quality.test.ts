@@ -55,10 +55,21 @@ function scratch(name: string, plan: Plan): string {
 }
 
 /** Whether the build gate accepts the plan (exit 0), and what it said. */
-async function gate(name: string, plan: Plan): Promise<{ ok: boolean; stderr: string }> {
+async function gate(
+  name: string,
+  plan: Plan,
+  more: string[] = [],
+): Promise<{ ok: boolean; stderr: string }> {
   const dir = scratch(name, plan);
   try {
-    const { stderr } = await run(process.execPath, [STORY, 'build', '--dir', dir, '--no-bridge']);
+    const { stderr } = await run(process.execPath, [
+      STORY,
+      'build',
+      '--dir',
+      dir,
+      '--no-bridge',
+      ...more,
+    ]);
     return { ok: true, stderr };
   } catch (error) {
     return { ok: false, stderr: (error as { stderr: string }).stderr };
@@ -70,7 +81,7 @@ const narrativeOf = (plan: Plan, index: number) =>
 
 // ---------- the success check: a gap the build gate really has
 
-test('story-eval: a ref outside every hunk fails the harness, though the build gate lets it through', async () => {
+test('story-eval: a ref outside every hunk fails the harness and the build gate alike', async () => {
   const { plan, diff } = load('edge-kinds');
   const far = clone(plan);
   (far.chapters as PlanChapter[])[0].refs!.push({
@@ -82,7 +93,8 @@ test('story-eval: a ref outside every hunk fails the harness, though the build g
     label: 'a place the diff does not show',
   });
   const built = await gate('edge-kinds', far);
-  assert.ok(built.ok, `the gate accepts it on main: ${built.stderr}`);
+  assert.ok(!built.ok, 'the build gate refuses it');
+  assert.match(built.stderr, /chapter 1: ref "far" \(src\/small\.js:500-510\) is on lines/);
   const found = fails(storyFindings(far, diff), 'refs');
   assert.equal(found.length, 1, JSON.stringify(found));
   assert.match(found[0].message, /ref "far".*src\/small\.js:500-510.*no hunk/);
@@ -176,9 +188,9 @@ test("a plan the gate would refuse for its shape fails with the gate's own lines
   assert.match(fails(storyFindings(bad, diff), 'plan')[0].message, /chapter 2 has no refs list/);
 });
 
-// ---------- partials: the gate lets them through, so they only warn
+// ---------- partials: a file no chapter finishes fails, and the gate refuses it
 
-test('a partial file that no later chapter finishes is a warning, and the build gate accepts it', async () => {
+test('a partial file that no later chapter finishes fails, and the build gate refuses it', async () => {
   const { plan, diff } = load('inbox-91');
   const partial = clone(plan);
   const second = (partial.chapters as PlanChapter[])[1];
@@ -189,10 +201,73 @@ test('a partial file that no later chapter finishes is a warning, and the build 
   };
   const findings = storyFindings(partial, diff);
   assert.deepEqual(fails(findings, 'placement'), []);
-  const found = warns(findings, 'partials');
+  const found = fails(findings, 'partials');
   assert.equal(found.length, 1);
   assert.match(found[0].message, /outlookUtils\.js is partial in chapter 2/);
-  assert.ok((await gate('inbox-91', partial)).ok, 'build exits 0 on main');
+  const refused = await gate('inbox-91', partial);
+  assert.ok(!refused.ok, 'build refuses it');
+  assert.match(refused.stderr, /outlookUtils\.js is partial in chapter 2, the last chapter/);
+  assert.ok((await gate('inbox-91', partial, ['--allow-missing'])).ok, '--allow-missing passes it');
+});
+
+// ---------- a chapter left as the bridge serves it is kept: build and check do not refuse it for the newer link rule
+
+test('build and check leave an unchanged published chapter alone, whatever its refs', async () => {
+  const { plan, diff } = load('inbox-91');
+  const unlinked = clone(plan);
+  for (const chapter of unlinked.chapters as PlanChapter[]) {
+    chapter.narrative = chapter.narrative!.replace(/\[([^\]]*)\]\(ref:[^)]*\)/g, '$1');
+  }
+  assert.ok(fails(storyFindings(unlinked, diff), 'hunks').length, 'new, it is refused');
+  assert.deepEqual(fails(storyFindings(unlinked, diff, clone(unlinked)), 'hunks'), []);
+  const home = tmp('served-home');
+  const served = path.join(home, 'shank-eric-inbox-in-gmail-91');
+  writeJson(path.join(served, 'chapters.json'), unlinked);
+  writeJson(path.join(served, 'meta.json'), {
+    kind: 'github',
+    repo: 'shank-eric/inbox-in-gmail',
+    number: 91,
+  });
+  const env = { ...process.env, ONCE_UPON_HOME: home };
+  const build = (dir: string) =>
+    run(process.execPath, [STORY, 'build', '--dir', dir, '--no-bridge'], { env }).then(
+      () => true,
+      (error: { stderr: string }) => error.stderr,
+    );
+  const fresh = scratch('inbox-91', unlinked);
+  assert.equal(await build(fresh), true, 'build keeps the chapters the bridge serves');
+  const told = clone(unlinked);
+  (told.chapters as PlanChapter[])[0].narrative += ' One more sentence, no link.';
+  const refused = await build(scratch('inbox-91', told));
+  assert.match(String(refused), /hunks not covered/, 'a chapter that changed is checked');
+  const checked = await run(process.execPath, [STORY, 'check', '--dir', fresh], { env }).then(
+    ({ stdout }) => stdout,
+    (error: { stdout: string }) => error.stdout,
+  );
+  assert.doesNotMatch(checked, /fail hunks/);
+});
+
+test('a "Since you read it" chapter finishes its files, so a partial before it is finished, and one in it is not', () => {
+  const { plan, diff } = load('inbox-91');
+  const since = clone(plan);
+  const chapters = since.chapters as PlanChapter[];
+  chapters[0].files![0] = { rel: 'src/js/outlook/bundle.js', partial: true, note: 'the top' };
+  chapters.push({
+    key: 'since-read',
+    title: 'Since you read it',
+    since: { from: 'a'.repeat(40), to: 'b'.repeat(40) },
+    files: ['src/js/outlook/bundle.js'],
+    refs: [],
+  } as unknown as PlanChapter);
+  assert.deepEqual(fails(storyFindings(since, diff), 'partials'), []);
+  const open = clone(since);
+  (open.chapters as PlanChapter[])[chapters.length - 1].files = [
+    { rel: 'src/js/outlook/bundle.js', partial: true, note: 'still the top' },
+  ];
+  assert.match(
+    fails(storyFindings(open, diff), 'partials')[0].message,
+    /bundle\.js is partial in a "Since you read it" chapter/,
+  );
 });
 
 test('a partial that a later chapter lists plainly is finished, and says nothing', () => {
@@ -204,7 +279,7 @@ test('a partial that a later chapter lists plainly is finished, and says nothing
     note: 'the top',
   };
   (finished.chapters as PlanChapter[])[1].files!.push('src/js/outlook/bundle.js');
-  assert.deepEqual(warns(storyFindings(finished, diff), 'partials'), []);
+  assert.deepEqual(fails(storyFindings(finished, diff), 'partials'), []);
 });
 
 // ---------- comments

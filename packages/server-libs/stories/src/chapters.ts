@@ -24,6 +24,8 @@ export interface PlanRef {
   label?: string;
   /** an older story's text reference, made by legacy.ts */
   text?: boolean;
+  /** made by expandHunks from a hunk id the chapter lists */
+  hunk?: boolean;
 }
 
 /** A file entry in chapters.json as the story was written: a path, or the fields entryOf reads. `lines` is an older story's. */
@@ -131,6 +133,9 @@ export function refOf(ref: PlanRef): ChapterRef {
   }
   if (ref.text) {
     out.text = true;
+  }
+  if (ref.hunk) {
+    out.hunk = true;
   }
   return out;
 }

@@ -22,7 +22,7 @@ import { chaptersOf, entryOf, refOf } from './chapters.ts';
 import { chapterKeyOf } from '@once-upon-a-diff/terms/chapters';
 import { plural } from '@once-upon-a-diff/terms/text';
 import { upgradePlan } from './legacy.ts';
-import { canonical, withoutKey } from './validate.ts';
+import { canonical, keptChapters, withoutKey } from './validate.ts';
 import { uncoveredHunks, sidesOf } from './hunk-coverage.ts';
 import type { DiffFile } from '@once-upon-a-diff/contracts/types';
 import type { Plan, PlanChapter } from './chapters.ts';
@@ -70,6 +70,7 @@ function keptChapterProblems(before: Plan, after: Plan, from: number): string[] 
 
 /** Placement and hunk coverage over the whole story: problem lines. */
 function coverageProblems(
+  before: Plan,
   after: Plan,
   diff: Map<string, DiffFile>,
   { allowUncovered = false } = {},
@@ -91,10 +92,14 @@ function coverageProblems(
   if (missing.length) {
     problems.push(`${missing.length} files are in no chapter: ${missing.join(', ')}`);
   }
-  const uncovered = allowUncovered ? [] : uncoveredHunks(chapters, diff);
+  // a ref counts when its chapter's text links it, but a chapter kept as it was published counts all its refs
+  const kept = keptChapters(after, before);
+  const uncovered = allowUncovered ? [] : uncoveredHunks(chapters, diff, { linked: true, kept });
   if (uncovered.length) {
     const refs = uncovered.flatMap((file) => file.hunks.map((hunk) => hunk.ref));
-    problems.push(`hunks not covered: ${refs.join(', ')} (--allow-uncovered publishes anyway)`);
+    problems.push(
+      `hunks not covered: ${refs.join(', ')} (a ref counts when the chapter's text links it; --allow-uncovered publishes anyway)`,
+    );
   }
   return problems;
 }
@@ -113,7 +118,7 @@ export function rebuildProblems(
   const from = firstRetold(build);
   return [
     ...(from > 1 ? keptChapterProblems(before, after, from) : []),
-    ...coverageProblems(after, diff, { allowUncovered }),
+    ...coverageProblems(before, after, diff, { allowUncovered }),
   ];
 }
 

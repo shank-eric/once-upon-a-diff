@@ -16,6 +16,7 @@ import { chapterKeyOf } from '@once-upon-a-diff/terms/chapters';
 import { REF_ID, refIdsIn } from '@once-upon-a-diff/terms/line-refs';
 import { textOf } from './text-refs.ts';
 import { refOf } from './chapters.ts';
+import { offPageComments, offPageRefs } from './pointers.ts';
 import type { ChapterRef, DiffFile } from '@once-upon-a-diff/contracts/types';
 import type { Plan, PlanChapter, PlanRef } from './chapters.ts';
 
@@ -66,6 +67,22 @@ const overviewText = (plan: Plan) =>
   [plan.overview, plan.summary, plan.plan].filter(Boolean).join('\n\n');
 
 export const withoutKey = ({ key: _key, ...rest }: PlanChapter) => rest;
+
+/**
+ * Which of the plan's chapters are kept: exactly the served chapter of the same key, key aside. A kept chapter is text
+ * nobody touched in this telling, so a rule added since it was written does not apply to it.
+ */
+export function keptChapters(plan: Plan, served?: Plan | null): boolean[] {
+  const before = new Map(
+    (served?.chapters || []).map((chapter) => [
+      chapterKeyOf(chapter),
+      canonical(withoutKey(chapter)),
+    ]),
+  );
+  return (plan.chapters || []).map(
+    (chapter) => before.get(chapterKeyOf(chapter)) === canonical(withoutKey(chapter)),
+  );
+}
 
 /** A story map in a narrative, ahead of the chapter's own `### Chapter N` heading. */
 function storyMapIn(narrative: string): boolean {
@@ -155,11 +172,16 @@ export function answerRefs(raw: unknown, text: string, files?: string[]): Chapte
 
 /**
  * The problems of a plan, as lines naming the chapter. diff: the diff the story tells (comment paths are checked against
- * it). served: the plan already published, whose chapters may stay as they are.
+ * it). served: the plan already published, whose chapters may stay as they are. pointers: whether a ref or a comment on lines
+ * in no hunk is a problem (not for a chapter equal to the served one); the story check reports those itself, so it asks for none.
  */
 export function chapterProblems(
   plan: Plan,
-  { diff, served }: { diff?: Map<string, DiffFile>; served?: Plan | null } = {},
+  {
+    diff,
+    served,
+    pointers = true,
+  }: { diff?: Map<string, DiffFile>; served?: Plan | null; pointers?: boolean } = {},
 ): string[] {
   const problems: string[] = [];
   const chapters = plan.chapters || [];
@@ -177,12 +199,18 @@ export function chapterProblems(
       ),
     );
   }
-  const kept = new Map(
-    (served?.chapters || []).map((chapter) => [
-      chapterKeyOf(chapter),
-      canonical(withoutKey(chapter)),
-    ]),
-  );
+  if (
+    diff &&
+    pointers &&
+    !(
+      !!served &&
+      overviewText(served) === overview &&
+      canonical(served.refs) === canonical(plan.refs)
+    )
+  ) {
+    problems.push(...offPageRefs(plan.refs || [], diff).map((line) => `the overview: ${line}`));
+  }
+  const kept = keptChapters(plan, served);
   const byKey = new Map<string, number>();
   chapters.forEach((chapter, index) => {
     const num = index + 1;
@@ -194,9 +222,7 @@ export function chapterProblems(
     } else {
       byKey.set(key, num);
     }
-    const isKept =
-      !Array.isArray(chapter.refs) &&
-      kept.get(chapterKeyOf(chapter)) === canonical(withoutKey(chapter));
+    const isKept = !Array.isArray(chapter.refs) && kept[index];
     if (!Array.isArray(chapter.refs)) {
       if (!isKept) {
         problems.push(
@@ -213,6 +239,9 @@ export function chapterProblems(
           (line) => `chapter ${num}: ${line}`,
         ),
       );
+      if (diff && pointers && !kept[index]) {
+        problems.push(...offPageRefs(chapter.refs, diff).map((line) => `chapter ${num}: ${line}`));
+      }
       const text = textOf({
         headline: chapter.headline || '',
         scenario: chapter.scenario || '',
@@ -225,6 +254,11 @@ export function chapterProblems(
             `chapter ${num}: the text links to ref:${id}, which the chapter does not have`,
           );
         }
+      }
+    }
+    if (diff && pointers && !kept[index]) {
+      for (const place of offPageComments(chapter.comments || [], diff)) {
+        problems.push(`chapter ${num}: the comment on ${place} is on a line that is in no hunk`);
       }
     }
     if (diff) {

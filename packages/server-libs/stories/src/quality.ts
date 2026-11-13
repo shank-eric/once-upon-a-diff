@@ -8,18 +8,25 @@
  * journey step. `warn` is a measure the skill gives as a target (≈300 words, ≈8 files, 2-4 refs): reported, never failing.
  *
  * What the build gate (skills/once-upon/bin/story.ts) already refuses is checked here again by the same functions
- * (chapterProblems, uncoveredHunks) or, for placement, by the gate's own rule: a file in no chapter, a name not in the
- * diff. A partial the story never finishes is a warning, not a failure, because the gate lets it through.
+ * (chapterProblems, uncoveredHunks, unfinishedPartials) or, for placement, by the gate's own rule: a file in no
+ * chapter, a name not in the diff.
  */
 import { createHash } from 'node:crypto';
 import type { Chapter, DiffFile } from '@once-upon-a-diff/contracts/types';
-import { toSide } from '@once-upon-a-diff/terms/line-refs';
 import { chaptersOf, type Plan, type PlanRef } from './chapters.ts';
-import { lineInDiff } from './fragments.ts';
-import { LOCKFILES, SMALL_FILE_LINES, sidesOf, uncoveredHunks } from './hunk-coverage.ts';
+import { offPageComments, offPageRefs } from './pointers.ts';
+import { partialMessage, unfinishedPartials } from './gate.ts';
+import {
+  BIG_HUNK_LINES,
+  LOCKFILES,
+  SMALL_FILE_LINES,
+  WHOLE_WARN_LINES,
+  thinHunks,
+  uncoveredHunks,
+} from './hunk-coverage.ts';
 import { upgradePlan } from './legacy.ts';
 import { lintTextRefs } from './text-refs.ts';
-import { chapterProblems } from './validate.ts';
+import { chapterProblems, keptChapters } from './validate.ts';
 import { expandHunks } from './hunk-ids.ts';
 
 export type Check =
@@ -54,7 +61,9 @@ export type Kind =
   | 'answer'
   | 'no-overview'
   | 'title-long'
-  | 'summary-long';
+  | 'summary-long'
+  | 'thin-whole'
+  | 'thin-hunk';
 
 export interface Finding {
   level: 'fail' | 'warn';
@@ -125,7 +134,6 @@ function placementFindings(plan: Plan, diff: Map<string, DiffFile>): Finding[] {
   const rels = [...diff.keys()];
   const chapters = chaptersOf(upgradePlan(plan, rels));
   const numbers = panelNumbers(chapters);
-  const lastEntry = new Map<string, { partial: boolean; chapter: number | undefined }>();
   const placed = new Set<string>();
   chapters.forEach((chapter, index) => {
     for (const entry of chapter.files) {
@@ -134,60 +142,24 @@ function placementFindings(plan: Plan, diff: Map<string, DiffFile>): Finding[] {
         continue;
       }
       placed.add(entry.rel);
-      lastEntry.set(entry.rel, { partial: entry.partial, chapter: numbers[index] });
     }
   });
   const missing = rels.filter((rel) => !placed.has(rel));
   if (missing.length) {
     out.push(fail('placement', `${missing.length} files are in no chapter: ${missing.join(', ')}`));
   }
-  for (const [rel, last] of lastEntry) {
-    if (last.partial) {
-      out.push(
-        warn(
-          'partials',
-          `${rel} is partial in ${named(last.chapter)}, the last chapter that lists it, so no chapter finishes it`,
-          last.chapter,
-        ),
-      );
-    }
+  for (const { rel, index } of unfinishedPartials(chapters, diff)) {
+    out.push(fail('partials', partialMessage(rel, named(numbers[index])), numbers[index]));
   }
   return out;
-}
-
-/**
- * Whether a ref's lines are on the page: its range overlaps a hunk's lines on the side it names, which is the rule hunk
- * coverage counts a pointer by. A ref with no lines (the whole file) always is.
- */
-function refOnPage(ref: PlanRef, file: DiffFile): boolean {
-  if (ref.start === undefined || ref.start === null || ref.start === '') {
-    return true;
-  }
-  const start = Number(ref.start);
-  const end = Number(ref.end || ref.start);
-  const side = toSide(ref.side);
-  return file.hunks.some((hunk) => {
-    const lines = sidesOf(hunk)[side];
-    return start <= lines.end && Math.max(start, end) >= lines.start;
-  });
 }
 
 /** Every ref and comment of the story points at lines the page shows (a hunk, on the side it names). */
 function pointerFindings(plan: Plan, diff: Map<string, DiffFile>): Finding[] {
   const out: Finding[] = [];
   const refFindings = (refs: PlanRef[], owner: string, chapter?: number) => {
-    for (const ref of refs) {
-      const file = diff.get(String(ref.path ?? ''));
-      if (file && !refOnPage(ref, file)) {
-        const where = `${ref.path}:${ref.side === 'L' ? 'L' : ''}${ref.start}-${ref.end ?? ref.start}`;
-        out.push(
-          fail(
-            'refs',
-            `${owner}: ref "${ref.id}" (${where}) is on lines that are in no hunk`,
-            chapter,
-          ),
-        );
-      }
+    for (const line of offPageRefs(refs, diff)) {
+      out.push(fail('refs', `${owner}: ${line}`, chapter));
     }
   };
   const rels = [...diff.keys()];
@@ -198,22 +170,10 @@ function pointerFindings(plan: Plan, diff: Map<string, DiffFile>): Finding[] {
     refFindings(chapter.refs || [], named(numbers[index]), numbers[index]),
   );
   chapters.forEach((chapter, index) => {
-    for (const comment of chapter.comments) {
-      const file = diff.get(comment.path);
-      if (
-        file &&
-        !comment.carried &&
-        !comment.unmapped &&
-        !lineInDiff(file, Number(comment.line), comment.side)
-      ) {
-        out.push(
-          fail(
-            'comments',
-            `the comment on ${comment.path}:${comment.line} is on a line that is in no hunk`,
-            numbers[index],
-          ),
-        );
-      }
+    for (const place of offPageComments(chapter.comments, diff)) {
+      out.push(
+        fail('comments', `the comment on ${place} is on a line that is in no hunk`, numbers[index]),
+      );
     }
   });
   return out;
@@ -422,23 +382,46 @@ function shapeFindings(plan: Plan, diff: Map<string, DiffFile>): Finding[] {
   return out;
 }
 
-/** Everything wrong or worth a look in a story, fails first. */
-export function storyFindings(given: Plan, diff: Map<string, DiffFile>): Finding[] {
+/**
+ * Everything wrong or worth a look in a story, fails first. served: the plan already published, whose unchanged (kept)
+ * chapters count every ref and are left alone by the chapter rules, as a rebuild's vet does.
+ */
+export function storyFindings(
+  given: Plan,
+  diff: Map<string, DiffFile>,
+  served?: Plan | null,
+): Finding[] {
   // a chapter's `hunks` ids are read as the refs they become at build (a copy: this only reads)
   const plan = structuredClone(given);
   const hunked = expandHunks(plan, diff);
   const rels = [...diff.keys()];
   const chapters = chaptersOf(upgradePlan(plan, rels));
+  const kept = keptChapters(plan, served);
   const findings: Finding[] = [
     ...placementFindings(plan, diff),
-    ...uncoveredHunks(chapters, diff).map((file) =>
+    ...uncoveredHunks(chapters, diff, { linked: true, kept }).map((file) =>
       fail(
         'hunks',
-        `${file.rel}: no chapter points at ${file.hunks.map((hunk) => hunk.ref).join(', ')}`,
+        `${file.rel}: no chapter points at ${file.hunks.map((hunk) => hunk.ref).join(', ')} (a ref counts when the chapter's text links it: [text](ref:id))`,
       ),
     ),
+    ...thinHunks(chapters, diff, { linked: true, kept }).map((place) =>
+      place.kind === 'whole'
+        ? warn(
+            'hunks',
+            `${place.rel} is told whole in one chapter though it has ${place.lines} changed lines (over ${WHOLE_WARN_LINES})`,
+            undefined,
+            'thin-whole',
+          )
+        : warn(
+            'hunks',
+            `${place.ref} is ${place.lines} lines and the chapter's refs cover ${place.covered} of them (under a tenth; hunks of ${BIG_HUNK_LINES}+ lines need refs across them)`,
+            undefined,
+            'thin-hunk',
+          ),
+    ),
     ...hunked.problems.map((line) => fail('plan', line)),
-    ...chapterProblems(plan, { diff }).map((line) => fail('plan', line)),
+    ...chapterProblems(plan, { diff, served, pointers: false }).map((line) => fail('plan', line)),
     ...pointerFindings(plan, diff),
     ...lengthFindings(plan, diff),
     ...shapeFindings(plan, diff),

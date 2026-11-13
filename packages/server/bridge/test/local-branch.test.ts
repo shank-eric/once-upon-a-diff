@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { git, localRepo, runCli, tmp } from './helpers.ts';
 import { createLocalStory } from '@once-upon-a-diff/stories/local-story';
+import { StoryStore } from '@once-upon-a-diff/stories/store';
 
 test('a local story records the branch --head names, not the checkout’s', () => {
   const home = tmp('home');
@@ -270,4 +271,44 @@ test('once-upon local --chapters marks a refused telling failed in the timings n
   assert.equal(lines[0].command, 'local');
   assert.equal(lines[0].failed, true);
   assert.equal(typeof lines[0].ms, 'number');
+});
+
+test('once-upon local --chapters refuses a ref on lines in no hunk, and publishes nothing', async () => {
+  const home = tmp('home');
+  const { repo, base } = localRepo();
+  const chapters = path.join(tmp('chapters-offpage'), 'chapters.json');
+  writeFileSync(
+    chapters,
+    JSON.stringify({
+      refs: [],
+      chapters: [
+        {
+          title: 'The change',
+          key: 'change',
+          narrative: '### Chapter 1: The change\n\nIt [lands somewhere](ref:far).',
+          files: ['one.txt'],
+          refs: [{ id: 'far', path: 'one.txt', side: 'R', start: 900, end: 910 }],
+        },
+      ],
+    }),
+  );
+  const cli = await runCli(home, [
+    'local',
+    '--repo',
+    repo,
+    '--base',
+    base,
+    '--chapters',
+    chapters,
+    '--id',
+    'offpage',
+    '--no-serve',
+    '--no-open',
+  ]);
+  assert.notEqual(cli.code, 0);
+  assert.match(
+    cli.stderr,
+    /chapter 1: ref "far" \(one\.txt:900-910\) is on lines that are in no hunk/,
+  );
+  assert.equal(new StoryStore({ home }).dirOf('offpage'), null, 'nothing was published');
 });

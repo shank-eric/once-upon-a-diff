@@ -17,6 +17,7 @@
  */
 import { entryOf, refOf, type Plan, type PlanChapter, type PlanRef } from './chapters.ts';
 import { chapterProblems } from './validate.ts';
+import { lineInDiff } from './pointers.ts';
 import { expandHunks } from './hunk-ids.ts';
 import { chapterKeyOf, chapterNumbers } from '@once-upon-a-diff/terms/chapters';
 import type { DiffFile, DiffHunk } from '@once-upon-a-diff/contracts/types';
@@ -36,15 +37,6 @@ export interface FragmentOutcome {
   key: string;
   status: 'merged' | 'skipped' | 'rejected';
   why: string;
-}
-
-/** Whether a comment's line is in one of the file's hunks, on the side it names. */
-export function lineInDiff(file: DiffFile, line: number, side: string | undefined): boolean {
-  return file.hunks.some((hunk) =>
-    side === 'L'
-      ? line >= hunk.oldStart && line < hunk.oldStart + Math.max(hunk.oldLines, 1)
-      : line >= hunk.newStart && line < hunk.newStart + Math.max(hunk.newLines, 1),
-  );
 }
 
 /** The fragment's fields checked and cleaned, or the reason it is not one. */

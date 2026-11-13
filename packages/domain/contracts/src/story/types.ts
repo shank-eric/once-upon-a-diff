@@ -33,6 +33,8 @@ export interface ChapterRef {
   label?: string;
   /** made by the bridge from the text of a story told before refs: it links, but is not a pointer a chapter chose to make (hunk coverage, a file's line list) */
   text?: boolean;
+  /** made from a hunk id in the chapter's `hunks` (hunk-ids.ts): the chapter named the hunk, so it counts as linked */
+  hunk?: boolean;
 }
 
 /** A file a chapter tells. partial: it tells some of it (note says which), and a later chapter more. */
@@ -267,6 +269,8 @@ export interface StoryData {
   /** the repo's parts and the ones each chapter touches (domain/parts.ts), when the repo has a parts file; the panel draws them as a strip (absent: no strip) */
   parts?: StoryParts;
   uncovered_hunks: UncoveredFile[];
+  /** how many places the story tells thinly: a file told whole past 300 changed lines, or a 60+ line hunk whose refs touch under a tenth of it */
+  thin_hunks?: number;
   /** the step to open on when nothing is saved */
   start?: number;
   local?: LocalStory;

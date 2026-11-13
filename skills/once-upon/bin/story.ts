@@ -47,9 +47,17 @@ import {
   hasFails,
 } from '../../../packages/server-libs/stories/src/story-report.ts';
 import { storyFindings, type Finding } from '../../../packages/server-libs/stories/src/quality.ts';
+import { partialProblems } from '../../../packages/server-libs/stories/src/gate.ts';
 import { lintTextRefs } from '../../../packages/server-libs/stories/src/text-refs.ts';
 import { upgradePlan } from '../../../packages/server-libs/stories/src/legacy.ts';
-import { assignKeys, chapterProblems } from '../../../packages/server-libs/stories/src/validate.ts';
+import {
+  assignKeys,
+  chapterProblems,
+  keptChapters,
+} from '../../../packages/server-libs/stories/src/validate.ts';
+import { StoryStore } from '../../../packages/server-libs/stories/src/store.ts';
+import { homeDir } from '../../../packages/server-libs/foundation/src/settings.ts';
+import { storyIdForPr } from '../../../packages/domain/terms/src/ids.ts';
 import {
   expandHunks,
   hunkIdsOf,
@@ -57,6 +65,7 @@ import {
 } from '../../../packages/server-libs/stories/src/hunk-ids.ts';
 import {
   LOCKFILES,
+  thinHunks,
   uncoveredHunks,
   SMALL_FILE_LINES,
 } from '../../../packages/server-libs/stories/src/hunk-coverage.ts';
@@ -380,7 +389,7 @@ async function cmdBrief(opts: CliOpts) {
  * at a file's lines is a ref (`refs`), which needs the file listed: it moves nothing. A chapter an older story kept
  * as it was is read as it is on the panel (legacy.ts).
  */
-function buildMap(plan: Plan, diff: Map<string, DiffFile>) {
+function buildMap(plan: Plan, diff: Map<string, DiffFile>, served?: Plan | null) {
   const rels = [...diff.keys()];
   const chapters = chaptersOf(upgradePlan(plan, rels));
   const finishedIn = finishedInOf(chapters);
@@ -407,7 +416,11 @@ function buildMap(plan: Plan, diff: Map<string, DiffFile>) {
   if (missing.length) {
     problems.push(`${missing.length} files are in no chapter: ${missing.join(', ')}`);
   }
-  const uncovered = uncoveredHunks(chapters, diff);
+  problems.push(...partialProblems(chapters, diff));
+  // a chapter left as it was published counts every ref, as the rebuild's vet does
+  const kept = keptChapters(plan, served);
+  const uncovered = uncoveredHunks(chapters, diff, { linked: true, kept });
+  const thin = thinHunks(chapters, diff, { linked: true, kept });
   const perChapter = chapters.map((chapter, i) => {
     const step = i + 1;
     return {
@@ -426,7 +439,7 @@ function buildMap(plan: Plan, diff: Map<string, DiffFile>) {
         .map((entry) => entry.rel),
     };
   });
-  return { files, chapters: perChapter, problems, uncovered };
+  return { files, chapters: perChapter, problems, uncovered, thin };
 }
 
 /** The build's report of hunks no chapter tells, with the ways to fix it. */
@@ -436,9 +449,26 @@ function hunksNotCovered(uncovered: UncoveredFile[]): string {
   return [
     `hunks not covered: ${count} in ${uncovered.length} files (bigger than ${SMALL_FILE_LINES} changed lines) that no chapter points at`,
     ...lines,
-    'Give the chapter that tells each one a ref on it (`refs`: {id, path, side, start, end}) or a comment on it,',
+    "Give the chapter that tells each one a ref on it (`refs`: {id, path, side, start, end}) and link it in the chapter's text ([text](ref:id): a ref the text never links counts for nothing) or a comment on it,",
     'or mark the file\'s entry "whole": true where one chapter tells all of it. --allow-uncovered publishes anyway.',
   ].join('\n');
+}
+
+/**
+ * The chapters.json the bridge already serves for the PR in `dir` (its pr.json), whose unchanged chapters a telling may
+ * leave as they are; null for a story not published yet, a local story, or when `dir` is the served folder itself.
+ */
+async function servedPlan(dir: string, given?: PrJson): Promise<Plan | null> {
+  const pr = given || (await readJson<PrJson | null>(path.join(dir, 'pr.json'), null));
+  const repo = pr ? repoOf(pr) : '';
+  if (!pr || !repo || !pr.number) {
+    return null;
+  }
+  const served = new StoryStore({ home: homeDir() }).dirOf(storyIdForPr(repo, pr.number));
+  if (!served || path.resolve(served) === path.resolve(dir)) {
+    return null;
+  }
+  return readJson<Plan | null>(path.join(served, 'chapters.json'), null);
 }
 
 async function cmdBuild(opts: CliOpts) {
@@ -464,9 +494,10 @@ async function cmdBuild(opts: CliOpts) {
     writeJsonAtomic((opts.chapters as string | undefined) || path.join(dir, 'chapters.json'), plan);
     process.stderr.write(`Expanded ${hunked.expanded} hunk ids into refs\n`);
   }
+  const served = await servedPlan(dir, pr);
   if (opts['no-bridge']) {
     // the bridge checks the plan itself when it publishes, against what it published before; this is the same check without that
-    const refused = chapterProblems(plan, { diff });
+    const refused = chapterProblems(plan, { diff, served });
     if (refused.length && !opts['allow-missing']) {
       throw new Error(`chapters:\n  - ${refused.join('\n  - ')}`);
     }
@@ -474,7 +505,7 @@ async function cmdBuild(opts: CliOpts) {
   for (const warning of lintTextRefs(plan)) {
     process.stderr.write(`warning: ${warning}\n`);
   }
-  const map = buildMap(plan, diff);
+  const map = buildMap(plan, diff, served);
   if (map.problems.length && !opts['allow-missing']) {
     throw new Error(`file placement:\n  - ${map.problems.join('\n  - ')}`);
   }
@@ -487,6 +518,7 @@ async function cmdBuild(opts: CliOpts) {
     files: map.files,
     chapters: map.chapters,
     ...(map.uncovered.length ? { uncovered_hunks: map.uncovered } : {}),
+    ...(map.thin.length ? { thin_hunks: map.thin.length } : {}),
   });
   const all = [...diff.values()];
   const placed =
@@ -497,7 +529,7 @@ async function cmdBuild(opts: CliOpts) {
   extra.hunks = hunks;
   const missed = map.uncovered.reduce((sum, file) => sum + file.hunks.length, 0);
   process.stderr.write(
-    `Wrote file-map.json: ${chapters.length} chapters, ${all.length} files, ${placed} placed, ${partials} partial, ${hunks - missed} of ${hunks} hunks covered\n`,
+    `Wrote file-map.json: ${chapters.length} chapters, ${all.length} files, ${placed} placed, ${partials} partial, ${hunks - missed} of ${hunks} hunks covered${map.thin.length ? `, ${map.thin.length} told thinly` : ''}\n`,
   );
   if (missed) {
     process.stderr.write(`${hunksNotCovered(map.uncovered)}\n`);
@@ -506,7 +538,7 @@ async function cmdBuild(opts: CliOpts) {
     await cmdPublish(opts);
   }
   // the quality rules the gate does not refuse; the exit status is the gate's alone
-  for (const line of findingsSummary(() => countedFindings(storyFindings(plan, diff)))) {
+  for (const line of findingsSummary(() => countedFindings(storyFindings(plan, diff, served)))) {
     process.stderr.write(`${line}\n`);
   }
 }
@@ -527,7 +559,8 @@ async function cmdCheck(opts: CliOpts) {
   if (!plan) {
     throw new Error(`no chapters.json to check in ${opts.dir}`);
   }
-  const findings = countedFindings(storyFindings(plan, diffOf(opts)));
+  const served = await servedPlan(opts.dir as string);
+  const findings = countedFindings(storyFindings(plan, diffOf(opts), served));
   const final = opts.final === true;
   process.stdout.write(`${findingsReport(findings, final).join('\n')}\n`);
   if (hasFails(findings, final)) {
