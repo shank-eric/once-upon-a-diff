@@ -245,8 +245,8 @@ export interface PrView {
   /** what a push sends, newest first */
   to_push: LocalCommit[];
   draft: PrDraft | null;
-  /** the branch's open PR, when gh found one */
-  pull: { number: number; url: string } | null;
+  /** the branch's open PR, when gh found one (`created_at`: when it was opened, when gh said) */
+  pull: { number: number; url: string; created_at?: string } | null;
 }
 
 /** POST .../pr {action: 'push'}: git's own lines, and the view after it. */

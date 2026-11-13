@@ -96,7 +96,11 @@ async function remoteOf(
 async function openPull(repo: string, branch: string): Promise<PrView['pull']> {
   try {
     const found = await ghOpenPullList(repo, branch);
-    return found.length ? { number: found[0].number, url: found[0].url } : null;
+    if (!found.length) {
+      return null;
+    }
+    const { number, url, createdAt } = found[0];
+    return createdAt ? { number, url, created_at: createdAt } : { number, url };
   } catch {
     return null;
   }

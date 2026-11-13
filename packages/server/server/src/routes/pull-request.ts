@@ -6,13 +6,16 @@
  * or origin has commits this checkout lacks. On a storyless review the click is the approval, so it pushes only the head
  * the page showed, by its sha (`<sha>:refs/heads/<branch>`), and then tracks origin's branch. A branch that has moved past
  * it is refused until Review on its card re-pins the review to the new tip, and a commit made after that check still
- * can't go out.
+ * can't go out. The reviewer opens the PR on GitHub, so the bridge learns its number from gh: whenever a view of the
+ * story's branch shows an open PR opened after the story's bound storyteller parked, that run finishes ("PR #N opened",
+ * core's approve-runs.ts); a fork's PR of the same branch name is not the branch's PR (adapters' ghOpenPullList).
  */
 import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { HttpError } from '../request.ts';
 import { localOnly, oncePerStory } from './story-guards.ts';
 import { parseBody } from '../validate.ts';
 import { storyRepo } from '@once-upon-a-diff/stories/meta';
+import { finishStoryRunsOnPr } from '@once-upon-a-diff/core/features/review/approve-runs';
 import {
   DRAFT_FILE,
   prView,
@@ -21,7 +24,7 @@ import {
   pushBlocker,
   pushBranch,
 } from '@once-upon-a-diff/stories/pull-request';
-import type { PrDraft, PrPushAnswer } from '@once-upon-a-diff/contracts/types';
+import type { PrDraft, PrPushAnswer, PrView } from '@once-upon-a-diff/contracts/types';
 import { isStoryless } from '@once-upon-a-diff/stories/local-story';
 import type { LocalMeta, ServedStory } from '@once-upon-a-diff/stories/types';
 import type { App, Call, StoryRoute } from '../types.ts';
@@ -31,9 +34,27 @@ const NOT_LOCAL = 'a PR story already has its pull request';
 const draftOf = (app: App, story: ServedStory) =>
   app.stories.readState<PrDraft | null>(story.id, DRAFT_FILE, null);
 
+/** A view that shows an open PR the reviewer opened: the story's bound storyteller, parked for its review, is done. */
+function finishOnPull(app: App, story: ServedStory, seen: PrView) {
+  if (!seen.pull) {
+    return;
+  }
+  const finished = finishStoryRunsOnPr(
+    app.home,
+    { id: story.id, repo: storyRepo(story.meta), branch: story.meta.branch || null },
+    seen.pull,
+    app.log,
+  );
+  if (finished) {
+    app.board.refresh();
+  }
+}
+
 async function view({ app, send }: Call, story: ServedStory) {
   localOnly(story, NOT_LOCAL);
-  return send(200, await prView(story.meta, draftOf(app, story)));
+  const seen = await prView(story.meta, draftOf(app, story));
+  finishOnPull(app, story, seen);
+  return send(200, seen);
 }
 
 async function push({ app, body: raw, send }: Call, story: ServedStory) {
@@ -56,6 +77,7 @@ async function push({ app, body: raw, send }: Call, story: ServedStory) {
     }
     const branch = before.branch as string;
     if (before.remote.state === 'same') {
+      finishOnPull(app, story, before);
       return send(200, { output: 'Already on GitHub: nothing to push.', view: before });
     }
     app.log(
@@ -82,6 +104,7 @@ async function push({ app, body: raw, send }: Call, story: ServedStory) {
       output,
       view: await prView(story.meta, draftOf(app, story)),
     };
+    finishOnPull(app, story, answer.view);
     return send(200, answer);
   });
 }

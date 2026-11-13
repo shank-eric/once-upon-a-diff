@@ -79,31 +79,30 @@ export async function ghGraphql<T = unknown>(
   return parseJson(await ghApi(args, options)) as T;
 }
 
-/** `gh pr list` for the open PR whose head is this branch: its number and url, parsed (an empty array when none). */
+/**
+ * `gh pr list` for the open PR whose head is this branch of the repo itself: its number, url and creation time, parsed
+ * (an empty array when none). A PR from a fork with the same branch name is dropped: it is not this branch's PR.
+ */
 export const ghOpenPullList = async (
   repo: string,
   branch: string,
   options: GhOptions = {},
-): Promise<{ number: number; url: string }[]> =>
-  parseJson(
+): Promise<{ number: number; url: string; createdAt?: string }[]> => {
+  const found = parseJson(
     await runGh(
       [
-        'pr',
-        'list',
-        '--repo',
-        repo,
-        '--head',
-        branch,
-        '--state',
-        'open',
-        '--json',
-        'number,url',
-        '--limit',
-        '1',
+        ...['pr', 'list', '--repo', repo, '--head', branch, '--state', 'open'],
+        ...['--json', 'number,url,createdAt,isCrossRepository', '--limit', '30'],
       ],
       options,
     ),
-  ) as { number: number; url: string }[];
+  ) as { number: number; url: string; createdAt?: string; isCrossRepository?: boolean }[];
+  return found
+    .filter((pull) => !pull.isCrossRepository)
+    .map(({ number, url, createdAt }) =>
+      createdAt ? { number, url, createdAt } : { number, url },
+    );
+};
 
 /**
  * A PR's head branch, for a run started with `--pr N` and no branch (agent start). One gh call, with a short timeout: a
