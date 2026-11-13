@@ -8,6 +8,7 @@ Standing rules for any agent working in Once Upon a Diff. A brief only needs to 
 - One commit per branch. Squash your own work before handing back.
 - Worktrees go in `../once-upon-a-diff-worktrees/<name>`, next to the main checkout, never inside it.
 - Never delete branches or worktrees.
+- Never `git stash`: the stash is shared by every worktree.
 - An agent's notes file goes next to its worktree as `<branch>.notes.md`. Scratch text (a card note drafted before `backlog add`, logs) goes in the agent's scratchpad, never loose in the worktrees folder.
 
 ## Backlog cards
@@ -29,6 +30,7 @@ Standing rules for any agent working in Once Upon a Diff. A brief only needs to 
 ## Tests and checks
 
 - Run quiet. Targeted first (`node --test test/<file>.test.ts` from the package that holds the test: an engine package (`adapters`, `foundation`, `stories`, `usage`, `state`, `core` or `board`), `cli` or `server` for the pure ones, `packages/server/bridge` for the ones that start a bridge or run the CLI (`startBridge`, `runCli` and the fixtures live there), then the full suite once. Print failures only.
+- Run scratch probes under a hard timeout (`timeout 30 ...`) and check `ps` for leftovers before handing back.
 - One heavy test run at a time. Check the load before starting a second one.
 - Before handing back: `yarn lint`, `yarn typecheck`, `yarn format:check`, `yarn test`.
 - Story quality: `packages/server-libs/stories/src/quality.ts` checks a story (placement, hunk coverage, refs inside hunks, chapter length and shape) and `yarn test` runs it over the recorded fixture stories in `packages/server-libs/stories/test/fixtures/story-evals/`. When you change the story rules in `skills/once-upon/SKILL.md` (step 2 or "How the story sounds"), `yarn test` prints which fixtures were recorded under older rules. Re-tell them by hand with `yarn eval:stories` (calls a model, costs money, never run by `yarn test`; `--record` keeps a passing telling for review in git).

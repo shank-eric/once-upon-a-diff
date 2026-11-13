@@ -11,3 +11,4 @@ Copy this file to `~/.once-upon/editor/<repo directory name>.md` (or `$ONCE_UPON
 - Card order: where the cards come from (`once-upon backlog list`) and any parked line or dependencies.
 - Reviews: the folder for critic reports, used when your user file names none (else `~/.once-upon/reviews`).
 - Memory or notes to read: any extra files the editor should read at start.
+- Optional, for the repo's own AGENTS.md (copy it there so every agent reads it): `Never git stash (the stash is shared by every worktree). Run scratch probes under a hard timeout (timeout 30 ...) and check ps for leftovers.`
