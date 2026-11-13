@@ -17,8 +17,9 @@
  */
 import { entryOf, refOf, type Plan, type PlanChapter, type PlanRef } from './chapters.ts';
 import { chapterProblems } from './validate.ts';
+import { expandHunks } from './hunk-ids.ts';
 import { chapterKeyOf, chapterNumbers } from '@once-upon-a-diff/terms/chapters';
-import type { DiffFile } from '@once-upon-a-diff/contracts/types';
+import type { DiffFile, DiffHunk } from '@once-upon-a-diff/contracts/types';
 import { toSide } from '@once-upon-a-diff/terms/line-refs';
 
 /** Where a ref points, as text: its file and lines (or the file), never its label. */
@@ -213,31 +214,40 @@ export function mergeFragments(
 /** A plan's per-chapter key points (points.json): what to say, and what a neighbour owns. */
 export type Points = Record<string, { points?: string[]; hands_off?: string[] }>;
 
-/** Prefixes each diff line with its line number on the side it is on: R for new and context lines, L for removed. */
+/** A hunk's lines, each prefixed with its line number on the side it is on: R for new and context lines, L for removed. */
+export function numberedHunk(hunk: DiffHunk): string[] {
+  const out: string[] = [];
+  let oldLine = hunk.oldStart;
+  let newLine = hunk.newStart;
+  for (const line of hunk.lines) {
+    if (line.startsWith('-')) {
+      out.push(`L${oldLine++}\t${line}`);
+    } else if (line.startsWith('+')) {
+      out.push(`R${newLine++}\t${line}`);
+    } else if (line.startsWith(' ')) {
+      out.push(`R${newLine}\t${line}`);
+      oldLine++;
+      newLine++;
+    } else {
+      out.push(`\t${line}`);
+    }
+  }
+  return out;
+}
+
+/** A file's hunks, each under its `@@` line, with the line numbers to cite; cut off at `max` lines in all. */
 function numbered(file: DiffFile, max: number): string[] {
   const out: string[] = [];
   for (const hunk of file.hunks) {
-    let oldLine = hunk.oldStart;
-    let newLine = hunk.newStart;
     out.push(
       `@@ old ${hunk.oldStart},${hunk.oldLines} new ${hunk.newStart},${hunk.newLines} ${hunk.header}`.trimEnd(),
     );
-    for (const line of hunk.lines) {
+    for (const line of numberedHunk(hunk)) {
       if (out.length >= max) {
         out.push('… more lines in this file than a chapter needs; read the rest from pr.diff');
         return out;
       }
-      if (line.startsWith('-')) {
-        out.push(`L${oldLine++}\t${line}`);
-      } else if (line.startsWith('+')) {
-        out.push(`R${newLine++}\t${line}`);
-      } else if (line.startsWith(' ')) {
-        out.push(`R${newLine}\t${line}`);
-        oldLine++;
-        newLine++;
-      } else {
-        out.push(`\t${line}`);
-      }
+      out.push(line);
     }
   }
   return out;
@@ -248,12 +258,15 @@ function numbered(file: DiffFile, max: number): string[] {
  * the line numbers to cite (R new side, L old side). Null when the plan has no such chapter.
  */
 export function sliceOf(
-  plan: Plan,
+  given: Plan,
   which: string,
   diff: Map<string, DiffFile>,
   points: Points = {},
   maxLinesPerFile = 400,
 ): string | null {
+  // a chapter's `hunks` ids are shown as the refs they become at build (a copy: this only reads)
+  const plan = structuredClone(given);
+  expandHunks(plan, diff);
   const chapters = plan.chapters || [];
   // numbers are the reader's: a "Since you read it" chapter is not numbered (chapterNumbers), so the rest keep theirs
   const numbers = chapterNumbers(chapters);

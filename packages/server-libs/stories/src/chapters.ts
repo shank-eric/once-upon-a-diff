@@ -51,6 +51,8 @@ export interface PlanChapter {
   files?: PlanFile[];
   /** the places the narrative links to; a plan published now has it on every chapter */
   refs?: PlanRef[];
+  /** hunk ids ("h7", from `story.ts brief`) the chapter tells; `expandHunks` makes refs of them (hunk-ids.ts) */
+  hunks?: string[];
   comments?: (Partial<DraftComment> & { side?: string })[];
   since?: unknown;
 }

@@ -20,6 +20,7 @@ import { LOCKFILES, SMALL_FILE_LINES, sidesOf, uncoveredHunks } from './hunk-cov
 import { upgradePlan } from './legacy.ts';
 import { lintTextRefs } from './text-refs.ts';
 import { chapterProblems } from './validate.ts';
+import { expandHunks } from './hunk-ids.ts';
 
 export type Check =
   | 'placement'
@@ -422,7 +423,10 @@ function shapeFindings(plan: Plan, diff: Map<string, DiffFile>): Finding[] {
 }
 
 /** Everything wrong or worth a look in a story, fails first. */
-export function storyFindings(plan: Plan, diff: Map<string, DiffFile>): Finding[] {
+export function storyFindings(given: Plan, diff: Map<string, DiffFile>): Finding[] {
+  // a chapter's `hunks` ids are read as the refs they become at build (a copy: this only reads)
+  const plan = structuredClone(given);
+  const hunked = expandHunks(plan, diff);
   const rels = [...diff.keys()];
   const chapters = chaptersOf(upgradePlan(plan, rels));
   const findings: Finding[] = [
@@ -433,6 +437,7 @@ export function storyFindings(plan: Plan, diff: Map<string, DiffFile>): Finding[
         `${file.rel}: no chapter points at ${file.hunks.map((hunk) => hunk.ref).join(', ')}`,
       ),
     ),
+    ...hunked.problems.map((line) => fail('plan', line)),
     ...chapterProblems(plan, { diff }).map((line) => fail('plan', line)),
     ...pointerFindings(plan, diff),
     ...lengthFindings(plan, diff),

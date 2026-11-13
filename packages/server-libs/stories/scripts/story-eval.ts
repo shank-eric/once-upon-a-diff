@@ -80,6 +80,11 @@ interface Result {
   gate: string | null;
   work: string;
   costUsd: number | null;
+  /** how long the model call took, its turns and output tokens (from claude's JSON), and how long the build gate took; null when unknown */
+  seconds: number | null;
+  turns: number | null;
+  outputTokens: number | null;
+  gateSeconds: number | null;
   error: string | null;
 }
 
@@ -97,8 +102,13 @@ function tell(name: string): Result {
     gate: null,
     work,
     costUsd: null,
+    seconds: null,
+    turns: null,
+    outputTokens: null,
+    gateSeconds: null,
     error: null,
   };
+  const modelStarted = performance.now();
   const model = spawnSync(
     'claude',
     [
@@ -132,9 +142,21 @@ function tell(name: string): Result {
       timeout: 25 * 60 * 1000,
     },
   );
+  result.seconds = (performance.now() - modelStarted) / 1000;
   try {
-    const cost = (JSON.parse(model.stdout || '{}') as { total_cost_usd?: number }).total_cost_usd;
-    result.costUsd = typeof cost === 'number' ? cost : null;
+    const done = JSON.parse(model.stdout || '{}') as {
+      total_cost_usd?: number;
+      duration_ms?: number;
+      num_turns?: number;
+      usage?: { output_tokens?: number };
+    };
+    const number = (value: unknown) => (typeof value === 'number' ? value : null);
+    result.costUsd = number(done.total_cost_usd);
+    result.turns = number(done.num_turns);
+    result.outputTokens = number(done.usage?.output_tokens);
+    // claude's own clock for the call, when it gives one, over ours (which includes starting it)
+    result.seconds =
+      typeof done.duration_ms === 'number' ? done.duration_ms / 1000 : result.seconds;
   } catch {
     /* not JSON: no cost to report */
   }
@@ -148,9 +170,11 @@ function tell(name: string): Result {
     return result;
   }
   // the gate first: it gives a chapter with no key its key and writes it back, so the checks read what it left
+  const gateStarted = performance.now();
   const built = spawnSync(process.execPath, [STORY, 'build', '--dir', work, '--no-bridge'], {
     encoding: 'utf8',
   });
+  result.gateSeconds = (performance.now() - gateStarted) / 1000;
   if (built.status !== 0) {
     result.gate = (built.stderr || '').trim().split('\n').slice(0, 6).join(' | ');
   }
@@ -188,8 +212,14 @@ const gateWord = (result: Result) => {
 function report(result: Result): boolean {
   const failed = !!result.error || !!result.gate || result.fails.length > 0;
   const cost = result.costUsd === null ? '' : `  $${result.costUsd.toFixed(2)}`;
+  const time = [
+    result.seconds === null ? '' : `  ${Math.round(result.seconds)}s`,
+    result.turns === null ? '' : `  ${result.turns} turns`,
+    result.outputTokens === null ? '' : `  ${(result.outputTokens / 1000).toFixed(1)}k out`,
+    result.gateSeconds === null ? '' : `  gate ${result.gateSeconds.toFixed(1)}s`,
+  ].join('');
   process.stdout.write(
-    `${result.name.padEnd(12)} ${result.chapters} chapters  words min/median/max ${spread(result.words)}  ${result.fails.length} fail  ${result.warns.length} warn  gate ${gateWord(result)}${cost}\n`,
+    `${result.name.padEnd(12)} ${result.chapters} chapters  words min/median/max ${spread(result.words)}  ${result.fails.length} fail  ${result.warns.length} warn  gate ${gateWord(result)}${cost}${time}\n`,
   );
   if (result.error) {
     process.stdout.write(`  error: ${result.error}\n`);
@@ -215,6 +245,11 @@ function report(result: Result): boolean {
           date: new Date().toISOString().slice(0, 10),
           rulesHash: rulesHash(skill),
           costUsd: result.costUsd,
+          seconds: result.seconds === null ? null : Math.round(result.seconds),
+          turns: result.turns,
+          outputTokens: result.outputTokens,
+          gateSeconds:
+            result.gateSeconds === null ? null : Math.round(result.gateSeconds * 10) / 10,
         },
         null,
         2,

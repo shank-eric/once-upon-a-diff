@@ -261,3 +261,26 @@ test('rebuilding an older story from chapter 2: its kept chapter may have been g
     /chapter 1 .*changed/,
   );
 });
+
+test('publish turns a chapter’s hunk ids into refs, in the served copy and the author file, and refuses an unknown one', () => {
+  const home = tmp('validate-hunks');
+  const dir = folder([
+    { title: 'Chapter 1: Start', files: ['src/a.js'], narrative: '', hunks: ['h1'] },
+  ]);
+  const { dest } = publishPrStory(home, { dir, allowUncovered: false });
+  for (const file of [path.join(dir, 'chapters.json'), path.join(dest, 'chapters.json')]) {
+    const plan = JSON.parse(readFileSync(file, 'utf8'));
+    assert.deepEqual(
+      plan.chapters[0].refs.map((ref: { id: string; path: string }) => [ref.id, ref.path]),
+      [['h1', 'src/a.js']],
+    );
+    assert.equal(plan.chapters[0].hunks, undefined);
+  }
+  writeJson(path.join(dir, 'chapters.json'), {
+    chapters: [{ title: 'Chapter 1: Start', files: ['src/a.js'], narrative: '', hunks: ['h7'] }],
+  });
+  assert.throws(
+    () => publishPrStory(home, { dir, allowUncovered: false }),
+    /can't be published:\n {2}- chapter 1: hunk h7 is not in the diff \(it has h1-h1\)/,
+  );
+});

@@ -190,3 +190,84 @@ test('once-upon local --chapters still publishes and exits 0 when the findings c
   assert.match(cli.stderr, /^findings: could not be computed: .+$/m);
   assert.doesNotMatch(cli.stderr, /\n\s+at /);
 });
+
+test('once-upon local --chapters expands hunk ids and notes how long it took next to the chapters file', async () => {
+  const home = tmp('home');
+  const { repo, base } = localRepo();
+  const chapters = path.join(tmp('chapters'), 'chapters.json');
+  writeFileSync(
+    chapters,
+    JSON.stringify({
+      chapters: [
+        {
+          title: 'The change',
+          key: 'change',
+          headline: 'It changed.',
+          summary: 'one and two.',
+          narrative: '### Chapter 1: The change\n\nThe words.',
+          files: ['one.txt', 'lib/two.js', 'gone.txt'],
+          hunks: ['h1', 'h2', 'h3'],
+        },
+      ],
+    }),
+  );
+  const cli = await runCli(home, [
+    'local',
+    '--repo',
+    repo,
+    '--base',
+    base,
+    '--chapters',
+    chapters,
+    '--id',
+    'hunked',
+    '--no-serve',
+    '--no-open',
+  ]);
+  assert.equal(cli.code, 0, cli.stderr);
+  const written = JSON.parse(readFileSync(chapters, 'utf8'));
+  assert.deepEqual(
+    written.chapters[0].refs.map((ref: { id: string }) => ref.id),
+    ['h1', 'h2', 'h3'],
+  );
+  const lines = readFileSync(path.join(path.dirname(chapters), 'timings.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line));
+  assert.equal(lines.length, 1);
+  assert.equal(lines[0].command, 'local');
+  assert.equal(lines[0].expanded, 3);
+  assert.equal(typeof lines[0].ms, 'number');
+});
+
+test('once-upon local --chapters marks a refused telling failed in the timings next to the chapters file', async () => {
+  const home = tmp('home');
+  const { repo, base } = localRepo();
+  const chapters = path.join(tmp('chapters-refused'), 'chapters.json');
+  writeFileSync(
+    chapters,
+    JSON.stringify({
+      chapters: [{ title: 'The change', files: ['one.txt'], hunks: ['h99'] }],
+    }),
+  );
+  const cli = await runCli(home, [
+    'local',
+    '--repo',
+    repo,
+    '--base',
+    base,
+    '--chapters',
+    chapters,
+    '--no-serve',
+    '--no-open',
+  ]);
+  assert.notEqual(cli.code, 0);
+  const lines = readFileSync(path.join(path.dirname(chapters), 'timings.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line));
+  assert.equal(lines.length, 1);
+  assert.equal(lines[0].command, 'local');
+  assert.equal(lines[0].failed, true);
+  assert.equal(typeof lines[0].ms, 'number');
+});

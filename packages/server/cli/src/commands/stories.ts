@@ -13,6 +13,7 @@ import { storyIdOf } from './inbox.ts';
 import { afterRebuild } from '@once-upon-a-diff/core/features/publishing/after-rebuild';
 import { vetRebuild } from '@once-upon-a-diff/stories/rebuild';
 import { createLocalStory } from '@once-upon-a-diff/stories/local-story';
+import { noteTiming } from '@once-upon-a-diff/stories/timings';
 import { findingsSummary, localStoryFindings } from '@once-upon-a-diff/stories/story-report';
 
 import { out } from '../output.ts';
@@ -116,27 +117,46 @@ async function local(home: string, cfg: Config, opts: CliOpts) {
   const agent = agentOf(opts);
   const builds = new Builds(home);
   let rebuilt = null as Rebuilt | null; // set by vet, when it publishes a rebuild
-  const made = createLocalStory({
-    home,
-    repo: path.resolve(opts.repo as string),
-    base: opts.base as string,
-    head: (opts.head as string | undefined) || 'HEAD',
-    chapters: opts.chapters as string | undefined,
-    id: opts.id as string | undefined,
-    title: opts.title as string | undefined,
-    // the panel's Rebuild asked for these chapters: they must keep what it keeps and tell the whole diff
-    vet: ({ id, meta, diff, before, after }) => {
-      const build = pendingRebuild(builds, id, meta);
-      if (!build) {
-        return null;
-      }
-      const counts = vetRebuild(build, before, after, diff, {
-        allowUncovered: !!opts['allow-uncovered'],
+  const started = performance.now();
+  // how long the telling took, in the story's scratch folder beside story.mjs's own timings; a refused telling is
+  // marked failed, as story.mjs marks its own
+  const noteLocal = (extra: Record<string, unknown>) => {
+    if (opts.chapters) {
+      noteTiming(path.dirname(path.resolve(opts.chapters as string)), {
+        command: 'local',
+        ms: performance.now() - started,
+        ...extra,
       });
-      rebuilt = { build, before, after, counts };
-      return after;
-    },
-  });
+    }
+  };
+  let made: ReturnType<typeof createLocalStory>;
+  try {
+    made = createLocalStory({
+      home,
+      repo: path.resolve(opts.repo as string),
+      base: opts.base as string,
+      head: (opts.head as string | undefined) || 'HEAD',
+      chapters: opts.chapters as string | undefined,
+      id: opts.id as string | undefined,
+      title: opts.title as string | undefined,
+      // the panel's Rebuild asked for these chapters: they must keep what it keeps and tell the whole diff
+      vet: ({ id, meta, diff, before, after }) => {
+        const build = pendingRebuild(builds, id, meta);
+        if (!build) {
+          return null;
+        }
+        const counts = vetRebuild(build, before, after, diff, {
+          allowUncovered: !!opts['allow-uncovered'],
+        });
+        rebuilt = { build, before, after, counts };
+        return after;
+      },
+    });
+  } catch (err) {
+    noteLocal({ failed: true });
+    throw err;
+  }
+  noteLocal({ chapters: made.chapters, expanded: made.expanded });
   if (rebuilt) {
     const note = afterRebuild(home, { id: made.id, stateKey: made.id, ...rebuilt });
     builds.settleStory(made.id, { note });

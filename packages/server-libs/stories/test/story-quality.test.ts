@@ -602,6 +602,31 @@ test('yarn eval:stories with a stubbed claude: builds, checks and prints a table
   assert.ok(existsSync(path.join(fixtures, 'edge-kinds', 'recorded', 'chapters.json')));
 });
 
+test('yarn eval:stories shows the call’s seconds, turns and output tokens when claude reports them, and records them', async () => {
+  const bin = tmp('stub-claude-timed');
+  writeFileSync(
+    path.join(bin, 'claude'),
+    `#!/bin/sh\ncat > /dev/null\ncp "${FIXTURES}/$STORY_EVAL_FIXTURE/recorded/chapters.json" "$PWD/chapters.json"\necho '{"total_cost_usd":0.5,"duration_ms":42000,"num_turns":7,"usage":{"output_tokens":6100}}'\n`,
+    { mode: 0o755 },
+  );
+  const fixtures = tmp('fixtures-timed');
+  cpSync(FIXTURES, fixtures, { recursive: true });
+  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, TMPDIR: tmp('runner-tmp') };
+  const { stdout } = await run(
+    process.execPath,
+    [RUNNER, '--fixtures', fixtures, '--fixture', 'edge-kinds', '--record'],
+    { env, timeout: 120_000 },
+  );
+  assert.match(stdout, /\$0\.50\s+42s\s+7 turns\s+6\.1k out\s+gate \d+\.\ds/);
+  const record = JSON.parse(
+    readFileSync(path.join(fixtures, 'edge-kinds', 'recorded', 'record.json'), 'utf8'),
+  ) as Record<string, unknown>;
+  assert.equal(record.seconds, 42);
+  assert.equal(record.turns, 7);
+  assert.equal(record.outputTokens, 6100);
+  assert.equal(typeof record.gateSeconds, 'number');
+});
+
 test('yarn eval:stories: a telling with no keys passes the gate, which gives them, and then the checks', async () => {
   const bin = tmp('stub-claude-keyless');
   writeFileSync(

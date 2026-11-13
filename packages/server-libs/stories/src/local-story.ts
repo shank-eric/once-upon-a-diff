@@ -31,6 +31,7 @@ import { plural } from '@once-upon-a-diff/terms/text';
 import type { DiffFile } from '@once-upon-a-diff/contracts/types';
 import { noteSkeleton } from './skeleton.ts';
 import { readyPlan } from './validate.ts';
+import { expandHunksForPublish } from './hunk-ids.ts';
 import type { LocalMeta, StoryMeta } from './types.ts';
 import type { Plan, PlanChapter } from './chapters.ts';
 
@@ -181,6 +182,8 @@ export function createLocalStory({
   const diff = parseUnifiedDiff(readFileSync(path.join(dir, 'local.diff'), 'utf8'));
   const rels = [...diff.keys()];
   const chaptersFile = path.join(dir, 'chapters.json');
+  let expanded = 0; // hunk ids of `chapters` made into refs
+  let hunked = false; // `chapters` had hunk ids, so the file is written back without them
   if (chapters) {
     removeFile(path.join(dir, STORYLESS_FILE)); // told: a story now, with Approve before Push
     const after: Plan = JSON.parse(readFileSync(path.resolve(chapters), 'utf8'));
@@ -193,11 +196,13 @@ export function createLocalStory({
     const before: Plan = existsSync(chaptersFile)
       ? JSON.parse(readFileSync(chaptersFile, 'utf8'))
       : {};
+    // a chapter's `hunks` ids become refs first, so a rebuild's vet (and the checks below) read refs
+    ({ expanded, changed: hunked } = expandHunksForPublish(after, diff));
     const vetted = vet ? vet({ id, meta, diff, before, after }) : null;
     // every chapter has a key and its refs (validate.ts); an older story's chapters kept as they were are let through
     const ready = vetted || after;
     const assigned = readyPlan(ready, { diff, served: before });
-    if (vetted || assigned.length || carried) {
+    if (vetted || assigned.length || carried || hunked) {
       writeJsonAtomic(chaptersFile, ready);
       writeJsonAtomic(path.resolve(chapters), ready);
     } else {
@@ -220,6 +225,7 @@ export function createLocalStory({
     dir,
     files: rels.length,
     chapters: (plan.chapters || []).length,
+    expanded,
     unplaced: rels.filter((rel) => !placed.has(rel)),
     unknown: [...placed].filter((rel) => !diff.has(rel)),
     ambiguous,

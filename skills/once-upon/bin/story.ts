@@ -4,7 +4,9 @@
  * Works on a folder that bin/gather.sh filled (pr.json, pr.diff,
  * threads.json, checks.json, viewed.tsv). It makes no network calls.
  *
- *   story.ts brief   --dir D                 what Claude reads to plan: files, commits, reviews, threads, CI, viewed
+ *   story.ts brief   --dir D                 what Claude reads to plan: files, commits, reviews, threads, CI, viewed, and each hunk's id
+ *                                             (also written to D/hunks.txt, the numbered diff); a local story passes --repo R --base B --head H
+ *                                             in place of pr.json. A chapter says `"hunks": ["h7"]` and build makes refs of the ids
  *   story.ts build   --dir D [--no-bridge] [--agent NAME]   D/chapters.json -> D/file-map.json, then publish; gives each chapter a key
  *                                             (written back to D/chapters.json); fails if a file is unplaced, a chapter
  *                                             has no refs list, a ref or comment is wrong, or a hunk is told by no
@@ -15,6 +17,7 @@
  *   story.ts publish --dir D [--agent NAME]    publish the story for Once Upon a Diff through `once-upon publish` (build does this too)
  *   story.ts slice   --dir D --chapter K     what one chapter's writer reads: map, neighbours, key points (D/points.json), numbered diff
  *   story.ts merge   --dir D                 lay D/fragments/*.json (one per chapter) onto D/chapters.json; never publishes (--clear: delete them instead)
+ *                                             Every command appends its time to D/timings.jsonl
  *                                             slice and merge read D/pr.diff, or --diff F, or a local story's --repo R --base B --head H
  */
 import { readFile } from 'node:fs/promises';
@@ -25,12 +28,16 @@ import { fileURLToPath } from 'node:url';
 // This skill ships in the Once Upon a Diff repo (skills/once-upon/bin), and Node resolves the skill link, so it
 // imports the bridge's and the panel's own helpers from the checkout it's linked from.
 import { parseArgs } from '../../../packages/server/cli/src/args.ts';
-import { diffText } from '../../../packages/server-libs/adapters/src/git.ts';
+import {
+  commitsBetween,
+  diffText,
+  revParse,
+} from '../../../packages/server-libs/adapters/src/git.ts';
 import { parseUnifiedDiff } from '../../../packages/server-libs/stories/src/diff.ts';
-import { writeJsonAtomic } from '../../../packages/server-libs/adapters/src/stores/fs/json-file.ts';
 import { chaptersOf } from '../../../packages/server-libs/stories/src/chapters.ts';
 import {
   mergeFragments,
+  numberedHunk,
   sliceOf,
   type Points,
 } from '../../../packages/server-libs/stories/src/fragments.ts';
@@ -39,17 +46,32 @@ import {
   findingsSummary,
   hasFails,
 } from '../../../packages/server-libs/stories/src/story-report.ts';
-import { storyFindings } from '../../../packages/server-libs/stories/src/quality.ts';
+import { storyFindings, type Finding } from '../../../packages/server-libs/stories/src/quality.ts';
 import { lintTextRefs } from '../../../packages/server-libs/stories/src/text-refs.ts';
 import { upgradePlan } from '../../../packages/server-libs/stories/src/legacy.ts';
 import { assignKeys, chapterProblems } from '../../../packages/server-libs/stories/src/validate.ts';
 import {
+  expandHunks,
+  hunkIdsOf,
+  type HunkEntry,
+} from '../../../packages/server-libs/stories/src/hunk-ids.ts';
+import {
+  LOCKFILES,
   uncoveredHunks,
   SMALL_FILE_LINES,
 } from '../../../packages/server-libs/stories/src/hunk-coverage.ts';
+import { noteTiming, type TimingExtra } from '../../../packages/server-libs/stories/src/timings.ts';
+import {
+  writeFileAtomic,
+  writeJsonAtomic,
+} from '../../../packages/server-libs/adapters/src/stores/fs/json-file.ts';
 import { finishedInOf } from '../../../packages/domain/terms/src/chapters.ts';
 
-import type { DiffFile, UncoveredFile } from '../../../packages/domain/contracts/src/types.ts';
+import type {
+  DiffFile,
+  DiffHunk,
+  UncoveredFile,
+} from '../../../packages/domain/contracts/src/types.ts';
 import type { Plan } from '../../../packages/server-libs/stories/src/chapters.ts';
 import type { CliOpts } from '../../../packages/server/cli/src/types.ts';
 
@@ -142,8 +164,142 @@ const repoOf = (pr: PrJson) => (pr.url || '').split('/').slice(3, 5).join('/');
 const clip = (text: string | undefined, max: number) =>
   text && text.length > max ? `${text.slice(0, max)}…` : text;
 
+/** What the timings line of the running command adds (see noteTiming); the commands fill it. */
+const extra: TimingExtra = {};
+
+const changedLines = (hunk: DiffHunk) => ({
+  added: hunk.lines.filter((line) => line.startsWith('+')).length,
+  removed: hunk.lines.filter((line) => line.startsWith('-')).length,
+});
+
+/** The hunks of a diff for the brief: [{id, path, side, start, end, added, removed, header}], and ids by file. */
+function hunkList(diff: ReturnType<typeof parseUnifiedDiff>) {
+  const entries = hunkIdsOf(diff);
+  const hunks = entries.map((entry) => ({
+    id: entry.id,
+    path: entry.rel,
+    side: entry.side,
+    start: entry.start,
+    end: entry.end,
+    ...changedLines(entry.hunk),
+    header: entry.hunk.header,
+  }));
+  const idsOf = (rel: string) =>
+    entries.filter((entry) => entry.rel === rel).map((entry) => entry.id);
+  return { entries, hunks, idsOf };
+}
+
+/**
+ * hunks.txt: the diff as the storyteller reads it, one block per hunk under its id with the line numbers to cite (R new
+ * side, L old side). A deleted file or a lockfile needs no refs (listing it covers it), so it prints only its header.
+ */
+function hunksText(diff: ReturnType<typeof parseUnifiedDiff>, entries: HunkEntry[]): string {
+  const out: string[] = [
+    'Hunk ids for chapters.json: a chapter lists `"hunks": ["h7", "h8"]` and each id becomes a ref on that hunk (the file must be in the chapter\'s `files`).',
+    '',
+  ];
+  for (const file of diff.values()) {
+    const own = entries.filter((entry) => entry.rel === file.rel);
+    const head = `### ${file.rel} (${file.binary ? 'binary' : file.kind}, +${file.stats.added} -${file.stats.removed})`;
+    if (file.binary || !own.length) {
+      out.push(head, '');
+    } else if (file.kind === 'deleted' || LOCKFILES.test(file.rel)) {
+      out.push(
+        `${head} ${own[0].id}-${own[own.length - 1].id}: listing the file covers it, no refs needed`,
+        '',
+      );
+    } else {
+      out.push(head);
+      for (const entry of own) {
+        const { added, removed } = changedLines(entry.hunk);
+        out.push(
+          `## ${entry.id}  ${entry.side}${entry.start}-${entry.end}  +${added} -${removed}  ${entry.hunk.header}`.trimEnd(),
+          ...numberedHunk(entry.hunk),
+        );
+      }
+      out.push('');
+    }
+  }
+  return out.join('\n');
+}
+
+/**
+ * The brief of a local story (no pr.json): `--repo <checkout> --base <ref> --head <ref>`, the range `once-upon local`
+ * tells. The commits and the diff are the range's, as the local flow makes them.
+ */
+function localBrief(opts: CliOpts) {
+  const repo = path.resolve(opts.repo as string);
+  const baseOid = revParse(repo, opts.base as string);
+  const headOid = revParse(repo, opts.head as string);
+  if (!baseOid || !headOid) {
+    throw new Error(`can't resolve ${opts.base}..${opts.head} in ${repo}`);
+  }
+  return {
+    diff: parseUnifiedDiff(diffText(repo, baseOid, headOid)),
+    local: {
+      repo,
+      base: opts.base,
+      head: opts.head,
+      base_oid: baseOid,
+      head_oid: headOid,
+      title: `${path.basename(repo)}: ${opts.base}..${opts.head}`,
+    },
+    commits: commitsBetween(repo, baseOid, headOid).map((commit) => ({
+      sha: commit.sha.slice(0, 9),
+      at: commit.at,
+      subject: commit.subject,
+    })),
+  };
+}
+
 async function cmdBrief(opts: CliOpts) {
-  const { pr, diff, threads, checks, viewed } = await load(opts.dir as string);
+  const dir = opts.dir as string;
+  if (
+    !existsSync(path.join(dir, 'pr.json')) &&
+    !(
+      typeof opts.repo === 'string' &&
+      typeof opts.base === 'string' &&
+      typeof opts.head === 'string'
+    )
+  ) {
+    throw new Error(
+      `no pr.json in ${dir}: for a local story pass --repo <checkout> --base <ref> --head <ref>`,
+    );
+  }
+  if (!existsSync(path.join(dir, 'pr.json'))) {
+    const local = localBrief(opts);
+    const { entries, hunks, idsOf } = hunkList(local.diff);
+    writeFileAtomic(path.join(dir, 'hunks.txt'), hunksText(local.diff, entries));
+    extra.hunks = hunks.length;
+    const files = [...local.diff.values()];
+    process.stdout.write(
+      `${JSON.stringify(
+        {
+          local: local.local,
+          totals: {
+            files: files.length,
+            added: files.reduce((sum, file) => sum + file.stats.added, 0),
+            removed: files.reduce((sum, file) => sum + file.stats.removed, 0),
+          },
+          files: files.map((file) => ({
+            rel: file.rel,
+            kind: file.kind,
+            stats: file.stats,
+            hunks: idsOf(file.rel),
+          })),
+          commits: local.commits,
+          hunks,
+        },
+        null,
+        2,
+      )}\n`,
+    );
+    return;
+  }
+  const { pr, diff, threads, checks, viewed } = await load(dir);
+  const { entries, hunks, idsOf } = hunkList(diff);
+  writeFileAtomic(path.join(dir, 'hunks.txt'), hunksText(diff, entries));
+  extra.hunks = hunks.length;
   const byPath: Record<string, Thread[]> = {};
   for (const thread of threads) {
     (byPath[thread.path] ||= []).push(thread);
@@ -186,7 +342,9 @@ async function cmdBrief(opts: CliOpts) {
       stats: file.stats,
       threads: (byPath[file.rel] || []).length,
       viewed: viewed.get(file.rel) || null,
+      hunks: idsOf(file.rel),
     })),
+    hunks,
     commits: (pr.commits || []).map((commit) => ({
       sha: commit.oid.slice(0, 9),
       at: commit.committedDate,
@@ -296,6 +454,16 @@ async function cmdBuild(opts: CliOpts) {
     writeJsonAtomic((opts.chapters as string | undefined) || path.join(dir, 'chapters.json'), plan);
     process.stderr.write(`Gave ${keyed.length} chapters a key: ${keyed.join(', ')}\n`);
   }
+  // a chapter's `hunks` ids become refs on those hunks, written back (before the checks below read refs)
+  const hunked = expandHunks(plan, diff);
+  if (hunked.problems.length) {
+    throw new Error(`hunks:\n  - ${hunked.problems.join('\n  - ')}`);
+  }
+  extra.expanded = hunked.expanded;
+  if (hunked.expanded) {
+    writeJsonAtomic((opts.chapters as string | undefined) || path.join(dir, 'chapters.json'), plan);
+    process.stderr.write(`Expanded ${hunked.expanded} hunk ids into refs\n`);
+  }
   if (opts['no-bridge']) {
     // the bridge checks the plan itself when it publishes, against what it published before; this is the same check without that
     const refused = chapterProblems(plan, { diff });
@@ -325,6 +493,8 @@ async function cmdBuild(opts: CliOpts) {
     all.length - Object.values(map.files).filter((file) => !file.chapters.length).length;
   const partials = Object.values(map.files).filter((file) => file.partial_in.length).length;
   const hunks = all.reduce((sum, file) => sum + file.hunks.length, 0);
+  extra.chapters = chapters.length;
+  extra.hunks = hunks;
   const missed = map.uncovered.reduce((sum, file) => sum + file.hunks.length, 0);
   process.stderr.write(
     `Wrote file-map.json: ${chapters.length} chapters, ${all.length} files, ${placed} placed, ${partials} partial, ${hunks - missed} of ${hunks} hunks covered\n`,
@@ -336,9 +506,17 @@ async function cmdBuild(opts: CliOpts) {
     await cmdPublish(opts);
   }
   // the quality rules the gate does not refuse; the exit status is the gate's alone
-  for (const line of findingsSummary(() => storyFindings(plan, diff))) {
+  for (const line of findingsSummary(() => countedFindings(storyFindings(plan, diff)))) {
     process.stderr.write(`${line}\n`);
   }
+}
+
+/** The findings, with their counts noted for the timings line. */
+function countedFindings(findings: Finding[]): Finding[] {
+  const fails = findings.filter((finding) => finding.level === 'fail').length;
+  extra.fails = fails;
+  extra.warns = findings.length - fails;
+  return findings;
 }
 
 /** The story's quality findings, one per line on stdout; exits 1 when any is a `fail`, 0 for warnings or none. */
@@ -349,7 +527,7 @@ async function cmdCheck(opts: CliOpts) {
   if (!plan) {
     throw new Error(`no chapters.json to check in ${opts.dir}`);
   }
-  const findings = storyFindings(plan, diffOf(opts));
+  const findings = countedFindings(storyFindings(plan, diffOf(opts)));
   const final = opts.final === true;
   process.stdout.write(`${findingsReport(findings, final).join('\n')}\n`);
   if (hasFails(findings, final)) {
@@ -503,8 +681,21 @@ if (!run || !opts.dir) {
   );
   process.exitCode = 1;
 } else {
-  run(opts).catch((err: Error) => {
-    process.stderr.write(`error: ${err.message}\n`);
-    process.exitCode = 1;
-  });
+  const started = performance.now();
+  let threw = false;
+  run(opts)
+    .catch((err: Error) => {
+      threw = true;
+      process.stderr.write(`error: ${err.message}\n`);
+      process.exitCode = 1;
+    })
+    .finally(() => {
+      // how long the command took, next to the story's files (a command that exits 1 without throwing is failed too)
+      noteTiming(opts.dir as string, {
+        command: command as string,
+        ms: performance.now() - started,
+        ...extra,
+        ...(threw || process.exitCode === 1 ? { failed: true } : {}),
+      });
+    });
 }

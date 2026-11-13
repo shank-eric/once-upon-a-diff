@@ -247,4 +247,7 @@ test('the skill and the storyteller definition name the check command', () => {
   assert.match(agent, /story\.mjs check --final/);
   assert.match(agent, /story\.mjs check/);
   assert.match(agent, /quality\.ts/);
+  assert.match(skill, /hunks\.txt/);
+  assert.match(agent, /hunks\.txt/);
+  assert.match(agent, /"hunks": \[/);
 });

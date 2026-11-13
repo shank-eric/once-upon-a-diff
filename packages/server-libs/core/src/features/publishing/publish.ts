@@ -15,6 +15,7 @@ import { storyIdForPr } from '@once-upon-a-diff/terms/ids';
 import { storyDirFor } from '@once-upon-a-diff/stories/placement';
 import { noteSkeleton } from '@once-upon-a-diff/stories/skeleton';
 import { readyPlan } from '@once-upon-a-diff/stories/validate';
+import { expandHunksForPublish } from '@once-upon-a-diff/stories/hunk-ids';
 import type { Plan } from '@once-upon-a-diff/stories/chapters';
 import type { StoryMeta } from '@once-upon-a-diff/stories/types';
 
@@ -79,10 +80,11 @@ export function publishPrStory(
       throw new Error(`${source} needs chapters.json and pr.diff to publish a rebuild`);
     }
     const diff = parseUnifiedDiff(readFileSync(path.join(source, 'pr.diff'), 'utf8'));
+    const { changed: expanded } = expandHunksForPublish(after, diff); // a chapter's `hunks` ids become refs before the rebuild is vetted
     const counts = vetRebuild(rebuild, before, after, diff, {
       allowUncovered,
     });
-    if (counts.carried || counts.unmapped) {
+    if (counts.carried || counts.unmapped || expanded) {
       writeJsonAtomic(path.join(source, 'chapters.json'), after); // so the next build keeps them
     }
     rebuilt = { build: rebuild, before, after, counts };
@@ -93,11 +95,15 @@ export function publishPrStory(
   const plan = readJson<Plan>(path.join(source, 'chapters.json'), null);
   if (plan) {
     const diffFile = path.join(source, 'pr.diff');
+    const diff = existsSync(diffFile)
+      ? parseUnifiedDiff(readFileSync(diffFile, 'utf8'))
+      : undefined;
+    const expanded = diff ? expandHunksForPublish(plan, diff).changed : false;
     const assigned = readyPlan(plan, {
-      diff: existsSync(diffFile) ? parseUnifiedDiff(readFileSync(diffFile, 'utf8')) : undefined,
+      diff,
       served: readJson<Plan>(path.join(dest, 'chapters.json'), null),
     });
-    if (assigned.length) {
+    if (assigned.length || expanded) {
       writeJsonAtomic(path.join(source, 'chapters.json'), plan); // so the author's next edit keeps the keys
     }
   }
