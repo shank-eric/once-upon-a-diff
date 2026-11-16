@@ -140,3 +140,14 @@ test('where it runs from changes nothing: a repo folder with its own settings is
   assert.equal(run.code, 0, run.stderr);
   assert.match(readFileSync(file, 'utf8'), / beat-c 1\/6 read\n$/);
 });
+
+test('a several-word step is refused with an error that names the one-word rule and points at the note', async () => {
+  const file = path.join(tmp('beat-out'), 'progress.md');
+  const { home, env } = await setup('beat-w', { board_progress_file: file });
+  const run = await runCli(home, ['beat', 'beat-w', '3/6', 'code and tests', '--sid', SID], env);
+  assert.equal(run.code, 1);
+  assert.match(run.stderr, /the step is one word/);
+  assert.match(run.stderr, /'code and tests'/);
+  assert.match(run.stderr, /put the rest in the note/);
+  assert.equal(existsSync(file), false);
+});

@@ -515,8 +515,14 @@ export class AgentRegistry {
     const total = count(input.of, 'the beat total', 99);
     const step = Number(input.n);
     const word = String(input.step ?? '');
-    if (!total || !Number.isInteger(step) || step < 1 || step > total || !STEP_PATTERN.test(word)) {
+    if (!total || !Number.isInteger(step) || step < 1 || step > total) {
       throw new Error('a beat is N/M (1 <= N <= M <= 99) and a one-word step');
+    }
+    if (!STEP_PATTERN.test(word)) {
+      // The progress line reads `N/M STEP: NOTE`, with the step as one token, so a several-word step is refused.
+      throw new Error(
+        `the step is one word of letters, digits, . _ - (up to 40 characters), got '${word}'; the progress line reads N/M STEP: NOTE, so put the rest in the note: beat NAME N/M code "what you are doing"`,
+      );
     }
     const agent = this.open(name, input, warn);
     return this.append({
