@@ -22,23 +22,68 @@ _regenerable() {
   return 1
 }
 
+# Succeeds when commit $2 is in the line of $3 through a main commit with the same added and removed lines: some commit of
+# $3 since their merge base has the same zero-context patch-id (git hashes no context and no line numbers), and redoing
+# $2 onto that commit's own parent gives exactly that commit (`merge-tree --write-tree --merge-base=<$2's parent> <main
+# commit's parent> $2` equals the main commit's tree). The merge is what pins the position: the same lines added somewhere
+# else in the file merge in a second time and differ, and a later branch commit that only deletes lines an earlier one
+# added cannot match, because the main commit's parent never had them. It is taken at the landing commit, not the tip, so
+# later edits of main do not count against it; but a later main commit that undoes it (a `This reverts commit <it>`
+# message, or the reverse patch-id of its diff) means not landed: the change is not on main. A conflict, a root commit or
+# any git failure means not landed.
+_commit_landed() {
+  local repo="$1" commit="$2" into="$3" parent base want cands m merged mparent rev later
+  parent="$(git -C "$repo" rev-parse --verify -q "$commit^" 2>/dev/null)" || return 1
+  base="$(git -C "$repo" merge-base "refs/heads/$into" "$commit" 2>/dev/null)" || return 1
+  want="$(git -C "$repo" log -1 --no-merges --format=%H -p -U0 "$commit" 2>/dev/null | git patch-id --stable 2>/dev/null)" || return 1
+  want="${want%% *}"
+  [ -n "$want" ] || return 1
+  cands="$(git -C "$repo" log --no-merges --format=%H -p -U0 "$base..refs/heads/$into" 2>/dev/null | git patch-id --stable 2>/dev/null)" || return 1
+  while read -r id m; do
+    [ "$id" = "$want" ] || continue
+    mparent="$(git -C "$repo" rev-parse --verify -q "$m^" 2>/dev/null)" || continue
+    merged="$(git -C "$repo" merge-tree --write-tree "--merge-base=$parent" "$mparent" "$commit" 2>/dev/null)" || continue
+    merged="${merged%%$'\n'*}"
+    [ -n "$merged" ] && [ "$merged" = "$(git -C "$repo" rev-parse "$m^{tree}" 2>/dev/null)" ] || continue
+    later="$(git -C "$repo" log --format=%H --grep="This reverts commit $m" "$m..refs/heads/$into" 2>/dev/null)" || continue
+    [ -z "$later" ] || continue
+    rev="$(git -C "$repo" diff -U0 "$m" "$mparent" 2>/dev/null | git patch-id --stable 2>/dev/null)" || continue
+    rev="${rev%% *}"
+    [ -n "$rev" ] || continue
+    later="$(git -C "$repo" log --no-merges --format=%H -p -U0 "$m..refs/heads/$into" 2>/dev/null | git patch-id --stable 2>/dev/null)" || continue
+    case $'\n'"$later" in *$'\n'"$rev "*) continue ;; esac
+    return 0
+  done <<<"$cands"
+  return 1
+}
+
 # Succeeds only when local branch $2 is landed in local branch $3 and has no merge commits of its own. Landed means
 # every commit of $2 has a patch-id match in $3 (git cherry), or else merging $2 into $3 changes nothing: `git
 # merge-tree --write-tree` succeeds without a conflict and prints a tree equal to $3's. That second test covers a
 # cherry-pick onto lines main has since changed (the patch-id hashes the context, so git cherry says "+") and, unlike
 # a patch-id of the bare added and removed lines, cannot match an unrelated main commit that edits the same text
-# elsewhere in the file. Uses refs/heads/ names (a tag of the same name must not win) and no pipe into grep -q (grep -q
-# plus pipefail once let a big "+" list through). Any git failure or conflict means not landed.
+# elsewhere in the file. When main also changed those lines again after the pick, the merge no longer matches, so each
+# "+" commit is checked on its own by _commit_landed (the bare patch-id, pinned by a merge at the landing commit).
+# Uses refs/heads/ names (a tag of the same name must not win) and no pipe into grep -q (grep -q plus pipefail once let
+# a big "+" list through). Any git failure or conflict means not landed.
 _patch_landed() {
-  local repo="$1" branch="$2" into="$3" out merges merged
+  local repo="$1" branch="$2" into="$3" out merges merged line
   out="$(git -C "$repo" cherry "refs/heads/$into" "refs/heads/$branch" 2>/dev/null)" || return 1
   merges="$(git -C "$repo" rev-list --merges "refs/heads/$into..refs/heads/$branch" 2>/dev/null)" || return 1
   [ -z "$merges" ] || return 1
   case $'\n'"$out" in *$'\n+'*) ;; *) return 0 ;; esac
-  merged="$(git -C "$repo" merge-tree --write-tree "refs/heads/$into" "refs/heads/$branch" 2>/dev/null)" || return 1
-  merged="${merged%%$'\n'*}"
-  [ -n "$merged" ] || return 1
-  [ "$merged" = "$(git -C "$repo" rev-parse "refs/heads/$into^{tree}" 2>/dev/null)" ]
+  merged="$(git -C "$repo" merge-tree --write-tree "refs/heads/$into" "refs/heads/$branch" 2>/dev/null)" && {
+    merged="${merged%%$'\n'*}"
+    [ -z "$merged" ] || [ "$merged" != "$(git -C "$repo" rev-parse "refs/heads/$into^{tree}" 2>/dev/null)" ] || return 0
+  }
+  while IFS= read -r line; do
+    case "$line" in
+      "- "*) ;;
+      "+ "*) _commit_landed "$repo" "${line#+ }" "$into" || return 1 ;;
+      *) return 1 ;;
+    esac
+  done <<<"$out"
+  return 0
 }
 
 # A local story's folder in worktree $1: succeeds (prints nothing) when `.once-upon/<id>` is a real folder with meta.json

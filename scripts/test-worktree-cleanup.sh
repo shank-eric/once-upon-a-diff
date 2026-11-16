@@ -180,4 +180,53 @@ NEW/' "$R/lines"; rm -f "$R/lines.bak"; git -C "$R" commit -qam "main adds NEW a
 git -C "$R" cherry main lineb | grep -q '^+' || fail "lineb fixture: git cherry matched, so it tests nothing"
 out="$(cleanup_landed_branch "$R" "$W" lineb main)"
 echo "$out" | grep -q "branch lineb kept" && [ -e "$W/lineb" ] && git -C "$R" rev-parse -q --verify refs/heads/lineb >/dev/null || fail "lineb (same lines elsewhere): $out"
+# 17. a cherry-pick onto changed context that main then edited again is landed (the whole-branch merge no longer matches, the
+# commit's +/- lines and its merge at the landing commit do); similar but not identical lines, or the same lines
+# on a different spot, are not
+printf '%s\n' m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 >"$R/more"; git -C "$R" add more; git -C "$R" commit -qm more
+mk late; mk similar
+sed -i.bak "s/^m7\$/m7 changed by late/" "$W/late/more"; rm -f "$W/late/more.bak"; git -C "$W/late" commit -qam late
+sed -i.bak "s/^m7\$/m7 changed by similar/" "$W/similar/more"; rm -f "$W/similar/more.bak"; git -C "$W/similar" commit -qam similar
+sed -i.bak 's/^m5$/m5 reworded/' "$R/more"; rm -f "$R/more.bak"; git -C "$R" commit -qam "reword m5, in the context of the change"
+git -C "$R" cherry-pick "$(git -C "$W/late" rev-parse HEAD)" >/dev/null
+sed -i.bak 's/^m7 changed by late$/m7 changed by late, then by main/' "$R/more"; rm -f "$R/more.bak"; git -C "$R" commit -qam "main edits the line again"
+git -C "$R" cherry main late | grep -q '^+' || fail "late fixture: git cherry matched, so it tests nothing"
+[ "$(git -C "$R" merge-tree --write-tree main late 2>/dev/null | head -1)" != "$(git -C "$R" rev-parse 'main^{tree}')" ] || fail "late fixture: the merge no-op matched, so it tests nothing"
+out="$(cleanup_landed_branch "$R" "$W" late main)"
+echo "$out" | grep -q "deleted branch late " && [ ! -e "$W/late" ] || fail "late (main edited it again): $out"
+out="$(cleanup_landed_branch "$R" "$W" similar main)"
+echo "$out" | grep -q "branch similar kept" && [ -e "$W/similar" ] || fail "similar (not identical lines): $out"
+# same +/- lines as a main commit, added at a different spot: kept, though main edited the file again
+mk spot
+sed -i.bak 's/^m2$/m2\
+SPOT/' "$W/spot/more"; rm -f "$W/spot/more.bak"; git -C "$W/spot" commit -qam "spot adds SPOT after m2"
+sed -i.bak 's/^m9$/m9\
+SPOT/' "$R/more"; rm -f "$R/more.bak"; git -C "$R" commit -qam "main adds SPOT after m9"
+sed -i.bak 's/^m9$/m9 again/' "$R/more"; rm -f "$R/more.bak"; git -C "$R" commit -qam "main edits m9"
+out="$(cleanup_landed_branch "$R" "$W" spot main)"
+echo "$out" | grep -q "branch spot kept" && [ -e "$W/spot" ] && git -C "$R" rev-parse -q --verify refs/heads/spot >/dev/null || fail "spot (same lines elsewhere, later edit): $out"
+# 18. a later branch commit that only deletes lines an earlier branch commit added is not landed through an unrelated main
+# commit that deleted the same text, even when the earlier commit alone was picked
+printf '%s\n' d1 d2 d3 d4 d5 d6 DX d7 d8 d9 d10 d11 d12 d13 d14 >"$R/del"; git -C "$R" add del; git -C "$R" commit -qm del
+mk fixup
+sed -i.bak -e 's/^d2$/d2\
+DX/' -e 's/^d13$/d13\
+DY/' "$W/fixup/del"; rm -f "$W/fixup/del.bak"; git -C "$W/fixup" commit -qam "fixup A"
+sed -i.bak '3d' "$W/fixup/del"; rm -f "$W/fixup/del.bak"; git -C "$W/fixup" commit -qam "fixup B drops the DX that A added"
+sed -i.bak '/^DX$/d' "$R/del"; rm -f "$R/del.bak"; git -C "$R" commit -qam "main drops its own DX"
+git -C "$R" cherry-pick "$(git -C "$W/fixup" rev-parse HEAD~1)" >/dev/null
+sed -i.bak 's/^DY$/DY2/' "$R/del"; rm -f "$R/del.bak"; git -C "$R" commit -qam "main edits DY"
+git -C "$R" cherry main fixup | grep -q '^+' || fail "fixup fixture: git cherry matched everything, so it tests nothing"
+out="$(cleanup_landed_branch "$R" "$W" fixup main)"
+echo "$out" | grep -q "branch fixup kept" && [ -e "$W/fixup" ] && git -C "$R" rev-parse -q --verify refs/heads/fixup >/dev/null || fail "fixup (delete of an unpicked add): $out"
+# 19. a cherry-pick onto changed context that main then reverted is not landed
+printf '%s\n' r1 r2 r3 r4 r5 r6 r7 >"$R/rev"; git -C "$R" add rev; git -C "$R" commit -qm rev
+mk reverted
+sed -i.bak 's/^r4$/r4 changed/' "$W/reverted/rev"; rm -f "$W/reverted/rev.bak"; git -C "$W/reverted" commit -qam reverted
+sed -i.bak 's/^r2$/r2 ctx/' "$R/rev"; rm -f "$R/rev.bak"; git -C "$R" commit -qam "reword r2, in the context of the change"
+git -C "$R" cherry-pick "$(git -C "$W/reverted" rev-parse HEAD)" >/dev/null
+git -C "$R" revert --no-edit HEAD >/dev/null
+git -C "$R" cherry main reverted | grep -q '^+' || fail "reverted fixture: git cherry matched, so it tests nothing"
+out="$(cleanup_landed_branch "$R" "$W" reverted main)"
+echo "$out" | grep -q "branch reverted kept" && [ -e "$W/reverted" ] && git -C "$R" rev-parse -q --verify refs/heads/reverted >/dev/null || fail "reverted (pick then revert): $out"
 echo "worktree-cleanup self-test: ok"
