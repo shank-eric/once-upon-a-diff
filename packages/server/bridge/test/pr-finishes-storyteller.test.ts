@@ -36,7 +36,9 @@ function world() {
   git(repo, 'push', '-q', 'origin', `${base}:refs/heads/main`);
   git(repo, 'fetch', '-q', 'origin');
   const chapters = path.join(tmp('ch'), 'chapters.json');
-  writeJson(chapters, { chapters: [{ refs: [], title: 'Chapter 1: One', files: ['one.txt'] }] });
+  writeJson(chapters, {
+    chapters: [{ refs: [], title: 'Chapter 1: One', files: ['one.txt', 'lib/two.js', 'gone.txt'] }],
+  });
   const { id, dir } = createLocalStory({ home, repo, base, head: 'HEAD', chapters });
   const metaFile = path.join(dir, 'meta.json');
   writeJson(metaFile, { ...JSON.parse(readFileSync(metaFile, 'utf8')), repo: 'acme/widgets' });
@@ -182,7 +184,9 @@ test('an open PR older than the parked run is not its PR: a re-told story waits 
 test('two stories on one branch: only the storyteller bound to the opened story finishes', async () => {
   const { home, repo, base, id, prsFile, ghBin, start, run } = world();
   const chapters = path.join(tmp('ch2'), 'chapters.json');
-  writeJson(chapters, { chapters: [{ refs: [], title: 'Chapter 1: One', files: ['one.txt'] }] });
+  writeJson(chapters, {
+    chapters: [{ refs: [], title: 'Chapter 1: One', files: ['one.txt', 'lib/two.js', 'gone.txt'] }],
+  });
   const second = createLocalStory({ home, repo, base, head: 'HEAD', chapters, id: 'other-story' });
   const metaFile = path.join(second.dir, 'meta.json');
   writeJson(metaFile, { ...JSON.parse(readFileSync(metaFile, 'utf8')), repo: 'acme/widgets' });

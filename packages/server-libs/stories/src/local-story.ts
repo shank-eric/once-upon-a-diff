@@ -10,6 +10,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import {
   copyFileAtomic,
   readJson,
+  writeFileAtomic,
   writeJsonAtomic,
 } from '@once-upon-a-diff/adapters/stores/fs/json-file';
 import path from 'node:path';
@@ -32,6 +33,7 @@ import { plural } from '@once-upon-a-diff/terms/text';
 import type { DiffFile } from '@once-upon-a-diff/contracts/types';
 import { noteSkeleton } from './skeleton.ts';
 import { readyPlan } from './validate.ts';
+import { gateCheck, gateRefusal } from './gate.ts';
 import { expandHunksForPublish } from './hunk-ids.ts';
 import type { LocalMeta, StoryMeta } from './types.ts';
 import type { Plan, PlanChapter } from './chapters.ts';
@@ -73,6 +75,16 @@ const untold = (plan: Plan | null): boolean =>
  * branch's name, not HEAD) and is the by-folder fallback with no chapter told. Chapters published over it clear the mark
  * (createLocalStory), and a mark left from an older Review (a reused branch name, a story made again by hand) is ignored.
  */
+/** the files a told-again publish writes before its gate can refuse it */
+const REFUSAL_RESTORES = [
+  'meta.json',
+  'anchors.json',
+  'local.diff',
+  'local-w.diff',
+  STORYLESS_FILE,
+  'chapters.json',
+];
+
 export function isStoryless(dir: string): boolean {
   const mark = readJson<{ head_oid?: unknown }>(path.join(dir, STORYLESS_FILE), null);
   const meta = readJson<Partial<LocalMeta>>(path.join(dir, 'meta.json'), null);
@@ -115,6 +127,8 @@ function defaultChapters(rels: string[], title: string | undefined) {
  * Makes or refreshes a local story. `vet({id, meta, diff, before, after})`, when given, sees the new chapters (from
  * `chapters`) and the ones they replace before they're written: it throws to refuse them, or returns the chapters to
  * write instead (null writes them as they are). The written chapters go back to `chapters` too, so a later run keeps them.
+ * Chapters are refused as the build refuses a plan: a file in no chapter, a chapter's file not in the diff, a file left
+ * partial, hunks no chapter tells.
  */
 export function createLocalStory({
   home,
@@ -125,6 +139,8 @@ export function createLocalStory({
   id,
   title,
   vet = null,
+  allowMissing = false,
+  allowUncovered = false,
 }: {
   home: string;
   repo: string;
@@ -134,6 +150,9 @@ export function createLocalStory({
   id?: string | null;
   title?: string | null;
   vet?: ((input: VetInput) => Plan | null) | null;
+  /** `chapters` is refused as the build refuses a plan (gate.ts); these let a misplaced file, or hunks no chapter tells, through */
+  allowMissing?: boolean;
+  allowUncovered?: boolean;
 }) {
   const top = topLevel(repo);
   revParse(top, base); // fail early on a bad ref
@@ -177,6 +196,20 @@ export function createLocalStory({
       (old.title as string | undefined) ||
       `${name}: ${base}..${shown}${branch ? ` (${branch})` : ''}`,
   };
+  // a refused `chapters` leaves the story folder as it was: what the told-again steps write is put back on a refusal
+  const kept = REFUSAL_RESTORES.map((name) => {
+    const file = path.join(dir, name);
+    return { file, text: existsSync(file) ? readFileSync(file, 'utf8') : null };
+  });
+  const restore = () => {
+    for (const { file, text } of kept) {
+      if (text === null) {
+        removeFile(file);
+      } else {
+        writeFileAtomic(file, text);
+      }
+    }
+  };
   writeJsonAtomic(metaFile, meta);
   refreshLocal(dir, meta);
 
@@ -186,32 +219,41 @@ export function createLocalStory({
   let expanded = 0; // hunk ids of `chapters` made into refs
   let hunked = false; // `chapters` had hunk ids, so the file is written back without them
   if (chapters) {
-    removeFile(path.join(dir, STORYLESS_FILE)); // told: a story now, with Approve before Push
-    const after: Plan = JSON.parse(readFileSync(path.resolve(chapters), 'utf8'));
-    // chapters handed in are a told story: a by-folder mode carried over from the fallback (a rebuild starting from the
-    // served chapters.json) would skip the being-written check, so it is dropped
-    const carried = after.mode === BY_FOLDER;
-    if (carried) {
-      delete after.mode;
+    try {
+      removeFile(path.join(dir, STORYLESS_FILE)); // told: a story now, with Approve before Push
+      const after: Plan = JSON.parse(readFileSync(path.resolve(chapters), 'utf8'));
+      // chapters handed in are a told story: a by-folder mode carried over from the fallback (a rebuild starting from the
+      // served chapters.json) would skip the being-written check, so it is dropped
+      const carried = after.mode === BY_FOLDER;
+      if (carried) {
+        delete after.mode;
+      }
+      const before: Plan = existsSync(chaptersFile)
+        ? JSON.parse(readFileSync(chaptersFile, 'utf8'))
+        : {};
+      // a chapter's `hunks` ids become refs first, so a rebuild's vet (and the checks below) read refs
+      ({ expanded, changed: hunked } = expandHunksForPublish(after, diff));
+      const vetted = vet ? vet({ id, meta, diff, before, after }) : null;
+      // every chapter has a key and its refs (validate.ts); an older story's chapters kept as they were are let through
+      const ready = vetted || after;
+      const assigned = readyPlan(ready, { diff, served: before });
+      const refusal = gateRefusal(gateCheck(ready, diff, before), { allowMissing, allowUncovered });
+      if (refusal) {
+        throw new Error(refusal);
+      }
+      if (vetted || assigned.length || carried || hunked) {
+        writeJsonAtomic(chaptersFile, ready);
+        writeJsonAtomic(path.resolve(chapters), ready);
+      } else {
+        copyFileAtomic(path.resolve(chapters), chaptersFile);
+      }
+      // what each ref was told over, so a later commit that moves its lines is noticed (anchors.ts); written with a told
+      // plan that passed the gate only, so a refusal or telling again with no chapters never takes a new baseline
+      writeAnchors(dir, anchorsFor(ready, diff, readAnchors(dir), before));
+    } catch (error) {
+      restore(); // any refusal (the plan, a vet, the gate) leaves the folder as it was
+      throw error;
     }
-    const before: Plan = existsSync(chaptersFile)
-      ? JSON.parse(readFileSync(chaptersFile, 'utf8'))
-      : {};
-    // a chapter's `hunks` ids become refs first, so a rebuild's vet (and the checks below) read refs
-    ({ expanded, changed: hunked } = expandHunksForPublish(after, diff));
-    const vetted = vet ? vet({ id, meta, diff, before, after }) : null;
-    // every chapter has a key and its refs (validate.ts); an older story's chapters kept as they were are let through
-    const ready = vetted || after;
-    const assigned = readyPlan(ready, { diff, served: before });
-    if (vetted || assigned.length || carried || hunked) {
-      writeJsonAtomic(chaptersFile, ready);
-      writeJsonAtomic(path.resolve(chapters), ready);
-    } else {
-      copyFileAtomic(path.resolve(chapters), chaptersFile);
-    }
-    // what each ref was told over, so a later commit that moves its lines is noticed (anchors.ts); written with a told
-    // plan only, so telling the story again with no chapters never takes a new baseline
-    writeAnchors(dir, anchorsFor(ready, diff, readAnchors(dir), before));
   }
   if (!existsSync(chaptersFile)) {
     writeJsonAtomic(chaptersFile, defaultChapters(rels, meta.title));

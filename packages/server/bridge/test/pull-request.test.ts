@@ -44,7 +44,9 @@ function storyWithOrigin(home: string, trunk = 'main') {
   git(repo, 'push', '-q', 'origin', `${base}:refs/heads/${trunk}`);
   git(repo, 'fetch', '-q', 'origin');
   const chapters = path.join(tmp('ch'), 'chapters.json');
-  writeJson(chapters, { chapters: [{ refs: [], title: 'Chapter 1: One', files: ['one.txt'] }] });
+  writeJson(chapters, {
+    chapters: [{ refs: [], title: 'Chapter 1: One', files: ['one.txt', 'lib/two.js', 'gone.txt'] }],
+  });
   const story = createLocalStory({ home, repo, base, head: 'HEAD', chapters });
   const metaFile = path.join(story.dir, 'meta.json');
   writeJson(metaFile, { ...JSON.parse(readFileSync(metaFile, 'utf8')), repo: 'acme/widgets' });
@@ -71,7 +73,9 @@ function storyOnHost(home: string, url: string) {
   const { repo, base } = localRepo();
   git(repo, 'remote', 'add', 'origin', url);
   const chapters = path.join(tmp('ch'), 'chapters.json');
-  writeJson(chapters, { chapters: [{ refs: [], title: 'Chapter 1: One', files: ['one.txt'] }] });
+  writeJson(chapters, {
+    chapters: [{ refs: [], title: 'Chapter 1: One', files: ['one.txt', 'lib/two.js', 'gone.txt'] }],
+  });
   return createLocalStory({ home, repo, base, head: 'HEAD', chapters }).id;
 }
 

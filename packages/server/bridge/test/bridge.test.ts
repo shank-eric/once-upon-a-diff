@@ -444,7 +444,7 @@ describe('local stories', () => {
         { refs: [], title: 'Chapter 2: Two', files: ['lib/two.js', 'not-in-diff.js'] },
       ],
     });
-    const made = createLocalStory({ home, repo, base, head: 'HEAD', chapters });
+    const made = createLocalStory({ home, repo, base, head: 'HEAD', chapters, allowMissing: true }); // the gate lets unplaced and unknown files through
     id = made.id;
     assert.equal(made.files, 3);
     assert.deepEqual(made.unplaced, ['gone.txt']);

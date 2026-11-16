@@ -312,3 +312,128 @@ test('once-upon local --chapters refuses a ref on lines in no hunk, and publishe
   );
   assert.equal(new StoryStore({ home }).dirOf('offpage'), null, 'nothing was published');
 });
+
+test('once-upon local --chapters refused a second time leaves anchors.json byte for byte as it was', async () => {
+  const home = tmp('home');
+  const world = localRepo();
+  const good = { refs: [], chapters: [told(['one.txt', 'lib/two.js', 'gone.txt'])] };
+  const first = await tellLocal(home, world, good, 'anch');
+  assert.equal(first.code, 0, first.stderr);
+  const dir = new StoryStore({ home }).dirOf('anch') as string;
+  const file = path.join(dir, 'anchors.json');
+  const before = readFileSync(file, 'utf8');
+  const refused = await tellLocal(home, world, { refs: [], chapters: [told(['one.txt'])] }, 'anch');
+  assert.notEqual(refused.code, 0);
+  assert.equal(readFileSync(file, 'utf8'), before);
+});
+
+/** Runs `once-upon local --chapters` over `repo` with `plan`, as a story named `id`. */
+async function tellLocal(
+  home: string,
+  { repo, base }: { repo: string; base: string },
+  plan: unknown,
+  id: string,
+  ...more: string[]
+) {
+  const chapters = path.join(tmp(`chapters-${id}`), 'chapters.json');
+  writeFileSync(chapters, JSON.stringify(plan));
+  return runCli(home, [
+    'local',
+    '--repo',
+    repo,
+    '--base',
+    base,
+    '--chapters',
+    chapters,
+    '--id',
+    id,
+    '--no-serve',
+    '--no-open',
+    ...more,
+  ]);
+}
+
+const told = (files: unknown[], key = 'change') => ({
+  key,
+  title: 'The change',
+  summary: 'What changed.',
+  narrative: '### Chapter 1: The change\n\nIt changed.',
+  files,
+  refs: [],
+});
+
+test('once-upon local --chapters refuses a file in no chapter, as the build does, and --allow-missing lets it through', async () => {
+  const home = tmp('home');
+  const world = localRepo();
+  const plan = { refs: [], chapters: [told(['one.txt', 'lib/two.js'])] };
+  const refused = await tellLocal(home, world, plan, 'unplaced');
+  assert.notEqual(refused.code, 0);
+  assert.match(refused.stderr, /file placement:\n {2}- 1 files are in no chapter: gone\.txt/);
+  assert.equal(new StoryStore({ home }).dirOf('unplaced'), null, 'nothing was published');
+  const allowed = await tellLocal(home, world, plan, 'unplaced', '--allow-missing');
+  assert.equal(allowed.code, 0, allowed.stderr);
+  assert.match(allowed.stderr, /1 files aren't in a chapter/);
+});
+
+test('once-upon local --chapters refuses a chapter naming a file the diff does not have', async () => {
+  const home = tmp('home');
+  const cli = await tellLocal(
+    home,
+    localRepo(),
+    { refs: [], chapters: [told(['one.txt', 'lib/two.js', 'gone.txt', 'nope.txt'])] },
+    'misplaced',
+  );
+  assert.notEqual(cli.code, 0);
+  assert.match(cli.stderr, /chapter 1 names nope\.txt, which is not in the diff/);
+  assert.equal(new StoryStore({ home }).dirOf('misplaced'), null);
+});
+
+test('once-upon local --chapters refuses a file left partial in the last chapter that lists it', async () => {
+  const home = tmp('home');
+  const world = localRepo();
+  const plan = {
+    refs: [],
+    chapters: [told([{ rel: 'one.txt', partial: true }, 'lib/two.js', 'gone.txt'])],
+  };
+  const cli = await tellLocal(home, world, plan, 'partial');
+  assert.notEqual(cli.code, 0);
+  assert.match(
+    cli.stderr,
+    /one\.txt is partial in chapter 1, the last chapter that lists it, so no chapter finishes it/,
+  );
+  assert.equal(new StoryStore({ home }).dirOf('partial'), null);
+  plan.chapters.push(told(['one.txt'], 'finish'));
+  const finished = await tellLocal(home, world, plan, 'partial');
+  assert.equal(finished.code, 0, finished.stderr);
+});
+
+test('once-upon local --chapters refuses a big file whose hunk no chapter points at, and --allow-uncovered publishes it anyway', async () => {
+  const home = tmp('home');
+  const { repo, base } = localRepo();
+  writeFileSync(
+    path.join(repo, 'big.txt'),
+    Array.from({ length: 60 }, (_, i) => `line ${i}\n`).join(''),
+  );
+  git(repo, 'add', '.');
+  git(repo, 'commit', '-q', '-m', 'add big');
+  const plan = { refs: [], chapters: [told(['one.txt', 'lib/two.js', 'gone.txt', 'big.txt'])] };
+  const refused = await tellLocal(home, { repo, base }, plan, 'uncovered');
+  assert.notEqual(refused.code, 0);
+  assert.match(refused.stderr, /hunks not covered: 1 in 1 files/);
+  assert.match(refused.stderr, /big\.txt/);
+  assert.equal(new StoryStore({ home }).dirOf('uncovered'), null);
+  const whole = {
+    refs: [],
+    chapters: [told(['one.txt', 'lib/two.js', 'gone.txt', { rel: 'big.txt', whole: true }])],
+  };
+  const told_ = await tellLocal(home, { repo, base }, whole, 'uncovered');
+  assert.equal(told_.code, 0, told_.stderr);
+  const allowed = await tellLocal(
+    home,
+    { repo, base },
+    plan,
+    'uncovered-anyway',
+    '--allow-uncovered',
+  );
+  assert.equal(allowed.code, 0, allowed.stderr);
+});

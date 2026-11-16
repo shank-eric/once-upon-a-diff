@@ -38,7 +38,7 @@ async function withStory() {
   const chapters = path.join(tmp('ch'), 'chapters.json');
   writeJson(chapters, {
     title: 'T',
-    chapters: [{ refs: [], title: 'Chapter 1: One', files: ['one.txt'] }],
+    chapters: [{ refs: [], title: 'Chapter 1: One', files: ['one.txt', 'lib/two.js', 'gone.txt'] }],
   });
   const { id } = createLocalStory({ home, repo, base, head: 'HEAD', chapters });
   githubStory(path.join(home, 'acme-widgets-7'));

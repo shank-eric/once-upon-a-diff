@@ -395,3 +395,34 @@ test('createLocalStory: hunk ids whose refs already exist, or an empty list, are
     }
   }
 });
+
+test('createLocalStory: a refused --chapters leaves storyless.json, meta.json, local.diff and chapters.json as they were, and a valid one still publishes', () => {
+  const home = tmp('home');
+  const { repo, base } = localRepo();
+  const folder = tmp('chapters-refused');
+  const first = createLocalStory({ home, repo, base, head: 'HEAD' });
+  const mark = path.join(first.dir, 'storyless.json');
+  writeJson(mark, { head_oid: 'x' });
+  const names = ['storyless.json', 'meta.json', 'local.diff', 'chapters.json'];
+  const bytes = () => names.map((name) => readFileSync(path.join(first.dir, name)));
+  const before = bytes();
+  const bad = path.join(folder, 'bad.json');
+  writeJson(bad, {
+    chapters: [{ title: 'Nothing', files: ['not-in-the-diff.txt'], narrative: 'Nope.' }],
+  });
+  assert.throws(() => createLocalStory({ home, repo, base, head: 'HEAD', chapters: bad }));
+  assert.deepEqual(bytes(), before);
+  const good = path.join(folder, 'good.json');
+  writeJson(good, {
+    chapters: [
+      {
+        title: 'Everything',
+        files: ['gone.txt', 'lib/two.js', 'one.txt'],
+        narrative: 'It all changed.',
+        hunks: ['h1', 'h2', 'h3'],
+      },
+    ],
+  });
+  createLocalStory({ home, repo, base, head: 'HEAD', chapters: good });
+  assert.equal(existsSync(mark), false);
+});

@@ -504,7 +504,14 @@ test('no live flow is refused: the inbox, fixes and builds lines come from the r
   const chapters = path.join(tmp('write-checks-ch'), 'chapters.json');
   writeJson(chapters, {
     title: 'Two commits',
-    chapters: [{ refs: [], title: 'Chapter 1', narrative: 'Told.', files: ['one.txt'] }],
+    chapters: [
+      {
+        refs: [],
+        title: 'Chapter 1',
+        narrative: 'Told.',
+        files: ['one.txt', 'lib/two.js', 'gone.txt'],
+      },
+    ],
   });
   const local = createLocalStory({ home, repo, base: from, head: 'HEAD', chapters });
   const bridge = await startBridge({ home });

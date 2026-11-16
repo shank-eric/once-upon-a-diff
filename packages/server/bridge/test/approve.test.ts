@@ -32,7 +32,14 @@ async function setup(options: { checkBranch?: BranchCheck } = {}) {
   const chapters = path.join(tmp('ch'), 'chapters.json');
   writeJson(chapters, {
     title: 'Two commits',
-    chapters: [{ refs: [], title: 'Chapter 1', narrative: 'Told.', files: ['one.txt'] }],
+    chapters: [
+      {
+        refs: [],
+        title: 'Chapter 1',
+        narrative: 'Told.',
+        files: ['one.txt', 'lib/two.js', 'gone.txt'],
+      },
+    ],
   });
   const { id } = createLocalStory({ home, repo, base, head: 'HEAD', chapters });
   const bridge = await startBridge({ home, checkBranch: options.checkBranch });

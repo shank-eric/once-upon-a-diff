@@ -60,6 +60,7 @@ function setup() {
       base: fixture.base,
       head,
       id: 'drift',
+      allowUncovered: true, // moved lines leave the told refs off the hunk; the gate is not under test here
       ...(body ? { chapters } : {}),
     });
   };

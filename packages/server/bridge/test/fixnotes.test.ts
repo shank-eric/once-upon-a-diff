@@ -15,7 +15,7 @@ test('Add to fix before push makes a local draft a note, once, and the draft say
       {
         refs: [],
         title: 'Chapter 1: One',
-        files: ['one.txt', 'lib/two.js'],
+        files: ['one.txt', 'lib/two.js', 'gone.txt'],
         comments: [
           { path: 'one.txt', line: 2, body: 'Lower-case B' },
           { path: 'lib/two.js', line: 1, body: 'Name it' },

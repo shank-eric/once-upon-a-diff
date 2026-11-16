@@ -26,7 +26,14 @@ function world(told = 'HEAD') {
   const chapters = path.join(tmp('ch'), 'chapters.json');
   writeJson(chapters, {
     title: 'Two commits',
-    chapters: [{ refs: [], title: 'Chapter 1', narrative: 'Told.', files: ['one.txt'] }],
+    chapters: [
+      {
+        refs: [],
+        title: 'Chapter 1',
+        narrative: 'Told.',
+        files: ['one.txt', 'lib/two.js', 'gone.txt'],
+      },
+    ],
   });
   const { id } = createLocalStory({ home, repo, base, head: told, chapters });
   const backlog = new BacklogStore(home);
@@ -272,7 +279,14 @@ function rebaseWorld(extra = 0) {
   const chapters = path.join(tmp('ch'), 'chapters.json');
   writeJson(chapters, {
     title: 'One commit',
-    chapters: [{ refs: [], title: 'Chapter 1', narrative: 'Told.', files: ['a.txt'] }],
+    chapters: [
+      {
+        refs: [],
+        title: 'Chapter 1',
+        narrative: 'Told.',
+        files: ['a.txt', ...Array.from({ length: extra }, (_, one) => `more${one}.txt`)],
+      },
+    ],
   });
   const { id } = createLocalStory({ home, repo, base: 'main', head: 'HEAD', chapters });
   const backlog = new BacklogStore(home);

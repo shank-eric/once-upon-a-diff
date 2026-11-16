@@ -39,7 +39,7 @@ async function bridgeWithStories() {
       {
         refs: [],
         title: 'Chapter 1: One',
-        files: ['one.txt'],
+        files: ['one.txt', 'lib/two.js', 'gone.txt'],
         comments: [{ path: 'one.txt', line: 2, body: 'Fix' }],
       },
     ],

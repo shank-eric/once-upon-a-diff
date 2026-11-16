@@ -34,7 +34,6 @@ import {
   revParse,
 } from '../../../packages/server-libs/adapters/src/git.ts';
 import { parseUnifiedDiff } from '../../../packages/server-libs/stories/src/diff.ts';
-import { chaptersOf } from '../../../packages/server-libs/stories/src/chapters.ts';
 import {
   mergeFragments,
   numberedHunk,
@@ -47,14 +46,13 @@ import {
   hasFails,
 } from '../../../packages/server-libs/stories/src/story-report.ts';
 import { storyFindings, type Finding } from '../../../packages/server-libs/stories/src/quality.ts';
-import { partialProblems } from '../../../packages/server-libs/stories/src/gate.ts';
-import { lintTextRefs } from '../../../packages/server-libs/stories/src/text-refs.ts';
-import { upgradePlan } from '../../../packages/server-libs/stories/src/legacy.ts';
 import {
-  assignKeys,
-  chapterProblems,
-  keptChapters,
-} from '../../../packages/server-libs/stories/src/validate.ts';
+  gateCheck,
+  gateRefusal,
+  hunksNotCovered,
+} from '../../../packages/server-libs/stories/src/gate.ts';
+import { lintTextRefs } from '../../../packages/server-libs/stories/src/text-refs.ts';
+import { assignKeys, chapterProblems } from '../../../packages/server-libs/stories/src/validate.ts';
 import { StoryStore } from '../../../packages/server-libs/stories/src/store.ts';
 import { homeDir } from '../../../packages/server-libs/foundation/src/settings.ts';
 import { storyIdForPr } from '../../../packages/domain/terms/src/ids.ts';
@@ -63,12 +61,7 @@ import {
   hunkIdsOf,
   type HunkEntry,
 } from '../../../packages/server-libs/stories/src/hunk-ids.ts';
-import {
-  LOCKFILES,
-  thinHunks,
-  uncoveredHunks,
-  SMALL_FILE_LINES,
-} from '../../../packages/server-libs/stories/src/hunk-coverage.ts';
+import { LOCKFILES, thinHunks } from '../../../packages/server-libs/stories/src/hunk-coverage.ts';
 import { noteTiming, type TimingExtra } from '../../../packages/server-libs/stories/src/timings.ts';
 import {
   writeFileAtomic,
@@ -76,11 +69,7 @@ import {
 } from '../../../packages/server-libs/adapters/src/stores/fs/json-file.ts';
 import { finishedInOf } from '../../../packages/domain/terms/src/chapters.ts';
 
-import type {
-  DiffFile,
-  DiffHunk,
-  UncoveredFile,
-} from '../../../packages/domain/contracts/src/types.ts';
+import type { DiffFile, DiffHunk } from '../../../packages/domain/contracts/src/types.ts';
 import type { Plan } from '../../../packages/server-libs/stories/src/chapters.ts';
 import type { CliOpts } from '../../../packages/server/cli/src/types.ts';
 
@@ -391,35 +380,23 @@ async function cmdBrief(opts: CliOpts) {
  */
 function buildMap(plan: Plan, diff: Map<string, DiffFile>, served?: Plan | null) {
   const rels = [...diff.keys()];
-  const chapters = chaptersOf(upgradePlan(plan, rels));
+  const { chapters, kept, problems, uncovered } = gateCheck(plan, diff, served);
   const finishedIn = finishedInOf(chapters);
   const files: Record<string, MapFile> = {};
   for (const rel of rels) {
     files[rel] = { chapters: [], partial_in: [], finished_in: finishedIn[rel] ?? null };
   }
-  const problems: string[] = [];
   chapters.forEach((chapter, i) => {
-    const step = i + 1;
     for (const entry of chapter.files) {
       const file = files[entry.rel];
-      if (!file) {
-        problems.push(`chapter ${step} names ${entry.rel}, which is not in the PR diff`);
-        continue;
-      }
-      file.chapters.push(step);
-      if (entry.partial) {
-        file.partial_in.push(step);
+      if (file) {
+        file.chapters.push(i + 1);
+        if (entry.partial) {
+          file.partial_in.push(i + 1);
+        }
       }
     }
   });
-  const missing = rels.filter((rel) => files[rel].chapters.length === 0);
-  if (missing.length) {
-    problems.push(`${missing.length} files are in no chapter: ${missing.join(', ')}`);
-  }
-  problems.push(...partialProblems(chapters, diff));
-  // a chapter left as it was published counts every ref, as the rebuild's vet does
-  const kept = keptChapters(plan, served);
-  const uncovered = uncoveredHunks(chapters, diff, { linked: true, kept });
   const thin = thinHunks(chapters, diff, { linked: true, kept });
   const perChapter = chapters.map((chapter, i) => {
     const step = i + 1;
@@ -440,18 +417,6 @@ function buildMap(plan: Plan, diff: Map<string, DiffFile>, served?: Plan | null)
     };
   });
   return { files, chapters: perChapter, problems, uncovered, thin };
-}
-
-/** The build's report of hunks no chapter tells, with the ways to fix it. */
-function hunksNotCovered(uncovered: UncoveredFile[]): string {
-  const count = uncovered.reduce((sum, file) => sum + file.hunks.length, 0);
-  const lines = uncovered.map((file) => `  - ${file.hunks.map((hunk) => hunk.ref).join(', ')}`);
-  return [
-    `hunks not covered: ${count} in ${uncovered.length} files (bigger than ${SMALL_FILE_LINES} changed lines) that no chapter points at`,
-    ...lines,
-    "Give the chapter that tells each one a ref on it (`refs`: {id, path, side, start, end}) and link it in the chapter's text ([text](ref:id): a ref the text never links counts for nothing) or a comment on it,",
-    'or mark the file\'s entry "whole": true where one chapter tells all of it. --allow-uncovered publishes anyway.',
-  ].join('\n');
 }
 
 /**
@@ -506,11 +471,12 @@ async function cmdBuild(opts: CliOpts) {
     process.stderr.write(`warning: ${warning}\n`);
   }
   const map = buildMap(plan, diff, served);
-  if (map.problems.length && !opts['allow-missing']) {
-    throw new Error(`file placement:\n  - ${map.problems.join('\n  - ')}`);
-  }
-  if (map.uncovered.length && !opts['allow-uncovered']) {
-    throw new Error(hunksNotCovered(map.uncovered));
+  const refusal = gateRefusal(map, {
+    allowMissing: !!opts['allow-missing'],
+    allowUncovered: !!opts['allow-uncovered'],
+  });
+  if (refusal) {
+    throw new Error(refusal);
   }
   writeJsonAtomic(path.join(dir, 'file-map.json'), {
     pr: `${repoOf(pr)}#${pr.number}`,

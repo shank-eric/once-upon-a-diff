@@ -139,6 +139,8 @@ async function local(home: string, cfg: Config, opts: CliOpts) {
       chapters: opts.chapters as string | undefined,
       id: opts.id as string | undefined,
       title: opts.title as string | undefined,
+      allowMissing: !!opts['allow-missing'],
+      allowUncovered: !!opts['allow-uncovered'],
       // the panel's Rebuild asked for these chapters: they must keep what it keeps and tell the whole diff
       vet: ({ id, meta, diff, before, after }) => {
         const build = pendingRebuild(builds, id, meta);
@@ -258,7 +260,7 @@ export const storyCommands: Command[] = [
     name: 'local',
     needsConfig: true,
     usage: [
-      '  once-upon local   --repo DIR --base REF [--head REF] [--chapters FILE] [--id ID] [--title T] [--agent NAME] [--no-open] [--allow-uncovered]',
+      '  once-upon local   --repo DIR --base REF [--head REF] [--chapters FILE] [--id ID] [--title T] [--agent NAME] [--no-open] [--allow-uncovered] [--allow-missing]',
       '                                                                 story over local commits, served at /local/<id>/; with a Rebuild',
       '                                                                 pending, the chapters must keep what it keeps and tell every file and hunk',
     ],
