@@ -34,6 +34,7 @@ import {
   revParse,
 } from '../../../packages/server-libs/adapters/src/git.ts';
 import { parseUnifiedDiff } from '../../../packages/server-libs/stories/src/diff.ts';
+import { baseOidOf } from '../../../packages/server-libs/stories/src/local-diff.ts';
 import {
   mergeFragments,
   numberedHunk,
@@ -227,8 +228,8 @@ function hunksText(diff: ReturnType<typeof parseUnifiedDiff>, entries: HunkEntry
  */
 function localBrief(opts: CliOpts) {
   const repo = path.resolve(opts.repo as string);
-  const baseOid = revParse(repo, opts.base as string);
   const headOid = revParse(repo, opts.head as string);
+  const baseOid = headOid && baseOidOf(repo, opts.base as string, headOid); // the merge-base, as the local flow diffs
   if (!baseOid || !headOid) {
     throw new Error(`can't resolve ${opts.base}..${opts.head} in ${repo}`);
   }
@@ -545,7 +546,10 @@ function diffOf(opts: CliOpts): ReturnType<typeof parseUnifiedDiff> {
     typeof opts.base === 'string' &&
     typeof opts.head === 'string'
   ) {
-    return parseUnifiedDiff(diffText(path.resolve(opts.repo), opts.base, opts.head));
+    const repo = path.resolve(opts.repo);
+    return parseUnifiedDiff(
+      diffText(repo, baseOidOf(repo, opts.base, revParse(repo, opts.head)), opts.head),
+    );
   }
   // a published local story keeps its own diff as local.diff
   const stored = existsSync(path.join(dir, 'pr.diff')) ? 'pr.diff' : 'local.diff';

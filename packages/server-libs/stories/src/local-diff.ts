@@ -6,7 +6,13 @@ import { existsSync, readFileSync } from 'node:fs';
 import { writeFileAtomic, writeJsonAtomic } from '@once-upon-a-diff/adapters/stores/fs/json-file';
 import path from 'node:path';
 import { parseUnifiedDiff, pathSha } from './diff.ts';
-import { revParse, diffText, commitsBetween, blobText } from '@once-upon-a-diff/adapters/git';
+import {
+  revParse,
+  diffText,
+  commitsBetween,
+  blobText,
+  mergeBase,
+} from '@once-upon-a-diff/adapters/git';
 import type { DiffFile, LocalFile, LocalMoved } from '@once-upon-a-diff/contracts/types';
 import type { LocalMeta, StoryMeta } from './types.ts';
 import { checkedMeta } from './meta.ts';
@@ -92,6 +98,19 @@ export function fileLinesAt(dir: string, meta: StoryMeta, rel: string): string[]
   return lines;
 }
 
+/**
+ * The commit a local story's diff starts from: the merge-base of its base ref and head, so a base that moved on after the
+ * branch left it does not show its own commits undone in the two-dot diff, and `base_oid` is the merge-base used. A base
+ * that shares no history with the head is the base ref's tip.
+ */
+export function baseOidOf(repo: string, baseRef: string, headOid: string): string {
+  try {
+    return mergeBase(repo, baseRef, headOid);
+  } catch {
+    return revParse(repo, baseRef);
+  }
+}
+
 /** Whether a story follows its checkout's HEAD (`--head HEAD`, the default) rather than being pinned to the commits it was told over. */
 export const followsHead = (meta: Pick<LocalMeta, 'head'>): boolean => meta.head === 'HEAD';
 
@@ -130,12 +149,17 @@ export function refreshLocal(dir: string, given: LocalMeta): LocalMeta {
   let baseOid;
   let headOid;
   try {
-    baseOid = revParse(meta.repo_path, meta.base);
     headOid = revParse(meta.repo_path, meta.head);
+    baseOid = baseOidOf(meta.repo_path, meta.base, headOid);
   } catch {
     return meta; // repo or ref gone: keep the last diff
   }
   if (baseOid === meta.base_oid && headOid === meta.head_oid && hasDiff) {
+    return meta;
+  }
+  // a head the base now holds (the branch landed in it) has the merge-base at itself: the story keeps its range, so it is not
+  // taken for one with no commits of its own, which the delivered check leaves alone
+  if (baseOid === headOid && headOid === meta.head_oid && meta.base_oid && hasDiff) {
     return meta;
   }
   writeFileAtomic(path.join(dir, 'local.diff'), diffText(meta.repo_path, baseOid, headOid));
@@ -152,7 +176,7 @@ export function refreshLocal(dir: string, given: LocalMeta): LocalMeta {
 }
 
 /**
- * For a pinned story, where its base and head refs point now when that is not where the story was told: the current
+ * For a pinned story, where its base (the merge-base of the base ref and head, as told) and head refs are now when that is not where the story was told: the current
  * commit of each ref that moved (the other is null), or null when nothing moved, the story follows HEAD, or a ref
  * can't be read (the repo or branch is gone).
  */
@@ -161,13 +185,17 @@ export function movedSince(meta: LocalMeta): LocalMoved | null {
     return null;
   }
   try {
-    const base = revParse(meta.repo_path, meta.base);
     const head = revParse(meta.repo_path, meta.head);
-    if (base === meta.base_oid && head === meta.head_oid) {
+    const base = baseOidOf(meta.repo_path, meta.base, head);
+    // a story told before the merge-base stored the base ref's tip: it did not move if that tip has the same merge-base
+    const unmoved =
+      base === meta.base_oid ||
+      (!!meta.base_oid && baseOidOf(meta.repo_path, meta.base_oid, head) === base);
+    if (unmoved && head === meta.head_oid) {
       return null;
     }
     return {
-      base_oid: base === meta.base_oid ? null : base,
+      base_oid: unmoved ? null : base,
       head_oid: head === meta.head_oid ? null : head,
     };
   } catch {

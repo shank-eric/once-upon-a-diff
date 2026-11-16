@@ -281,8 +281,7 @@ export function createLocalStory({
 /**
  * A storyless review of a branch (the board's Review): a by-folder local story over the commits the branch has beyond
  * origin's default branch (else the local main or master), so the page has its diff and Create pull request. The base
- * is their merge-base as a sha, since the diff is two-dot and a default branch that moved on would show its commits
- * undone; the head is the branch's name, so the story records the branch. Told again, it refreshes the same story.
+ * is their merge-base as a sha (a local story's base is a merge-base anyway, local-diff.ts); the head is the branch's name, so the story records the branch. Told again, it refreshes the same story.
  */
 export function reviewBranch({
   home,
