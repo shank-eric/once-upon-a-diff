@@ -63,6 +63,20 @@ test('beside --card the flags the card answers are refused, each named, and noth
   const kind = await agent(home, 'start', 'ou-a', '--card', id, '--kind', 'author', '--task', 'b');
   assert.notEqual(kind.code, 0);
   assert.match(kind.stderr, /--kind is not taken with --card/);
+  const bare = await agent(
+    home,
+    'start',
+    'ou-a',
+    '--card',
+    id,
+    '--role',
+    'author',
+    '--kind',
+    '--task',
+    'b',
+  );
+  assert.notEqual(bare.code, 0);
+  assert.match(bare.stderr, /--kind is not taken with --card/);
   const slots = await agent(home, 'start', 'ou-a', '--card', id, '--slots', '3', '--task', 'b');
   assert.notEqual(slots.code, 0);
   assert.match(slots.stderr, /--slots/);

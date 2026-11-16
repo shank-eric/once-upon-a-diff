@@ -7,25 +7,14 @@
  */
 import { agentId, isImplicitCard } from '@once-upon-a-diff/terms/ids';
 import path from 'node:path';
-import { repoOfCheckout } from '@once-upon-a-diff/foundation/repos';
-import { readSettings } from '@once-upon-a-diff/foundation/settings';
-import { prHeadBranch } from '@once-upon-a-diff/foundation/gh';
 import { ownSession } from '@once-upon-a-diff/core/features/listeners/service';
 import { sweepStatusLines } from '@once-upon-a-diff/core/features/sessions/status-lines';
-import type { AgentKind } from '@once-upon-a-diff/state/records/agents/agent-types';
-import { canonicalKind } from '@once-upon-a-diff/state/records/agents/events';
 import { lastActivity } from '@once-upon-a-diff/state/records/agents/ledger';
-import {
-  AgentRegistry,
-  flagsBesideCard,
-  flagsBesideCardError,
-} from '@once-upon-a-diff/state/records/agents/registry';
 import { agentKey } from '@once-upon-a-diff/state/queues/backlog/claims';
-import { BacklogStore, cardLookup } from '@once-upon-a-diff/state/queues/backlog/backlog';
+import { runRegistry, startRun, finishRun } from '@once-upon-a-diff/core/features/runs/service';
 import { carryApproval } from '@once-upon-a-diff/core/features/review/carry-approval';
 import { shortSha } from '@once-upon-a-diff/terms/text';
 import { out } from '../output.ts';
-import { warnTypedRepo } from '../typed-repo.ts';
 import type { Config } from '@once-upon-a-diff/foundation/settings';
 import type { CliOpts, Command } from '../types.ts';
 
@@ -41,31 +30,13 @@ const USAGE =
   '       once-upon agent sweep [--dry-run]\n' +
   '       once-upon agent list [--all] [--json]';
 
-/** `--role` names what a run does on a card; the kind is what the board and the registry know it as. */
-const ROLE_KIND: Record<string, string> = {
-  author: 'author',
-  fixer: 'author',
-  critic: 'critic',
-  storyteller: 'storyteller',
-  helper: 'helper',
-  research: 'research',
-};
-const NEEDS_CARD = ['critic', 'fixer', 'storyteller'];
-
 const text = (value: unknown): string | null => (typeof value === 'string' && value ? value : null);
 
 async function agent(home: string, _cfg: Config, opts: CliOpts) {
   const [verb, name, ...words] = opts._ || [];
-  const board = readSettings(home).board;
   // the caller already wrote the progress line (the caller echoes the progress line itself): the event is all this call adds
-  const registry = new AgentRegistry(
-    home,
-    opts['no-mirror']
-      ? { ledger: null, progress: null }
-      : { ledger: board.ledgerFile, progress: board.progressFile },
-    // a run that names a card is checked against it (ADR-25)
-    cardLookup(new BacklogStore(home)),
-  );
+  const mirror = opts['no-mirror'] ? 'none' : 'both';
+  const registry = runRegistry(home, mirror);
   const warn = (line: string) => process.stderr.write(line + '\n');
   const sid = text(opts.sid);
   const run = text(opts.run);
@@ -113,133 +84,35 @@ async function agent(home: string, _cfg: Config, opts: CliOpts) {
     throw new Error(USAGE);
   }
   if (verb === 'start') {
-    // an editor is not an agent: it registers through `editor start`, where its slots are required
-    if (canonicalKind(text(opts.kind)) === 'editor' || opts.slots !== undefined) {
-      throw new Error('register an editor with: once-upon editor start --slots N');
-    }
-    const session = ownSession();
-    const cwd = path.resolve(text(opts.cwd) ?? process.cwd());
-    const card = text(opts.card);
-    // a role is a kind with a rule: a critic, a fixer and a storyteller work on a card, so they name it
-    const role = text(opts.role);
-    if (role && !Object.hasOwn(ROLE_KIND, role)) {
-      throw new Error(`the role must be one of ${Object.keys(ROLE_KIND).join(', ')}`);
-    }
-    if (role && opts.kind && ROLE_KIND[role] !== canonicalKind(text(opts.kind))) {
-      throw new Error('--role and --kind disagree: pass --role alone');
-    }
-    const typedPr = text(opts.pr);
-    const typedBranch = text(opts.branch);
-    // a run on a card takes its repo and branch from the card, and what it does from --role: the typed ones are refused
-    // (ADR-25, the flip), all named at once, before anything is written. An unknown card is the registry's to refuse
-    if (card) {
-      const item = cardLookup(new BacklogStore(home))(card);
-      const flags = [
-        ...(opts.kind ? ['--kind'] : []),
-        ...flagsBesideCard(item ?? { repo: null, branch: null }, {
-          repo: text(opts.repo),
-          branch: typedBranch,
-          pr: typedPr,
-          lane: text(opts.lane),
-        }),
-      ];
-      if (flags.length) {
-        throw flagsBesideCardError(flags);
-      }
-    }
-    if (role === 'storyteller' && !card && !typedPr && !typedBranch) {
-      throw new Error('a storyteller needs --pr N, --branch NAME or --card ID');
-    }
-    // (a storyteller reads a PR or a branch, so either names its work with no card: the board joins it by that)
-    if (role && NEEDS_CARD.includes(role) && !card && role !== 'storyteller') {
-      throw new Error(`a ${role} works on a card: pass --card ID`);
-    }
-    // a story run with no role, PR, branch or card is a card of its own that no PR story can match (the board shows two
-    // cards for one PR): the skill names story agents story-<id>, so the shape is caught here, in the CLI, by name
-    if (!role && !card && !typedPr && !typedBranch && /^story-/.test(name)) {
-      throw new Error('a story run needs --role storyteller with --pr N (or --branch NAME)');
-    }
-    registry.sweep();
-    await sweepStatusLines(home);
-    // --pr and no --branch: the PR's head branch is the run's branch, and a card that has none gets it too, so the board joins
-    // the run, the card, the PR and the story by one branch. gh being down is no reason to refuse a start, except for a
-    // storyteller: with no branch it has nothing to read
-    let branch = typedBranch;
-    let pr = typedPr;
-    let stamp: { branch: string; repo: string | null } | null = null;
-    if (typedPr && !typedBranch) {
-      const item = card ? cardLookup(new BacklogStore(home))(card) : null;
-      const repo = (card ? item?.repo : null) ?? text(opts.repo) ?? repoOfCheckout(cwd);
-      if (!card || (item && !item.closed && !item.branch)) {
-        try {
-          if (!repo) {
-            throw new Error('no repo to ask about (--repo owner/name)');
-          }
-          const head = await prHeadBranch(repo, Number(typedPr));
-          if (!head) {
-            throw new Error('it has no head branch');
-          }
-          branch = head;
-          if (card) {
-            // the registry cannot write the backlog: the run starts on the typed branch, and the card is stamped once the
-            // run is accepted, so a refused start leaves the card as it was
-            stamp = { branch: head, repo };
-            pr = null;
-          }
-        } catch (err) {
-          const why = `gh could not read #${typedPr}: ${(err as Error).message}`;
-          if (role === 'storyteller' && !card) {
-            throw new Error(`${why}; pass --branch NAME`);
-          }
-          warn(`once-upon: ${why}`);
-        }
-      }
-    }
-    // a typed --branch on an open card with no branch stamps the card too, the same way
-    if (card && typedBranch && !stamp) {
-      const item = cardLookup(new BacklogStore(home))(card);
-      if (item && !item.closed && !item.branch) {
-        stamp = {
-          branch: typedBranch,
-          repo: item.repo ?? text(opts.repo) ?? repoOfCheckout(cwd),
-        };
-      }
-    }
-    // a repo typed on a run that has no card (or whose card has no repo yet, so the typed one is kept) is checked; a run on a card
-    // that has a repo takes the card's, and the registry already says so
-    const typedRepo = text(opts.repo);
-    if (typedRepo && !(card && cardLookup(new BacklogStore(home))(card)?.repo)) {
-      warnTypedRepo(home, typedRepo, cwd);
-    }
-    const started = registry.start(
+    const started = await startRun(
+      home,
       {
         name,
-        sid: sid ?? session?.slice(0, 8) ?? '',
-        session,
-        kind: ((role ? ROLE_KIND[role] : text(opts.kind)) ?? undefined) as AgentKind | undefined,
+        sid,
+        session: ownSession(),
+        kind: opts.kind === undefined ? undefined : (text(opts.kind) ?? ''), // a bare --kind still counts as typed
+        role: text(opts.role),
         // absent carries over from the earlier run; `--standing` or `--standing true` sets it, `--standing false` clears it
         standing: opts.standing === undefined ? undefined : opts.standing !== 'false',
         task: text(opts.task) ?? words.join(' '),
         model: text(opts.model),
         effort: text(opts.effort),
-        // the checkout the agent works in names the repo unless --repo says otherwise; a run on a card takes the card's
-        repo: text(opts.repo) ?? (card ? null : repoOfCheckout(cwd)),
-        branch,
-        pr,
-        cwd,
-        card,
+        repo: text(opts.repo),
+        branch: text(opts.branch),
+        pr: text(opts.pr),
+        cwd: path.resolve(text(opts.cwd) ?? process.cwd()),
+        card: text(opts.card),
         newCard: !!opts['new-card'],
         replaces: text(opts.replaces),
-        role: role as NonNullable<Parameters<AgentRegistry['start']>[0]['role']> | null,
         lane: text(opts.lane),
         notes: text(opts.notes),
         by: who,
+        slots: opts.slots,
       },
-      warn,
+      { warn, mirror },
     );
-    if (card && stamp) {
-      new BacklogStore(home).start(card, { ...stamp, by: who });
-    }
+    // the day-old status line files of gone sessions go with a start that was accepted (housekeeping, not part of the run)
+    await sweepStatusLines(home);
     // an implicit card's id is printed beside the run's, so a later run on the same work (a critic of it) can pass --card
     return out(
       `${started.id} ${started.run}${isImplicitCard(started.card) ? ` ${started.card}` : ''}`,
@@ -273,7 +146,8 @@ async function agent(home: string, _cfg: Config, opts: CliOpts) {
     return out(`${name} ${step} ${label}`);
   }
   if (verb === 'finish') {
-    const finished = registry.finish(
+    const finished = finishRun(
+      home,
       name,
       {
         state: (text(opts.state) ?? undefined) as 'done' | undefined,
@@ -291,7 +165,7 @@ async function agent(home: string, _cfg: Config, opts: CliOpts) {
         prefer,
         by: who,
       },
-      warn,
+      { warn, mirror },
     );
     // a fixer's commit on an approved story's card keeps the approval (carry-approval.ts)
     const carried = carryApproval(home, finished);

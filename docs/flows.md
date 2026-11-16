@@ -265,7 +265,7 @@ flowchart LR
 
 | # | Layer | Hop | At |
 |---|---|---|---|
-| 1 | `app` | `once-upon agent start <name> --role author --card <id> …` | `packages/server/cli/src/commands/agent.ts` (`registry.start(`) |
+| 1 | `app` | `once-upon agent start <name> --role author --card <id> …` | `packages/server/cli/src/commands/agent.ts` (`startRun(`), which runs `packages/server-libs/core/src/features/runs/start-run.ts` (`registry.start(`) |
 | 2 | `service` | `AgentRegistry.start` checks the fields (the card exists and is open and claimed, one author at a time, a critic or fixer names its card, the card's repo and branch are the run's and a typed `--kind`, `--repo`, `--branch`, `--pr` or `--lane` beside `--card` is refused: ADR-25) and gives the run an id | `packages/server-libs/state/src/records/agents/registry.ts` (`AgentRegistry`) |
 | 3 | `adapter` | **appends a `start` event to `agents.jsonl`** | `packages/server-libs/adapters/src/stores/agents-file.ts` (`appendAgentEvent`) |
 | 4 | `service` | and a log line to the ledger file through the adapter's `appendLine`, when `board_ledger_file` is set (a mirror for the status line, the iTerm hook and people; the board never reads it) | `packages/server-libs/state/src/records/agents/registry.ts` (`appendLine`) |
@@ -288,7 +288,7 @@ flowchart LR
 
 | # | Layer | Hop | At |
 |---|---|---|---|
-| 14 | `app` | `once-upon agent finish <name> --state done --commit <sha> --branch <b> --card <id>` | `packages/server/cli/src/commands/agent.ts` (`registry.finish(`) |
+| 14 | `app` | `once-upon agent finish <name> --state done --commit <sha> --branch <b> --card <id>` | `packages/server/cli/src/commands/agent.ts` (`finishRun(`), through `packages/server-libs/core/src/features/runs/finish-run.ts` (`.finish(`) |
 | 15 | `service` | **appends a `finish` event** with the commit as its result | `packages/server-libs/state/src/records/agents/registry.ts` (`finish`) |
 | 16 | `outside` | the main session deploys: `scripts/deploy-local.sh --yes <branch>` fast-forwards main and restarts the bridge |  |
 | 17 | `app` | after the deploy, the script runs `backlog land` over the range that went live | `scripts/deploy-local.sh` (`backlog land`) |

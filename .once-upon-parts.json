@@ -58,6 +58,7 @@
         "packages/server-libs/board/src/",
         "packages/server-libs/state/src/queues/backlog/",
         "packages/server-libs/state/src/records/agents/",
+        "packages/server-libs/core/src/features/runs/",
         "packages/server-libs/foundation/src/input.ts",
         "packages/server-libs/state/src/records/worktrees/",
         "packages/server-libs/usage/src/"

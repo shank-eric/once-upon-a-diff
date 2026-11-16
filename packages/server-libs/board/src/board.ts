@@ -17,7 +17,7 @@ import { aheadOf } from '@once-upon-a-diff/stories/pull-request';
 import { lastActivity } from '@once-upon-a-diff/state/records/agents/ledger';
 import { dropRunsProblem } from '@once-upon-a-diff/state/queues/backlog/phase';
 import { readAgents } from '@once-upon-a-diff/state/records/agents/read';
-import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
+import { finishRun } from '@once-upon-a-diff/core/features/runs/service';
 import { markFinished } from '@once-upon-a-diff/adapters/stores/finished-agents';
 import { BlankSessions } from '@once-upon-a-diff/adapters/claude-sessions/blank-sessions';
 import { SessionTitles } from '@once-upon-a-diff/adapters/claude-sessions/titles';
@@ -57,6 +57,16 @@ import { liveSessions } from '@once-upon-a-diff/adapters/claude-sessions/live-se
 import { noPrWatcher, type PrWatcher } from './stages/pr-watcher.ts';
 import type { BuildContext, Lookups } from './stages/types.ts';
 import { Sessions } from '@once-upon-a-diff/core/features/sessions/sessions';
+
+/**
+ * Why Finish was refused, for the alert the page shows (it has no CLI beside it). A waiting critic of a card has no
+ * findings count to record, and the board will not invent one: a null count reads as a pass.
+ */
+function finishRefusal(agent: { name: string }, err: Error): string {
+  return /findings count/.test(err.message)
+    ? `${agent.name} is a critic on a card and has no findings count, so finishing it would read as a pass: run \`once-upon agent finish ${agent.name} --findings N\` (N is 0 if it found none)`
+    : err.message;
+}
 
 export { liveSessions, noPrWatcher };
 export type { PrWatcher };
@@ -591,7 +601,6 @@ export class Board {
    * refused.
    */
   finishAgent(sid: string, name: string): { ledger: boolean } {
-    const settings = readSettings(this.home).board;
     const now = (this.options.now || (() => new Date()))();
     const { agents } = readAgents(this.home);
     const agent = agents.find((one) => one.sid === sid && one.name === name);
@@ -610,12 +619,17 @@ export class Board {
     }
     // closed by an event, which writes its own ledger line when the settings name a ledger
     if (open) {
-      new AgentRegistry(this.home, { ledger: settings.ledgerFile, progress: null }).finish(name, {
-        sid,
-        outcome: 'finished from the board',
-        by: 'board',
-        at: now,
-      });
+      try {
+        // the ledger line only: the board has never written a progress line. A carded critic still needs its findings count
+        finishRun(
+          this.home,
+          name,
+          { sid, outcome: 'finished from the board', by: 'board', at: now },
+          { mirror: 'ledger' },
+        );
+      } catch (err) {
+        throw new BoardError(409, finishRefusal(agent, err as Error));
+      }
     }
     // the click counts as at least the agent's latest line, which may be ahead of this clock (a wrong zone, a typo), so the card goes either way
     const latest = lastActivity(agent)?.getTime() ?? 0;

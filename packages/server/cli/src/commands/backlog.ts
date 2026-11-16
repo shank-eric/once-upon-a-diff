@@ -13,6 +13,7 @@ import {
 } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { dropRunsProblem, runsOf } from '@once-upon-a-diff/state/queues/backlog/phase';
 import { claimWorktreeProblem } from '@once-upon-a-diff/state/queues/backlog/claim-worktree';
+import { moveBranch } from '@once-upon-a-diff/core/features/runs/service';
 import { ownSession } from '@once-upon-a-diff/core/features/listeners/service';
 import { landItems, recordedTips } from '@once-upon-a-diff/state/queues/backlog/landing';
 import { implicitCards } from '@once-upon-a-diff/state/records/agents/implicit';
@@ -250,29 +251,13 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
     // the author renamed or switched its branch: the card's branch is what the board reads, and each open run of the card
     // keeps its own copy, so both move. The card is written first, then the runs: after a crash, running it again finishes
     const item = found();
-    const branch = words[1];
-    if (!branch) {
-      throw new Error('a new branch is needed: once-upon backlog branch ID NEW-BRANCH');
+    const moved = moveBranch(home, item.id, words[1], who);
+    if (moved.unchanged) {
+      return out(`${moved.id} already on ${moved.to}`);
     }
-    if (item.landed_at) {
-      throw new Error(`${item.id} is done: its work landed, so it has no branch to move`);
-    }
-    const registry = new AgentRegistry(home);
-    const open = registry.agents().filter((one) => one.card === item.id && runIsOpen(one));
-    let moved = 0;
-    if (item.branch !== branch) {
-      store.start(item.id, { branch, repo: item.repo, by: who });
-    }
-    for (const run of open) {
-      if (run.branch !== branch) {
-        registry.setBranch(run.name, branch, { sid: run.sid, run: run.run, by: who });
-        moved++;
-      }
-    }
-    if (item.branch === branch && !moved) {
-      return out(`${item.id} already on ${branch}`);
-    }
-    return out(`${item.id} branch ${item.branch ?? 'none'} -> ${branch} (runs: ${moved})`);
+    return out(
+      `${moved.id} branch ${moved.from ?? 'none'} -> ${moved.to} (runs: ${moved.runsMoved})`,
+    );
   }
   if (verb === 'claim') {
     // the agent (named as the ledger names it) owns the card: the board links the two by this and nothing else. --branch

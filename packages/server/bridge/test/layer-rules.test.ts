@@ -216,6 +216,14 @@ const PROBES: Probe[] = [
   [`${BOARD}/ok.ts`, `${CORE}/features/listeners/service.ts`, null],
   [`${ORCHESTRATION}/ok.ts`, `${CORE}/features/listeners/service.ts`, null],
   [`${QUEUES_A}/ok.ts`, `${STATE}/records/listeners/leaf.ts`, null],
+  // starting, moving and finishing a run has one way in, the service (features/runs/service.ts)
+  ['cli/src/via.ts', `${CORE}/features/runs/start-run.ts`, 'runs-through-service'],
+  ['server/src/via.ts', `${CORE}/features/runs/registry.ts`, 'runs-through-service'],
+  [`${BOARD}/via.ts`, `${CORE}/features/runs/finish-run.ts`, 'runs-through-service'],
+  [`${ORCHESTRATION}/via.ts`, `${CORE}/features/runs/move-branch.ts`, 'runs-through-service'],
+  ['cli/src/ok.ts', `${CORE}/features/runs/service.ts`, null],
+  [`${BOARD}/ok.ts`, `${CORE}/features/runs/service.ts`, null],
+  [`${ORCHESTRATION}/ok.ts`, `${CORE}/features/runs/service.ts`, null],
   [`${FOUNDATION}/ok-sibling.ts`, `${FOUNDATION}/leaf.ts`, null], // a package without tiers is files that may import each other
   // the engine sits under the apps
   [`${ADAPTERS}/app.ts`, 'server/src/leaf.ts', 'core-below-apps'],

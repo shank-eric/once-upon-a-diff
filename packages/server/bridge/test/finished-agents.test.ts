@@ -6,6 +6,7 @@ import path from 'node:path';
 import { tmp, writeJson, startBridge, registerRuns, TOKEN, type TestBridge } from './helpers.ts';
 import { Board, noPrWatcher } from '@once-upon-a-diff/board/board';
 import { StoryStore } from '@once-upon-a-diff/stories/store';
+import { BacklogStore, cardLookup } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
 import { boardKey } from '@once-upon-a-diff/state/records/page-links/page-key';
 import { finishedColumn } from '@once-upon-a-diff/board/agent-home';
@@ -355,6 +356,58 @@ test('Finish on an agent waiting on a question writes its [done] line, and the c
   assert.equal(await rig.card('asker'), undefined);
   rig.moveTo(5);
   assert.equal(await rig.card('asker'), undefined, 'its own [done] line does not bring it back');
+});
+
+test('Finish on a waiting critic of a card is refused without a findings count, and nothing is written or cleared', async () => {
+  const rig = world();
+  const store = new BacklogStore(rig.home);
+  const item = store.add({ title: 'Review me', repo: 'acme/widgets' });
+  store.start(item.id, { branch: 'review-me', repo: 'acme/widgets' });
+  // the registry with the card lookup, as `agent start` builds it
+  const registry = new AgentRegistry(rig.home, undefined, cardLookup(store));
+  registry.start({
+    sid: SID,
+    name: 'review-me',
+    kind: 'critic',
+    task: 'review it',
+    card: item.id,
+    at: pmET(3, 25),
+  });
+  registry.state('review-me', {
+    sid: SID,
+    state: 'waiting',
+    outcome: 'needs Eric: which file',
+    at: pmET(3, 30),
+  });
+  const before = readFileSync(rig.ledger, 'utf8');
+  assert.throws(
+    () => rig.board.finishAgent(SID, 'review-me'),
+    (err: unknown) =>
+      err instanceof BoardError &&
+      err.status === 409 &&
+      /review-me/.test(err.message) &&
+      /once-upon agent finish review-me --findings N/.test(err.message),
+  );
+  assert.equal(readFileSync(rig.ledger, 'utf8'), before, 'no [done] line');
+  assert.equal(
+    new AgentRegistry(rig.home).agents().find((one) => one.name === 'review-me')?.state,
+    'waiting',
+    'still waiting',
+  );
+  const shown = (await rig.board.snapshot()).lanes
+    .flatMap((lane) => lane.cards)
+    .find((one) => one.agents?.some((run) => run.name === 'review-me'));
+  assert.ok(shown, 'the critic is still on the board');
+  // a waiting author on a card, and a critic of no card, still finish from the board
+  registry.start({
+    sid: SID,
+    name: 'built-me',
+    kind: 'helper',
+    task: 'x',
+    at: pmET(3, 26),
+  });
+  registry.state('built-me', { sid: SID, state: 'waiting', outcome: 'q', at: pmET(3, 31) });
+  assert.deepEqual(rig.board.finishAgent(SID, 'built-me'), { ledger: true });
 });
 
 test('Finish refuses a working agent, one parked on your review, and one nobody registered', () => {

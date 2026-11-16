@@ -238,6 +238,17 @@ export default {
       },
     ),
     rule(
+      'runs-through-service',
+      'starting, moving and finishing a run has one way in: the CLI, the HTTP app, the board and core/orchestration import features/runs/service.ts, not the files behind it, so no caller builds a registry without the card lookup and skips the ADR-25 checks',
+      {
+        path: [
+          '^packages/(server/(cli|server)|server-libs/board)/src/',
+          '^packages/server-libs/core/src/orchestration/',
+        ],
+      },
+      { path: '^packages/server-libs/core/src/features/runs/(?!service\\.ts$)' },
+    ),
+    rule(
       'only-adapters-run-programs-or-network',
       'only an adapter runs a program or reaches the network (the HTTP app has node:http, to listen). Covers the imports a graph can see; the rest stays ESLint-only (configs/eslint.side-effects.mjs): fs writes (an import of node:fs cannot tell a read from a write), fetch, process.kill and module loaders',
       { path: [NOT_ADAPTERS, SERVER, CLI], pathNot: USAGE_ADAPTERS },
