@@ -17,6 +17,7 @@ import {
   registryNote,
   registryProblem,
 } from '@once-upon-a-diff/adapters/claude-sessions/live-sessions';
+import { hookFileCount } from '@once-upon-a-diff/adapters/claude-sessions/hook-status';
 import { gitVersionText } from '@once-upon-a-diff/adapters/git';
 import { gitVersionProblem, MIN_GIT } from '@once-upon-a-diff/foundation/git-version';
 import { fetchHealth } from '@once-upon-a-diff/adapters/bridge-health';
@@ -275,6 +276,18 @@ export async function doctor(
     registryTrouble
       ? `Look in ${sessionsDir}: a Claude Code update may have renamed a field or moved the folder, or the files' permissions changed (set board_sessions_dir in config.json if it moved)`
       : null,
+  );
+  // the status hook, which says Waiting and Done in any terminal: its files appear once it is wired into Claude Code
+  const hookFiles = hookFileCount(home);
+  add(
+    hookFiles ? 'PASS' : 'WARN',
+    'Status hook',
+    hookFiles
+      ? `${hookFiles} status file${hookFiles === 1 ? '' : 's'} in ${path.join(home, 'status')}`
+      : `no status file in ${path.join(home, 'status')}: the board shows Waiting and Done only from iTerm's tab status, if it2 is found`,
+    hookFiles
+      ? null
+      : 'Wire extras/hooks/board-status.sh into Claude Code hooks (README, "Board status hook"); the file appears on the next prompt',
   );
   // every run is a run of one card, and says nothing the card does not (ADR-25)
   const items = new BacklogStore(home).items();

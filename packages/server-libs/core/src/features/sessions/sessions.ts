@@ -13,13 +13,13 @@ import { REPO_RE, repoOfCheckoutAsync, sameRepo } from '@once-upon-a-diff/founda
 import { readMeta, storyRepo } from '@once-upon-a-diff/stories/meta';
 import { STORY_ID_RE } from '@once-upon-a-diff/terms/patterns';
 import type { StoryStore } from '@once-upon-a-diff/stories/store';
-import { findIt2, focusTab, typeLine } from '@once-upon-a-diff/adapters/iterm';
+import { findIt2, focusTab, itermSource, typeLine } from '@once-upon-a-diff/adapters/iterm';
 import type { StatusSource } from '@once-upon-a-diff/adapters/status-source';
 import {
   liveSessions,
   type LiveSession,
 } from '@once-upon-a-diff/adapters/claude-sessions/live-sessions';
-import { pickSource } from './sources.ts';
+import { hookSource } from './sources.ts';
 import { BoardError } from '@once-upon-a-diff/foundation/errors';
 import {
   listenCandidates,
@@ -80,7 +80,7 @@ export class Sessions {
    */
   async focus(sessionId: string): Promise<void> {
     const settings = readSettings(this.home).board;
-    const it2 = settings.statusSource === 'registry' ? null : findIt2(settings.it2Path);
+    const it2 = findIt2(settings.it2Path);
     if (!it2) {
       throw new BoardError(409, 'iTerm2 (the it2 CLI) is not set up, so there is no tab to raise');
     }
@@ -106,7 +106,7 @@ export class Sessions {
     allowBusy = false,
   ): Promise<{ it2: string; session: LiveSession }> {
     const settings = readSettings(this.home).board;
-    const it2 = settings.statusSource === 'registry' ? null : findIt2(settings.it2Path);
+    const it2 = findIt2(settings.it2Path);
     if (!it2) {
       throw new BoardError(
         409,
@@ -119,9 +119,11 @@ export class Sessions {
     if (!session) {
       throw new BoardError(404, 'no live Claude Code session with that id');
     }
-    const source =
-      this.options.source ?? pickSource(settings.statusSource, settings.it2Path).source;
-    const tab = (await source.statuses([session])).get(sessionId);
+    // the tab's own status when iTerm has one, else what the status hook wrote
+    const tab = this.options.source
+      ? (await this.options.source.statuses([session])).get(sessionId)
+      : ((await itermSource(it2).statuses([session])).get(sessionId) ??
+        (await hookSource(this.home).statuses([session])).get(sessionId));
     if (allowBusy && !tab) {
       // a working session takes the line only when its tab says it is not waiting on you: no word from the tab means no
       throw new BoardError(409, 'iTerm has no status for that tab, so it is not safe to type into');
@@ -202,7 +204,7 @@ export class Sessions {
   /** Start listening types into iTerm tabs, so without the it2 CLI there is nothing to offer, and the page says so. */
   private needIterm(): void {
     const settings = readSettings(this.home).board;
-    if (settings.statusSource === 'registry' || !findIt2(settings.it2Path)) {
+    if (!findIt2(settings.it2Path)) {
       throw new BoardError(
         409,
         'Start listening needs iTerm (its it2 CLI), which is not set up on this Mac, so run the line in Claude Code yourself',

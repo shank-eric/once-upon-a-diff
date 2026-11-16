@@ -9,7 +9,7 @@ import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
 import { Board, noPrWatcher } from '../src/board.ts';
 import { columnOf } from '../src/columns.ts';
 import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
-import { pickSource, registrySource } from '@once-upon-a-diff/core/features/sessions/sources';
+import { pickSource } from '@once-upon-a-diff/core/features/sessions/sources';
 import { findIt2, itermSource } from '@once-upon-a-diff/adapters/iterm';
 import { readSettings } from '@once-upon-a-diff/foundation/settings';
 import { type StatusSource } from '@once-upon-a-diff/adapters/status-source';
@@ -542,19 +542,152 @@ fi
     detail: 'needs you',
     tasks: 2,
     title: 'Real title',
+    tab: true,
   });
   assert.equal(findIt2(it2), it2);
   assert.equal(
     findIt2(path.join(dir, 'nope')) === null || typeof findIt2(path.join(dir, 'nope')) === 'string',
     true,
   );
-  assert.equal(pickSource('iterm', it2).source.name, 'iterm');
-  assert.equal(pickSource('registry', it2).source, registrySource);
-  const missing = pickSource('iterm', path.join(dir, 'nope'));
+  assert.equal(pickSource('iterm', it2, dir).source.name, 'iterm');
+  // the hook's registry source is the default and what "registry" asks for, whether or not it2 is there
+  assert.equal(pickSource(null, it2, dir).source.name, 'registry');
+  assert.equal(pickSource('registry', it2, dir).source.name, 'registry');
+  const missing = pickSource('iterm', path.join(dir, 'nope'), dir);
   if (findIt2(null) === null) {
-    assert.equal(missing.source, registrySource);
+    assert.equal(missing.source.name, 'registry');
     assert.match(missing.warning as string, /it2/);
   }
+});
+
+test('the registry source shows the status hook’s Waiting and falls back to busy or idle with no file', async () => {
+  const home = tmp('board-hook-source');
+  const live = {
+    pid: 1,
+    session: 'hook-sess-1',
+    cwd: '/x',
+    name: null,
+    tty: null,
+    status: 'busy',
+    statusAt: Date.now() - 60_000,
+    startedAt: null,
+  };
+  const source = pickSource('registry', null, home).source;
+  assert.equal((await source.statuses([live])).size, 0, 'no file: the board uses busy or idle');
+  writeJson(path.join(home, 'status', 'hook-sess-1.json'), {
+    session_id: 'hook-sess-1',
+    at: Date.now(),
+    state: 'waiting',
+    detail: 'Ship it?',
+    event: 'Stop',
+  });
+  assert.equal((await source.statuses([live])).get('hook-sess-1')?.status, 'waiting');
+});
+
+test('the status hook’s waiting file puts a busy session in Waiting with no source set; with none it is Thinking', async () => {
+  const home = tmp('board-hook-home');
+  const sessions = tmp('board-hook-sessions');
+  registry(sessions, process.pid, { status: 'busy' }, procStartOf(process.pid));
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
+  const board = () =>
+    new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), { now: () => NOW });
+  assert.equal((await board().snapshot()).lanes[0].cards[0].column, 'thinking', 'no hook file');
+  const id = fullId(process.pid);
+  const file = path.join(home, 'status', `${id}.json`);
+  writeJson(file, { session_id: id, at: NOW.getTime(), state: 'waiting', detail: 'Ship it?' });
+  const waiting = (await board().snapshot()).lanes[0].cards[0];
+  assert.equal(waiting.column, 'waiting');
+  assert.equal(waiting.sessions[0].detail, 'Ship it?');
+  assert.equal(waiting.sessions[0].source, 'registry');
+});
+
+const TAB_SESSION = {
+  pid: 1,
+  session: 'tab-sess-1',
+  cwd: '/x',
+  name: null,
+  tty: 'ttys042',
+  status: 'idle',
+  statusAt: Date.now() - 60_000,
+  startedAt: null,
+};
+
+/** An it2 stand-in with one tab, on ttys042, whose status is `waiting`. */
+function fakeIt2(dir: string): string {
+  const it2 = path.join(dir, 'it2');
+  writeFileSync(
+    it2,
+    `#!/bin/sh
+if [ "$2" = list ]; then
+  echo '[{"id":"TAB-1","name":"Tab title","tty":"\\\\/dev\\\\/ttys042"}]'
+else
+  echo '{"status":"waiting","detail":"tab says so","background_tasks":3}'
+fi
+`,
+  );
+  chmodSync(it2, 0o755);
+  return it2;
+}
+
+test('with it2 found and no status file for a session, its iTerm tab’s status is used; the hook wins where it wrote', async () => {
+  const home = tmp('board-hook-iterm-home');
+  const it2 = fakeIt2(tmp('board-hook-iterm'));
+  const source = pickSource(null, it2, home).source;
+  const bare = (await source.statuses([TAB_SESSION])).get('tab-sess-1');
+  assert.deepEqual(
+    [bare?.status, bare?.detail, bare?.title, bare?.tasks, bare?.tab],
+    ['waiting', 'tab says so', 'Tab title', 3, true],
+    'no hook file: nothing is lost to the tab',
+  );
+  const file = path.join(home, 'status', 'tab-sess-1.json');
+  writeJson(file, { session_id: 'tab-sess-1', at: Date.now(), state: 'done', detail: null });
+  const hooked = (await source.statuses([TAB_SESSION])).get('tab-sess-1');
+  assert.equal(hooked?.status, 'done', 'the hook says done where it wrote');
+  assert.equal(hooked?.title, 'Tab title', 'the tab still gives the title and task count');
+  assert.equal(hooked?.tasks, 3);
+  assert.equal(hooked?.tab, true);
+  writeJson(file, { session_id: 'tab-sess-1', at: Date.now(), state: 'working', detail: null });
+  assert.equal(
+    (await source.statuses([TAB_SESSION])).get('tab-sess-1')?.status,
+    'idle',
+    'a file that says working is the registry’s word, not the tab’s',
+  );
+  // "registry" asked for by name, or no it2: the hook alone
+  assert.equal((await pickSource('registry', it2, home).source.statuses([TAB_SESSION])).size, 0);
+  assert.equal((await pickSource(null, null, home).source.statuses([TAB_SESSION])).size, 0);
+});
+
+test('the board warns until a status file exists, pointing to the hook', () => {
+  const home = tmp('board-hook-notice');
+  assert.match(pickSource(null, null, home).warning ?? '', /board-status\.sh/);
+  assert.match(pickSource('registry', null, home).warning ?? '', /board-status\.sh/);
+  assert.equal(pickSource('iterm', fakeIt2(tmp('board-hook-notice-it2')), home).warning, null);
+  writeJson(path.join(home, 'status', 'some-sess.json'), { state: 'done' });
+  assert.equal(pickSource(null, null, home).warning, null);
+});
+
+test('Open in iTerm is offered only for sessions whose tab the source knows', async () => {
+  const home = tmp('board-focus-home');
+  const sessions = tmp('board-focus-sessions');
+  registry(sessions, process.pid, { status: 'idle' }, procStartOf(process.pid));
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
+  const id = fullId(process.pid);
+  const focus = async (tab: boolean) => {
+    const source: StatusSource = {
+      name: 'registry',
+      statuses: async () =>
+        new Map([
+          [id, { status: 'idle', detail: null, tasks: null, title: null, ...(tab ? { tab } : {}) }],
+        ]),
+    };
+    const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
+      source,
+      now: () => NOW,
+    });
+    return (await board.snapshot()).lanes[0].cards[0].sessions[0].focus;
+  };
+  assert.equal(await focus(true), true);
+  assert.equal(await focus(false), false, 'a session in another terminal has no tab to raise');
 });
 
 test('the board: someone else’s draft comes onto the board once it is marked ready, and goes off again as a draft', async () => {

@@ -173,8 +173,9 @@ const DEFAULT_HOSTS = ['once-upon.test', 'once-upon.fidev.net'];
  *                           (default ["once-upon.test", "once-upon.fidev.net"])
  *   public_host             the allowed name the extension's Open board button opens the board on, over https (default: the first
  *                           allowed host; "" or "none" prints the 127.0.0.1 address)
- *   board_status_source     "iterm" or "registry": where the agent board reads each session's status (default: iterm when
- *                           the it2 CLI is found, else registry, Claude Code's own busy/idle)
+ *   board_status_source     "registry" or "iterm": where the agent board reads each session's status (default: registry,
+ *                           Claude Code's own busy/idle plus the status hook's Waiting and Done; "iterm" is the tab's own
+ *                           status, when the it2 CLI is found). Typing into tabs and raising them use it2 either way
  *   board_it2_path          the it2 CLI's path when it isn't on PATH or in iTerm2's app folder
  *   board_sessions_dir      Claude Code's live-session registry (default $CLAUDE_CONFIG_DIR/sessions or ~/.claude/sessions)
  *   board_projects_dir      Claude Code's transcripts, for telling a session with no prompt yet (default $CLAUDE_CONFIG_DIR/projects or ~/.claude/projects)

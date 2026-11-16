@@ -1,7 +1,8 @@
 /*
  * What every session-status source implements. A source gets the live sessions (with their ttys) and answers with a
- * status and detail for the ones it knows: iTerm2 (adapters/iterm.ts) and the session registry (core/src/features/sessions) are
- * two of them, and another terminal or status line is one more object with the StatusSource shape.
+ * status and detail for the ones it knows: iTerm2 (adapters/iterm.ts) and the session registry with the status hook
+ * (core/src/features/sessions) are two of them, and another terminal or status line is one more object with the StatusSource
+ * shape.
  */
 import type { BoardStatus } from '@once-upon-a-diff/contracts/types';
 import type { LiveSession } from './claude-sessions/live-sessions.ts';
@@ -14,6 +15,8 @@ export interface SourceStatus {
   tasks: number | null;
   /** a better title than the registry's derived name, such as the terminal tab's */
   title: string | null;
+  /** an iTerm2 tab holds this session (iTerm knows its tty): Open in iTerm and typing can reach it */
+  tab?: boolean;
 }
 
 export interface StatusSource {

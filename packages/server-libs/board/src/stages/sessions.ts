@@ -62,7 +62,7 @@ export async function readLive(ctx: BuildContext): Promise<LiveFacts> {
   const { settings, nowMs } = ctx;
   const status: { source: StatusSource; warning: string | null } = ctx.sourceOverride
     ? { source: ctx.sourceOverride, warning: null }
-    : pickSource(settings.statusSource, settings.it2Path);
+    : pickSource(settings.statusSource, settings.it2Path, ctx.home);
   const { sessions: live, health, unknown } = await liveRegistry(settings.sessionsDir);
   // the board's one warning line also says when Claude Code's session files are there and none could be used
   const picked = {
@@ -286,7 +286,9 @@ export function placeSessions(
         detail: extra?.detail || null,
         since: new Date(since).toISOString(),
         source: extra ? (picked.source.name as 'iterm' | 'registry') : 'registry',
-        focus: picked.source.name === 'iterm' && !!extra,
+        // a session can be raised only when iTerm knows its tab: the iTerm source's entries all have one, and another
+        // source says so on the entries it got from iTerm (a session in another terminal has none)
+        focus: picked.source.name === 'iterm' ? !!extra : extra?.tab === true,
         context: statusLines.context.get(session.session) ?? null,
         rested_at:
           session.status !== 'busy' && session.statusAt

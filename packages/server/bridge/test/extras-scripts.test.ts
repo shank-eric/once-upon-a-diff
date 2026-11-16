@@ -203,12 +203,178 @@ test(
   },
 );
 
+test(
+  'board-status.sh writes <home>/status/<sid>.json for each hook event, and nothing without a home or a good session id',
+  { skip: !has('jq') },
+  async () => {
+    const script = path.join(ROOT, 'extras/hooks/board-status.sh');
+    const home = tmp('board-status-hook');
+    const sid = 'abc-123';
+    const file = path.join(home, 'status', `${sid}.json`);
+    const send = async (payload: Record<string, unknown>, dest = home) => {
+      const run = await runScript(
+        script,
+        [],
+        { ONCE_UPON_HOME: dest },
+        JSON.stringify({ session_id: sid, ...payload }),
+      );
+      assert.equal(run.code, 0);
+      assert.equal(run.stdout, '');
+    };
+    const read = () => JSON.parse(readFileSync(file, 'utf8'));
+    const stop = (last: string) =>
+      send({ hook_event_name: 'Stop', last_assistant_message: `Done with the work.\n\n${last}\n` });
+
+    await send({ hook_event_name: 'UserPromptSubmit' });
+    assert.equal(read().state, 'working');
+    assert.equal(read().session_id, sid);
+    assert.ok(Math.abs(read().at - Date.now()) < 60_000, 'at is milliseconds');
+
+    // Stop on a turn the user started: a question or a handoff line waits, anything else is done
+    await stop('Want me to ship it?');
+    assert.deepEqual(
+      [read().state, read().detail, read().event],
+      ['waiting', 'Want me to ship it?', 'Stop'],
+    );
+    for (const line of ['**Next: the PR text**', '> Queued: the story', '- still to do: docs']) {
+      await send({ hook_event_name: 'UserPromptSubmit' });
+      await stop(line);
+      assert.equal(read().state, 'waiting', line);
+    }
+    await send({ hook_event_name: 'UserPromptSubmit' });
+    await stop('Everything is pushed.');
+    assert.deepEqual([read().state, read().detail], ['done', null]);
+    await send({ hook_event_name: 'UserPromptSubmit' });
+    await stop('Nextly, an ordinary line.');
+    assert.equal(read().state, 'done', 'Next needs a word break');
+    await send({ hook_event_name: 'UserPromptSubmit' });
+    await send({ hook_event_name: 'Stop', last_assistant_message: '' });
+    assert.equal(read().state, 'done', 'no reply text: done');
+
+    // a turn another session started (no prompt hook before Stop) is never waiting
+    await stop('Is that right?');
+    assert.equal(read().state, 'done');
+
+    // permission prompts, questions and notifications wait; PostToolUse clears only a wait
+    await send({ hook_event_name: 'UserPromptSubmit' });
+    await send({ hook_event_name: 'PostToolUse', tool_name: 'Bash' });
+    assert.equal(read().state, 'working');
+    const before = read().at;
+    await send({ hook_event_name: 'PermissionRequest', tool_name: 'Bash' });
+    assert.deepEqual([read().state, read().detail], ['waiting', 'Needs your approval: Bash']);
+    await send({ hook_event_name: 'PostToolUse', tool_name: 'Bash' });
+    assert.equal(read().state, 'working');
+    assert.ok(read().at >= before);
+    await send({
+      hook_event_name: 'PreToolUse',
+      tool_name: 'AskUserQuestion',
+      tool_input: { questions: [{ question: 'Which branch?' }] },
+    });
+    assert.deepEqual([read().state, read().detail], ['waiting', 'Which branch?']);
+    await send({ hook_event_name: 'UserPromptSubmit' });
+    await send({ hook_event_name: 'PreToolUse', tool_name: 'Bash' });
+    assert.equal(read().state, 'working', 'another tool is not a wait');
+    await send({
+      hook_event_name: 'Notification',
+      notification_type: 'permission_prompt',
+      message: 'Claude needs your permission to use Bash',
+    });
+    assert.deepEqual(
+      [read().state, read().detail],
+      ['waiting', 'Claude needs your permission to use Bash'],
+    );
+    await send({ hook_event_name: 'UserPromptSubmit' });
+    await send({ hook_event_name: 'Notification', notification_type: 'idle_prompt' });
+    assert.equal(read().state, 'working', 'an idle notification is not a wait');
+
+    await send({ hook_event_name: 'SessionEnd' });
+    assert.throws(() => readFileSync(file, 'utf8'));
+
+    // no home, and a session id that is not safe as a file name: nothing written
+    const none = path.join(tmp('board-status-none'), 'missing');
+    await send({ hook_event_name: 'UserPromptSubmit' }, none);
+    assert.throws(() => readFileSync(path.join(none, 'status', `${sid}.json`)));
+    const bad = await runScript(
+      script,
+      [],
+      { ONCE_UPON_HOME: home },
+      JSON.stringify({ session_id: '../evil', hook_event_name: 'UserPromptSubmit' }),
+    );
+    assert.equal(bad.code, 0);
+    assert.throws(() => readFileSync(path.join(home, 'evil.json')));
+    assert.throws(() => readFileSync(path.join(home, 'status', '../evil.json')));
+  },
+);
+
+test(
+  'board-status.sh: a turn another session or a notification started is never waiting, and a Stop after a blocked Stop still judges the reply',
+  { skip: !has('jq') },
+  async () => {
+    const script = path.join(ROOT, 'extras/hooks/board-status.sh');
+    const home = tmp('board-status-peer');
+    const sid = 'peer-123';
+    const file = path.join(home, 'status', `${sid}.json`);
+    const send = async (payload: Record<string, unknown>) => {
+      const run = await runScript(
+        script,
+        [],
+        { ONCE_UPON_HOME: home },
+        JSON.stringify({ session_id: sid, ...payload }),
+      );
+      assert.equal(run.code, 0);
+    };
+    const read = () => JSON.parse(readFileSync(file, 'utf8'));
+    const prompt = (text: string) => send({ hook_event_name: 'UserPromptSubmit', prompt: text });
+    const stop = (last: string, extra: Record<string, unknown> = {}) =>
+      send({ hook_event_name: 'Stop', last_assistant_message: `Work.\n\n${last}\n`, ...extra });
+
+    // every prompt a session did not get from you fires UserPromptSubmit too, and none of them can be waiting
+    for (const text of [
+      'Another Claude session sent a message\n<cross-session-message from="x">Is it ready?</cross-session-message>',
+      '<cross-session-message from="x">hi</cross-session-message>',
+      '<task-notification>\n<task-id>1</task-id></task-notification>',
+      '  <agent-message>done</agent-message>',
+      '<system-reminder>\nsomething</system-reminder>\nthe rest',
+      '[Subagent hand-back] review-x finished',
+    ]) {
+      await prompt(text);
+      await stop('Is that right?');
+      assert.equal(read().state, 'done', text);
+    }
+    // a prompt wait in a peer turn is real, but the turn still ends done
+    await prompt('<task-notification>x</task-notification>');
+    await send({ hook_event_name: 'PermissionRequest', tool_name: 'Bash' });
+    assert.equal(read().state, 'waiting');
+    await send({ hook_event_name: 'PostToolUse', tool_name: 'Bash' });
+    await stop('Want me to ship it?');
+    assert.equal(read().state, 'done', 'the peer turn stays a peer turn through an approval');
+
+    // a typed prompt can wait, and so can a prompt that merely mentions a tag later in its text
+    await prompt('please look at the <task-notification> handling');
+    await stop('Want me to ship it?');
+    assert.equal(read().state, 'waiting');
+
+    // a Stop hook that blocks (stop_hook_active) continues the turn: the next Stop still judges the reply by who began it
+    await prompt('go');
+    await stop('Is that right?');
+    await stop('Want me to ship it?', { stop_hook_active: true });
+    assert.deepEqual([read().state, read().detail], ['waiting', 'Want me to ship it?']);
+    await stop('All pushed.', { stop_hook_active: true });
+    assert.equal(read().state, 'done');
+    await prompt('<cross-session-message>x</cross-session-message>');
+    await stop('Is that right?');
+    await stop('Is that right?', { stop_hook_active: true });
+    assert.equal(read().state, 'done', 'a blocked peer turn stays a peer turn');
+  },
+);
+
 test('the scripts and extras name no personal path', () => {
   const files = [
     'scripts/link-skills.sh',
     'extras/subagent-statusline.py',
     'extras/statusline-snippet.sh',
     'extras/hooks/require-beats.sh',
+    'extras/hooks/board-status.sh',
   ];
   for (const rel of files) {
     const text = readFileSync(path.join(ROOT, rel), 'utf8');

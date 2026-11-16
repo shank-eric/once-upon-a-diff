@@ -50,6 +50,21 @@ test('doctor: a missing folder is reported as missing, not as no sessions', asyn
   assert.match(line, /missing/);
 });
 
+test('doctor: the status hook is a warning pointing to the script until a status file exists', async () => {
+  const home = homeWith(tmp('canary-hook-sessions'));
+  const hookLine = async () => {
+    const out: string[] = [];
+    await doctor(home, { token: 't', port: 1 }, { out: (line) => out.push(line) });
+    const index = out.findIndex((one) => one.includes('Status hook:'));
+    return out.slice(index, index + 2).join('\n');
+  };
+  const bare = await hookLine();
+  assert.match(bare, /^WARN/);
+  assert.match(bare, /board-status\.sh/);
+  writeJson(path.join(home, 'status', 'some-sess.json'), { state: 'done' });
+  assert.match(await hookLine(), /^PASS/);
+});
+
 test('doctor: the recorded fixtures are quiet', async () => {
   const dir = tmp('canary-fixtures');
   cpSync(FIXTURES, dir, { recursive: true });

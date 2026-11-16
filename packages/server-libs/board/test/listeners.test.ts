@@ -831,10 +831,21 @@ test('a local story whose checkout has no origin finds sessions in that checkout
     'a session elsewhere is refused',
   );
   assert.deepEqual(typed, ['/once-upon-listen --story local-bare']);
-  // no iTerm: nothing can be typed into, and the page is told so rather than to click again
+  // typing follows the it2 CLI, not the status source: the registry (hook) source still types into iTerm tabs
   writeJson(path.join(home, 'config.json'), {
     board_sessions_dir: sessions,
+    board_it2_path: fakeIt2(),
     board_status_source: 'registry',
+  });
+  typed.length = 0;
+  await make().type('listen', fullId(inBare.pid), null, 'local-bare');
+  assert.deepEqual(typed, ['/once-upon-listen --story local-bare']);
+  // no iTerm: nothing can be typed into, and the page is told so rather than to click again
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
+  const realHome = process.env.HOME;
+  process.env.HOME = tmp('board-no-iterm-home');
+  after(() => {
+    process.env.HOME = realHome;
   });
   await assert.rejects(make().listenSessions('acme/widgets'), /needs iTerm/);
   await assert.rejects(make().storyListenSessions('local-bare'), /needs iTerm/);

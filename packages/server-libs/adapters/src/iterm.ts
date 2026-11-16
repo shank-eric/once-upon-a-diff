@@ -105,6 +105,7 @@ export function itermSource(it2: string): StatusSource {
                 : null,
             title:
               GENERIC_TITLES.has(name.toLowerCase()) || TRUNCATED_TITLE.test(name) ? null : name,
+            tab: true,
           });
         }),
       );

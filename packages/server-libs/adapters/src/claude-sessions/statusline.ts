@@ -105,12 +105,22 @@ export function readStatusLines(
  * Removes the status line files of sessions that are gone and a day old: the sweep that used to ride on the board's read.
  * `live` is asked only when some file is that old, so the usual run never looks at the sessions. Returns the removed names.
  */
-export async function sweepStatusLines(
+export function sweepStatusLines(
   home: string,
   live: () => Promise<Set<string>>,
   nowMs: number,
 ): Promise<string[]> {
-  const dir = path.join(home, 'statusline');
+  return sweepSessionFiles(home, 'statusline', live, nowMs);
+}
+
+/** The same sweep for any `<home>/<folder>/<session id>.json` family (the status line's, the status hook's). */
+export async function sweepSessionFiles(
+  home: string,
+  folder: string,
+  live: () => Promise<Set<string>>,
+  nowMs: number,
+): Promise<string[]> {
+  const dir = path.join(home, folder);
   let names: string[];
   try {
     names = readdirSync(dir);
