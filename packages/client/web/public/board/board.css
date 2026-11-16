@@ -77,6 +77,7 @@
 .ou-board-detail { margin-top: 2px; overflow-wrap: anywhere; }
 .ou-board-sessions, .ou-board-agents { list-style: none; margin: 6px 0 0; padding: 6px 0 0; border-top: 1px solid var(--ou-border); display: flex; flex-direction: column; gap: 6px; }
 .ou-board-session, .ou-board-agent { font-size: 12px; }
+.ou-board-fold { align-self: flex-start; margin-top: 4px; padding: 0; border: 0; background: none; font: inherit; font-size: 12px; cursor: pointer; }
 .ou-board-mark { color: var(--ou-fg-muted); }
 .ou-board-agent-note { overflow-wrap: anywhere; }
 .ou-board-bar { height: 4px; margin-top: 2px; border-radius: 2px; background: var(--ou-border); }

@@ -13,7 +13,7 @@ import {
   type Api,
 } from '/assets/board/shared.ts';
 import { act, openStory, reviewCard, typeInto } from '/assets/board/columns/actions.ts';
-import { Agent, AgentNotes } from '/assets/board/columns/agent.ts';
+import { AgentList, AgentNotes } from '/assets/board/columns/agent.ts';
 import { answerBits } from '/assets/board/columns/story-answers.ts';
 import { ContextMeter } from '/assets/ui-kit/components/meter.ts';
 import { Chips } from '/assets/ui-kit/components/chip.ts';
@@ -253,7 +253,7 @@ export function Card(props: { card: BoardCard; now: number; api: Api }) {
     ${chips.length > 0 && html`<${Chips} items=${chips} />`}
     ${card.kind === 'session' && card.sessions[0] && html`<div class="ou-local-muted">${card.sessions[0].status}${card.sessions[0].branch ? ` on ${card.sessions[0].branch}` : ''}</div>`}
     ${card.kind === 'work' && card.sessions.length > 0 && html`<ul class="ou-board-sessions">${card.sessions.map((session) => html`<${Session} key=${session.id} session=${session} now=${now} />`)}</ul>`}
-    ${card.agents.length > 0 && !brief && html`<ul class="ou-board-agents">${card.agents.map((agent) => html`<${Agent} key=${agent.key} agent=${agent} now=${now} api=${api} byEditor=${card.kind !== 'agent'} />`)}</ul>`}
+    ${card.agents.length > 0 && !brief && html`<${AgentList} agents=${card.agents} now=${now} api=${api} byEditor=${card.kind !== 'agent'} />`}
     <${CardTrees} card=${card} now=${now} api=${api} />
     <div class="ou-board-actions">
       ${card.build && html`<${Build} card=${card} api=${api} />`}

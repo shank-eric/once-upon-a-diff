@@ -2461,6 +2461,91 @@ test('a finished research agent shows its resolution and a copyable notes path, 
   }
 });
 
+test('a card folds its finished runs behind one "N finished" control, shown when every run is finished too', async () => {
+  const run = (name: string, state: BoardAgent['state'], ended: string | null): BoardAgent => ({
+    key: `abcdef01:${name}`,
+    sid: 'abcdef01',
+    name,
+    kind: 'author',
+    editor: null,
+    state,
+    review: false,
+    status: state === 'running' ? 'working' : 'done',
+    task: null,
+    model: null,
+    started_at: '2026-10-29T10:00:00Z',
+    ended_at: ended,
+    outcome: null,
+    stale: false,
+    beat: null,
+    gate: null,
+    notes: null,
+    clears_at: null,
+    summary: null,
+  });
+  const names = () =>
+    all('[data-card="runs-1"] .ou-board-agent strong').map((one) => one.textContent);
+  try {
+    answer = () =>
+      withCards(
+        card({
+          id: 'runs-1',
+          kind: 'work',
+          title: 'a branch',
+          agents: [
+            run('old-1', 'done', '2026-10-29T10:10:00Z'),
+            run('live-a', 'running', null),
+            run('old-2', 'failed', '2026-10-29T10:20:00Z'),
+            run('live-b', 'fixing', null),
+            run('old-3', 'stopped', '2026-10-29T10:30:00Z'),
+          ],
+        }),
+      );
+    await pollNow();
+    assert.deepEqual(names(), ['live-a', 'live-b'], 'only the open runs are listed');
+    const fold = $('[data-card="runs-1"] [data-finished-toggle]');
+    assert.match(fold?.textContent ?? '', /3 finished/);
+    assert.equal(fold?.getAttribute('aria-expanded'), 'false');
+    await click(fold);
+    assert.deepEqual(
+      names(),
+      ['old-1', 'live-a', 'old-2', 'live-b', 'old-3'],
+      'expanded, all five',
+    );
+    assert.equal(
+      $('[data-card="runs-1"] [data-finished-toggle]')?.getAttribute('aria-expanded'),
+      'true',
+    );
+    await click($('[data-card="runs-1"] [data-finished-toggle]'));
+    assert.deepEqual(names(), ['live-a', 'live-b']);
+
+    answer = () =>
+      withCards(
+        card({
+          id: 'runs-1',
+          kind: 'work',
+          title: 'a branch',
+          agents: [
+            run('old-1', 'done', '2026-10-29T10:10:00Z'),
+            run('old-3', 'stopped', '2026-10-29T10:30:00Z'),
+            run('old-2', 'failed', '2026-10-29T10:20:00Z'),
+          ],
+        }),
+      );
+    await pollNow();
+    assert.deepEqual(names(), ['old-3'], 'with none open, the latest finished run shows');
+    assert.match(
+      $('[data-card="runs-1"] [data-finished-toggle]')?.textContent ?? '',
+      /2 earlier finished/,
+    );
+    await click($('[data-card="runs-1"] [data-finished-toggle]'));
+    assert.deepEqual(names(), ['old-1', 'old-3', 'old-2']);
+  } finally {
+    answer = () => board();
+    await pollNow();
+  }
+});
+
 test('a finished agent’s card shows its notes and when it leaves, and Finish asks the bridge to clear it', async () => {
   requests.length = 0;
   confirmed.length = 0;
