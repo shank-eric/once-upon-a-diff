@@ -4,9 +4,17 @@
  * right after asking the page to unfold it) is drawn before the call returns.
  */
 import { ROUTES } from '/assets/contracts/routes.ts';
-import { bridge, PARAMS } from '/assets/local/page.ts';
-import { store, storyOf, type DialogName, type LocalState } from '/assets/local/store.ts';
+import { bridge, PARAMS, page } from '/assets/local/page.ts';
+import {
+  store,
+  storyOf,
+  type DialogName,
+  type EditorState,
+  type LocalState,
+} from '/assets/local/store.ts';
 import { baseRows, claimsFor, rowKeyFor, rowsFor } from '/assets/local/diff/rows.ts';
+import { expandHunks, type Direction } from '/assets/local/diff/expand.ts';
+import { highlightFile } from '/assets/local/diff/syntax.ts';
 import type { LocalStoryData } from '/assets/local/page.ts';
 import type { LocalFile, LocalNote, LocalStory, PrView } from '/assets/types.ts';
 import type { Side } from '/assets/terms/line-refs.ts';
@@ -24,7 +32,7 @@ const patchFile = (rel: string, patch: Partial<LocalFile>) =>
 
 const fileByRel = (rel: string | null) => storyOf().local.files.find((file) => file.rel === rel);
 
-/** The story was read again (a new version, a changed preference): drawn anew, and the panel mounted again on it. Folds, opened narrowing folds and note forms start over. */
+/** The story was read again (a new version, a changed preference): drawn anew, and the panel mounted again on it. Folds, opened narrowing folds, expanded lines and note forms start over. */
 export function loadStory(story: LocalStoryData) {
   store.set((state) => ({
     story,
@@ -33,6 +41,7 @@ export function loadStory(story: LocalStoryData) {
     scrollKeep: window.scrollY,
     folds: {},
     opened: {},
+    expansion: {},
     editors: [],
   }));
 }
@@ -98,6 +107,100 @@ export async function toggleViewed(rel: string) {
   if (nowViewed && section && section.getBoundingClientRect().top < 0) {
     section.scrollIntoView();
   }
+}
+
+// ---------- Expand: the unchanged lines between hunks
+/** A file's lines at the head, asked once on the first Expand (the clicks that come while it loads wait for the same answer). */
+const texts = new Map<string, Promise<string[]>>();
+
+function linesOf(rel: string, head: string): Promise<string[]> {
+  const key = `${head}|${rel}`;
+  let pending = texts.get(key);
+  if (!pending) {
+    pending = bridge
+      .ask(ROUTES.fileLines, { params: PARAMS, body: { path: rel, head_oid: head } })
+      .then((answer) => answer.lines);
+    pending.catch(() => texts.delete(key)); // asked again on the next click
+    texts.set(key, pending);
+  }
+  return pending;
+}
+
+/**
+ * Opens the gap above hunk `index` of a file (`index` = its hunk count for the lines after the last one): up or down by a step,
+ * or all of it. The hunks are replaced by the longer ones (expand.ts), so every row, anchor and note works on them as on
+ * any other line. The rows' keys shift, so an open note form of the file is put on its line's new row, and the file's
+ * opened narrowing folds are closed. The lines are shown in every chapter's step, and the file is highlighted again.
+ */
+export async function expandGap(rel: string, index: number, direction: Direction) {
+  const head = storyOf().local.head_oid;
+  const clicked = fileByRel(rel);
+  if (!head || !clicked) {
+    return;
+  }
+  // the gap is named by the hunk below it (its start), not by `index`: clicks that wait for the same lines open gaps
+  // one after the other, and the hunks have changed by the time a later one is applied
+  const below = index < clicked.hunks.length ? clicked.hunks[index] : null;
+  let text: string[];
+  try {
+    text = await linesOf(rel, head);
+  } catch (err) {
+    alert(`Couldn't load lines: ${(err as Error).message}`);
+    return;
+  }
+  const file = fileByRel(rel);
+  if (!file || storyOf().local.head_oid !== head) {
+    return; // the story was read again while the lines came
+  }
+  const gap = below
+    ? file.hunks.findIndex(
+        (hunk) => hunk.oldStart === below.oldStart && hunk.newStart === below.newStart,
+      )
+    : file.hunks.length;
+  if (gap < 0) {
+    return; // the hunk below it has changed since (this gap was opened by another click)
+  }
+  const { hunks, added } = expandHunks(file.hunks, text, gap, direction);
+  const ended =
+    hunks === file.hunks
+      ? gap === file.hunks.length
+      : gap === file.hunks.length &&
+        hunks[hunks.length - 1].newStart + hunks[hunks.length - 1].newLines > text.length;
+  if (hunks === file.hunks && !ended) {
+    return;
+  }
+  const next = { ...file, hunks };
+  const split = storyOf().local.diff_view === 'split';
+  patchFile(rel, { hunks });
+  store.set((state) => {
+    const before = state.expansion[rel];
+    const editors: EditorState[] = [];
+    for (const editor of state.editors) {
+      if (editor.rel !== rel) {
+        editors.push(editor);
+        continue;
+      }
+      const row = rowKeyFor(next, split, editor.side, editor.line);
+      if (row !== null) {
+        editors.push({ ...editor, row, key: `${rel}|${row}` });
+      }
+    }
+    const { [rel]: _closed, ...opened } = state.opened;
+    return {
+      editors,
+      opened,
+      expansion: {
+        ...state.expansion,
+        [rel]: {
+          free: new Set([...(before ? before.free : []), ...added]),
+          highlights:
+            hunks === file.hunks && before ? before.highlights : highlightFile(next, page.hljs),
+          ended: ended || !!before?.ended,
+        },
+      },
+    };
+  });
+  store.flush();
 }
 
 export function toggleFold(rel: string) {
@@ -223,6 +326,7 @@ export function reveal(rel: string, side?: Side, start?: number, end?: number) {
     return;
   }
   const state = store.get();
+  const expanded = state.expansion[rel];
   const patch: Partial<LocalState> = {};
   if (isFolded(state, file)) {
     patch.folds = { ...state.folds, [rel]: false };
@@ -238,6 +342,8 @@ export function reveal(rel: string, side?: Side, start?: number, end?: number) {
       claims: claimsFor(storyOf(state).chapters),
       step: state.step,
       opened: state.opened[rel],
+      free: expanded?.free,
+      ended: !!expanded?.ended,
     });
     const { anchors, rows } = baseRows(file, split);
     const byKey = new Map(shown.map((row) => [row.key, row]));

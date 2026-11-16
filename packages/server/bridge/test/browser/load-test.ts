@@ -26,9 +26,9 @@
 import { chromium, type Page } from 'playwright-core';
 import type { AddressInfo } from 'node:net';
 import path from 'node:path';
-import { readFileSync, existsSync, mkdirSync } from 'node:fs';
+import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { tmp, writeJson, TOKEN, startBridge, localRepo, runCli } from '../helpers.ts';
+import { tmp, writeJson, TOKEN, startBridge, localRepo, runCli, git } from '../helpers.ts';
 import { SCHEMES, createPixels, primerRule, type ShotOptions } from './pixels.ts';
 import { createLocalStory } from '@once-upon-a-diff/stories/local-story';
 import { boardPageUrl, localPageUrl } from '@once-upon-a-diff/state/records/page-links/page-key';
@@ -1553,6 +1553,70 @@ try {
       mask: maskClocks,
     });
     await errPage.close();
+
+    // Expand on the local page (after the pixel shots, so its story is on no screenshot): a long file with two changes far
+    // apart, drawn with git's three lines of context, opens up to the whole file through the bridge's lines route
+    const lines = (change: number[]) =>
+      Array.from(
+        { length: 60 },
+        (_, i) => `line ${i + 1}${change.includes(i + 1) ? ' changed' : ''}`,
+      );
+    const xrepo = tmp('expand-repo');
+    git(xrepo, 'init', '-q', '-b', 'feature');
+    writeFileSync(path.join(xrepo, 'long.txt'), `${lines([]).join('\n')}\n`);
+    git(xrepo, 'add', '.');
+    git(xrepo, 'commit', '-q', '-m', 'base');
+    const xbase = git(xrepo, 'rev-parse', 'HEAD');
+    writeFileSync(path.join(xrepo, 'long.txt'), `${lines([10, 50]).join('\n')}\n`);
+    git(xrepo, 'commit', '-q', '-am', 'two changes');
+    const xchapters = path.join(tmp('xch'), 'chapters.json');
+    writeJson(xchapters, {
+      title: 'Expand',
+      chapters: [{ title: 'Chapter 1', narrative: 'Both.', files: ['long.txt'], refs: [] }],
+    });
+    const expandStory = createLocalStory({
+      home,
+      repo: xrepo,
+      base: xbase,
+      head: 'HEAD',
+      chapters: xchapters,
+    });
+    const xpage = await context.newPage();
+    const xerrors: string[] = [];
+    xpage.on('pageerror', (e) => xerrors.push(e.message));
+    await xpage.goto(localPageUrl(port, expandStory.id, TOKEN));
+    await xpage.waitForSelector('.ou-local-file[data-path="long.txt"]', { timeout: 5000 });
+    const file = xpage.locator('.ou-local-file[data-path="long.txt"]');
+    const rowCount = () => file.locator('tr.ou-local-line').count();
+    check(
+      (await rowCount()) === 16 && (await file.locator('[data-expand]').count()) > 0,
+      `a long file shows its two hunks with Expand buttons (${await rowCount()} lines)`,
+    );
+    await file.locator('tr.ou-local-hunk').nth(1).locator('[data-expand="up"]').click();
+    await xpage.waitForTimeout(500);
+    check(
+      (await file.locator('td.ou-local-num[data-side="R"][data-line="27"]').count()) === 1 &&
+        (await file.locator('td.ou-local-num[data-side="R"][data-line="26"]').count()) === 0,
+      'Expand up 20 adds the twenty lines above the second hunk',
+    );
+    await file.locator('tr.ou-local-hunk').nth(1).locator('[data-expand="all"]').click();
+    await xpage.waitForTimeout(500);
+    check(
+      (await file.locator('tr.ou-local-hunk:not(.ou-local-gap)').count()) === 1 &&
+        (await file.locator('td.ou-local-num[data-side="R"][data-line="30"]').count()) === 1,
+      'Expand all joins the two hunks into one',
+    );
+    await file.locator('.ou-local-gap [data-expand="all"]').click();
+    await xpage.waitForTimeout(500);
+    check(
+      (await rowCount()) === 56 && (await file.locator('.ou-local-gap').count()) === 0,
+      `Expand to end shows lines 7 to 60 (${await rowCount()} lines) and the end row goes`,
+    );
+    check(
+      xerrors.length === 0,
+      `no page errors on the expanded page${xerrors.length ? `: ${xerrors.join('; ')}` : ''}`,
+    );
+    await xpage.close();
   }
 } finally {
   await context.close();

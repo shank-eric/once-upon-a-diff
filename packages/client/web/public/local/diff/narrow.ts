@@ -5,7 +5,8 @@
  * ranges cover go with the first chapter that lists the file ("Since you read
  * it" chapters aside), so each line is shown in some chapter. A chapter that
  * lists the file without line ranges sees all of it, and so do the Overview
- * and "Show all files". A folded run is one click to open.
+ * and "Show all files". A folded run is one click to open. A line the reviewer
+ * expanded (`free`) is claimed by no chapter and hidden in none.
  *
  * Pure functions over a plain row model, so they're tested in node; local.js
  * reads the rows off its tables and applies the result.
@@ -35,10 +36,12 @@ export interface Claims {
 
 /** A table row as narrowRows reads it: a line row has its old and new numbers (L, R) and whether it adds (add). */
 export interface NarrowRow {
-  type: 'hunk' | 'note' | 'info' | 'line';
+  type: 'hunk' | 'note' | 'info' | 'line' | 'gap';
   L?: number | null;
   R?: number | null;
   add?: boolean;
+  /** a line the reviewer expanded: no chapter claims it, none hides it */
+  free?: boolean;
 }
 
 /** A run of hidden rows to fold behind one row, and the steps that tell them. */
@@ -123,11 +126,15 @@ export function narrowRows(
   }
   // each line row's claiming steps: by its new line, and by its old line
   // a set for each line row, null for the rest
-  const claimedBy: (Set<number> | null)[] = rows.map((row) =>
-    row.type === 'line'
-      ? union(stepsAt(claims, rel, 'R', row.R), stepsAt(claims, rel, 'L', row.L))
-      : null,
-  );
+  const claimedBy: (Set<number> | null)[] = rows.map((row) => {
+    if (row.type !== 'line') {
+      return null;
+    }
+    // a line the reviewer expanded is claimed by no one
+    return row.free
+      ? new Set<number>()
+      : union(stepsAt(claims, rel, 'R', row.R), stepsAt(claims, rel, 'L', row.L));
+  });
   // a removed line with no new number goes with what replaced it, or, for a pure removal, with the lines on both sides
   const isNew = (row: NarrowRow | undefined) => row && row.type === 'line' && row.R != null;
   // the first row after, and the last row before, a run of removed lines: found once for the run, so a long run is linear
@@ -155,7 +162,7 @@ export function narrowRows(
   });
   const home = claims.home[rel];
   rows.forEach((row, i) => {
-    if (row.type === 'line' && !claimedBy[i]!.size && home) {
+    if (row.type === 'line' && !row.free && !claimedBy[i]!.size && home) {
       claimedBy[i]!.add(home);
     }
   });

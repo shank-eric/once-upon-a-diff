@@ -1,7 +1,8 @@
 /*
  * What only a local story keeps on the bridge: Viewed per file (GitHub keeps it for PR stories), and Approve (POST
  * .../approve {head_sha, approved?}: ready to ship at that head, which a session hears as an `approved` event; the full
- * page key only, as it is not on the read-only key's list in ../page-key.ts). Fix-before-push notes are in ./fixes.ts,
+ * page key only, as it is not on the read-only key's list in ../page-key.ts), and POST .../lines {path, head_oid}: the text of
+ * a file of the diff at the story's head, for the page's Expand controls. Fix-before-push notes are in ./fixes.ts,
  * for PR and local stories alike.
  */
 import { ROUTES } from '@once-upon-a-diff/contracts/routes';
@@ -13,7 +14,7 @@ import { approveStory, clearApproval } from '@once-upon-a-diff/core/features/rev
 import { finishStoryRuns } from '@once-upon-a-diff/core/features/review/approve-runs';
 import { storyRepo } from '@once-upon-a-diff/stories/meta';
 import type { LocalStory, StoryData } from '@once-upon-a-diff/contracts/types';
-import { refreshLocal } from '@once-upon-a-diff/stories/local-diff';
+import { FileLinesRefusal, fileLinesAt, refreshLocal } from '@once-upon-a-diff/stories/local-diff';
 import type { LocalMeta, ServedStory } from '@once-upon-a-diff/stories/types';
 import type { Call, StoryRoute } from '../types.ts';
 import { localOnly } from './story-guards.ts';
@@ -38,6 +39,30 @@ function viewed({ app, body: raw, send }: Call, story: ServedStory) {
   }
   app.stories.writeState(story.id, 'viewed.json', viewedFiles);
   return send(200, { path: file.rel, viewed: !!body.viewed });
+}
+
+function fileLines({ body: raw, send }: Call, story: ServedStory) {
+  localOnly(story, 'GitHub draws the diff of a PR story');
+  const body = parseBody('fileLines', raw);
+  const meta = refreshLocal(story.dir, story.meta as LocalMeta);
+  // the page's head is only a staleness check: the text is always read at the story's own head
+  if (body.head_oid !== meta.head_oid) {
+    throw new HttpError(409, 'the branch has moved since this page showed it: reload');
+  }
+  try {
+    return send(200, { lines: fileLinesAt(story.dir, meta, body.path) });
+  } catch (error) {
+    if (!(error instanceof FileLinesRefusal)) {
+      throw error;
+    }
+    const why = {
+      'not-in-diff': [404, 'that file is not in the diff'],
+      gone: [404, 'that file is not in the head commit'],
+      binary: [422, 'that file is binary'],
+      'too-large': [422, 'that file is too large to expand'],
+    } as const;
+    throw new HttpError(why[error.kind][0], why[error.kind][1]);
+  }
 }
 
 function approve({ app, body: raw, send }: Call, story: ServedStory) {
@@ -85,5 +110,6 @@ function approve({ app, body: raw, send }: Call, story: ServedStory) {
 
 export const localStoryRoutes: StoryRoute[] = [
   { route: ROUTES.viewed, handle: viewed },
+  { route: ROUTES.fileLines, handle: fileLines },
   { route: ROUTES.approve, handle: approve },
 ];

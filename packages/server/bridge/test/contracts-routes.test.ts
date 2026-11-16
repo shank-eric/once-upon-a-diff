@@ -140,6 +140,7 @@ const VIEW_KEY_REACH = [
   'GET questions',
   'POST questions',
   'POST viewed',
+  'POST lines',
   'POST notes',
   'GET fixes',
   'POST fixes',

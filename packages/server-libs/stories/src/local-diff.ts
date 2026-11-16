@@ -6,7 +6,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { writeFileAtomic, writeJsonAtomic } from '@once-upon-a-diff/adapters/stores/fs/json-file';
 import path from 'node:path';
 import { parseUnifiedDiff, pathSha } from './diff.ts';
-import { revParse, diffText, commitsBetween } from '@once-upon-a-diff/adapters/git';
+import { revParse, diffText, commitsBetween, blobText } from '@once-upon-a-diff/adapters/git';
 import type { DiffFile, LocalFile, LocalMoved } from '@once-upon-a-diff/contracts/types';
 import type { LocalMeta, StoryMeta } from './types.ts';
 import { checkedMeta } from './meta.ts';
@@ -50,6 +50,46 @@ export function loadDiff(dir: string, meta: StoryMeta): Map<string, DiffFile> | 
     return null; // GitHub draws the diff
   }
   return parseUnifiedDiff(readFileSync(file, 'utf8'));
+}
+
+/** The biggest file `fileLinesAt` reads, in bytes: a bigger one is refused, as it would not draw well either. */
+export const FILE_LINES_MAX_BYTES = 1_000_000;
+
+/** Why `fileLinesAt` has no lines: the file is not one of the diff's, or is gone from the head, binary or too large. */
+export class FileLinesRefusal extends Error {
+  readonly kind: 'not-in-diff' | 'gone' | 'binary' | 'too-large';
+  constructor(kind: FileLinesRefusal['kind']) {
+    super(kind);
+    this.kind = kind;
+  }
+}
+
+/**
+ * The lines of one of the diff's files at the story's head commit, for the page's Expand controls. `rel` must be
+ * exactly a file of the story's diff (never joined or tidied), and the commit is the story's own `head_oid`
+ * (`meta`, as `refreshLocal` returned it), never one the page sent. Lines keep a `\r` as the diff's do, and an
+ * empty last element from a final newline is dropped. Throws a FileLinesRefusal.
+ */
+export function fileLinesAt(dir: string, meta: StoryMeta, rel: string): string[] {
+  const diff = loadDiff(dir, meta);
+  if (
+    !diff ||
+    !diff.has(rel) ||
+    !meta.repo_path ||
+    !meta.head_oid ||
+    checkedMeta(dir, meta).problem
+  ) {
+    throw new FileLinesRefusal('not-in-diff');
+  }
+  const blob = blobText(meta.repo_path, meta.head_oid, rel, FILE_LINES_MAX_BYTES);
+  if ('refused' in blob) {
+    throw new FileLinesRefusal(blob.refused);
+  }
+  const lines = blob.text.split('\n');
+  if (blob.text.endsWith('\n') || !blob.text) {
+    lines.pop();
+  }
+  return lines;
 }
 
 /** Whether a story follows its checkout's HEAD (`--head HEAD`, the default) rather than being pinned to the commits it was told over. */

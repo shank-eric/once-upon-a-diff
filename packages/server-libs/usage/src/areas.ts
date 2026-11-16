@@ -150,6 +150,7 @@ export const ROUTE_AREAS: Record<RouteName, Area> = {
   readRead: 'Panel',
   readNote: 'Panel',
   viewed: 'Panel',
+  fileLines: 'Local story page',
   noteAdd: 'Local story page',
   noteUpdate: 'Local story page',
   fixesRead: 'Inbox, Q&A, fix and build requests',

@@ -24,6 +24,7 @@ import type {
   PrView,
   StoryData,
   ViewedAnswer,
+  FileLines,
 } from './types.ts';
 
 /** The story panel's saved state, as GET and POST .../ui answer. */
@@ -55,6 +56,7 @@ export const STORY_ROUTES = {
   readRead: story<undefined, ReadInfo>('GET', 'read', 'token+page+view'),
   readNote: story<In<'readNote'>, ReadMark>('POST', 'read', 'token+page+view'),
   viewed: story<In<'viewed'>, ViewedAnswer>('POST', 'viewed', 'token+page+view'),
+  fileLines: story<In<'fileLines'>, FileLines>('POST', 'lines', 'token+page+view'),
   noteAdd: story<In<'noteAdd'>, NoteAnswer>('POST', 'notes', 'token+page+view'),
   noteUpdate: story<In<'noteUpdate'>, NoteUpdateAnswer, { id: string; note: string }>(
     'POST',

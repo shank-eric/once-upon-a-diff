@@ -293,6 +293,11 @@ export type NoteAnswer = LocalNote & { state?: string };
 /** POST .../notes/<id> answers with the changed note, or the id of a deleted one. */
 export type NoteUpdateAnswer = NoteAnswer | { deleted: string };
 
+/** POST .../lines: the file's lines at the story's head (a `\r` stays on a line, as in the diff). */
+export interface FileLines {
+  lines: string[];
+}
+
 /** POST .../viewed. */
 export interface ViewedAnswer {
   path: string;

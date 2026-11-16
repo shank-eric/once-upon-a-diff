@@ -114,7 +114,7 @@ const chapters = [
 test('a step folds the lines other chapters tell behind one row, and Show opens it', () => {
   const one = file('a.ts', [' a', ' b', ' c', ' d']) as never;
   const folded = rowsFor(
-    input({ file: one, claims: claims(chapters), step: { n: 1, all: false } }),
+    input({ file: one, claims: claims(chapters), step: { n: 1, all: false }, ended: true }),
   );
   assert.deepEqual(kinds(folded), [
     'hunk:h0',
@@ -133,6 +133,7 @@ test('a step folds the lines other chapters tell behind one row, and Show opens 
       file: one,
       claims: claims(chapters),
       step: { n: 1, all: false },
+      ended: true,
       opened: { 'l0:2': true },
     }),
   );
@@ -247,4 +248,41 @@ test('taking away the note that kept a line shown between a closed fold and an o
   assert.ok(!gone.some((row) => row.kind === 'fold'));
   const hidden = gone.filter((row) => row.kind === 'line' && row.hidden);
   assert.equal(hidden.length, 0, 'the lines that were opened are not folded away again');
+});
+
+test('a hunk row says how many lines lie above it, and a last hunk with full context has the end-of-file row', () => {
+  const far = file('a.ts', [' a', ' b', ' c', '-d', '+D', ' e', ' f', ' g'], {
+    hunks: [
+      {
+        oldStart: 10,
+        oldLines: 7,
+        newStart: 10,
+        newLines: 7,
+        header: '',
+        lines: [' a', ' b', ' c', '-d', '+D', ' e', ' f', ' g'],
+      },
+    ],
+  }) as never;
+  const rows = rowsFor(input({ file: far }));
+  const hunk = rows[0];
+  assert.ok(hunk.kind === 'hunk' && hunk.above === 9 && hunk.index === 0);
+  assert.equal(rows.at(-1)!.kind, 'gap');
+  assert.equal(rowsFor(input({ file: far, ended: true })).at(-1)!.kind, 'line');
+});
+
+test('lines the reviewer expanded are never folded in a step, and a note on one anchors to its row', () => {
+  const one = file('a.ts', [' a', ' b', ' c', ' d']) as never;
+  const free = new Set([1, 2]); // the first two lines were expanded: chapter 2 claims them, but the step is 1
+  const shown = rowsFor(
+    input({
+      file: one,
+      claims: claims([chapters[1], chapters[0]]),
+      step: { n: 1, all: false },
+      free,
+      ended: true,
+    }),
+  );
+  assert.equal(shown.filter((row) => row.kind === 'line' && row.hidden).length, 0);
+  const noted = rowsFor(input({ file: one, notes: [note('n1', 'R', 2)], free, ended: true }));
+  assert.deepEqual(kinds(noted).slice(1, 4), ['line:l0:0', 'line:l0:1', 'note:nn1']);
 });

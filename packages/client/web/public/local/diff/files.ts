@@ -43,6 +43,8 @@ interface FileProps {
   claims: Claims;
   step: RowsInput['step'];
   opened: RowsInput['opened'];
+  free: RowsInput['free'];
+  ended: boolean;
   stepName: (step: number) => string;
 }
 
@@ -64,13 +66,25 @@ function useDrawn(file: LocalFile): LocalFile {
 }
 
 function FileDiff(props: FileProps) {
-  const { file, folded, split, hideWhitespace, highlights, claims, step, opened, stepName } = props;
+  const {
+    file,
+    folded,
+    split,
+    hideWhitespace,
+    highlights,
+    claims,
+    step,
+    opened,
+    free,
+    ended,
+    stepName,
+  } = props;
   const drawn = useDrawn(file);
   const notes = useStable(props.notes);
   const editors = useStable(props.editors);
   const rows = useMemo(
-    () => rowsFor({ file: drawn, split, notes, editors, claims, step, opened }),
-    [drawn, split, notes, editors, claims, step, opened],
+    () => rowsFor({ file: drawn, split, notes, editors, claims, step, opened, free, ended }),
+    [drawn, split, notes, editors, claims, step, opened, free, ended],
   );
   const table = useMemo(
     () =>
@@ -104,8 +118,8 @@ export function Files(props: {
   const { state, highlights, claims, stepName } = props;
   const { local } = state.story!;
   const split = local.diff_view === 'split';
-  return html`<main class="ou-local-files">${local.files.map(
-    (file) =>
-      html`<${FileDiff} key=${file.rel} file=${file} folded=${isFolded(state, file)} split=${split} hideWhitespace=${local.hide_whitespace} highlights=${highlights.get(file.rel) ?? null} notes=${local.notes.filter((note) => note.path === file.rel)} editors=${state.editors.filter((editor) => editor.rel === file.rel)} claims=${claims} step=${state.step} opened=${state.opened[file.rel]} stepName=${stepName} />`,
-  )}</main>`;
+  return html`<main class="ou-local-files">${local.files.map((file) => {
+    const expanded = state.expansion[file.rel];
+    return html`<${FileDiff} key=${file.rel} file=${file} folded=${isFolded(state, file)} split=${split} hideWhitespace=${local.hide_whitespace} highlights=${expanded ? expanded.highlights : (highlights.get(file.rel) ?? null)} free=${expanded?.free} ended=${!!expanded?.ended} notes=${local.notes.filter((note) => note.path === file.rel)} editors=${state.editors.filter((editor) => editor.rel === file.rel)} claims=${claims} step=${state.step} opened=${state.opened[file.rel]} stepName=${stepName} />`;
+  })}</main>`;
 }

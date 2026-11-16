@@ -409,6 +409,14 @@
    "token+page+view"
   ],
   [
+   "fileLines",
+   "POST",
+   "/api/stories/:id/lines",
+   "lines",
+   null,
+   "token+page+view"
+  ],
+  [
    "noteAdd",
    "POST",
    "/api/stories/:id/notes",
@@ -2316,6 +2324,29 @@
        "fallback": false
       },
       "default": false
+     }
+    }
+   }
+  ],
+  [
+   "fileLines",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "path": {
+      "kind": "schema",
+      "type": "string",
+      "expects": "string",
+      "async": false
+     },
+     "head_oid": {
+      "kind": "schema",
+      "type": "string",
+      "expects": "string",
+      "async": false
      }
     }
    }

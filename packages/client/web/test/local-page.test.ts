@@ -71,7 +71,14 @@ test.beforeEach(() => {
   alerts.length = 0;
   scrolls.length = 0;
   refreshes = 0;
-  store.set({ folds: {}, step: null, opened: {}, editors: [], pendingScroll: null });
+  store.set({
+    folds: {},
+    step: null,
+    opened: {},
+    expansion: {},
+    editors: [],
+    pendingScroll: null,
+  });
 });
 test.afterEach(() => {
   app?.unmount();
@@ -436,4 +443,191 @@ test('a panel jump that opens nothing changes nothing, so the tables are not dra
   const opened = store.get();
   reveal('a.ts', 'R', 3, 4);
   assert.ok(store.get() === opened, 'opened already: nothing more');
+});
+
+/** A 30-line file with two changed lines (7 and 23): lines 4-10 and 20-26 are drawn, the rest is not. */
+const gappy = () => {
+  const hunk = (start: number, changed: number) => ({
+    oldStart: start,
+    oldLines: 7,
+    newStart: start,
+    newLines: 7,
+    header: '',
+    lines: Array.from({ length: 7 }, (_, i) =>
+      start + i === changed ? [`-old${changed}`, `+t${changed}`] : [` t${start + i}`],
+    ).flat(),
+  });
+  return file('c.ts', [], { hunks: [hunk(4, 7), hunk(20, 23)] });
+};
+const lines30 = Array.from({ length: 30 }, (_, i) => `t${i + 1}`);
+const hunkRows = (rel: string) =>
+  all(`.ou-local-file[data-path="${rel}"] tr.ou-local-hunk:not(.ou-local-gap)`);
+const expandButton = (rel: string, hunk: number, direction: string) =>
+  hunkRows(rel)[hunk]?.querySelector(`[data-expand="${direction}"]`) as HTMLElement | undefined;
+
+test('Expand all joins the hunks around a gap into one, with the lines under their own numbers, and keeps a note form on its line', async () => {
+  reply('POST lines', { lines: lines30 });
+  await open({ files: [gappy()] });
+  assert.equal(hunkRows('c.ts').length, 2);
+  cell('c.ts', 'R', 22).click();
+  await settle();
+  assert.equal(all('.ou-local-note-form').length, 1);
+  assert.equal(cell('c.ts', 'R', 15), null, 'line 15 is not drawn yet');
+  expandButton('c.ts', 1, 'all')!.click();
+  await settle();
+  assert.deepEqual(
+    askedOn('POST lines').map((call) => call.body),
+    [{ path: 'c.ts', head_oid: 'b'.repeat(40) }],
+  );
+  assert.equal(hunkRows('c.ts').length, 1, 'one @@ row now');
+  assert.equal(
+    cell('c.ts', 'L', 15).closest('tr')!.querySelector('td.ou-local-code')!.textContent,
+    ' t15',
+  );
+  assert.equal(cell('c.ts', 'R', 15).textContent, '15');
+  assert.equal(all('.ou-local-note-form').length, 1, 'the form is still open');
+  assert.equal(
+    cell('c.ts', 'R', 22).closest('tr')!.nextElementSibling!.className,
+    'ou-local-note-edit',
+    'on the same line',
+  );
+  assert.match(hunkRows('c.ts')[0].textContent!, /@@ -4,23 \+4,23 @@/);
+});
+
+test('Expand up and down add twenty lines to a hunk; the end of the file goes away once its lines are all shown', async () => {
+  reply('POST lines', { lines: lines30 });
+  const far = file('d.ts', [], {
+    hunks: [
+      {
+        oldStart: 24,
+        oldLines: 5,
+        newStart: 24,
+        newLines: 5,
+        header: '',
+        lines: [' t24', '-x', '+t25', ' t26', ' t27', ' t28'],
+      },
+    ],
+  });
+  await open({ files: [far] });
+  assert.ok(expandButton('d.ts', 0, 'up'));
+  assert.ok(!expandButton('d.ts', 0, 'down'), 'nothing above the first hunk');
+  expandButton('d.ts', 0, 'up')!.click();
+  await settle();
+  assert.ok(cell('d.ts', 'R', 4) && !cell('d.ts', 'R', 3), 'lines 4 to 23 joined');
+  assert.equal(expandButton('d.ts', 0, 'all')!.textContent, 'Expand all 3 lines');
+  const end = () => all('.ou-local-file[data-path="d.ts"] .ou-local-gap');
+  assert.equal(end().length, 1, 'three lines of context after the last change: the file may go on');
+  (end()[0].querySelector('[data-expand="all"]') as HTMLElement).click();
+  await settle();
+  assert.ok(cell('d.ts', 'R', 30));
+  assert.equal(end().length, 0, 'it ended');
+});
+
+test('lines the bridge will not give say so and change nothing', async () => {
+  reply('POST lines', refuse('that file is binary', 422));
+  await open({ files: [{ ...gappy(), rel: 'e.ts' }] });
+  expandButton('e.ts', 1, 'all')!.click();
+  await settle();
+  assert.deepEqual(alerts, ["Couldn't load lines: that file is binary"]);
+  assert.equal(hunkRows('e.ts').length, 2);
+});
+
+test('Expanded lines survive a Viewed toggle', async () => {
+  reply('POST lines', { lines: lines30 });
+  reply('POST viewed', { path: 'c.ts', viewed: true });
+  await open({ files: [gappy()] });
+  expandButton('c.ts', 1, 'all')!.click();
+  await settle();
+  assert.equal(hunkRows('c.ts').length, 1);
+  (section('c.ts').querySelector('.ou-local-viewed') as HTMLElement).click();
+  await settle();
+  assert.equal(hunkRows('c.ts').length, 1, 'still joined');
+  assert.ok(cell('c.ts', 'R', 15));
+});
+
+test('an Expand to end that opens nothing leaves the file highlighted', async () => {
+  reply('POST lines', { lines: lines30 });
+  const fake = {
+    getLanguage: () => ({}),
+    highlight: (code: string) => ({ value: `<b class="hl">${code}</b>` }),
+  };
+  page.hljs = fake as never;
+  try {
+    // its last hunk has three lines after the last change and ends at line 30: the end of the file is offered, but is empty
+    const tail = file('h.ts', [], {
+      hunks: [
+        {
+          oldStart: 24,
+          oldLines: 7,
+          newStart: 24,
+          newLines: 7,
+          header: '',
+          lines: [' t24', ' t25', ' t26', '-x', '+t27', ' t28', ' t29', ' t30'],
+        },
+      ],
+    });
+    await open({ files: [tail] });
+    const marked = () => all('.ou-local-file[data-path="h.ts"] td.ou-local-code .hl').length;
+    assert.ok(marked() > 0, 'highlighted to begin with');
+    const end = all('.ou-local-file[data-path="h.ts"] .ou-local-gap [data-expand="all"]');
+    assert.equal(end.length, 1);
+    end[0].click();
+    await settle();
+    assert.equal(all('.ou-local-file[data-path="h.ts"] .ou-local-gap').length, 0, 'it ended');
+    assert.ok(marked() > 0, 'still highlighted');
+  } finally {
+    page.hljs = null;
+  }
+});
+
+test('two Expand clicks that wait for the same lines each open the gap they were on', async () => {
+  const wait = held();
+  reply('POST lines', wait.answer);
+  const hunk = (start: number) => ({
+    oldStart: start,
+    oldLines: 7,
+    newStart: start,
+    newLines: 7,
+    header: '',
+    lines: Array.from({ length: 7 }, (_, i) =>
+      i === 3 ? [`-old${start + i}`, `+t${start + i}`] : [` t${start + i}`],
+    ).flat(),
+  });
+  const three = file('t.ts', [], { hunks: [hunk(4), hunk(20), hunk(36)] });
+  await open({ files: [three] });
+  const lines60 = Array.from({ length: 60 }, (_, i) => `t${i + 1}`);
+  expandButton('t.ts', 1, 'all')!.click(); // lines 11 to 19
+  expandButton('t.ts', 2, 'all')!.click(); // lines 27 to 35
+  await settle();
+  wait.release(() => ({ lines: lines60 }));
+  await settle();
+  assert.equal(hunkRows('t.ts').length, 1, 'both gaps are open: one hunk');
+  assert.ok(cell('t.ts', 'R', 15) && cell('t.ts', 'R', 30));
+  assert.equal(cell('t.ts', 'R', 43), null, 'the end of the file was not opened');
+  assert.equal(all('.ou-local-file[data-path="t.ts"] .ou-local-gap').length, 1);
+});
+
+test('a panel jump counts the lines the reviewer expanded as the table does, and opens the fold that holds the line', async () => {
+  const twoSteps = [
+    { title: 'One', files: [{ rel: 'a.ts', lines: [{ side: 'R', start: 1, end: 1 }] }] },
+    { title: 'Two', files: [{ rel: 'a.ts', lines: [{ side: 'R', start: 2, end: 2 }] }] },
+  ];
+  page.overlay = { sendFixes: async () => {}, refreshFixes: () => {} } as never;
+  // line 2 (b) was expanded, so no chapter has it; the removed line before it goes with the line above it (chapter 1) alone
+  app = await mountApp(
+    { files: [file('a.ts', [' a', '-d', ' b'])] },
+    {
+      panelOpen: true,
+      hidden: true,
+      expansion: { 'a.ts': { free: new Set([2]), highlights: null, ended: true } },
+    },
+  );
+  store.set({ story: { ...(store.get().story as object), chapters: twoSteps } as never });
+  narrow({ n: 2, all: false });
+  await settle();
+  assert.equal(all('.ou-local-diff tr.ou-local-out').length, 2, 'the removed line is folded');
+  reveal('a.ts', 'L', 2, 2);
+  assert.deepEqual(Object.keys(store.get().opened['a.ts'] ?? {}).length > 0, true);
+  await settle();
+  assert.equal(all('.ou-local-diff tr.ou-local-out').length, 0);
 });

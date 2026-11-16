@@ -120,6 +120,8 @@ export const STORY_BODIES = {
   }),
   /** POST .../viewed */
   viewed: object({ path: string(), viewed: flag }),
+  /** POST .../lines: a file of the diff's text at the head the page showed */
+  fileLines: object({ path: string(), head_oid: string() }),
   /** POST .../approve */
   approve: object({ head_sha: optional(nullable(string())), approved: optional(boolean()) }),
   /** POST .../notes: a new note, or a drafted comment (chapter and index) turned into one */

@@ -8,6 +8,7 @@
  */
 import type { LocalStoryData } from '/assets/local/page.ts';
 import type { PrView } from '/assets/types.ts';
+import type { Highlights } from '/assets/local/diff/highlights.ts';
 import type { Side } from '/assets/terms/line-refs.ts';
 
 /** An open note form: one a row (`row` is the row's key in diff/rows.ts), `key` being the file and the row. `focus` goes up when its row's number is clicked again. */
@@ -18,6 +19,15 @@ export interface EditorState {
   side: Side;
   line: number;
   focus: number;
+}
+
+/** What Expand has done to a file: the lines it added stay shown in every step, and the file is highlighted again as the one piece it now is. */
+export interface Expansion {
+  /** the new-side numbers of the lines it added */
+  free: ReadonlySet<number>;
+  highlights: Highlights;
+  /** the file's text has been shown to its end */
+  ended: boolean;
 }
 
 export type DialogName = 'pr';
@@ -51,6 +61,8 @@ export interface LocalState {
   step: { n: number; all: boolean } | null;
   /** per file, the keys of the rows of the narrowing folds the reviewer opened (a fold a note splits stays open on both sides) */
   opened: Record<string, Record<string, true>>;
+  /** per file, what the reviewer's Expand did to it (its hunks are in the story; they start over when the story is read again) */
+  expansion: Record<string, Expansion>;
   editors: EditorState[];
   ship: ShipState;
   /** a note the page should scroll to once its file is unfolded and drawn */
@@ -67,6 +79,7 @@ const initialState = (): LocalState => ({
   folds: {},
   step: null,
   opened: {},
+  expansion: {},
   editors: [],
   ship: { dialog: null, approveFailure: '', hasPull: false, prView: null },
   pendingScroll: null,

@@ -4,9 +4,12 @@
  * loaded. A line number opens the note form under its line: one listener on the table, not one on each of thousands of cells.
  */
 import { html } from '/assets/preact.mjs';
-import { openEditor, openRun } from '/assets/local/actions.ts';
+import { LinkButton } from '/assets/ui-kit/components/link-button.ts';
+import { openEditor, openRun, expandGap } from '/assets/local/actions.ts';
 import { usage } from '/assets/local/page.ts';
+import { plural } from '/assets/terms/text.ts';
 import { columnCount, foldText, type FoldRow, type Shown } from './rows.ts';
+import { EXPAND_STEP, type Direction } from './expand.ts';
 import { EditorRowView, NoteRowView } from './notes.ts';
 import type { Highlights } from './highlights.ts';
 import type { SplitHalf } from './split.ts';
@@ -41,6 +44,32 @@ function codeCell(
 const lineOf = (highlights: Highlights, hunkIndex: number, i: number) =>
   highlights && highlights[hunkIndex] ? highlights[hunkIndex][i] : null;
 
+/**
+ * GitHub-style buttons for the lines nobody has seen: the gap above a hunk (`hidden` of them; a short one has Expand all
+ * alone, the first has no Expand down since nothing is above it), or the end of the file after the last hunk (`hidden` null: its
+ * size isn't known, so Expand to end).
+ */
+function ExpandButtons(props: {
+  rel: string;
+  index: number;
+  hidden: number | null;
+  first?: boolean;
+}) {
+  const { rel, index, hidden, first } = props;
+  const button = (direction: Direction, label: string, name: string) =>
+    html`<${LinkButton} type="button" data-expand=${direction} aria-label=${`${label} (${name})`} onClick=${() => expandGap(rel, index, direction)}>${label}</${LinkButton}>`;
+  const later = button('down', `Expand down ${EXPAND_STEP}`, 'lines after the hunk above');
+  const earlier = button('up', `Expand up ${EXPAND_STEP}`, 'lines before the hunk below');
+  if (hidden === null) {
+    return html`<span class="ou-local-expand">${later}${button('all', 'Expand to end', 'to the end of the file')}</span>`;
+  }
+  const all = button('all', `Expand all ${plural(hidden, 'line')}`, 'every line in the gap');
+  if (hidden <= EXPAND_STEP) {
+    return html`<span class="ou-local-expand">${all}</span>`;
+  }
+  return html`<span class="ou-local-expand">${first ? null : later}${earlier}${all}</span>`;
+}
+
 function FoldRowView(props: {
   row: FoldRow;
   rel: string;
@@ -61,10 +90,16 @@ function rowView(
 ) {
   const out = row.hidden ? ' ou-local-out' : '';
   switch (row.kind) {
-    case 'hunk':
+    case 'hunk': {
+      const expand = row.above
+        ? html`<${ExpandButtons} rel=${file.rel} index=${row.index} hidden=${row.above} first=${row.index === 0} />`
+        : null;
       return split
-        ? html`<tr key=${row.key} class="ou-local-hunk${out}"><td class="ou-local-num"></td><td class="ou-local-code" colspan="3">${hunkHeader(row.hunk)}</td></tr>`
-        : html`<tr key=${row.key} class="ou-local-hunk${out}"><td class="ou-local-num"></td><td class="ou-local-num"></td><td class="ou-local-code">${hunkHeader(row.hunk)}</td></tr>`;
+        ? html`<tr key=${row.key} class="ou-local-hunk${out}"><td class="ou-local-num"></td><td class="ou-local-code" colspan="3">${hunkHeader(row.hunk)}${expand}</td></tr>`
+        : html`<tr key=${row.key} class="ou-local-hunk${out}"><td class="ou-local-num"></td><td class="ou-local-num"></td><td class="ou-local-code">${hunkHeader(row.hunk)}${expand}</td></tr>`;
+    }
+    case 'gap':
+      return html`<tr key=${row.key} class="ou-local-hunk ou-local-gap"><td colspan=${columnCount(split)}><${ExpandButtons} rel=${file.rel} index=${row.index} hidden=${null} /></td></tr>`;
     case 'message':
       return html`<tr key=${row.key} class="ou-local-info"><td colspan=${columnCount(split)}>${row.text}</td></tr>`;
     case 'info':

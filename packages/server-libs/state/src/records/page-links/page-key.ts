@@ -32,6 +32,7 @@ export const viewKey = (token: string, story: string): string =>
  *    position, read marks and the drafted comments with their marks and Add to fix before push
  *  - Ask: questions
  *  - Viewed marks: viewed
+ *  - Expand: lines (the text of a file of the diff at its head, so the page can show the unchanged lines around a hunk)
  *  - Fix before push: notes, and fixes (the notes' state, Auto-send, Send, Take back)
  *  - Rebuild: asking the listening session to re-tell the story, which writes only the story (drafts are kept)
  *  - where the branch's PR stands: GET pr, never the POST that pushes
@@ -52,6 +53,7 @@ const VIEW_KEY_MAY: Record<string, readonly string[]> = {
   drafts: ['GET', 'POST'],
   questions: ['GET', 'POST'],
   viewed: ['POST'],
+  lines: ['POST'],
   notes: ['POST'],
   fixes: ['GET', 'POST'],
   rebuild: ['POST'],

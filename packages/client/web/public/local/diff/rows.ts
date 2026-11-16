@@ -4,9 +4,11 @@
  * back off the DOM. The order is the table's: the file's hunks, with an open note form and then the notes under their line
  * (the notes of one line come out the last first, as they were put in the table one after the other, each straight under the
  * line), the notes whose line this diff doesn't draw under the first row, and a "⋯ N lines" row before each run of lines a
- * chapter doesn't tell (narrow.ts). No DOM here, so node can test it.
+ * chapter doesn't tell (narrow.ts). A hunk row says how many unseen lines lie above it (`above`, for its Expand buttons), and a
+ * last "gap" row carries the Expand control for the lines after the last hunk (expand.ts). No DOM here, so node can test it.
  */
 import { splitRows, type SplitRow } from './split.ts';
+import { gapsOf } from './expand.ts';
 import { claimsOf, narrowRows, type Claims, type NarrowRow } from './narrow.ts';
 import { plural } from '/assets/terms/text.ts';
 import type { DiffHunk, LocalFile, LocalNote } from '/assets/types.ts';
@@ -17,7 +19,8 @@ type Sign = ' ' | '-' | '+';
 
 /** A row of the diff, before notes and folds. */
 type BaseRow =
-  | { kind: 'hunk'; key: string; hunk: DiffHunk }
+  /** `above` is how many lines of the file lie unseen between this hunk and the one before it (or the top of the file) */
+  | { kind: 'hunk'; key: string; hunk: DiffHunk; index: number; above: number }
   /** a unified line: its numbers are null on the side it isn't on. `hunkIndex` and `i` say where its highlighted HTML is. */
   | {
       kind: 'line';
@@ -31,7 +34,9 @@ type BaseRow =
     }
   | { kind: 'pair'; key: string; hunkIndex: number; row: SplitRow }
   | { kind: 'info'; key: string; text: string; hunkIndex?: number }
-  | { kind: 'message'; key: string; text: string };
+  | { kind: 'message'; key: string; text: string }
+  /** the end of the file's lines, after the last hunk: where Expand down goes on */
+  | { kind: 'gap'; key: string; index: number };
 
 type Row = BaseRow | NoteRow | EditorRow | FoldRow;
 export interface NoteRow {
@@ -99,8 +104,15 @@ export function baseRows(file: LocalFile, split: boolean): Base {
       text: file.kind === 'renamed' ? 'Renamed without changes' : 'No changed lines',
     });
   } else {
+    const above = new Map(gapsOf(file.hunks).map((gap) => [gap.index, gap.hidden ?? 0]));
     file.hunks.forEach((hunk, hunkIndex) => {
-      rows.push({ kind: 'hunk', key: `h${hunkIndex}`, hunk });
+      rows.push({
+        kind: 'hunk',
+        key: `h${hunkIndex}`,
+        hunk,
+        index: hunkIndex,
+        above: above.get(hunkIndex) ?? 0,
+      });
       if (split) {
         splitRows(hunk).forEach((row, pairIndex) => {
           if (row.info) {
@@ -184,22 +196,33 @@ export function rowKeyFor(
 }
 
 /** One row as narrowRows reads it. */
-function modelOf(row: Row): NarrowRow {
+function modelOf(row: Row, free: ReadonlySet<number> | undefined): NarrowRow {
   switch (row.kind) {
     case 'hunk':
       return { type: 'hunk' };
+    case 'gap':
+      return { type: 'gap' };
     case 'note':
     case 'editor':
       return { type: 'note' };
     case 'line':
-      return { type: 'line', L: row.oldNum, R: row.newNum, add: row.sign === '+' };
-    case 'pair':
+      return {
+        type: 'line',
+        L: row.oldNum,
+        R: row.newNum,
+        add: row.sign === '+',
+        free: row.newNum !== null && !!free?.has(row.newNum),
+      };
+    case 'pair': {
+      const right = row.row.right;
       return {
         type: 'line',
         L: row.row.left ? row.row.left.num : null,
-        R: row.row.right ? row.row.right.num : null,
-        add: row.row.right?.kind === 'add',
+        R: right ? right.num : null,
+        add: right?.kind === 'add',
+        free: !!right && !!free?.has(right.num),
       };
+    }
     default:
       return { type: 'info' };
   }
@@ -216,6 +239,10 @@ export interface RowsInput {
   step: { n: number; all: boolean } | null;
   /** the keys of the rows of this file's folds the reviewer opened */
   opened: Readonly<Record<string, true>> | undefined;
+  /** the new-side numbers of the lines the reviewer expanded: shown in every step */
+  free?: ReadonlySet<number>;
+  /** the file's text has been shown to its end: no Expand after the last hunk */
+  ended?: boolean;
   /** "chapter 2": how a step is named in a fold's text, drawn by the table */
   stepName?: (step: number) => string;
 }
@@ -236,7 +263,7 @@ export function claimsFor(chapters: Parameters<typeof claimsOf>[0]): Claims {
 
 /** Every row of a file's table, in order, each with whether the step's narrowing hides it. */
 export function rowsFor(input: RowsInput): Shown[] {
-  const { file, split, notes, editors, claims, step, opened } = input;
+  const { file, split, notes, editors, claims, step, opened, free, ended } = input;
   const { rows: base, anchors } = baseRows(file, split);
   // what goes under each base row: its open form first, then its notes, last first
   const under = new Map<number, Row[]>();
@@ -270,11 +297,19 @@ export function rowsFor(input: RowsInput): Shown[] {
   base.forEach((row, pos) => {
     rows.push(row, ...(under.get(pos) ?? []));
   });
+  if (!ended && gapsOf(file.hunks).some((gap) => gap.index === file.hunks.length)) {
+    rows.push({ kind: 'gap', key: 'g', index: file.hunks.length });
+  }
   const shown: Shown[] = rows.map((row) => ({ ...row, hidden: false }));
   if (!step || step.all || !step.n) {
     return shown;
   }
-  const { hidden, runs } = narrowRows(rows.map(modelOf), claims, file.rel, step.n);
+  const { hidden, runs } = narrowRows(
+    rows.map((row) => modelOf(row, free)),
+    claims,
+    file.rel,
+    step.n,
+  );
   hidden.forEach((out, i) => {
     shown[i].hidden = out;
   });

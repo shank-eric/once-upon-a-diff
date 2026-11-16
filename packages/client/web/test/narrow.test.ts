@@ -158,3 +158,21 @@ test('a run of 20,000 removed lines narrows as before: with what replaced it, or
   assert.equal(narrowRows(pure, two, 'f.js', 1).hidden.filter(Boolean).length, 1, 'only line 2');
   assert.equal(narrowRows(pure, two, 'f.js', 2).hidden.filter(Boolean).length, 1, 'only line 1');
 });
+
+test('a line the reviewer expanded (free) is shown in every step, whatever the chapters claim', () => {
+  const withFree: NarrowRow[] = [
+    hunk,
+    ctx(1, 1),
+    add(2),
+    { type: 'line', L: 30, R: 32, add: false, free: true }, // between the ranges of chapters 1 and 2, expanded
+    { type: 'line', L: 11, R: 11, add: false, free: true }, // inside chapter 1's range, expanded
+    ctx(2, 3),
+  ];
+  for (const step of [1, 2]) {
+    const res = narrowRows(withFree, claims, 'a.js', step);
+    assert.equal(res.hidden[3], false, `step ${step}: the free line outside any range stays`);
+    assert.equal(res.hidden[4], false, `step ${step}: the free line inside a range stays`);
+  }
+  // the lines the chapters do claim narrow as before
+  assert.equal(narrowRows(withFree, claims, 'a.js', 2).hidden[1], true);
+});

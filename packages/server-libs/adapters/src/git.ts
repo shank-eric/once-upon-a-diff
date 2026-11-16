@@ -1,5 +1,5 @@
 /*
- * git, through the CLI, in a checkout: rev-parse, the branch name, the diff and the commits, plus runGitAsync for the slow
+ * git, through the CLI, in a checkout: rev-parse, the branch name, the diff, a file's text at a commit and the commits, plus runGitAsync for the slow
  * ones that reach origin (ls-remote, and the push behind the page's Create pull request, in stories/src/pull-request.ts).
  */
 import { execFile, execFileSync } from 'node:child_process';
@@ -200,6 +200,45 @@ export const diffText = (
     baseOid,
     headOid,
   ]);
+
+/** What `blobText` says when it does not answer with the text. */
+export type BlobRefusal = 'gone' | 'binary' | 'too-large';
+
+/**
+ * The text of a file at a commit (`git show <oid>:<rel>`), or why there is none: `gone` (no such path at that commit, or
+ * it is a folder or a submodule, not a blob), `too-large` (over `maxBytes`) or `binary` (a NUL byte). `rel` is passed as
+ * part of one `<oid>:<rel>` argument to git (no shell), and the caller has already checked both: the oid is a full sha
+ * and the path one of the story's diff files.
+ */
+export function blobText(
+  repo: string,
+  oid: string,
+  rel: string,
+  maxBytes: number,
+): { text: string } | { refused: BlobRefusal } {
+  const spec = `${oid}:${rel}`;
+  let size;
+  try {
+    if (
+      runGit(repo, ['cat-file', '-t', '--end-of-options', spec], { quiet: true }).trim() !== 'blob'
+    ) {
+      return { refused: 'gone' };
+    }
+    size = Number(runGit(repo, ['cat-file', '-s', '--end-of-options', spec], { quiet: true }));
+  } catch {
+    return { refused: 'gone' };
+  }
+  if (!(size <= maxBytes)) {
+    return { refused: 'too-large' };
+  }
+  let text;
+  try {
+    text = runGit(repo, ['cat-file', 'blob', '--end-of-options', spec], { quiet: true });
+  } catch {
+    return { refused: 'gone' };
+  }
+  return text.includes('\0') ? { refused: 'binary' } : { text };
+}
 
 const LOG_FORMAT = '--format=%H%x09%cI%x09%s';
 

@@ -66,6 +66,8 @@
 .ou-local-split .ou-local-c-empty, .ou-local-split .ou-local-n-empty { background: var(--ou-bg-muted); }
 .ou-local-split .ou-local-rnum { border-left: 1px solid var(--ou-border); }
 .ou-local-hunk td { background: var(--ou-bg-accent); color: var(--ou-fg-muted); }
+.ou-local-expand { margin-left: 12px; font: 12px/20px var(--ou-font-sans); }
+.ou-local-expand button { margin-right: 10px; }
 .ou-local-info td { color: var(--ou-fg-muted); font-style: italic; }
 /* rows another chapter tells (local/diff/narrow.ts) fold behind one row */
 .ou-local-out { display: none; }
