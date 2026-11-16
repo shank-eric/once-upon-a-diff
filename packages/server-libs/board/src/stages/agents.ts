@@ -2,7 +2,7 @@
  * The background agents on the board: which are shown, and where each goes. An agent whose run names a card is on that card
  * (ADR-25); every other agent is a card of its own, on its own lane.
  */
-import { agentWorkKey, isImplicitCard } from '@once-upon-a-diff/terms/ids';
+import { agentWorkKey, isImplicitCard, isSelfName } from '@once-upon-a-diff/terms/ids';
 import { finishedColumn, finishedSummary, landedFor, pendingReview } from '../agent-home.ts';
 import { agentKey } from '@once-upon-a-diff/state/queues/backlog/claims';
 import { agentsOnCard } from '@once-upon-a-diff/state/queues/backlog/phase';
@@ -311,7 +311,8 @@ export function placeAgents(
     const placed: BoardCard = {
       id: agentWorkKey(agent.sid, agent.name),
       kind: 'agent',
-      title: agent.name,
+      // a parent session's own run has no name worth showing: it is titled by its session
+      title: isSelfName(agent.name) ? (parentSession?.title ?? agent.name) : agent.name,
       repo: null,
       branch: null,
       lane: laneOfAgent(agent, parent?.lane ?? voiceParent?.lane ?? editorParent?.lane ?? null),

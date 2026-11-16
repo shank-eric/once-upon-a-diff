@@ -129,3 +129,26 @@ test('the recorded cleared transcript is blank to the blank-session reader', asy
   );
   assert.equal(await new BlankSessions().isBlank(projects, id, cwd, Date.now()), true);
 });
+
+test('files that could not be used count as unknown only while their pid runs', async () => {
+  const dir = tmp('registry-unknown-pids');
+  writeFileSync(path.join(dir, `${process.pid}.json`), '{"pid": 1, "sessionId": "x", "cw');
+  writeFileSync(path.join(dir, '2999999.json'), '{"pid": 2999999, "sessionId": "x", "cw');
+  const { sessions, unknown } = await liveRegistry(dir);
+  assert.deepEqual(sessions, []);
+  assert.equal(
+    unknown,
+    1,
+    'the half-written file of a running process is unknown; a dead one is not',
+  );
+  assert.equal((await liveRegistry(path.join(FIXTURES, 'sessions'))).unknown, 0);
+});
+
+test('a file of an unknown shape whose pid runs is unknown too', async () => {
+  const dir = tmp('registry-unknown-shape');
+  writeFileSync(
+    path.join(dir, `${process.pid}.json`),
+    JSON.stringify({ pid: process.pid, id: 'x' }),
+  );
+  assert.equal((await liveRegistry(dir)).unknown, 1);
+});

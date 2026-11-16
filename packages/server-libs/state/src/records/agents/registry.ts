@@ -12,7 +12,7 @@ import {
 } from '@once-upon-a-diff/terms/patterns';
 import { SHA_RE } from '@once-upon-a-diff/terms/text';
 import { REPO_RE } from '@once-upon-a-diff/foundation/repos';
-import { agentId, isImplicitCard } from '@once-upon-a-diff/terms/ids';
+import { agentId, isImplicitCard, isSelfName } from '@once-upon-a-diff/terms/ids';
 import { newImplicitCardId, newRunId } from '@once-upon-a-diff/foundation/ids';
 import { appendAgentEvent } from '@once-upon-a-diff/adapters/stores/agents-file';
 import { agentEventsIn } from './events-file.ts';
@@ -274,20 +274,30 @@ export class AgentRegistry {
    * Closes the runs that have gone quiet: open and `running` or `fixing` (they owe beats), with no event for STALE_MS, each by a
    * `finish --state stopped --by sweep` so the ledger's last line for it closes. Never a run parked on a person (waiting, review
    * or plan: a weekend over a question is not a dead run, and finishing it would refuse its own finish when it resumes), a
-   * helper of any kind, a storyteller, a researcher or an editor (an editor beats nothing while its authors work). Only authors and critics are
-   * closed (SWEPT_KINDS). Returns the runs it
-   * closed (or, with `dryRun`, would). Only the CLI calls it, on `agent start` and `agent sweep`: a board read never writes.
+   * helper of any kind, a storyteller, a researcher, a parent session's own run (`--self`) or an editor (an editor beats nothing while its authors work). Only authors and critics are
+   * closed (SWEPT_KINDS). A parent session's own run is the one exception to the quiet rule: it is closed `stopped` (outcome "its
+   * session ended") when `liveSids` (the first 8 of each live Claude session's id) is given, is not empty and lacks its session. An
+   * empty or absent list closes nothing: it is a scan that found nothing or could not be trusted, not proof every session left.
+   * Returns the runs it closed (or, with `dryRun`, would). Only the CLI calls it, on `agent start`, `agent sweep` and `card status`: a board read never writes.
    */
-  sweep(options: { at?: Date; dryRun?: boolean } = {}): LedgerAgent[] {
+  sweep(
+    options: { at?: Date; dryRun?: boolean; liveSids?: readonly string[] } = {},
+  ): LedgerAgent[] {
     const now = options.at ?? new Date();
     const swept: LedgerAgent[] = [];
+    const live = options.liveSids;
     for (const agent of this.agents()) {
       const sign = lastActivity(agent)?.getTime() ?? now.getTime();
+      // a parent session's own run beats no one while it works, so it is never quiet: it ends when its session is gone
+      const self = isSelfName(agent.name);
+      const gone = self && runIsOpen(agent) && !!live?.length && !live.includes(agent.sid);
       if (
-        !SWEPT_STATES.includes(agent.state) ||
-        !SWEPT_KINDS.includes(agent.kind as never) ||
-        agent.standing ||
-        now.getTime() - sign <= STALE_MS
+        self
+          ? !gone
+          : !SWEPT_STATES.includes(agent.state) ||
+            !SWEPT_KINDS.includes(agent.kind as never) ||
+            agent.standing ||
+            now.getTime() - sign <= STALE_MS
       ) {
         continue;
       }
@@ -297,7 +307,7 @@ export class AgentRegistry {
             sid: agent.sid,
             run: agent.run,
             state: 'stopped',
-            outcome: 'no sign of life for 24 hours',
+            outcome: self ? 'its session ended' : 'no sign of life for 24 hours',
             by: 'sweep',
             at: now,
           });

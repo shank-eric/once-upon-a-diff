@@ -95,6 +95,16 @@ export function parsePrRef(text: string): { repo: string; number: string } | nul
 /** An agent's id: the first 8 characters of its session id, a colon and the name it registered under. */
 export const agentId = (sid8: string, name: string): string => `${sid8}:${name}`;
 
+/**
+ * A parent session's own run (`agent start --self`) is named `self-` and a fresh suffix, so every run of a session is its own
+ * run: no restart carries the earlier card over, and a claim on the name is that run's. The prefix is what marks it.
+ */
+export const SELF_PREFIX = 'self-';
+
+/** Whether a run name is a parent session's own (`agent start --self`). */
+export const isSelfName = (name: string | null | undefined): boolean =>
+  !!name && name.startsWith(SELF_PREFIX);
+
 /** An agent's card on the board. */
 export const agentWorkKey = (sid8: string, name: string): string => `agent:${agentId(sid8, name)}`;
 

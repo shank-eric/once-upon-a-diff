@@ -9,7 +9,7 @@
  */
 import { repoOfCheckout, typedRepoNote } from '@once-upon-a-diff/foundation/repos';
 import { prHeadBranch } from '@once-upon-a-diff/foundation/gh';
-import { canonicalKind } from '@once-upon-a-diff/state/records/agents/events';
+import { canonicalKind, runIsOpen } from '@once-upon-a-diff/state/records/agents/events';
 import type { AgentKind } from '@once-upon-a-diff/state/records/agents/agent-types';
 import {
   flagsBesideCard,
@@ -17,12 +17,18 @@ import {
   type AgentRegistry,
 } from '@once-upon-a-diff/state/records/agents/registry';
 import { BacklogStore, cardLookup } from '@once-upon-a-diff/state/queues/backlog/backlog';
-import { roleKind } from './roles.ts';
+import { newRunId } from '@once-upon-a-diff/foundation/ids';
+import { SELF_PREFIX, isSelfName } from '@once-upon-a-diff/terms/ids';
+import { trustedLiveSids } from './live-sids.ts';
+import { roleKind, selfProblem } from './roles.ts';
 import { runRegistry, type Mirror } from './registry.ts';
 
 /** What a start is asked for, as typed: strings that are empty count as absent. */
 export interface RunStartInput {
+  /** left out with `self`: the run is named `self-` and a fresh suffix */
   name: string;
+  /** a parent session's own run (`agent start --self`): its sid and session are the caller's, its name is minted here */
+  self?: boolean;
   sid?: string | null;
   /** the launching session's full id; the caller reads it (this never reads the environment) */
   session?: string | null;
@@ -52,6 +58,8 @@ export interface RunIo {
   mirror?: Mirror;
   /** the PR's head branch; defaults to asking gh. The seam core's tests use */
   prHead?: (repo: string, pr: number) => Promise<string | null>;
+  /** the live sessions (first 8 of each id) the sweep ends a gone session's self run by; defaults to the registry's, and none closes nothing */
+  liveSids?: () => Promise<string[]>;
 }
 
 export interface StartedRun {
@@ -70,7 +78,17 @@ export async function startRun(
   options: RunIo = {},
 ): Promise<StartedRun> {
   const warn = options.warn ?? (() => {});
-  const name = input.name;
+  if (input.self) {
+    const problem = selfProblem(input);
+    if (problem) {
+      throw new Error(problem);
+    }
+  } else if (isSelfName(input.name)) {
+    throw new Error(
+      `the name ${input.name} is a session’s own run: register it with agent start --self`,
+    );
+  }
+  const name = input.self ? `${SELF_PREFIX}${newRunId().slice(2, 8)}` : input.name;
   // an editor is not an agent: it registers through `editor start`, where its slots are required
   if (canonicalKind(text(input.kind)) === 'editor' || input.slots !== undefined) {
     throw new Error('register an editor with: once-upon editor start --slots N');
@@ -112,7 +130,35 @@ export async function startRun(
     throw new Error('a story run needs --role storyteller with --pr N (or --branch NAME)');
   }
   const registry = runRegistry(home, options.mirror);
-  registry.sweep();
+  registry.sweep({ liveSids: await (options.liveSids ?? (() => trustedLiveSids(home)))() });
+  const sid = text(input.sid) ?? input.session?.slice(0, 8) ?? '';
+  // a session's own author claims the card it starts on, as this run, since it has no launcher to do it: a card claimed by
+  // another session is theirs, and the registry's one-author check says the rest. The claim comes before the start, so a
+  // start the registry then refuses leaves a claim, which the next claim of the card replaces
+  if (input.self && role === 'author' && card) {
+    const item = store.items().find((one) => one.id === card);
+    if (item && item.state !== 'dropped' && !item.landed_at) {
+      const held = item.claim;
+      const own = held && (held.sid ?? held.session?.slice(0, 8)) === sid;
+      // a claim a session's own run took (by 'self') whose run has ended, as one of a gone session does by the sweep above, is stale
+      const stale =
+        !!held &&
+        isSelfName(held.agent) &&
+        !registry.agents().some((one) => one.name === held.agent && runIsOpen(one));
+      if (held && !own && !stale) {
+        throw new Error(
+          `${card} is claimed by ${held.agent}: a --self run does not take another session’s card`,
+        );
+      }
+      // (an open author on the card is the registry's to refuse: it names the run, and the claim stays as it was)
+      const busy = registry
+        .agents()
+        .some((one) => one.card === card && one.kind === 'author' && runIsOpen(one));
+      if (!busy) {
+        store.claim(card, { agent: name, sid, session: input.session, by: 'self' });
+      }
+    }
+  }
   // --pr and no --branch: the PR's head branch is the run's branch, and a card that has none gets it too, so the board joins
   // the run, the card, the PR and the story by one branch. gh being down is no reason to refuse a start, except for a
   // storyteller: with no branch it has nothing to read
@@ -172,7 +218,7 @@ export async function startRun(
   const started = registry.start(
     {
       name,
-      sid: text(input.sid) ?? input.session?.slice(0, 8) ?? '',
+      sid,
       session: input.session,
       kind: (kind ?? undefined) as AgentKind | undefined,
       standing: input.standing,

@@ -38,6 +38,7 @@ import {
 } from '@once-upon-a-diff/adapters/claude-sessions/live-sessions';
 import type { BuildContext, PinnedVoice, SessionView, Work } from './types.ts';
 import { branchOfWork, startWork } from './works.ts';
+import { endGoneSelfRuns, selfSessions } from './self-runs.ts';
 import { liveEditors } from './editors.ts';
 
 /** What the registry and the status source say of the live sessions and the agents. */
@@ -60,7 +61,7 @@ export async function readLive(ctx: BuildContext): Promise<LiveFacts> {
   const status: { source: StatusSource; warning: string | null } = ctx.sourceOverride
     ? { source: ctx.sourceOverride, warning: null }
     : pickSource(settings.statusSource, settings.it2Path);
-  const { sessions: live, health } = await liveRegistry(settings.sessionsDir);
+  const { sessions: live, health, unknown } = await liveRegistry(settings.sessionsDir);
   // the board's one warning line also says when Claude Code's session files are there and none could be used
   const picked = {
     source: status.source,
@@ -71,7 +72,16 @@ export async function readLive(ctx: BuildContext): Promise<LiveFacts> {
     Promise.all(live.map((session) => ctx.lookups.branchOf(session.cwd, nowMs))),
     Promise.all(live.map((session) => ctx.lookups.repoOf(session.cwd))),
   ]);
-  const { agents, editors } = readAgents(ctx.home);
+  const { agents: registered, editors } = readAgents(ctx.home);
+  // a self run of a session that is gone is shown stopped (self-runs.ts); an unusable registry scan changes nothing, and
+  // neither does one with a file it could not use whose pid runs (its session may be that one: unknown, not gone)
+  const agents =
+    health.folder === 'ok' && !unknown
+      ? endGoneSelfRuns(
+          registered,
+          live.map((session) => session.session.slice(0, 8)),
+        )
+      : registered;
   return { picked, live, known, branches, repos, agents, editors };
 }
 
@@ -229,7 +239,7 @@ export interface PlacedSessions {
  */
 export function placeSessions(
   ctx: BuildContext,
-  { live, known, branches, repos, picked, editors }: LiveFacts,
+  { live, known, branches, repos, picked, editors, agents }: LiveFacts,
   facts: SessionFacts,
   works: Map<string, Work>,
   seen: Map<string, { status: BoardStatus; since: number }>,
@@ -246,6 +256,9 @@ export function placeSessions(
   // an editor's own session is in the editors strip, busy or not: never a card or a listener
   const editorViews: { lane: string; view: BoardSession }[] = [];
   const editorSessions = new Set(liveEditors(editors, live).map((editor) => editor.session));
+  // a session that has registered a run of its own (`agent start --self`) is not guessed onto a branch's card; with no run open
+  // it is a card of its own, Thinking while it is busy (self-runs.ts)
+  const own = selfSessions(agents);
   live.forEach((session, index) => {
     const extra = known.get(session.session);
     const status: BoardStatus = extra?.status || (session.status === 'busy' ? 'working' : 'idle');
@@ -275,6 +288,11 @@ export function placeSessions(
           session.status !== 'busy' && session.statusAt
             ? new Date(session.statusAt).toISOString()
             : null,
+        ...(own.registered.has(session.session.slice(0, 8)) &&
+        !own.open.has(session.session.slice(0, 8)) &&
+        status === 'working'
+          ? { thinking: true as const }
+          : {}),
       },
     };
     if (
@@ -305,7 +323,10 @@ export function placeSessions(
         sessionCards.push(sessionCard(session, view, repo));
       }
     };
-    if (!repo || !branch || DEFAULT_BRANCHES.has(branch)) {
+    // a registered session with no run open sits on no work's card: its runs say where its work is
+    const stray =
+      own.registered.has(session.session.slice(0, 8)) && !own.open.has(session.session.slice(0, 8));
+    if (!repo || !branch || DEFAULT_BRANCHES.has(branch) || stray) {
       alone();
       return;
     }

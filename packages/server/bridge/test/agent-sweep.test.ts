@@ -184,3 +184,17 @@ test('agent finish does not sweep first: a silent run’s own finish still recor
   assert.equal(one.state, 'done');
   assert.equal(one.result?.commit, 'abc1234');
 });
+
+test('agent sweep leaves a parent session’s own run (self-XXXXXX): a long session beats no one', async () => {
+  const { home, registry, states } = world();
+  registry.start({ name: 'self-ab12cd', sid: SID, kind: 'author', task: 'x', at: ago(100) });
+  registry.start({ name: 'ou-dead', sid: SID, kind: 'author', task: 'x', at: ago(25) });
+  await runCli(home, ['agent', 'sweep']);
+  assert.deepEqual(
+    [...states()],
+    [
+      ['self-ab12cd', 'running'],
+      ['ou-dead', 'stopped'],
+    ],
+  );
+});

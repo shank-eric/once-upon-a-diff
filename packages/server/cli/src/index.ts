@@ -16,6 +16,7 @@ import { fixCommands } from './commands/fixes.ts';
 import { pullRequestCommands } from './commands/pull-request.ts';
 import { backlogCommands } from './commands/backlog.ts';
 import { agentCommands } from './commands/agent.ts';
+import { cardCommands } from './commands/card.ts';
 import { beatCommands } from './commands/beat.ts';
 import { heavyCommands } from './commands/heavy.ts';
 import { editorCommands } from './commands/editor.ts';
@@ -37,6 +38,7 @@ const COMMANDS = new Map<string, Command>(
     ...pullRequestCommands,
     ...backlogCommands,
     ...agentCommands,
+    ...cardCommands,
     ...beatCommands,
     ...heavyCommands,
     ...editorCommands,
@@ -57,6 +59,7 @@ const HELP_ORDER = [
   'page',
   'backlog',
   'agent',
+  'card',
   'beat',
   'heavy',
   'deploy',

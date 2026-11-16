@@ -115,7 +115,9 @@ function readOne(file: string): Read {
 }
 
 /** Reads every registry file, without asking whether the pid still runs. */
-async function scan(dir: string): Promise<{ found: Parsed[]; health: RegistryHealth }> {
+async function scan(
+  dir: string,
+): Promise<{ found: Parsed[]; health: RegistryHealth; undecided: number[] }> {
   let names: string[];
   try {
     names = readdirSync(dir).filter((name) => /^\d+\.json$/.test(name));
@@ -123,6 +125,7 @@ async function scan(dir: string): Promise<{ found: Parsed[]; health: RegistryHea
     const missing = (err as NodeJS.ErrnoException).code === 'ENOENT';
     return {
       found: [],
+      undecided: [],
       health: {
         folder: missing ? 'missing' : 'unreadable',
         seen: 0,
@@ -142,15 +145,19 @@ async function scan(dir: string): Promise<{ found: Parsed[]; health: RegistryHea
     }
   }
   const found: Parsed[] = [];
+  // the pids of files the reader could not use, whose session may be live (the file name is the pid)
+  const undecided: number[] = [];
+  const pidOf = (name: string) => Number(name.replace(/\.json$/, ''));
   let seen = 0;
   let broken = 0;
   let unreadable = 0;
-  for (const read of reads.values()) {
+  for (const [name, read] of reads) {
     if (read === 'gone') {
       continue;
     }
     seen++;
     if (read === 'broken' || read === 'unreadable') {
+      undecided.push(pidOf(name));
       broken += read === 'broken' ? 1 : 0;
       unreadable += read === 'unreadable' ? 1 : 0;
       continue;
@@ -168,6 +175,7 @@ async function scan(dir: string): Promise<{ found: Parsed[]; health: RegistryHea
       typeof reg.sessionId !== 'string' ||
       typeof reg.cwd !== 'string'
     ) {
+      undecided.push(pidOf(name));
       continue;
     }
     found.push({
@@ -185,6 +193,7 @@ async function scan(dir: string): Promise<{ found: Parsed[]; health: RegistryHea
   }
   return {
     found,
+    undecided,
     health: {
       folder: 'ok',
       seen,
@@ -203,13 +212,27 @@ export const registryHealth = async (dir: string): Promise<RegistryHealth> =>
 export const liveSessions = async (dir: string): Promise<LiveSession[]> =>
   (await liveRegistry(dir)).sessions;
 
-/** The live sessions with what the reader could and could not use of the registry. */
+const pidRuns = (pid: number): boolean => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return (err as NodeJS.ErrnoException).code === 'EPERM';
+  }
+};
+
+/**
+ * The live sessions with what the reader could and could not use of the registry. `unknown` counts the files it could not use
+ * (unreadable, half-written even on the second read, or of a shape it does not know) whose pid runs: a session may be live
+ * there that is not in `sessions`, so a caller must not treat a session missing from the list as gone while it is above 0.
+ */
 export async function liveRegistry(
   dir: string,
-): Promise<{ sessions: LiveSession[]; health: RegistryHealth }> {
-  const { found, health } = await scan(dir);
+): Promise<{ sessions: LiveSession[]; health: RegistryHealth; unknown: number }> {
+  const { found, health, undecided } = await scan(dir);
+  const unknown = undecided.filter(pidRuns).length;
   if (!found.length) {
-    return { sessions: [], health };
+    return { sessions: [], health, unknown };
   }
   // ps in UTC with a fixed locale answers the pid's tty and start time in the registry's procStart form; no ps (or a
   // pid it doesn't list) falls back to a plain liveness check
@@ -242,16 +265,11 @@ export async function liveRegistry(
       if (listing !== null) {
         return false;
       }
-      try {
-        process.kill(live.pid, 0);
-        return true;
-      } catch (err) {
-        return (err as NodeJS.ErrnoException).code === 'EPERM';
-      }
+      return pidRuns(live.pid);
     })
     .map(({ procStart: _procStart, ...live }) => ({
       ...live,
       tty: rows.get(live.pid)?.tty.replace(/^\?+$/, '') || null,
     }));
-  return { sessions, health };
+  return { sessions, health, unknown };
 }

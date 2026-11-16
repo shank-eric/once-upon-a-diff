@@ -22,8 +22,9 @@
  *             that is not merged. It is the Mac's side: a card with a PR, whoever wrote it and whatever story it has, is on GitHub's
  *             (back or pr_open). A rebuild of a local story since you opened it is a chip on its card
  *   pr_open   pushed with a PR, and nothing waits on you
- *   thinking  a research agent still running with no card to sit in (set by stages/agents.ts on an agent's own card, never by
- *             this function: a work card is never in it)
+ *   thinking  a research agent still running with no card to sit in (set by stages/agents.ts on an agent's own card), or a busy
+ *             session that registered a run of its own before (`agent start --self`) and has none open now (its `thinking` flag,
+ *             set where the sessions are placed: such a session joins no work's card, so a work card is never in it)
  *   research  a finished research agent with no card to sit in and no result (set by stages/agents.ts on an agent's own card,
  *             never by this function: a work card is never in it)
  *   error     a session whose tab says error
@@ -40,7 +41,7 @@ import type {
 } from '@once-upon-a-diff/contracts/types';
 
 export interface ColumnInput {
-  sessions: Pick<BoardSession, 'status'>[];
+  sessions: Pick<BoardSession, 'status' | 'thinking'>[];
   agents: (Pick<BoardAgent, 'status' | 'state'> & {
     kind?: BoardAgent['kind'];
     stale?: boolean;
@@ -99,13 +100,16 @@ export function columnOf(input: ColumnInput): BoardColumn {
   }
   if (
     building ||
-    sessions.some((session) => session.status === 'working') ||
+    sessions.some((session) => session.status === 'working' && !session.thinking) ||
     // a storyteller silent for STALE_MS is dead: it is not working, and holds no gate (stages/agents.ts)
     agents.some(
       (agent) => agent.state === 'running' && !(agent.kind === 'storyteller' && agent.stale),
     )
   ) {
     return 'working';
+  }
+  if (sessions.some((session) => session.status === 'working' && session.thinking)) {
+    return 'thinking';
   }
   if (pr?.state === 'merged' || (story?.local && story.landed && !pr)) {
     return 'done';

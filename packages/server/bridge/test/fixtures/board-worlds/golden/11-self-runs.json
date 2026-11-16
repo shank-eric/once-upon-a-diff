@@ -1,0 +1,396 @@
+{
+  "board": {
+    "at": "2026-10-26T19:00:00.000Z",
+    "blank": [],
+    "editors": [],
+    "helpers": [],
+    "lanes": [
+      {
+        "cards": [
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": "2026-10-26T13:40:00.000Z",
+                "gate": null,
+                "key": "<PID:20>:self-aaaaa1",
+                "kind": "author",
+                "model": null,
+                "name": "self-aaaaa1",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "<PID:20>",
+                "stale": false,
+                "started_at": "2026-10-26T13:05:00.000Z",
+                "state": "done",
+                "status": "done",
+                "summary": null,
+                "task": "build bl_selfruna"
+              }
+            ],
+            "branch": "feat/self-landed",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "idle",
+            "detail": null,
+            "focus_session": "<PID:20>-aaaa-bbbb-cccc-dddddddddddd",
+            "from_backlog": [
+              {
+                "id": "bl_selfruna",
+                "title": "Landed by a self run"
+              }
+            ],
+            "id": "<PID:20>-aaaa-bbbb-cccc-dddddddddddd",
+            "kind": "session",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/widgets",
+            "review": {
+              "branch": "feat/self-landed",
+              "path": "<WORK>/checkout-41"
+            },
+            "sessions": [
+              {
+                "branch": "feat/self-landed",
+                "context": null,
+                "cwd": "<WORK>/checkout-41",
+                "detail": null,
+                "focus": false,
+                "id": "<PID:20>-aaaa-bbbb-cccc-dddddddddddd",
+                "rested_at": "2026-10-26T18:50:00.000Z",
+                "since": "2026-10-26T18:50:00.000Z",
+                "source": "registry",
+                "status": "idle",
+                "title": "done-one"
+              }
+            ],
+            "since": "2026-10-26T18:50:00.000Z",
+            "story": null,
+            "title": "done-one"
+          },
+          {
+            "agents": [],
+            "branch": "feat/self-ready",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "thinking",
+            "detail": null,
+            "focus_session": "<PID:22>-aaaa-bbbb-cccc-dddddddddddd",
+            "id": "<PID:22>-aaaa-bbbb-cccc-dddddddddddd",
+            "kind": "session",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/widgets",
+            "review": {
+              "branch": "feat/self-ready",
+              "path": "<WORK>/checkout-43"
+            },
+            "sessions": [
+              {
+                "branch": "feat/self-ready",
+                "context": null,
+                "cwd": "<WORK>/checkout-43",
+                "detail": null,
+                "focus": false,
+                "id": "<PID:22>-aaaa-bbbb-cccc-dddddddddddd",
+                "rested_at": null,
+                "since": "2026-10-26T18:50:00.000Z",
+                "source": "registry",
+                "status": "working",
+                "thinking": true,
+                "title": "thinker"
+              }
+            ],
+            "since": "2026-10-26T18:50:00.000Z",
+            "story": null,
+            "title": "thinker"
+          },
+          {
+            "agents": [],
+            "branch": "main",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "working",
+            "detail": null,
+            "focus_session": "<PID:23>-aaaa-bbbb-cccc-dddddddddddd",
+            "id": "<PID:23>-aaaa-bbbb-cccc-dddddddddddd",
+            "kind": "session",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/widgets",
+            "sessions": [
+              {
+                "branch": "main",
+                "context": null,
+                "cwd": "<WORK>/checkout-44",
+                "detail": null,
+                "focus": false,
+                "id": "<PID:23>-aaaa-bbbb-cccc-dddddddddddd",
+                "rested_at": null,
+                "since": "2026-10-26T18:50:00.000Z",
+                "source": "registry",
+                "status": "working",
+                "title": "Reading the retry code"
+              }
+            ],
+            "since": "2026-10-26T18:50:00.000Z",
+            "story": null,
+            "title": "Reading the retry code"
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": "2026-10-26T13:40:00.000Z",
+                "gate": null,
+                "key": "dddddddd:ou-plain",
+                "kind": "author",
+                "model": null,
+                "name": "ou-plain",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "dddddddd",
+                "stale": false,
+                "started_at": "2026-10-26T13:05:00.000Z",
+                "state": "done",
+                "status": "done",
+                "summary": null,
+                "task": "build bl_selfrunb"
+              }
+            ],
+            "ahead": null,
+            "branch": "feat/plain-landed",
+            "build": {
+              "blocked": "no iTerm tab",
+              "prompt": "/once-upon tell the story of the unpushed commits on branch feat/plain-landed",
+              "session": null
+            },
+            "building": null,
+            "can_focus": false,
+            "column": "idle",
+            "detail": null,
+            "focus_session": "<PID:21>-aaaa-bbbb-cccc-dddddddddddd",
+            "from_backlog": [
+              {
+                "id": "bl_selfrunb",
+                "title": "Landed, plain session"
+              }
+            ],
+            "id": "branch:acme/widgets@feat/plain-landed",
+            "kind": "work",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/widgets",
+            "review": {
+              "branch": "feat/plain-landed",
+              "path": "<WORK>/checkout-42"
+            },
+            "sessions": [
+              {
+                "branch": "feat/plain-landed",
+                "context": null,
+                "cwd": "<WORK>/checkout-42",
+                "detail": null,
+                "focus": false,
+                "id": "<PID:21>-aaaa-bbbb-cccc-dddddddddddd",
+                "rested_at": "2026-10-26T18:50:00.000Z",
+                "since": "2026-10-26T18:50:00.000Z",
+                "source": "registry",
+                "status": "idle",
+                "title": "twin-one"
+              }
+            ],
+            "since": "2026-10-26T18:50:00.000Z",
+            "story": null,
+            "title": "Landed, plain session"
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": "2026-10-26T13:40:00.000Z",
+                "gate": null,
+                "key": "<PID:22>:self-ccccc1",
+                "kind": "author",
+                "model": null,
+                "name": "self-ccccc1",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "<PID:22>",
+                "stale": false,
+                "started_at": "2026-10-26T13:05:00.000Z",
+                "state": "done",
+                "status": "done",
+                "summary": null,
+                "task": "build bl_selfrunc"
+              }
+            ],
+            "ahead": null,
+            "branch": "feat/self-ready",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "ready",
+            "detail": null,
+            "focus_session": null,
+            "from_backlog": [
+              {
+                "id": "bl_selfrunc",
+                "title": "Built by a self run"
+              }
+            ],
+            "id": "branch:acme/widgets@feat/self-ready",
+            "kind": "work",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/widgets",
+            "sessions": [],
+            "since": "2026-10-26T13:07:00.000Z",
+            "story": {
+              "approved_at": null,
+              "id": "story-c",
+              "kind": "local",
+              "reviewed": false,
+              "unread": false,
+              "unread_answers": 0,
+              "url": null
+            },
+            "title": "Story of story-c"
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": null,
+                "gate": null,
+                "key": "<PID:23>:self-eeeee1",
+                "kind": "research",
+                "model": null,
+                "name": "self-eeeee1",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "<PID:23>",
+                "stale": false,
+                "started_at": "2026-10-26T18:30:00.000Z",
+                "state": "running",
+                "status": "working",
+                "summary": null,
+                "task": "how retries work"
+              }
+            ],
+            "branch": null,
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "thinking",
+            "detail": "how retries work",
+            "focus_session": "<PID:23>-aaaa-bbbb-cccc-dddddddddddd",
+            "id": "agent:<PID:23>:self-eeeee1",
+            "kind": "agent",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": "Reading the retry code",
+            "pr": null,
+            "repo": null,
+            "sessions": [],
+            "since": "2026-10-26T18:30:00.000Z",
+            "story": null,
+            "title": "Reading the retry code"
+          },
+          {
+            "agents": [],
+            "backlog": {
+              "added_by": "cli",
+              "agent": null,
+              "claim": null,
+              "id": "bl_selfrund",
+              "start_line": "once-upon backlog start bl_selfrund --branch feat/self-gone",
+              "started": {
+                "at": "2026-10-26T13:01:00.000Z",
+                "branch": "feat/self-gone",
+                "links": {
+                  "active": true,
+                  "agent": {
+                    "beat": null,
+                    "ended_at": "2026-10-26T13:05:00.000Z",
+                    "name": "self-ddddd1",
+                    "outcome": "its session ended",
+                    "state": "stopped"
+                  },
+                  "merged": false,
+                  "merged_at": null,
+                  "sessions": [],
+                  "worktrees": []
+                },
+                "on": null
+              }
+            },
+            "branch": "feat/self-gone",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "backlog",
+            "detail": null,
+            "focus_session": null,
+            "id": "backlog:bl_selfrund",
+            "kind": "backlog",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/widgets",
+            "sessions": [],
+            "since": "2026-10-26T13:00:00.000Z",
+            "story": null,
+            "title": "Its session closed"
+          }
+        ],
+        "key": "acme/widgets",
+        "name": "widgets"
+      }
+    ],
+    "listeners": [],
+    "phone": null,
+    "status_source": "iterm",
+    "usage": null,
+    "voice": null,
+    "voice_paused": false,
+    "voice_start": null,
+    "warning": null,
+    "worktrees": {
+      "at": null,
+      "items": [],
+      "on_cards": 0,
+      "prunable": [],
+      "removable": 0,
+      "scanning": true,
+      "size_kb": "<kb>",
+      "total": 0
+    }
+  }
+}

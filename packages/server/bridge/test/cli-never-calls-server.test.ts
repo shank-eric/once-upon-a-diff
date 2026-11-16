@@ -145,7 +145,7 @@ const ALLOWED: Record<string, string> = {
     'the same call',
   'network-global packages/server-libs/adapters/src/bridge-health.ts :: const response = await fetch(`http://127.0.0.1:${port}/api/health`, {':
     'the same call',
-  'kill packages/server-libs/adapters/src/claude-sessions/live-sessions.ts :: process.kill(live.pid, 0);':
+  'kill packages/server-libs/adapters/src/claude-sessions/live-sessions.ts :: process.kill(pid, 0);':
     "signal 0 only asks whether a Claude session's process exists",
   'kill packages/server-libs/adapters/src/heavy-lock.ts :: child.kill(signal);':
     'once-upon heavy hands a SIGINT, SIGTERM or SIGHUP it got to the command it runs, a child of its own (never the bridge)',

@@ -11,7 +11,13 @@ import { ownSession } from '@once-upon-a-diff/core/features/listeners/service';
 import { sweepStatusLines } from '@once-upon-a-diff/core/features/sessions/status-lines';
 import { lastActivity } from '@once-upon-a-diff/state/records/agents/ledger';
 import { agentKey } from '@once-upon-a-diff/state/queues/backlog/claims';
-import { runRegistry, startRun, finishRun } from '@once-upon-a-diff/core/features/runs/service';
+import {
+  runRegistry,
+  startRun,
+  trustedLiveSids,
+  finishRun,
+  openSelfRun,
+} from '@once-upon-a-diff/core/features/runs/service';
 import { carryApproval } from '@once-upon-a-diff/core/features/review/carry-approval';
 import { shortSha } from '@once-upon-a-diff/terms/text';
 import { out } from '../output.ts';
@@ -33,19 +39,24 @@ const USAGE =
 const text = (value: unknown): string | null => (typeof value === 'string' && value ? value : null);
 
 async function agent(home: string, _cfg: Config, opts: CliOpts) {
-  const [verb, name, ...words] = opts._ || [];
+  const [verb, first, ...rest] = opts._ || [];
+  let name = first;
+  let words = rest;
   // the caller already wrote the progress line (the caller echoes the progress line itself): the event is all this call adds
   const mirror = opts['no-mirror'] ? 'none' : 'both';
   const registry = runRegistry(home, mirror);
   const warn = (line: string) => process.stderr.write(line + '\n');
-  const sid = text(opts.sid);
+  let sid = text(opts.sid);
   const run = text(opts.run);
   // a subagent's own session breaks a tie between two sessions' open runs of one name (its sid is unknown to it otherwise)
   const prefer = ownSession()?.slice(0, 8) ?? null;
   const who = text(opts.by);
   if (verb === 'sweep') {
     // runs silent for a day that owe beats are closed (registry.ts `sweep`); `agent start` does the same as it writes
-    const swept = registry.sweep({ dryRun: !!opts['dry-run'] });
+    const swept = registry.sweep({
+      dryRun: !!opts['dry-run'],
+      liveSids: await trustedLiveSids(home),
+    });
     // the day-old status line files of gone sessions go here too, not on the board's read
     const lines = opts['dry-run'] ? [] : await sweepStatusLines(home);
     const said = [
@@ -80,14 +91,32 @@ async function agent(home: string, _cfg: Config, opts: CliOpts) {
         : 'No registered agents.',
     );
   }
-  if (!name) {
+  // --self: a parent session's own run. `start` mints its name (a NAME typed beside it is the refusal's to name); the others find
+  // the session's newest open run of its own, so the first word is the next argument's, not a name
+  if (opts.self && verb && ['state', 'beat', 'finish'].includes(verb)) {
+    const mine = ownSession()?.slice(0, 8);
+    if (!mine) {
+      throw new Error('--self needs a Claude session (CLAUDE_CODE_SESSION_ID is not set)');
+    }
+    const open = openSelfRun(registry.agents(), mine, run);
+    if (!open) {
+      throw new Error(
+        'no open self run for this session: start one with once-upon agent start --self --role author|research|helper',
+      );
+    }
+    words = first === undefined ? rest : [first, ...rest];
+    name = open.name;
+    sid = open.sid;
+  }
+  if (!name && !(opts.self && verb === 'start')) {
     throw new Error(USAGE);
   }
   if (verb === 'start') {
     const started = await startRun(
       home,
       {
-        name,
+        name: name ?? '',
+        self: !!opts.self,
         sid,
         session: ownSession(),
         kind: opts.kind === undefined ? undefined : (text(opts.kind) ?? ''), // a bare --kind still counts as typed

@@ -671,3 +671,15 @@ test('a session’s repo is looked up without holding the snapshot: it goes on, 
   assert.equal(found.repo, 'acme/widgets', 'the next snapshot has it, not the kept one');
   assert.equal(found.lane, 'acme/widgets');
 });
+
+test('a busy session that registered a run of its own and has none open is Thinking; a plain busy one is Working', () => {
+  const none = { agents: [], pr: null, story: null };
+  assert.equal(
+    columnOf({ ...none, sessions: [{ status: 'working', thinking: true }] }),
+    'thinking',
+  );
+  assert.equal(columnOf({ ...none, sessions: [{ status: 'working' }] }), 'working');
+  // asking is still Waiting, and an idle registered session is idle
+  assert.equal(columnOf({ ...none, sessions: [{ status: 'waiting', thinking: true }] }), 'waiting');
+  assert.equal(columnOf({ ...none, sessions: [{ status: 'idle' }] }), 'idle');
+});

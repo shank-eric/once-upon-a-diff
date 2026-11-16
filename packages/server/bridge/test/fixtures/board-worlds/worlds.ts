@@ -1818,6 +1818,127 @@ async function record(
   await record('10-duplicate-cards', board);
 }
 
+// ---- 11. a session that registered its own runs (`agent start --self`, named self-XXXXXX): a finished session does not hold its
+// landed card, a busy one with no run open is Thinking beside a Ready card instead of making it Working, a self run of a
+// session that is gone is shown stopped (its card is back in Backlog, tried), and a self research run is titled by its session
+{
+  const home = tmp('home');
+  const sessions = tmp('sessions');
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
+  const et = (hour: number, minute: number) => new Date(Date.UTC(2026, 9, 26, hour + 4, minute));
+  const [doneOne, twin, thinker, researcher] = Array.from({ length: 4 }, () => liveChild());
+  const approved = (head: string) => ({
+    at: '2026-10-26T15:00:00Z',
+    head_oid: head,
+    base_oid: null,
+    marked: true,
+  });
+  const events: Record<string, unknown>[] = [];
+  const card = (id: string, branch: string, title: string) =>
+    events.push(
+      {
+        op: 'add',
+        id,
+        title,
+        note: null,
+        repo: 'acme/widgets',
+        branch,
+        by: 'cli',
+        at: et(9, 0).toISOString(),
+      },
+      {
+        op: 'start',
+        id,
+        branch,
+        repo: 'acme/widgets',
+        by: 'cli',
+        at: et(9, 1).toISOString(),
+      },
+    );
+  const land = (id: string, hoursAgo: number) =>
+    events.push({
+      op: 'done',
+      id,
+      sha: 'c'.repeat(40),
+      by: 'cli',
+      at: new Date(NOW.getTime() - hoursAgo * 3600000).toISOString(),
+    });
+  const runs = new AgentRegistry(home);
+  const author = (sid: string, name: string, cardId: string, branch: string, finish: boolean) => {
+    runs.start({ sid, name, kind: 'author', task: `build ${cardId}`, card: cardId, at: et(9, 5) });
+    if (finish) {
+      runs.finish(name, { sid, result: { branch, commit: 'abc1234' }, at: et(9, 40) });
+    }
+  };
+  // a: landed 2 hours ago, its self run finished, and its session (registered, idle) is still on the branch: the card is gone,
+  // the session is a card of its own. b: the same with a session that never registered: it still holds the card
+  const checkoutA = checkoutOf('widgets', 'feat/self-landed');
+  const checkoutB = checkoutOf('widgets', 'feat/plain-landed');
+  localStory(
+    home,
+    'story-a',
+    checkoutA,
+    'feat/self-landed',
+    { head_oid: 'a'.repeat(40) },
+    {
+      'approved.json': approved('a'.repeat(40)),
+    },
+  );
+  localStory(
+    home,
+    'story-b',
+    checkoutB,
+    'feat/plain-landed',
+    { head_oid: 'b'.repeat(40) },
+    {
+      'approved.json': approved('b'.repeat(40)),
+    },
+  );
+  card('bl_selfruna', 'feat/self-landed', 'Landed by a self run');
+  card('bl_selfrunb', 'feat/plain-landed', 'Landed, plain session');
+  land('bl_selfruna', 2);
+  land('bl_selfrunb', 2);
+  registry(sessions, doneOne, { cwd: checkoutA, name: 'done-one' });
+  registry(sessions, twin, { cwd: checkoutB, name: 'twin-one' });
+  author(sid(doneOne), 'self-aaaaa1', 'bl_selfruna', 'feat/self-landed', true);
+  author('dddddddd', 'ou-plain', 'bl_selfrunb', 'feat/plain-landed', true);
+  // c: built by a self run (Ready for your review), and a busy registered session with no run open on its branch: Thinking
+  // on its own card, the built card stays Ready
+  const checkoutC = checkoutOf('widgets', 'feat/self-ready');
+  localStory(home, 'story-c', checkoutC, 'feat/self-ready', { head_oid: 'd'.repeat(40) });
+  card('bl_selfrunc', 'feat/self-ready', 'Built by a self run');
+  registry(sessions, thinker, { cwd: checkoutC, name: 'thinker', status: 'busy' });
+  author(sid(thinker), 'self-ccccc1', 'bl_selfrunc', 'feat/self-ready', true);
+  // d: a self author of a session that is gone: stopped, its card back in Backlog, tried
+  card('bl_selfrund', 'feat/self-gone', 'Its session closed');
+  author('eeeeeeee', 'self-ddddd1', 'bl_selfrund', 'feat/self-gone', false);
+  // e: a self research run of a busy session: the run's card is titled by the session, not self-eeeee1
+  registry(
+    sessions,
+    researcher,
+    { cwd: checkoutOf('widgets', 'main'), name: 'looker', status: 'busy' },
+    { titled: 'Reading the retry code' },
+  );
+  runs.start({
+    sid: sid(researcher),
+    name: 'self-eeeee1',
+    kind: 'research',
+    task: 'how retries work',
+    at: et(14, 30),
+  });
+  writeFileSync(
+    path.join(home, 'backlog.jsonl'),
+    events.map((event) => JSON.stringify(event)).join('\n') + '\n',
+  );
+  const { watcher } = fakeWatcher([], {});
+  const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
+    source: sourceSaying({}),
+    now: () => NOW,
+    repoOf,
+  });
+  await record('11-self-runs', board);
+}
+
 // ---- normalize paths and pids
 export const snapshots: Record<string, string> = {};
 for (const [name, value] of Object.entries(results)) {

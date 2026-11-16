@@ -106,7 +106,23 @@ export interface CardPhase {
   column: BoardColumn;
   when: number | null;
   tried: boolean;
+  /** the key into PHASE_ROWS of the row that decided it: `once-upon card status` prints it */
+  row: PhaseRow;
 }
+
+/** The rows of the table `cardPhase` reads, one line each: the doc comment below and `once-upon card status` both say it from here. */
+export const PHASE_ROWS = {
+  '1': 'a work run is open: waiting (a question) is Waiting, plan is Agent checks, running or fixing is Working',
+  '2': 'a critic is open (once-upon-a-diff and Larmor): Agent checks',
+  '3': 'the latest work run failed or stopped: back in Backlog, tried',
+  '3b': 'a storyteller is running: Agent checks',
+  '4': 'fixes are due (once-upon-a-diff and Larmor): the latest critic finished with findings after the latest work run: Agent checks until a fix run opens',
+  '5': 'no critic has passed yet (once-upon-a-diff and Larmor): Agent checks',
+  '6': 'built, with a branch: Ready for your review (Larmor: Ready to ship)',
+  '7': 'no branch: Done for the Done hour after the work ended, then off the board',
+} as const;
+
+export type PhaseRow = keyof typeof PHASE_ROWS;
 
 const msOf = (date: Date | null | undefined): number | null => (date ? date.getTime() : null);
 
@@ -145,23 +161,24 @@ export function cardPhase(
   if (working) {
     const when = msOf(working.ended);
     if (working.state === 'waiting') {
-      return { column: 'waiting', when, tried: false };
+      return { column: 'waiting', when, tried: false, row: '1' };
     }
     return {
       column: working.state === 'plan' ? 'checks' : 'working',
       when,
       tried: false,
+      row: '1',
     };
   }
   const holds = CRITIC_HOLD.test(repoName(item.repo));
   if (holds && critics.some(alive)) {
-    return { column: 'checks', when: null, tried: false };
+    return { column: 'checks', when: null, tried: false, row: '2' };
   }
   if (latestWork && (latestWork.state === 'failed' || latestWork.state === 'stopped')) {
-    return { column: 'backlog', when: msOf(latestWork.ended), tried: true };
+    return { column: 'backlog', when: msOf(latestWork.ended), tried: true, row: '3' };
   }
   if (runs.some((run) => isStoryteller(run) && run.state === 'running' && alive(run))) {
-    return { column: 'checks', when: null, tried: false };
+    return { column: 'checks', when: null, tried: false, row: '3b' };
   }
   const built = item.state === 'started' && !!item.branch;
   if (!latestWork && !built) {
@@ -179,21 +196,22 @@ export function cardPhase(
     nowMs - (msOf(latestCritic.ended) ?? nowMs) <= STALE_MS &&
     (when ?? 0) <= (msOf(latestCritic.ended) ?? 0)
   ) {
-    return { column: 'checks', when: msOf(latestCritic.ended), tried: false };
+    return { column: 'checks', when: msOf(latestCritic.ended), tried: false, row: '4' };
   }
   if (holds && (!latestCritic || latestCritic.state !== 'done')) {
-    return { column: 'checks', when, tried: false };
+    return { column: 'checks', when, tried: false, row: '5' };
   }
   if (built) {
     return {
       column: SKIPS_REVIEW.test(repoName(item.repo)) ? 'ship' : 'ready',
       when,
       tried: false,
+      row: '6',
     };
   }
   return when !== null && nowMs - when > DONE_HOURS * 3600 * 1000
     ? null
-    : { column: 'done', when, tried: false };
+    : { column: 'done', when, tried: false, row: '7' };
 }
 
 /**
