@@ -13,11 +13,13 @@ import { MIN_NODE_MAJOR, nodeVersionProblem } from '@once-upon-a-diff/foundation
 import type { Config } from '@once-upon-a-diff/foundation/settings';
 import { listenerPid, openListeners } from '@once-upon-a-diff/adapters/os';
 import {
+  liveSessions,
   registryHealth,
   registryNote,
   registryProblem,
 } from '@once-upon-a-diff/adapters/claude-sessions/live-sessions';
 import { hookFileCount } from '@once-upon-a-diff/adapters/claude-sessions/hook-status';
+import { freshStatusLineIds } from '@once-upon-a-diff/adapters/claude-sessions/statusline';
 import { gitVersionText } from '@once-upon-a-diff/adapters/git';
 import { gitVersionProblem, MIN_GIT } from '@once-upon-a-diff/foundation/git-version';
 import { fetchHealth } from '@once-upon-a-diff/adapters/bridge-health';
@@ -289,6 +291,25 @@ export async function doctor(
       ? null
       : 'Wire extras/hooks/board-status.sh into Claude Code hooks (README, "Board status hook"); the file appears on the next prompt',
   );
+  // the board's context and usage come from status line files: live sessions and none of them writing one is the setup
+  // left undone (a session that is not interactive has no status line to render)
+  const statusSessions = (await liveSessions(sessionsDir)).filter(
+    (session) => !session.kind || session.kind === 'interactive',
+  );
+  if (statusSessions.length) {
+    const fresh = freshStatusLineIds(home, Date.now());
+    const writing = statusSessions.filter((session) => fresh.has(session.session)).length;
+    add(
+      writing ? 'PASS' : 'WARN',
+      'Status line',
+      writing
+        ? `${writing} of ${statusSessions.length} live session${statusSessions.length === 1 ? '' : 's'} wrote its context and usage for the board lately`
+        : `${statusSessions.length} live Claude session${statusSessions.length === 1 ? '' : 's'}, and none has written ${path.join(home, 'statusline')}/<session id>.json in the last 6 hours: the board shows no context or usage`,
+      writing
+        ? null
+        : 'Run once-upon setup: it prints the line to add to your Claude Code status line (extras/statusline-snippet.sh); the next render of any session then writes it',
+    );
+  }
   // every run is a run of one card, and says nothing the card does not (ADR-25)
   const items = new BacklogStore(home).items();
   const problems = [

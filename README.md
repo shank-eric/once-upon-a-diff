@@ -22,6 +22,7 @@ You need Node 24 or newer, the current LTS (`.nvmrc` says 24, so `fnm use` or `n
    scripts/install-cli.sh    # puts `once-upon` on your PATH (npm link on packages/server/bridge) and links the skills
    once-upon setup
    ```
+   `setup` ends with an optional step for the board's context and usage: it prints the `statusLine` entry for Claude Code's `settings.json` when you have none, or the one line to add to your own status line script when you do (`printf '%s' "$input" | <checkout>/extras/statusline-snippet.sh`, see "Context and usage" below). It never writes your settings or script.
 2. In Chrome, go to `chrome://extensions`, turn on **Developer mode**, click **Load unpacked** and pick `packages/client/extension/.output/chrome-mv3`, the folder `yarn build` makes. Its ID is always `faaibhigocihefldbmdgchcnnclalkmo` (the manifest carries a fixed key), so its saved settings survive a rebuild, a reload or a new checkout.
 3. The options page opens on install. If it doesn't, go to Details → Extension options. Paste the port and token, then click **Save** and **Test connection**.
 4. Start the bridge and leave it running, or skip this and let `/once-upon-listen` start it for you:
@@ -54,6 +55,7 @@ There are two quick ways to check.
 - the bridge process and port, and whether the bridge accepts the token
 - when the extension last talked to the bridge (the bridge notes it)
 - live listeners
+- the status line: a WARN when Claude Code sessions are live and none has written `~/.once-upon/statusline/<session id>.json` in the last 6 hours, so the board shows no context or usage (the fix is the setup step below)
 
 It exits 1 when something fails.
 

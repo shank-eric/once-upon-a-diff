@@ -101,6 +101,55 @@ export function readStatusLines(
   return { context, usage };
 }
 
+/** The ids of the sessions whose status line file was written less than `USAGE_FRESH_MS` ago (by the file's own mtime). */
+export function freshStatusLineIds(home: string, nowMs: number): Set<string> {
+  const fresh = new Set<string>();
+  const dir = path.join(home, 'statusline');
+  let names: string[];
+  try {
+    names = readdirSync(dir);
+  } catch {
+    return fresh;
+  }
+  for (const name of names) {
+    const match = SESSION_FILE.exec(name);
+    try {
+      if (match && nowMs - statSync(path.join(dir, name)).mtimeMs < USAGE_FRESH_MS) {
+        fresh.add(match[1]);
+      }
+    } catch {
+      /* gone already */
+    }
+  }
+  return fresh;
+}
+
+/**
+ * Claude Code's own status line setting, `statusLine.command` in `<config dir>/settings.json`: the command, '' when the
+ * setting is there without one, null when there is none, 'unreadable' when the file is there and cannot be used.
+ */
+export function claudeStatusLine(configDir: string): string | null | 'unreadable' {
+  let text: string;
+  try {
+    text = readFileSync(path.join(configDir, 'settings.json'), 'utf8');
+  } catch (err) {
+    return (err as NodeJS.ErrnoException).code === 'ENOENT' ? null : 'unreadable';
+  }
+  try {
+    const parsed: unknown = JSON.parse(text);
+    const line =
+      parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>).statusLine : null;
+    if (line === undefined || line === null) {
+      return null;
+    }
+    const command =
+      line && typeof line === 'object' ? (line as Record<string, unknown>).command : null;
+    return typeof command === 'string' ? command : '';
+  } catch {
+    return 'unreadable';
+  }
+}
+
 /**
  * Removes the status line files of sessions that are gone and a day old: the sweep that used to ride on the board's read.
  * `live` is asked only when some file is that old, so the usual run never looks at the sessions. Returns the removed names.

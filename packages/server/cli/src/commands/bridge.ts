@@ -4,6 +4,7 @@
  */
 
 import path from 'node:path';
+import { statusLineStep } from '@once-upon-a-diff/core/features/sessions/status-line-setup';
 import { saveConfig, newToken } from '@once-upon-a-diff/foundation/settings';
 
 import { out } from '../output.ts';
@@ -26,7 +27,7 @@ export const bridgeCommands: Command[] = [
     name: 'setup',
     needsConfig: true,
     usage: [
-      "  once-upon setup                                               print the port and token to paste into the extension's options",
+      "  once-upon setup                                               print the port and token for the extension's options, and the status line step",
     ],
     run(home, cfg) {
       out(`Bridge port:  ${cfg.port}`);
@@ -36,6 +37,10 @@ export const bridgeCommands: Command[] = [
         'Paste both into the extension: chrome://extensions → Once Upon a Diff → Details → Extension options.',
       );
       out(`Then run: ${path.relative(process.cwd(), process.argv[1]) || 'once-upon'} serve`);
+      out('');
+      for (const line of statusLineStep(home)) {
+        out(line);
+      }
     },
   },
   {
