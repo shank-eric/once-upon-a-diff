@@ -4,7 +4,7 @@ import '@once-upon-a-diff/test-kit/env';
 import { tmp, writeJson } from '@once-upon-a-diff/test-kit/files';
 import path from 'node:path';
 import { readSettings } from '@once-upon-a-diff/foundation/settings';
-import { finishedColumn } from '../src/agent-home.ts';
+import { finishedColumn, landedFor } from '../src/agent-home.ts';
 import { NO_PARENT, placeAgents } from '../src/stages/agents.ts';
 import { columnOf } from '../src/columns.ts';
 import { worktreeSection } from '../src/stages/worktrees.ts';
@@ -594,11 +594,18 @@ test('a research run keeps Research though its card landed', () => {
   });
 });
 
-test('a card dropped after it landed is not landed for its agent', () => {
-  assert.deepEqual(onLandedCard({}, landedItem({ state: 'dropped' })), {
-    column: 'waiting',
-    why: 'made nothing to point at',
+test('a card dropped after it landed is not landed for its agent, and its finished run is off the board', () => {
+  assert.equal(landedFor({ started: landedStart }, landedItem({ state: 'dropped' })), false);
+  const ended = new Date(NOW - 5 * 60000);
+  const run = registered({
+    name: 'ou-x',
+    state: 'stopped',
+    card: 'bl_aaaaaa222222',
+    started: landedStart,
+    ended,
+    lastEvent: ended,
   });
+  assert.deepEqual(place([run], [], [landedItem({ state: 'dropped' })]), []);
 });
 
 test('a landing from before the run started is an earlier run’s; one at its start counts', () => {

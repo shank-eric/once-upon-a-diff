@@ -69,11 +69,10 @@ function replacedByRetry(agent: LedgerAgent, all: LedgerAgent[]): boolean {
   );
 }
 
-/** A finished run of an implicit card (`ic_`) that `backlog drop` took into the backlog and dropped: the card is gone from the board, the run stays in the ledger. */
-const droppedImplicit = (agent: LedgerAgent, items: BacklogItem[]): boolean =>
+/** A finished run of a card (`ic_` or `bl_`) that was dropped: the card is gone from the board, the run stays in the ledger. */
+const droppedCard = (agent: LedgerAgent, items: BacklogItem[]): boolean =>
   isFinished(agent) &&
   !!agent.card &&
-  isImplicitCard(agent.card) &&
   items.some((item) => item.id === agent.card && item.state === 'dropped');
 
 function agentOf(
@@ -225,7 +224,7 @@ export function placeAgents(
     (agent) =>
       !held.has(agentKey(agent)) &&
       !replacedByRetry(agent, agents) &&
-      !droppedImplicit(agent, items) &&
+      !droppedCard(agent, items) &&
       (agent.state === 'running' ||
         !!pendingOf.get(agent) ||
         (agent.state === 'waiting' && !forgotten(agent, nowMs)) ||

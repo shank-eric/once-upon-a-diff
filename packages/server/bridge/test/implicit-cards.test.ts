@@ -525,3 +525,17 @@ test('backlog drop of an implicit card takes its finished run off the board; the
     true,
   );
 });
+
+test('a dropped backlog card takes its stopped run off the board too; the run stays in the ledger', async () => {
+  const home = tmp('backlog-drop-board');
+  const item = new BacklogStore(home).add({ title: 'Retell stories', repo: 'acme/widgets' });
+  assert.equal((await backlog(home, 'claim', item.id, '--agent', 'retell-x')).code, 0);
+  await start(home, 'retell-x', '--card', item.id, '--role', 'author', '--task', 'retell');
+  assert.equal((await agent(home, 'finish', 'retell-x', '--state', 'stopped')).code, 0);
+  assert.equal((await backlog(home, 'drop', item.id)).code, 0);
+  assert.ok(!names(await cardsOf(home)).includes('retell-x'), 'the dropped card hides its run');
+  assert.equal(
+    new AgentRegistry(home).agents().some((one) => one.name === 'retell-x'),
+    true,
+  );
+});
