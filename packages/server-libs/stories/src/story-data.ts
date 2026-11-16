@@ -11,6 +11,7 @@ import { readJson } from '@once-upon-a-diff/adapters/stores/fs/json-file';
 import { checkedMeta, readMeta, storyVersion, localVersion } from './meta.ts';
 import { chaptersOf, addLeftoverChapter, markUnwritten, refOf } from './chapters.ts';
 import { upgradePlan } from './legacy.ts';
+import { movedRefs, readAnchors } from './anchors.ts';
 import { thinHunks, uncoveredHunks } from './hunk-coverage.ts';
 import {
   loadDiff,
@@ -79,6 +80,14 @@ export function storyData(store: StoryStateReader, id: string, dir: string): Sto
       chapter.refs = chapter.refs.filter((ref) => diff.has(ref.path));
     }
   }
+  const overviewRefs = (older.refs || []).map(refOf);
+  // a local story's refs say when the code at their lines has changed since it was told
+  if (meta.kind === 'local' && diff) {
+    const anchors = readAnchors(dir);
+    if (anchors) {
+      movedRefs(chapters, overviewRefs, anchors, diff);
+    }
+  }
   for (const chapter of chapters) {
     for (const file of chapter.files) {
       if (!rels.includes(file.rel)) {
@@ -118,7 +127,7 @@ export function storyData(store: StoryStateReader, id: string, dir: string): Sto
     overview: older.overview || '',
     summary: older.summary || '',
     plan: older.plan || '',
-    overview_refs: (older.refs || []).map(refOf),
+    overview_refs: overviewRefs,
     files: rels.map((rel) => ({ rel, sha: pathSha(rel) })),
     chapters,
     uncovered_hunks: uncovered,

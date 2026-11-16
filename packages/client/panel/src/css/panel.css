@@ -382,6 +382,10 @@
 #ou-panel [data-rel]:hover {
   text-decoration: underline;
 }
+/* a ref whose lines may no longer be the ones the story was told over */
+#ou-panel [data-rel].ou-moved {
+  text-decoration: underline dotted var(--ou-warn);
+}
 #ou-panel [data-rel]:focus-visible {
   outline: 2px solid var(--ou-accent);
   outline-offset: 1px;

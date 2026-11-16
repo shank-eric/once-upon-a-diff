@@ -3,7 +3,7 @@
  * story lives in the checkout (or worktree) it diffs, at <top>/.once-upon/<id>/,
  * kept out of git by .git/info/exclude (placement.ts). The folder holds meta.json (repo, refs), local.diff (remade whenever the
  * refs move) and chapters.json in once-upon's format, so the same panel and
- * the same chapters work on either.
+ * the same chapters work on either, and anchors.json (anchors.ts), the line of text each ref was told over.
  */
 import { slug } from '@once-upon-a-diff/terms/ids';
 import { existsSync, readFileSync } from 'node:fs';
@@ -26,6 +26,7 @@ import { parseUnifiedDiff } from './diff.ts';
 import { refreshLocal, followsHead } from './local-diff.ts';
 import { entryOf } from './chapters.ts';
 import { storyDirFor } from './placement.ts';
+import { anchorsFor, readAnchors, writeAnchors } from './anchors.ts';
 import { repoOfCheckout, seenCheckout } from '@once-upon-a-diff/foundation/repos';
 import { plural } from '@once-upon-a-diff/terms/text';
 import type { DiffFile } from '@once-upon-a-diff/contracts/types';
@@ -208,6 +209,9 @@ export function createLocalStory({
     } else {
       copyFileAtomic(path.resolve(chapters), chaptersFile);
     }
+    // what each ref was told over, so a later commit that moves its lines is noticed (anchors.ts); written with a told
+    // plan only, so telling the story again with no chapters never takes a new baseline
+    writeAnchors(dir, anchorsFor(ready, diff, readAnchors(dir), before));
   }
   if (!existsSync(chaptersFile)) {
     writeJsonAtomic(chaptersFile, defaultChapters(rels, meta.title));

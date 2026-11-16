@@ -39,11 +39,11 @@ export function createFileList(context: PanelContext) {
       const span =
         line.end && line.end !== line.start ? `s ${line.start}–${line.end}` : ` ${line.start}`;
       const range = `${side === 'L' ? 'old ' : ''}line${span}`;
-      const link = context.refs.jumpProps(file.rel, {
-        side,
-        start: line.start,
-        end: line.end || line.start,
-      });
+      const link = context.refs.jumpProps(
+        file.rel,
+        { side, start: line.start, end: line.end || line.start },
+        line.moved,
+      );
       return html`<li><span ...${link}>${range}</span>${line.label ? ` ${line.label}` : null}</li>`;
     });
   }

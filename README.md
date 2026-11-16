@@ -394,7 +394,7 @@ Stories live in the repo they're about, in a hidden `.once-upon/` folder in its 
 
 ```
 <checkout or worktree>/.once-upon/
-  local-<repo>-<branch>/            chapters.json, meta.json, local.diff      (from once-upon local, in the worktree it diffs)
+  local-<repo>-<branch>/            chapters.json, anchors.json, meta.json, local.diff (from once-upon local, in the worktree it diffs)
   <owner>-<repo>-<N>/               chapters.json, file-map.json, meta.json   (a PR story, in the repo's main checkout)
 
 ~/.once-upon/                        (ONCE_UPON_HOME moves it)

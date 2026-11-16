@@ -1818,6 +1818,33 @@ await test('an added draft shows "view on GitHub" only when GitHub returned a co
   }
 });
 
+// ---------- a ref that may have moved
+
+await test('a ref told over lines that have since changed is marked in the chapter and in the file list, and the others are not', async () => {
+  const data = story();
+  data.chapters[0].refs[0].moved = true;
+  data.chapters[0].files[0].lines![0].moved = true;
+  const panel = await mount(data, full, { n: 1 });
+  try {
+    const marked = all('.ou-md .ou-moved');
+    assert.equal(marked.length, 1, 'the chapter text draws the one ref that moved');
+    assert.match(marked[0].getAttribute('title')!, /may have moved/);
+    assert.equal(marked[0].getAttribute('data-rel'), 'src/a.ts');
+    const listed = all('.ou-files .ou-lines .ou-moved');
+    assert.equal(listed.length, 1, 'and the file list draws its line span');
+    assert.match(listed[0].getAttribute('title')!, /may have moved/);
+    assert.equal(all('.ou-files code.ou-moved, .ou-uncovered .ou-moved').length, 0);
+  } finally {
+    panel.done();
+  }
+  const quiet = await mount(story(), full, { n: 1 });
+  try {
+    assert.equal(all('.ou-moved').length, 0, 'a story with no moved ref draws none');
+  } finally {
+    quiet.done();
+  }
+});
+
 // ---------- every jump link in the body jumps once
 
 await test('every file and line link in the body, the drafts, the fixes and the banner jumps once, and Enter on one is a click', async () => {

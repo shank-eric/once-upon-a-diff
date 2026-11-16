@@ -23,7 +23,7 @@ export function createMarkdown(context: PanelContext) {
       // a link by id: the ref's file and lines. A ref this text doesn't have is just its words.
       const ref = refs.refById(id);
       return ref && refs.fileOf(ref.path)
-        ? `<span ${refAttrs(ref.path, refs.lineOf(ref))}>${text}</span>${refs.pill(ref.path)}`
+        ? `<span ${refAttrs(ref.path, refs.lineOf(ref), ref.moved)}>${text}</span>${refs.pill(ref.path)}`
         : text;
     }
     if (rel && refs.inScope(rel)) {

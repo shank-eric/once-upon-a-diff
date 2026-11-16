@@ -128,8 +128,12 @@ export function createFileRefs(context: PanelContext) {
   }
 
   /** The props for a node that jumps to a file or line when clicked: refNode's, plus the click. */
-  function jumpProps(rel: string, line: LineRef | null | undefined): Record<string, unknown> {
-    return { ...refNode(rel, line), onClick: jumpClick(rel, line) };
+  function jumpProps(
+    rel: string,
+    line: LineRef | null | undefined,
+    moved?: boolean,
+  ): Record<string, unknown> {
+    return { ...refNode(rel, line, moved), onClick: jumpClick(rel, line) };
   }
   /** A click that jumps to a file or line (for a node that has its own look). */
   function jumpClick(rel: string, line: LineRef | null | undefined) {

@@ -11,8 +11,14 @@ function render(source: string): string {
   const refs = {
     inScope: () => true,
     pill: () => '',
-    refById: (id: string) =>
-      id === 'evil' ? { id, path: EVIL, side: 'R', start: 40, end: 40 } : null,
+    refById: (id: string) => {
+      const known: Record<string, object> = {
+        evil: { id, path: EVIL, side: 'R', start: 40, end: 40 },
+        shifted: { id, path: 'a.js', side: 'R', start: 5, end: 7, moved: true },
+        steady: { id, path: 'a.js', side: 'R', start: 5, end: 7 },
+      };
+      return known[id] ?? null;
+    },
     fileOf: (path: string) => path,
     lineOf: (ref: { side: string; start: number; end: number }) => ({
       side: ref.side,
@@ -46,6 +52,7 @@ const SAFE_ATTRS = new Set([
   'data-side',
   'data-start',
   'data-end',
+  'class',
 ]);
 
 test('a ref to a file named like attributes keeps its name inside its quotes (the onfocus= payload)', () => {
@@ -54,6 +61,22 @@ test('a ref to a file named like attributes keeps its name inside its quotes (th
   assert.deepEqual(unexpected, [], out);
   assert.doesNotMatch(out, /<a\b/);
   assert.ok(out.includes(`data-rel="${EVIL}"`), 'the file reference itself renders');
+});
+
+test('a ref the story was told over lines that have since changed says it may have moved, and one that has not is drawn as before', () => {
+  const moved = render('See [t](ref:shifted).');
+  assert.match(moved, / class="ou-moved"/);
+  assert.match(moved, /title="Scroll to a\.js line 5–7 \(may have moved: /);
+  assert.deepEqual(
+    attributeNames(moved).filter((name) => !SAFE_ATTRS.has(name)),
+    [],
+  );
+  const steady = render('See [t](ref:steady).');
+  assert.doesNotMatch(steady, /ou-moved|may have moved/);
+  assert.equal(
+    steady,
+    '<p>See <span data-rel="a.js" role="link" tabindex="0" title="Scroll to a.js line 5–7" data-side="R" data-start="5" data-end="7">t</span>.</p>',
+  );
 });
 
 test('a code span inside a link URL cannot break out of the href, and a backticked name links nothing', () => {

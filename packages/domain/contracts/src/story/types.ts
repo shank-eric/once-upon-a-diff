@@ -16,6 +16,8 @@ export interface LineSpan {
 /** A chapter's pointer at some of a file's lines, and what they show. */
 export interface ChapterLines extends LineSpan {
   label: string;
+  /** the ref this span is of has moved (ChapterRef.moved) */
+  moved?: boolean;
 }
 
 /**
@@ -35,6 +37,8 @@ export interface ChapterRef {
   text?: boolean;
   /** made from a hunk id in the chapter's `hunks` (hunk-ids.ts): the chapter named the hunk, so it counts as linked */
   hunk?: boolean;
+  /** set when the story is served, never stored: the line text the story was told over is not what the diff has at the ref's lines now, so the link may point at the wrong lines (anchors.ts) */
+  moved?: boolean;
 }
 
 /** A file a chapter tells. partial: it tells some of it (note says which), and a later chapter more. */
