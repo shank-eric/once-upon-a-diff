@@ -823,9 +823,13 @@ try {
       target: (tab) => tab.locator(`[data-ou-badge="${target.key}"] .b`),
       primer: true,
       around: async (tab, scheme) => {
-        await tab
-          .locator(`[data-ou-badge="${target.key}"]`)
-          .evaluate((host, color) => (host.style.background = color), BACKDROP[scheme]);
+        const host = tab.locator(`[data-ou-badge="${target.key}"]`);
+        await host.evaluate((node, color) => {
+          node.style.background = color;
+          // a whole-pixel spot of its own: on GitHub's row the pill sits at a fractional x and y (597.14, 348.77) that move
+          // with the row's text and the page above it, and the glyphs are rastered at that offset (31 px differed)
+          node.style.cssText += ';position:fixed;left:24px;top:24px;margin:0;z-index:2147483647';
+        }, BACKDROP[scheme]);
       },
     });
   }
