@@ -1,6 +1,6 @@
 /**
  * The built PR stories the review inbox lists: every GitHub story the bridge can find
- * (`story.mjs build` puts them in the checkout's .once-upon/ folder), built in the last STORY_DAYS days. The inbox's
+ * (`story.mjs build` puts them in the bridge's own folder, <home>/<id>), built in the last STORY_DAYS days. The inbox's
  * Open goes to the PR's changes page, where the panel opens. Reviewed (`once-upon reviewed`, Approve) is the story's own state file,
  * <home>/state/<story id>/reviewed.json: {at, by}, where `by` is manual, review or all viewed (github-watcher.ts),
  * and an unmark by hand leaves {at: null, by: manual}, so the file's presence means the reviewer has decided.

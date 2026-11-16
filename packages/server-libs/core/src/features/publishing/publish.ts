@@ -89,8 +89,8 @@ export function publishPrStory(
     }
     rebuilt = { build: rebuild, before, after, counts };
   }
-  // into the repo's checkout (.once-upon/<id>, kept out of git) when the bridge knows it, else ~/.once-upon/<id>
-  const dest = storyDirFor(home, id, { repo, kind: 'github' });
+  // into the bridge's own folder (~/.once-upon/<id>), where no checked-out branch can write
+  const dest = storyDirFor(home, id, { kind: 'github' });
   // every chapter has a key and its refs, and the story's text links by them: refused here, not drawn wrong later
   const plan = readJson<Plan>(path.join(source, 'chapters.json'), null);
   if (plan) {

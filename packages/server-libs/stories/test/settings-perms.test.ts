@@ -4,7 +4,6 @@ import path from 'node:path';
 import { chmodSync, mkdirSync, statSync } from 'node:fs';
 import '@once-upon-a-diff/test-kit/env';
 import { tmp, writeJson } from '@once-upon-a-diff/test-kit/files';
-import { localRepo } from '@once-upon-a-diff/test-kit/git';
 import {
   loadConfig,
   readSettings,
@@ -14,7 +13,7 @@ import { storyDirFor } from '../src/placement.ts';
 
 const modeOf = (file: string) => (statSync(file).mode & 0o777).toString(8);
 
-test("the bridge's folder and a checkout's .once-upon are the user's alone, even when they were there already", () => {
+test("the bridge's folder and a story's folder are the user's alone, even when the folder was there already", () => {
   const home = tmp('home');
   mkdirSync(home, { recursive: true });
   chmodSync(home, 0o755);
@@ -22,12 +21,11 @@ test("the bridge's folder and a checkout's .once-upon are the user's alone, even
   assert.equal(modeOf(home), '700');
   assert.equal(modeOf(path.join(home, 'config.json')), '600');
 
-  const { repo } = localRepo();
-  mkdirSync(path.join(repo, '.once-upon'), { mode: 0o755 });
-  chmodSync(path.join(repo, '.once-upon'), 0o755);
-  const dir = storyDirFor(home, 'local-x', { checkout: repo });
-  assert.equal(dir, path.join(repo, '.once-upon', 'local-x'));
-  assert.equal(modeOf(path.join(repo, '.once-upon')), '700');
+  mkdirSync(path.join(home, 'local-x'));
+  chmodSync(path.join(home, 'local-x'), 0o755);
+  const dir = storyDirFor(home, 'local-x');
+  assert.equal(dir, path.join(home, 'local-x'));
+  assert.equal(modeOf(dir), '700');
 });
 
 test('the fixed unpacked extension ID is always allowed, and extension_ids adds others', () => {

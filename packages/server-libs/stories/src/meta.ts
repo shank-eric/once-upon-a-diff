@@ -111,9 +111,10 @@ export function checkedMeta(
 }
 
 /**
- * Why a story is not to be served, or null. Its meta.json is checked (checkedMeta), and for a folder in a checkout its
- * `kind` must be the one recorded when the story was made (placement.ts recordKind): a story made before the record is
- * taken as it is the first time it is seen, and that is the kind recorded.
+ * Why a story is not to be served, or null. A story of the bridge's own folder is trusted. A folder in a checkout (one kept
+ * there before stories moved into the home: migrate.ts, which refuses it by this check too) has its meta.json checked
+ * (checkedMeta), and its `kind` must be the one recorded when the story was made (placement.ts recordKind): a story made
+ * before the record is taken as it is the first time it is seen, and that is the kind recorded.
  */
 export function refusalOf(home: string, id: string, dir: string): string | null {
   if (!inCheckout(dir, home)) {

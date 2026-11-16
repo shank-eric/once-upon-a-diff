@@ -6,14 +6,13 @@
  * folders. What it records (viewed files, notes, position, the panel's step)
  * goes under <home>/state/<story id>/.
  *
- * A story lives in one place (placement.ts): <checkout>/.once-upon/<id>/,
- * recorded in the index, or <home>/<id>/ when its repo has no known checkout.
- * The index is read first, so its folder wins for an id.
+ * A story lives in one place (placement.ts): <home>/<id>/, a folder of the
+ * bridge's own, where no checked-out branch can write. The old index (stories.json)
+ * is never read here: a folder in a checkout is moved by migrate.ts or not served.
  */
 import { readdirSync } from 'node:fs';
 import path from 'node:path';
 import { readJson, writeJsonAtomic } from '@once-upon-a-diff/adapters/stores/fs/json-file';
-import { readIndex } from './placement.ts';
 import { stateFile, stateFileToWrite } from '@once-upon-a-diff/foundation/settings';
 import { isStoryDir, readMeta, refusalOf, storyVersion } from './meta.ts';
 import { STORY_ID_RE } from '@once-upon-a-diff/terms/patterns';
@@ -45,11 +44,6 @@ export class StoryStore {
         seen.set(id, dir);
       }
     };
-    for (const dir of Object.values(readIndex(this.home))) {
-      if (typeof dir === 'string' && isStoryDir(dir)) {
-        add(dir);
-      }
-    }
     for (const dir of childDirs(this.home)) {
       if (isStoryDir(dir)) {
         add(dir);

@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { chmodSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
-import { githubStory, tmp, writeJson } from './helpers.ts';
+import { git, githubStory, localRepo, tmp, writeJson } from './helpers.ts';
 import { doctor } from '@once-upon-a-diff/core/orchestration/bridge/doctor';
 import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
@@ -154,6 +154,34 @@ test('doctor writes nothing: no file, folder, mode or time changes in the home',
   const before = [`${home} ${statSync(home).mode}`, ...snapshot(home)];
   await lines(home);
   assert.deepEqual([`${home} ${statSync(home).mode}`, ...snapshot(home)], before);
+});
+
+test('Story folders: passes when every story is in the home, warns for one a checkout still holds and says why, and moves nothing', async () => {
+  const home = world();
+  assert.match(line((await lines(home)).lines, 'Story folders'), /^PASS/);
+
+  const { repo } = localRepo();
+  const movable = path.join(repo, '.once-upon', 'acme-widgets-9');
+  githubStory(movable, { meta: { number: 9, url: 'https://github.com/acme/widgets/pull/9' } });
+  const tracked = path.join(repo, '.once-upon', 'acme-widgets-10');
+  githubStory(tracked, { meta: { number: 10, url: 'https://github.com/acme/widgets/pull/10' } });
+  git(repo, 'add', '-f', '.once-upon/acme-widgets-10');
+  git(repo, 'commit', '-q', '-m', 'track a story');
+  writeJson(path.join(home, 'stories.json'), {
+    'acme-widgets-9': movable,
+    'acme-widgets-10': tracked,
+    'gone-story-1': path.join(home, 'gone-story-1'),
+  });
+  const before = readdirSync(home).sort();
+  const text = (await lines(home)).lines.join('\n');
+  const found = line((await lines(home)).lines, 'Story folders');
+  assert.match(found, /^WARN/);
+  assert.match(found, /2 still in a checkout and not served/);
+  assert.match(found, /acme-widgets-10.*a branch tracks files/);
+  assert.match(found, /acme-widgets-9 \(not moved yet\)/);
+  assert.match(text, /once-upon setup/);
+  assert.deepEqual(readdirSync(home).sort(), before, 'doctor moves nothing');
+  assert.ok(statSync(path.join(movable, 'chapters.json')).isFile());
 });
 
 test('a home with everything joined passes the three joins', async () => {

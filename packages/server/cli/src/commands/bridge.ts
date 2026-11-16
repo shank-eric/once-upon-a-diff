@@ -9,6 +9,7 @@ import { saveConfig, newToken } from '@once-upon-a-diff/foundation/settings';
 import { out } from '../output.ts';
 
 import type { Command } from '../types.ts';
+import { migrateStories } from '@once-upon-a-diff/stories/migrate';
 import { serve } from '@once-upon-a-diff/core/orchestration/bridge/bridge';
 
 export const bridgeCommands: Command[] = [
@@ -26,9 +27,14 @@ export const bridgeCommands: Command[] = [
     name: 'setup',
     needsConfig: true,
     usage: [
-      "  once-upon setup                                               print the port and token to paste into the extension's options",
+      "  once-upon setup                                               print the port and token to paste into the extension's options, and move stories out of checkouts",
     ],
     run(home, cfg) {
+      const { moved, skipped } = migrateStories(home);
+      out(`Story folders: ${moved.length ? `moved ${moved.length} to ${home}` : 'none to move'}`);
+      for (const one of skipped) {
+        out(`  left in place, not served: ${one.dir}: ${one.why}`);
+      }
       out(`Bridge port:  ${cfg.port}`);
       out(`Bridge token: ${cfg.token}`);
       out('');

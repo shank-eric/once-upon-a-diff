@@ -1,85 +1,61 @@
 /**
- * Where stories live: in a hidden .once-upon/ folder inside the repo's own
- * checkout, kept out of git by that repo's .git/info/exclude (local-only and
- * never committed, so no .gitignore change and `git status` stays clean).
+ * Where stories live: one folder per story id in the bridge's own folder, where no checked-out branch can write.
  *
- *   <worktree>/.once-upon/<id>/           a local story, in the checkout or worktree it diffs
- *   <main checkout>/.once-upon/<id>/      a PR story, in the repo's main checkout (worktrees come and go)
- *   ~/.once-upon/<id>/                    a story whose repo has no known checkout, as before
- *   ~/.once-upon/stories.json             the index: {id: folder}
+ *   ~/.once-upon/<id>/                    a story (PR: <Owner>-<repo>-<N>; local: local-<folder>-<branch>)
+ *   ~/.once-upon/stories.json             the old index {id: folder}: now only what the migration reads (migrate.ts)
  *
- * Everything bridge-wide stays in ~/.once-upon: config, prefs, the inbox,
- * builds, and each story's state (viewed files, notes, the panel's step).
+ * Stories used to live in <checkout>/.once-upon/<id>, where a PR branch that tracks files there could replace a story
+ * when it was checked out. Those folders are moved here once, by migrate.ts. Everything bridge-wide lives beside them:
+ * config, prefs, the inbox, builds, and each story's state (viewed files, notes, the panel's step).
  *
- * Every story gets there one way: `once-upon publish` (which once-upon's
- * build runs) or `once-upon local`, through storyDirFor. The checkout is the
- * one the bridge knows for the repo, from local stories, `wait --repo` run in
- * a checkout, checkouts.json, or ~/Development/<name> with that origin.
+ * Every story gets here one way: `once-upon publish` (which once-upon's build runs) or `once-upon local`, through storyDirFor.
  */
-import { existsSync, readFileSync, realpathSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
 import path from 'node:path';
-import { checkoutFor } from '@once-upon-a-diff/foundation/repos';
 import { homeDir } from '@once-upon-a-diff/foundation/settings';
-import { ownerOnly, ensureDir, appendText } from '@once-upon-a-diff/adapters/stores/fs/files';
-import { readJson, writeJsonAtomic } from '@once-upon-a-diff/adapters/stores/fs/json-file';
-import { updateJson } from '@once-upon-a-diff/adapters/stores/fs/lock';
+import { ownerOnly, ensureDir } from '@once-upon-a-diff/adapters/stores/fs/files';
+import { readJson } from '@once-upon-a-diff/adapters/stores/fs/json-file';
+import { updateJson, withLock } from '@once-upon-a-diff/adapters/stores/fs/lock';
 import { readStoryKinds } from '@once-upon-a-diff/contracts/files/story-kinds';
-import { runGit } from '@once-upon-a-diff/adapters/git';
 
 const STORY_FOLDER = '.once-upon';
-const EXCLUDE_LINE = `/${STORY_FOLDER}/`;
 
-/** The main checkout of the repo dir is in (for a worktree, the checkout its .git belongs to), or dir itself. */
-export function mainCheckout(dir: string): string {
-  try {
-    const common = runGit(dir, ['rev-parse', '--path-format=absolute', '--git-common-dir'], {
-      quiet: true,
-    }).trim();
-    if (path.basename(common) === '.git') {
-      return path.dirname(common);
-    }
-  } catch {
-    /* not a checkout */
-  }
-  return dir;
-}
+/** What the bridge keeps in its own folder: an id named like one of these would write a story into it. */
+const HOME_ENTRIES = new Set([
+  'agents.jsonl',
+  'asking.json',
+  'backlog.jsonl',
+  'bridge.json',
+  'bridge.log',
+  'builds.json',
+  'checkouts.json',
+  'config.json',
+  'cursors',
+  'editor',
+  'extension-seen.json',
+  'finished-agents.json',
+  'fixes.json',
+  'github-answers.json',
+  'handed.json',
+  'inbox.jsonl',
+  'listener-history.json',
+  'listeners',
+  'listeners.log',
+  'logs',
+  'parts',
+  'prefs.json',
+  'reviews',
+  'state',
+  'statusline',
+  'stories.json',
+  'story-kinds.json',
+  'usage',
+  'worktree-cleanups.jsonl',
+  'worktrees.json',
+]);
 
-/** Keep .once-upon/ out of git for this checkout and all its worktrees: one line in the common .git/info/exclude. */
-export function excludeStories(dir: string): boolean {
-  let common;
-  try {
-    common = runGit(dir, ['rev-parse', '--path-format=absolute', '--git-common-dir'], {
-      quiet: true,
-    }).trim();
-  } catch {
-    return false;
-  }
-  const file = path.join(common, 'info', 'exclude');
-  let text = '';
-  try {
-    text = readFileSync(file, 'utf8');
-  } catch {
-    text = '';
-  }
-  if (
-    text
-      .split('\n')
-      .some(
-        (line) =>
-          line.trim() === EXCLUDE_LINE ||
-          line.trim() === `${STORY_FOLDER}/` ||
-          line.trim() === STORY_FOLDER,
-      )
-  ) {
-    return true;
-  }
-  ensureDir(path.dirname(file));
-  appendText(
-    file,
-    `${text && !text.endsWith('\n') ? '\n' : ''}# Once Upon a Diff's stories (local only)\n${EXCLUDE_LINE}\n`,
-  );
-  return true;
-}
+/** Whether an id may name a story folder under the home: not one of the home's own entries (or a lock folder). */
+export const isStoryId = (id: string): boolean => !HOME_ENTRIES.has(id) && !id.endsWith('.lock');
 
 /** A path with symlinks resolved, or null when it is not there. */
 export const realPathOf = (file: string): string | null => {
@@ -106,18 +82,9 @@ export function inCheckout(dir: string, home: string = homeDir()): boolean {
 }
 
 // ---------- the index
-const indexFile = (home: string) => path.join(home, 'stories.json');
+export const indexFile = (home: string) => path.join(home, 'stories.json');
 export function readIndex(home: string): Record<string, string> {
   return readJson<Record<string, string>>(indexFile(home), {}) || {};
-}
-function indexStory(home: string, id: string, dir: string): void {
-  const all = readIndex(home);
-  if (all[id] === dir) {
-    return;
-  }
-  all[id] = dir;
-  ensureDir(home);
-  writeJsonAtomic(indexFile(home), all);
 }
 
 // ---------- the kinds
@@ -137,30 +104,25 @@ export function recordKind(home: string, id: string, kind: string): void {
   });
 }
 
-/** The folder a new story goes in: <checkout>/.once-upon/<id>, made and excluded, or <home>/<id>. `kind` is recorded for the id. */
+/**
+ * The folder a new story goes in: <home>/<id>, made owner-only. `kind` is recorded for the id. Made under the index's lock,
+ * which the migration holds while it moves a folder in, so a writer never lands files in a folder that is being moved.
+ */
 export function storyDirFor(
   home: string,
   id: string,
-  {
-    checkout = null,
-    repo = null,
-    kind = null,
-  }: { checkout?: string | null; repo?: string | null; kind?: 'github' | 'local' | null } = {},
+  { kind = null }: { kind?: 'github' | 'local' | null } = {},
 ): string {
+  if (!isStoryId(id)) {
+    throw new Error(`story id ${id} is a name the bridge's own folder uses: pass another --id`);
+  }
   if (kind) {
     recordKind(home, id, kind);
   }
-  const top =
-    checkout ||
-    (repo ? checkoutFor(home, repo) && mainCheckout(checkoutFor(home, repo) as string) : null);
-  if (top && existsSync(top) && excludeStories(top)) {
-    ownerOnly(path.join(top, STORY_FOLDER)); // PR text and draft comments: the user's alone, whatever the checkout's mode
-    const dir = path.join(top, STORY_FOLDER, id);
-    ensureDir(dir);
-    indexStory(home, id, dir);
-    return dir;
-  }
   const dir = path.join(home, id);
-  ensureDir(dir);
+  withLock(indexFile(home), () => {
+    ensureDir(home);
+    ownerOnly(dir);
+  });
   return dir;
 }

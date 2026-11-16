@@ -197,6 +197,7 @@ export const COMMAND_AREAS: Record<string, Area> = {
   usage: 'Settings, config and doctor',
   list: 'Story pipeline',
   local: 'Story pipeline',
+  'move-story': 'Story pipeline',
   bind: 'Listeners and sessions',
   page: 'Story pipeline',
   publish: 'Story pipeline',

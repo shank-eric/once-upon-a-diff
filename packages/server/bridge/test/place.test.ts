@@ -6,24 +6,25 @@ import { tmp, git, localRepo, githubStory, writeJson, startBridge, runCli } from
 import { createLocalStory } from '@once-upon-a-diff/stories/local-story';
 import { StoryStore } from '@once-upon-a-diff/stories/store';
 import { seenCheckout } from '@once-upon-a-diff/foundation/repos';
-import { mainCheckout, excludeStories, readIndex } from '@once-upon-a-diff/stories/placement';
+import { readIndex } from '@once-upon-a-diff/stories/placement';
 import type { StoryData } from '@once-upon-a-diff/contracts/types';
 
 const status = (repo: string) => git(repo, 'status', '--porcelain');
 const exclude = (repo: string) => readFileSync(path.join(repo, '.git', 'info', 'exclude'), 'utf8');
 
-test('a local story lives in the checkout it diffs, kept out of git by .git/info/exclude', async () => {
+test("a local story lives in the bridge's folder, and nothing is written in the checkout", async () => {
   const home = tmp('home');
   const { repo, base } = localRepo();
   const made = createLocalStory({ home, repo, base, head: 'HEAD' });
-  assert.equal(realpathSync(made.dir), realpathSync(path.join(repo, '.once-upon', made.id)));
+  assert.equal(realpathSync(made.dir), realpathSync(path.join(home, made.id)));
   assert.ok(existsSync(path.join(made.dir, 'local.diff')));
   assert.equal(status(repo), '', 'git status stays clean');
-  assert.match(exclude(repo), /^\/\.once-upon\/$/m);
-  createLocalStory({ home, repo, base, head: 'HEAD' });
-  assert.equal(exclude(repo).match(/\.once-upon/g)!.length, 1, 'the exclude line is added once');
-  assert.ok(!existsSync(path.join(home, made.id)), 'nothing in ~/.once-upon but state');
-  assert.equal(readIndex(home)[made.id], made.dir, 'the index maps the id to its folder');
+  assert.ok(!existsSync(path.join(repo, '.once-upon')), 'no .once-upon in the checkout');
+  assert.ok(
+    !existsSync(path.join(repo, '.git', 'info', 'exclude')) || !/once-upon/.test(exclude(repo)),
+    'no exclude line written',
+  );
+  assert.deepEqual(readIndex(home), {}, 'no index entry');
   const bridge = await startBridge({ home });
   try {
     assert.equal(
@@ -40,24 +41,38 @@ test('a local story lives in the checkout it diffs, kept out of git by .git/info
   }
 });
 
-test("in a worktree, the story goes in the worktree and the exclude in the repo's common git dir", () => {
+test("in a worktree, the story is in the bridge's folder too and the worktree stays clean", () => {
   const home = tmp('home');
   const { repo, base } = localRepo();
   const worktree = path.join(tmp('wts'), 'feature-two');
   git(repo, 'worktree', 'add', '-q', '-b', 'two', worktree);
   const made = createLocalStory({ home, repo: worktree, base, head: 'HEAD' });
-  assert.equal(realpathSync(path.dirname(path.dirname(made.dir))), realpathSync(worktree));
+  assert.equal(realpathSync(path.dirname(made.dir)), realpathSync(home));
   assert.equal(status(worktree), '');
   assert.equal(status(repo), '');
-  assert.match(
-    exclude(repo),
-    /\/\.once-upon\//,
-    'one exclude covers the checkout and its worktrees',
-  );
-  assert.equal(realpathSync(mainCheckout(worktree)), realpathSync(repo));
+  assert.ok(!existsSync(path.join(worktree, '.once-upon')));
 });
 
-test('once-upon publish writes into the checkout with the commits the story was told from', async () => {
+test('a story id another checkout made is refused, the first story stays, and an id the bridge uses is refused', () => {
+  const home = tmp('home');
+  const first = localRepo();
+  const made = createLocalStory({ home, repo: first.repo, base: first.base, head: 'HEAD' });
+  const other = localRepo();
+  assert.throws(
+    () => createLocalStory({ home, repo: other.repo, base: other.base, head: 'HEAD', id: made.id }),
+    /belongs to .*pass --id/,
+  );
+  const kept = JSON.parse(readFileSync(path.join(made.dir, 'meta.json'), 'utf8'));
+  assert.equal(realpathSync(kept.repo_path), realpathSync(first.repo));
+  // the same checkout tells it again without a refusal
+  createLocalStory({ home, repo: first.repo, base: first.base, head: 'HEAD' });
+  assert.throws(
+    () => createLocalStory({ home, repo: first.repo, base: first.base, head: 'HEAD', id: 'state' }),
+    /pass another --id/,
+  );
+});
+
+test("once-upon publish writes into the bridge's folder with the commits the story was told from", async () => {
   const home = tmp('home');
   const { repo } = localRepo();
   seenCheckout(home, 'acme/widgets', repo);
@@ -74,7 +89,7 @@ test('once-upon publish writes into the checkout with the commits the story was 
   const published = await runCli(home, ['publish', '--dir', src]);
   assert.equal(published.code, 0, published.stderr);
   const out = published.stdout.trim();
-  assert.equal(realpathSync(out), realpathSync(path.join(repo, '.once-upon', 'acme-widgets-7')));
+  assert.equal(realpathSync(out), realpathSync(path.join(home, 'acme-widgets-7')));
   assert.equal(status(repo), '');
   const meta = JSON.parse(readFileSync(path.join(out, 'meta.json'), 'utf8'));
   assert.equal(meta.head_oid, 'b'.repeat(40), 'the head the story was told from is kept');
@@ -84,11 +99,6 @@ test('once-upon publish writes into the checkout with the commits the story was 
   assert.equal(
     realpathSync(store.dirOf('acme-widgets-7') as string),
     realpathSync(out),
-    'the index finds it',
-  );
-  assert.equal(
-    excludeStories(tmp('not-a-repo')),
-    false,
-    "outside a checkout there's nothing to exclude",
+    'the store finds it',
   );
 });

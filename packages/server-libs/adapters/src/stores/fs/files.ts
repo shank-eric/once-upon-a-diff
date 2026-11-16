@@ -7,12 +7,15 @@ import {
   appendFileSync,
   chmodSync,
   copyFileSync,
+  cpSync,
   mkdirSync,
+  renameSync,
   rmSync,
   statSync,
   truncateSync,
   writeFileSync,
 } from 'node:fs';
+import path from 'node:path';
 
 /**
  * Makes the folder (and its parents) if it is missing, the user's alone (0700) unless `mode` says otherwise. The mode applies
@@ -75,4 +78,25 @@ export function truncateFile(file: string): void {
 /** Removes a folder and everything in it, with no error when it is not there. */
 export function removeDir(dir: string): void {
   rmSync(dir, { recursive: true, force: true });
+}
+
+/**
+ * Moves a folder to a path that is not there yet (the caller checks). On one filesystem that is a rename. Across filesystems
+ * (EXDEV) the folder is copied to `<dest's parent>/.<name>.moving` (symbolic links copied as links, never followed), renamed
+ * into place, and only then removed from `src`, so a reader never sees half a folder at `dest`.
+ */
+export function moveDir(src: string, dest: string): void {
+  try {
+    renameSync(src, dest);
+    return;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EXDEV') {
+      throw error;
+    }
+  }
+  const staged = path.join(path.dirname(dest), `.${path.basename(dest)}.moving`);
+  rmSync(staged, { recursive: true, force: true });
+  cpSync(src, staged, { recursive: true, verbatimSymlinks: true, errorOnExist: true });
+  renameSync(staged, dest);
+  rmSync(src, { recursive: true, force: true });
 }

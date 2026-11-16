@@ -2,14 +2,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import '@once-upon-a-diff/test-kit/env';
 import { tmp, writeJson } from '@once-upon-a-diff/test-kit/files';
 import { git, localRepo } from '@once-upon-a-diff/test-kit/git';
 import { createLocalStory } from '../src/local-story.ts';
 import { refreshLocal } from '../src/local-diff.ts';
-import { checkedMeta, isSafeRef, readMeta } from '../src/meta.ts';
-import { storyDirFor } from '../src/placement.ts';
+import { checkedMeta, isSafeRef, readMeta, refusalOf } from '../src/meta.ts';
+import { indexFile, readIndex, storyDirFor } from '../src/placement.ts';
 import { StoryStore } from '../src/store.ts';
 import type { LocalMeta } from '../src/types.ts';
 
@@ -24,9 +24,19 @@ function localStory() {
   return { home, repo, base, ...made, store: new StoryStore({ home }) };
 }
 
-/** a PR story as publish leaves it, in the checkout's .once-upon/ */
-function githubStory(home: string, repo: string) {
-  const dir = storyDirFor(home, 'acme-widgets-7', { checkout: repo, kind: 'github' });
+/** a story folder as an older version kept it: moved into the checkout's .once-upon/ and named in the index (a folder the checks still guard until it is migrated) */
+function legacyOf(home: string, repo: string, dir: string): string {
+  const id = path.basename(dir);
+  const held = path.join(repo, '.once-upon', id);
+  mkdirSync(path.dirname(held), { recursive: true });
+  renameSync(dir, held);
+  writeJson(indexFile(home), { ...readIndex(home), [id]: held });
+  return held;
+}
+
+/** a PR story as publish leaves it, in the home */
+function githubStory(home: string) {
+  const dir = storyDirFor(home, 'acme-widgets-7', { kind: 'github' });
   writeJson(path.join(dir, 'chapters.json'), { title: 'T', chapters: [] });
   overwrite(dir, { kind: 'github', repo: 'acme/widgets', number: 7, head_oid: 'a'.repeat(40) });
   return dir;
@@ -52,22 +62,23 @@ test('a meta.json whose oids are options makes no git call with them and writes 
   assert.equal(existsSync(written), false);
 });
 
-test('a meta.json whose base or head is an option is refused, and nothing is written', () => {
-  const { dir, store, id } = localStory();
+test('a meta.json whose base or head is an option is refused in a folder a checkout holds, and nothing is written', () => {
+  const { home, dir, repo, id } = localStory();
+  const held = legacyOf(home, repo, dir);
   const written = path.join(tmp('target'), 'written');
+  const good = metaOf(held);
   for (const field of ['base', 'head']) {
-    const raw = { ...metaOf(dir), [field]: `--output=${written}`, base_oid: null, head_oid: null };
-    rmSync(path.join(dir, 'local.diff'), { force: true });
-    overwrite(dir, raw);
-    refreshLocal(dir, raw as LocalMeta);
+    const raw = { ...good, [field]: `--output=${written}`, base_oid: null, head_oid: null };
+    rmSync(path.join(held, 'local.diff'), { force: true });
+    overwrite(held, raw);
+    refreshLocal(held, raw as LocalMeta);
     assert.equal(existsSync(written), false);
-    assert.equal(store.dirOf(id), null, `a ${field} that is an option is not served`);
-    assert.equal(store.load(id), null);
+    assert.equal(refusalOf(home, id, held), `${field} is not a ref`);
   }
 });
 
 test('checkedMeta drops a non-sha oid and an option ref, and refuses a repo_path that is not the folder checkout', () => {
-  const { dir, repo } = localStory();
+  const { home, dir, repo } = localStory();
   const good = metaOf(dir);
   const check = (change: object) => checkedMeta(dir, { ...good, ...change });
   assert.equal(check({}).problem, null);
@@ -81,73 +92,89 @@ test('checkedMeta drops a non-sha oid and an option ref, and refuses a repo_path
   assert.equal(check({ base: '-x' }).problem, 'base is not a ref');
   assert.equal(check({ head: 'a\nb' }).problem, 'head is not a ref');
   assert.equal(check({ kind: 'weird' }).problem?.includes('kind'), true);
-  const outside = check({ repo_path: tmp('elsewhere') });
-  assert.match(outside.problem as string, /repo_path/);
-  assert.equal(outside.meta.repo_path, undefined);
   assert.match(check({ repo_path: 'relative' }).problem as string, /repo_path/);
   assert.equal(
-    check({ repo_path: path.join(repo, '.') }).problem,
+    check({ repo_path: tmp('elsewhere') }).problem,
+    null,
+    'a story of the home keeps whatever checkout it names',
+  );
+  // a folder a checkout still holds must be that checkout's
+  const held = legacyOf(home, repo, dir);
+  const outside = checkedMeta(held, { ...good, repo_path: tmp('elsewhere') }, home);
+  assert.match(outside.problem as string, /repo_path/);
+  assert.equal(outside.meta.repo_path, undefined);
+  assert.equal(
+    checkedMeta(held, { ...good, repo_path: path.join(repo, '.') }, home).problem,
     null,
     'a path that is the same folder',
   );
-  assert.equal(readMeta(dir).kind, 'local');
+  assert.equal(readMeta(held).kind, 'local');
 });
 
-test('a story folder whose kind differs from the one it was made as is not served', () => {
+test('a story folder in a checkout whose kind differs from the one it was made as is refused', () => {
   const { home, repo, store } = localStory();
-  const dir = githubStory(home, repo);
-  assert.ok(store.dirOf('acme-widgets-7'));
+  const dir = legacyOf(home, repo, githubStory(home));
+  assert.equal(refusalOf(home, 'acme-widgets-7', dir), null);
   // the branch's meta.json says local, with the checkout it is in
   overwrite(dir, { kind: 'local', repo_path: repo, base: 'HEAD', head: 'HEAD' });
-  assert.equal(store.dirOf('acme-widgets-7'), null);
-  assert.equal(store.load('acme-widgets-7'), null);
+  assert.match(refusalOf(home, 'acme-widgets-7', dir) as string, /is not the github/);
+  assert.equal(store.dirOf('acme-widgets-7'), null, 'and a folder in a checkout is never served');
   // and the other way round
   const local = Object.values(store.dirs()).find((one) => one.id.startsWith('local-'))!;
   overwrite(local.dir, { kind: 'github', repo: 'acme/widgets', number: 1 });
-  assert.equal(store.dirOf(local.id), null);
+  assert.equal(store.dirOf(local.id), local.dir, 'a story of the home is trusted');
 });
 
 test('a story made before kinds were recorded is taken as it is, and kept to that kind', () => {
-  const { home, repo, store } = localStory();
-  const dir = githubStory(home, repo);
+  const { home, repo } = localStory();
+  const dir = legacyOf(home, repo, githubStory(home));
   rmSync(path.join(home, 'story-kinds.json'));
-  assert.ok(store.dirOf('acme-widgets-7'));
+  assert.equal(refusalOf(home, 'acme-widgets-7', dir), null);
   overwrite(dir, { kind: 'local', repo_path: repo, base: 'HEAD', head: 'HEAD' });
-  assert.equal(store.dirOf('acme-widgets-7'), null);
+  assert.match(refusalOf(home, 'acme-widgets-7', dir) as string, /is not the github/);
 });
 
-test('a local story whose repo_path is another checkout is not served', () => {
-  const { dir, store, id } = localStory();
-  const other = localRepo().repo;
-  overwrite(dir, { ...metaOf(dir), repo_path: other });
-  assert.equal(store.dirOf(id), null);
-  assert.equal(readMeta(dir).repo_path, undefined);
+test('a story folder in a checkout whose repo_path is another checkout is refused', () => {
+  const { home, dir, repo, id } = localStory();
+  const held = legacyOf(home, repo, dir);
+  assert.equal(refusalOf(home, id, held), null);
+  overwrite(held, { ...metaOf(held), repo_path: localRepo().repo });
+  assert.match(refusalOf(home, id, held) as string, /repo_path/);
+  assert.equal(readMeta(held).repo_path, undefined);
 });
 
 test('a normal PR story and a normal local story load as before', () => {
-  const { home, repo, store, id, dir } = localStory();
+  const { home, store, id, dir } = localStory();
   const before = metaOf(dir);
   const data = store.load(id);
   assert.ok(data);
   assert.equal(data.kind, 'local');
   assert.deepEqual({ ...metaOf(dir), updated_at: undefined }, { ...before, updated_at: undefined });
-  githubStory(home, repo);
+  githubStory(home);
   const pr = store.load('acme-widgets-7');
   assert.ok(pr);
   assert.equal(pr.kind, 'github');
   assert.equal(readMeta(path.dirname(dir) + '/acme-widgets-7').head_oid, 'a'.repeat(40));
 });
 
-test('a local story in the home folder is served even when the home is named .once-upon, and a checkout story with a foreign repo_path is not', () => {
+test('a local story in the home folder is served even when the home is named .once-upon', () => {
   const home = path.join(tmp('root'), '.once-upon'); // the default home's name
   const { repo, base } = localRepo();
-  const made = createLocalStory({ home, repo, base, head: 'HEAD' });
+  const ambient = process.env.ONCE_UPON_HOME;
+  process.env.ONCE_UPON_HOME = home; // the home the bridge and the CLI read (settings.ts homeDir)
+  let made: ReturnType<typeof createLocalStory>;
+  try {
+    made = createLocalStory({ home, repo, base, head: 'HEAD' });
+  } finally {
+    process.env.ONCE_UPON_HOME = ambient;
+  }
   const store = new StoryStore({ home });
-  assert.ok(store.dirOf(made.id), 'the checkout story is served');
-  // the same story as a home folder holds it (<home>/<id>): its repo_path is where the story says the repo is
+  assert.ok(store.dirOf(made.id), 'the story is served');
+  assert.equal(made.dir, path.join(home, made.id));
+  // a story of the home keeps the checkout it says it is of: where the story says the repo is
   const homed = path.join(home, 'local-legacy-x');
   mkdirSync(homed, { recursive: true });
-  const meta = { ...metaOf(made.dir), repo_path: repo };
+  const meta = { ...metaOf(made.dir), repo_path: tmp('elsewhere') };
   writeJson(path.join(homed, 'chapters.json'), { title: 'T', chapters: [] });
   overwrite(homed, meta);
   assert.equal(checkedMeta(homed, meta, home).problem, null);
@@ -157,13 +184,10 @@ test('a local story in the home folder is served even when the home is named .on
   const before = process.env.ONCE_UPON_HOME;
   process.env.ONCE_UPON_HOME = home;
   try {
-    assert.equal(readMeta(homed).repo_path, repo);
+    assert.equal(readMeta(homed).repo_path, meta.repo_path);
   } finally {
     process.env.ONCE_UPON_HOME = before;
   }
-  // a checkout story whose repo_path is another checkout is still refused
-  overwrite(made.dir, { ...metaOf(made.dir), repo_path: localRepo().repo });
-  assert.equal(store.dirOf(made.id), null);
 });
 
 test('isSafeRef accepts the refs git allows and nothing a shell reads', () => {

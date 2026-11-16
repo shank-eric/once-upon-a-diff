@@ -136,6 +136,7 @@ git -C "$R" rev-parse -q --verify refs/heads/mg >/dev/null && [ -e "$W/mg/evil.t
 # 14. a landed worktree's local story folder (.once-upon/<id>/, ignored) moves to <home>/<id>/ and the worktree goes
 printf '# x\n/.once-upon/\n' >>"$R/.git/info/exclude"
 export ONCE_UPON_HOME="$T/home"
+export ONCE_UPON_BIN="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/packages/server/bridge/bin/once-upon.mjs"
 story() { mkdir -p "$W/$1/.once-upon/$2"; echo '{}' >"$W/$1/.once-upon/$2/meta.json"; echo '{}' >"$W/$1/.once-upon/$2/chapters.json"; echo d >"$W/$1/.once-upon/$2/local.diff"; }
 mk st; story st local-st-feat; echo 1 >"$W/st/.eslintcache"
 out="$(cleanup_landed_worktree "$R" "$W" st main)"
@@ -158,7 +159,7 @@ echo "$out" | grep -q "no place to go" && [ -e "$W/st4" ] && [ -f "$T/home/local
 mk st5; mkdir -p "$W/st5/.once-upon/notes"; echo n >"$W/st5/.once-upon/notes/n.txt"
 out="$(cleanup_landed_worktree "$R" "$W" st5 main)"
 echo "$out" | grep -q "kept: it has changes" && [ -e "$W/st5" ] || fail "non-story: $out"
-unset ONCE_UPON_HOME
+unset ONCE_UPON_HOME ONCE_UPON_BIN
 # 15. a cherry-pick onto changed context is still landed (git cherry says "+": patch-id hashes context); a different change is not
 printf '%s\n' l1 l2 l3 l4 l5 l6 l7 l8 l9 l10 >"$R/ctx"; git -C "$R" add ctx; git -C "$R" commit -qm ctx
 mk idle; mk idle2

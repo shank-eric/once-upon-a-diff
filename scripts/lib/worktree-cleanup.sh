@@ -5,8 +5,9 @@
 # Removes the worktree checked out on <branch> under <worktrees-dir> when <branch> is an ancestor of
 # <landed-into-ref>. With "patch" (batch deploys, which cherry-pick), landed means every commit of <branch> has a
 # patch-id match in <landed-into-ref> (git cherry) instead. Untracked symlinks and regenerable ignored paths (node_modules, dist, build, .venv*, __pycache__, *.log, .yarn/cache, tool cache files such as .eslintcache and .prettiercache; never a generic folder like .cache or coverage, which can hold hand-made files) are forced past. A local story's folder (ignored `.once-upon/<id>/` holding meta.json and chapters.json) is moved
-# to <home>/<id>/ (home is $ONCE_UPON_HOME, else ~/.once-upon), where the bridge still serves it, before the worktree goes; a
-# folder already there keeps the worktree. Any other untracked, ignored or modified file makes it refuse and say so. Prints one "deploy-local:" line either way. Never fails the caller.
+# to <home>/<id>/ (home is $ONCE_UPON_HOME, else ~/.once-upon), where the bridge still serves it, before the worktree goes, by
+# `once-upon move-story` ($ONCE_UPON_BIN, else the repo's bridge/bin/once-upon.mjs), which refuses a folder with tracked files,
+# a symbolic link or a bad meta.json and moves under the stories lock; a folder it leaves, or one already there, keeps the worktree. Any other untracked, ignored or modified file makes it refuse and say so. Prints one "deploy-local:" line either way. Never fails the caller.
 # Ignored paths that an install or build recreates. Anything else ignored (.env, *.pem, ...) blocks removal.
 _regenerable() {
   case "$1" in
@@ -51,7 +52,7 @@ _story_folder() {
 }
 
 cleanup_landed_worktree() {
-  local repo="$1" root="$2" branch="$3" into="$4" mode="${5:-}" wt="" line cur dirt p out id home d
+  local repo="$1" root="$2" branch="$3" into="$4" mode="${5:-}" wt="" line cur dirt p out id home d bin why
   local stories=()
   cur=""
   while IFS= read -r line; do
@@ -113,16 +114,22 @@ EOS
     return 0
   fi
   home="${ONCE_UPON_HOME:-$HOME/.once-upon}"
+  bin="${ONCE_UPON_BIN:-$repo/packages/server/bridge/bin/once-upon.mjs}"
   for id in ${stories[@]+"${stories[@]}"}; do
     [ -d "$wt/.once-upon/$id" ] || continue # listed once per file, moved once
     if [ -e "$home/$id" ] || [ -L "$home/$id" ]; then
       echo "deploy-local: worktree $wt kept: its story folder .once-upon/$id has no place to go, $home/$id exists"
       return 0
     fi
-    mkdir -p "$home" && mv "$wt/.once-upon/$id" "$home/$id" 2>/dev/null || {
-      echo "deploy-local: worktree $wt kept: could not move its story folder .once-upon/$id to $home/$id"
+    # Only the CLI moves it: it runs the migration's checks (tracked files, symlinks, meta.json, kind) under the index's lock.
+    if [ ! -f "$bin" ]; then
+      echo "deploy-local: worktree $wt kept: its story folder .once-upon/$id could not be moved, $bin is missing"
       return 0
-    }
+    fi
+    if ! why="$(ONCE_UPON_HOME="$home" node "$bin" move-story --dir "$wt/.once-upon/$id" 2>&1 >/dev/null </dev/null)"; then
+      echo "deploy-local: worktree $wt kept: its story folder .once-upon/$id was not moved: ${why:-the CLI failed}"
+      return 0
+    fi
     echo "deploy-local: moved story folder .once-upon/$id to $home/$id"
   done
   if git -C "$repo" worktree remove --force "$wt" 2>/dev/null; then

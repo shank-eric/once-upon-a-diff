@@ -387,22 +387,25 @@ describe('GitHub stories', () => {
 });
 
 describe('story discovery', () => {
-  test('finds a story in the index or in home, and the indexed folder wins', () => {
+  test('finds stories in home only: an index entry that names a folder in a checkout is never followed', () => {
     const home = tmp('home');
     const checkout = tmp('checkout');
     githubStory(path.join(home, 'acme-widgets-7'));
     githubStory(path.join(checkout, '.once-upon', 'acme-widgets-7'));
+    githubStory(path.join(checkout, '.once-upon', 'acme-widgets-8'), { meta: { number: 8 } });
     githubStory(path.join(home, 'widgets-9'));
     writeJson(path.join(home, 'stories.json'), {
       'acme-widgets-7': path.join(checkout, '.once-upon', 'acme-widgets-7'),
+      'acme-widgets-8': path.join(checkout, '.once-upon', 'acme-widgets-8'),
     });
     const store = new StoryStore({ home });
     const list = store.list();
     assert.deepEqual(list.map((story) => story.id).sort(), ['acme-widgets-7', 'widgets-9']);
     assert.equal(
       list.find((story) => story.id === 'acme-widgets-7')!.dir,
-      path.join(checkout, '.once-upon', 'acme-widgets-7'),
+      path.join(home, 'acme-widgets-7'),
     );
+    assert.equal(store.dirOf('acme-widgets-8'), null);
     assert.ok(store.find('acme/widgets', 7));
   });
   test('a folder with chapters.json but no meta.json is not a story', () => {

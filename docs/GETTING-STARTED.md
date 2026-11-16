@@ -121,7 +121,7 @@ The panel can draw a strip of your repo's named parts under Steps, with the part
 
 ## Where stories live
 
-Each story lives in the checkout it's about, in a hidden `.once-upon/` folder. Git ignores that folder through the checkout's `.git/info/exclude`, which is local and never committed, so `git status` stays clean. Everything else, like your config, preferences, the question inbox and what you've read, is in `~/.once-upon` (`ONCE_UPON_HOME` moves it).
+Each story is a folder in `~/.once-upon` (`ONCE_UPON_HOME` moves it), beside your config, preferences, the question inbox and what you've read. Nothing is written in your checkouts, so `git status` stays clean and a branch you check out can't replace a story. Stories an older version kept in a checkout's `.once-upon/` are moved by `once-upon setup` (and by any `once-upon` command), once; `once-upon doctor` names any it could not move.
 
 The bridge learns where your checkouts are from local stories and from where a listener runs. Otherwise it looks under `~/Development/<name>` (`checkout_dirs` in `~/.once-upon/config.json` or `ONCE_UPON_DEV_DIR` changes that).
 

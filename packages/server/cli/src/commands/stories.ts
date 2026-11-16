@@ -13,6 +13,7 @@ import { storyIdOf } from './inbox.ts';
 import { afterRebuild } from '@once-upon-a-diff/core/features/publishing/after-rebuild';
 import { vetRebuild } from '@once-upon-a-diff/stories/rebuild';
 import { createLocalStory } from '@once-upon-a-diff/stories/local-story';
+import { moveStoryFolder } from '@once-upon-a-diff/stories/migrate';
 import { noteTiming } from '@once-upon-a-diff/stories/timings';
 import { findingsSummary, localStoryFindings } from '@once-upon-a-diff/stories/story-report';
 
@@ -246,6 +247,21 @@ function publish(home: string, _cfg: Config, opts: CliOpts) {
   out(dest);
 }
 
+/** Moves one story folder of a checkout into the home through the migration's checks and lock. Exit 1 and the reason when it is left. */
+function moveStory(home: string, _cfg: Config, opts: CliOpts) {
+  const dir = opts.dir;
+  if (typeof dir !== 'string' || !dir) {
+    throw new Error('move-story needs --dir <checkout>/.once-upon/<id>');
+  }
+  const why = moveStoryFolder(home, dir);
+  if (why) {
+    process.stderr.write(`once-upon: left ${dir} in place: ${why}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  out(path.join(home, path.basename(path.resolve(dir))));
+}
+
 export const storyCommands: Command[] = [
   {
     name: 'list',
@@ -263,6 +279,13 @@ export const storyCommands: Command[] = [
       '                                                                 pending, the chapters must keep what it keeps and tell every file and hunk',
     ],
     run: local,
+  },
+  {
+    name: 'move-story',
+    usage: [
+      "  once-upon move-story --dir DIR                                move one <checkout>/.once-upon/<id> folder into ~/.once-upon/<id> through the migration's checks and lock (deploy cleanup); exits 1 and says why when it is left",
+    ],
+    run: moveStory,
   },
   {
     name: 'bind',
@@ -284,7 +307,7 @@ export const storyCommands: Command[] = [
   {
     name: 'publish',
     usage: [
-      '  once-upon publish --dir DIR [--id ID] [--agent NAME] [--allow-uncovered]     copy a once-upon folder into <checkout>/.once-upon/<owner>-<repo>-<N>/ (or ~/.once-upon/)',
+      '  once-upon publish --dir DIR [--id ID] [--agent NAME] [--allow-uncovered]     copy a once-upon folder into ~/.once-upon/<owner>-<repo>-<N>/',
       "                                                                 and finish the PR's build request; a Rebuild must keep what it keeps, tell",
       '                                                                 every file and hunk, and keeps the drafts the new chapters dropped',
     ],

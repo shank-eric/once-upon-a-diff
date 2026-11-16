@@ -935,7 +935,7 @@ test('POST /api/board/review: a session’s branch becomes a storyless review ov
   assert.equal(made.status, 200, made.text);
   const { story, url } = made.body;
   assert.match(url, new RegExp(`/local/${story}/`));
-  const folder = path.join(dir, '.once-upon', story);
+  const folder = path.join(home, story);
   const meta = JSON.parse(readFileSync(path.join(folder, 'meta.json'), 'utf8'));
   assert.equal(meta.base, forkPoint);
   assert.equal(meta.head, 'feat/x');

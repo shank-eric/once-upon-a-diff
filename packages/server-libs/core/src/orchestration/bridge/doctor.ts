@@ -32,6 +32,7 @@ import { readAgents } from '@once-upon-a-diff/state/records/agents/read';
 import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
 import { StoryStore } from '@once-upon-a-diff/stories/store';
 import { readIndex } from '@once-upon-a-diff/stories/placement';
+import { legacyProblem, legacyStories } from '@once-upon-a-diff/stories/migrate';
 import { readMeta, stateKeyOf } from '@once-upon-a-diff/stories/meta';
 import { seenCheckoutRepos } from '@once-upon-a-diff/foundation/repos';
 import { stateKeyForPr } from '@once-upon-a-diff/terms/ids';
@@ -304,6 +305,25 @@ export async function doctor(
       : null,
   );
 
+  // a story kept in a checkout is moved into the home by `once-upon setup` (and at the start of any command); one that
+  // could not be moved is not served, and is named here with why
+  const legacy = legacyStories(home).map((story) => ({
+    ...story,
+    why: legacyProblem(home, story),
+  }));
+  add(
+    legacy.length ? 'WARN' : 'PASS',
+    'Story folders',
+    legacy.length
+      ? `${legacy.length} still in a checkout and not served: ${firstFive(legacy.map((story) => `${story.dir} (${story.why ?? 'not moved yet'})`))}`
+      : 'every story is a folder of the bridge, not of a checkout',
+    legacy.length
+      ? 'Run: once-upon setup (it moves each folder that can move). For one whose reason is a tracked file, link or meta.json, ' +
+          'tell that story again with `once-upon local` or publish, which writes a new folder in the home. ' +
+          'Doctor moves nothing and a folder it names is never deleted'
+      : null,
+  );
+
   // state folders and inbox entries each belong to a story: one in stories.json or with a story folder on disk
   const stories = new StoryStore({ home })
     .dirs()
@@ -342,7 +362,10 @@ export async function doctor(
       ? `${missing.length} to look at, in no story of stories.json and with no story folder: ${firstFive(missing)}`
       : 'every story in inbox.jsonl is a story',
   );
-  const goneIds = new Set(indexed.filter((id) => !stories.some((story) => story.id === id)));
+  const stuck = new Set(legacy.map((story) => story.id));
+  const goneIds = new Set(
+    indexed.filter((id) => !stuck.has(id) && !stories.some((story) => story.id === id)),
+  );
   const goneFolders = folders.filter((folder) => goneIds.has(folder.name)).length;
   const goneEvents = inbox.filter((story) => goneIds.has(story)).length;
   if (goneFolders || goneEvents) {

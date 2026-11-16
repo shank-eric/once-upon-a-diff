@@ -1,6 +1,8 @@
 # ADR-03: Story folders in each checkout's `.once-upon/`
 
 > Paths in this ADR are as of its date. The code has moved since; `docs/flows.md` and ADR-26 cite where it lives now.
+>
+> Superseded for placement by ADR-29: stories are back in `~/.once-upon/<id>/`, so a checked-out branch can't replace one. Open question 3 is answered by it as "moved", and question 4 no longer applies.
 
 Descriptive draft, 10/27, of the code on `stack/5-board-checks` (8710395). Since 11/5: the placement code is `placement.ts` in `packages/stories` (it was `records/stories/` in `packages/core` and `services/stories/` before, ADR-20 and ADR-24). The rules are unchanged.
 

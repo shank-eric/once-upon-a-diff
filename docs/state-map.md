@@ -79,12 +79,12 @@ This covers every file and in-memory cache that the bridge, the CLI, the extensi
 
 | Where | Writer | Readers | Holds | Lifetime |
 |---|---|---|---|---|
-| `<main checkout>/.once-upon/<Owner>-<repo>-<N>/` (PR story) | `publish` (CLI, from `story.mjs build`), through `publishPrStory` in `core/src/features/publishing/publish.ts`: `copyFileAtomic` of `chapters.json` and `file-map.json`, then an atomic `meta.json`. CLI `comment` (atomic) | bridge on every story request, skills (`chapters.json`, `meta.json`) | `chapters.json`, `file-map.json`, `meta.json` (`head_oid`, `pr_author`, `head_ref`, `source`, …) | forever. Folders made before the umask was set keep 0755 |
-| `<worktree>/.once-upon/local-<folder>-<branch>/` (local story) | `once-upon local` (CLI), **and the bridge**: `refreshLocal` rewrites `local.diff` and `meta.json` whenever HEAD or the base moved, on every version poll, pulse and load (`stories/src/local-diff.ts`). `local-w.diff` on demand | bridge, skills | `meta.json` (`repo_path`, `base`, `head`, `branch`, oids, `commits`, `built_at`), `local.diff`, `local-w.diff`, `chapters.json` | goes when the worktree is deleted, but its index entry and state folder stay |
+| `<home>/<Owner>-<repo>-<N>/` (PR story) | `publish` (CLI, from `story.mjs build`), through `publishPrStory` in `core/src/features/publishing/publish.ts`: `copyFileAtomic` of `chapters.json` and `file-map.json`, then an atomic `meta.json`. CLI `comment` (atomic) | bridge on every story request, skills (`chapters.json`, `meta.json`) | `chapters.json`, `file-map.json`, `meta.json` (`head_oid`, `pr_author`, `head_ref`, `source`, …) | forever. Folders made before the umask was set keep 0755 |
+| `<home>/local-<folder>-<branch>/` (local story) | `once-upon local` (CLI), **and the bridge**: `refreshLocal` rewrites `local.diff` and `meta.json` whenever HEAD or the base moved, on every version poll, pulse and load (`stories/src/local-diff.ts`). `local-w.diff` on demand | bridge, skills | `meta.json` (`repo_path`, `base`, `head`, `branch`, oids, `commits`, `built_at`), `local.diff`, `local-w.diff`, `chapters.json` | stays when the worktree is deleted (idle rules hide it) |
 | `skeleton.json` in a story's folder (PR or local) | `noteSkeleton` (`stories/src/skeleton.ts`), from `publish` and `once-upon local`, by atomic write | `storyData` (marks each such chapter `skeleton`), the board and Approve (`unwrittenCount` reads `chapters.json`) | `[chapter key, …]`: chapters that were ever published with no narrative. A union, never shrunk | forever, with the story. Missing: the panel may credit a read from Viewed ticks made while a chapter was being written |
 | `<home>/<id>/` | `publish` with no known checkout | bridge | as a PR story | forever |
 | `<checkout>/.once-upon-parts.json` | the repo's own people, committed with the code | the bridge when it loads a story (`stories/src/parts.ts`): a local story's worktree, or a PR story's main checkout (its working tree, not the PR's head) | the repo's parts map (`domain/terms/src/parts.ts`). Worked out on each load and never stored, so an older story gains its strip the day the repo gets a file | forever, with the repo. A reviewer's own `<home>/parts/` file wins (§1) |
-| `<checkout>/.git/info/exclude` (common dir) | `excludeStories` appends `/.once-upon/` once | git | one line | forever |
+| `<checkout>/.git/info/exclude` (common dir) | older versions appended `/.once-upon/` once; nothing writes it now and the line is left | git | one line | forever |
 | skill scratch `<scratchpad>/once-upon/<repo>-<N>/` (`meta.source`) | the once-upon skill (`gather.sh`, `story.mjs`), `publish` on a rebuild, CLI `comment` (keeps a second copy of `chapters.json` in step) | `publish`, `prAuthorOf` fallback | `pr.json`, `pr.diff`, `threads.json`, `checks.json`, `viewed.tsv`, `checkouts.txt`, `brief.json`, `chapters.json`, `file-map.json` | Claude Code's session scratchpad, which goes when the session ends, so `meta.source` points at a folder that's often gone. `comment` checks it exists |
 | `refs/tmp/pr-<N>` in a checkout | skills (fetch a PR head) | skills | git ref | the skill says to delete it, and nothing checks that it did |
 
@@ -179,20 +179,20 @@ Items 1 and 2 were closed by the request queue's lock (183210b, 11/4). Items 3 t
 
 14. `inbox.jsonl` is reread whole on every 5-second pulse of every open panel (`server/routes/story.ts`), on every `answer` and on every deferred-question check. It grows forever.
 15. `state/` (including orphaned folders), `cursors/` and `listeners/` (one per consumer ever used), `stories.json` (dead entries), `handed.json`, `fixes.json`, `backlog.jsonl`, `worktree-cleanups.jsonl`, `listeners.log`, `chrome.storage` `ui:*`, and the bridge's per-PR and per-session maps (§6).
-16. Old story folders in checkouts. Nothing removes `.once-upon/<id>` for a merged PR. `merged.json` only hides it.
+16. Old story folders. Nothing removes `<home>/<id>` for a merged PR. `merged.json` only hides it. (A folder an older version kept in a checkout is moved by `migrateStories`, or left and named by doctor.)
 
 ### Other things that look off
 
 17. **A local story told over `HEAD` follows HEAD.** See short-version item 6. Restacking in one worktree moves such a story to whatever is now checked out.
 18. **Story ids depend on the worktree folder.** `local-<folder>-<branch>` (`stories/src/local-story.ts`): the same branch `feature` reviewed from `~/code/repo-worktrees/a/` and from `~/code/repo-worktrees/b/` is two stories (`local-a-feature`, `local-b-feature`) with separate reviewed, read and viewed state.
-19. **File modes on disk don't match the README.** The CLI sets `umask 077` (`bin/once-upon.ts`), so new files are private, but files and folders made before that keep their modes. `ownerOnly` only fixes `<home>` and each `.once-upon/`. So a home created by an older version can still have 0644 files (`builds.json`, `stories.json`, `checkouts.json`, `prefs.json`, state files) and 0755 folders (`state/`, `cursors/`, `listeners/`, older `.once-upon/<id>/`).
+19. **File modes on disk don't match the README.** The CLI sets `umask 077` (`bin/once-upon.ts`), so new files are private, but files and folders made before that keep their modes. `ownerOnly` only fixes `<home>` and each story folder `storyDirFor` makes. So a home created by an older version can still have 0644 files (`builds.json`, `stories.json`, `checkouts.json`, `prefs.json`, state files) and 0755 folders (`state/`, `cursors/`, `listeners/`, older `.once-upon/<id>/`).
 20. **The sync repo-of-checkout cache never expires** (`foundation/src/repos.ts`), unlike the async one.
 
 ## ADRs (`docs/adr/`)
 
 1. `adr/adr-01-extension-and-local-bridge.md`: an extension plus a local bridge, everything on this machine
 2. `adr/adr-02-page-keys-step-down.md`: page keys and the step-down rule
-3. `adr/adr-03-story-folders-in-checkouts.md`: story folders in each checkout's `.once-upon/`
+3. `adr/adr-03-story-folders-in-checkouts.md`: story folders in each checkout's `.once-upon/` (replaced by `adr/adr-29-story-folders-in-the-home-again.md`)
 4. `adr/adr-04-json-files-as-store.md`: JSON files as the store
 5. `adr/adr-05-http-only-browser-bridge.md`: HTTP only between browser and bridge, with the CLI in-process
 6. `adr/adr-06-sessions-and-listeners.md`: Claude sessions and listeners as the working side

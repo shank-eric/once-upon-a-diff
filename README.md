@@ -133,7 +133,7 @@ The panel says who's answering, on the line under the Ask box: "Answered by api-
 
 ## Using it on a PR
 
-1. Make a story with the once-upon skill. Its `build` step publishes it with `once-upon publish --dir <D>`, which you can also run yourself: `chapters.json`, `file-map.json` and a `meta.json` naming the PR and the commit it was told from go into the repo's checkout (below), or `~/.once-upon/<owner>-<repo>-<N>/` when the bridge knows no checkout.
+1. Make a story with the once-upon skill. Its `build` step publishes it with `once-upon publish --dir <D>`, which you can also run yourself: `chapters.json`, `file-map.json` and a `meta.json` naming the PR and the commit it was told from go into `~/.once-upon/<owner>-<repo>-<N>/` (below).
 2. Open the PR's **Files changed** tab. The panel docks on the right at the Overview step.
 3. Prev and Next (or the Steps list) filter the diff to a chapter. "Show all files" undoes the filter.
 4. To hide the panel, use **Hide story** (it collapses to a strip) or **×** (it goes away and that's remembered for the PR). The toolbar button or **Alt+Shift+S** shows or hides it.
@@ -390,17 +390,15 @@ The first visit comes from the extension's button or the printed link, `https://
 
 ## Story folders
 
-Stories live in the repo they're about, in a hidden `.once-upon/` folder in its local checkout. Git ignores that folder through the checkout's `.git/info/exclude`, which is local and never committed. So there's no `.gitignore` change, `git status` stays clean, and `git add .` can't pick it up. A worktree shares its repo's exclude file.
+Stories live in `~/.once-upon`, one folder per story id, and never in a checkout: a branch that tracks files under `.once-upon/` and is checked out can't replace a story the bridge serves. `once-upon setup` (and the start of any `once-upon` command) moves a story an older version kept in `<checkout>/.once-upon/<id>/` into `~/.once-upon/<id>/`, once. A folder that has files a branch tracks, a symbolic link, a meta.json that fails its checks or a twin already in `~/.once-upon` stays where it is, is not served, and `once-upon doctor` names it with why. The `.git/info/exclude` line older versions wrote is left alone, and harmless.
 
 ```
-<checkout or worktree>/.once-upon/
-  local-<repo>-<branch>/            chapters.json, meta.json, local.diff      (from once-upon local, in the worktree it diffs)
-  <owner>-<repo>-<N>/               chapters.json, file-map.json, meta.json   (a PR story, in the repo's main checkout)
-
 ~/.once-upon/                        (ONCE_UPON_HOME moves it)
   config.json                       {port, token}, mode 600
   prefs.json                        page settings for every story: {hideWhitespace, diffView}
-  stories.json                      the index: story id -> folder
+  <owner>-<repo>-<N>/               chapters.json, file-map.json, meta.json   (a PR story)
+  local-<repo>-<branch>/            chapters.json, meta.json, local.diff      (from once-upon local)
+  stories.json                      the old index (story id -> folder in a checkout): only what the migration reads
   checkouts.json                    repo -> the checkout the bridge has seen
   inbox.jsonl                       questions, answers, notes
   builds.json                       build requests, queued or building
@@ -430,7 +428,7 @@ The bridge also checks each request:
 - It sends no CORS headers, so other web pages can't read its responses.
 - Its pages are served with a strict CSP.
 - An over-size body (past 256 KB) gets a 413.
-- What it and the CLI write under `~/.once-upon` and a checkout's `.once-upon/` is the user's alone (files 0600, folders 0700), including folders that were there already.
+- What it and the CLI write under `~/.once-upon` is the user's alone (files 0600, folders 0700), including folders that were there already.
 
 | Call | What it does |
 |---|---|

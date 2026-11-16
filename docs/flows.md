@@ -80,7 +80,7 @@ flowchart LR
 |---|---|---|---|
 | 19 | `outside` | the once-upon skill gathers the PR with `gh`, writes the chapters and runs `story.mjs build`, which checks them and runs `once-upon publish` itself | `skills/once-upon/bin/story.ts` (`publish`) |
 | 20 | `app` | `publish`, run by `story.ts build` | `packages/server/cli/src/commands/stories.ts` (`publish`) |
-| 21 | `service` | places the story's folder: `.once-upon/<id>/` in the repo's checkout when the bridge knows it, else `~/.once-upon/<id>/` | `packages/server-libs/core/src/features/publishing/publish.ts` (`storyDirFor`) |
+| 21 | `service` | places the story's folder: `~/.once-upon/<id>/` | `packages/server-libs/core/src/features/publishing/publish.ts` (`storyDirFor`) |
 | 22 | `service` | **copies `chapters.json` and `file-map.json`** into that folder, through the adapter's `copyFileAtomic` | `packages/server-libs/core/src/features/publishing/publish.ts` (`copyFileAtomic`) |
 | 23 | `service` | **writes `meta.json`** last, with the head it was told from, through the adapter's `writeJsonAtomic` | `packages/server-libs/core/src/features/publishing/publish.ts` (`writeJsonAtomic`) |
 | 24 | `service` | settles the build request | `packages/server-libs/core/src/features/publishing/publish.ts` (`builds.settle(`) |
@@ -116,7 +116,7 @@ The click names its card (`card` in the body), so a session that builds for seve
 | R2 | `contracts` | `POST /api/board/review {card}`, the board's key | `packages/domain/contracts/src/board/routes.ts` (`boardReview`) |
 | R3 | `app` | the route finds the card in the board's own snapshot. The branch and folder are the card's, never the body's | `packages/server/server/src/routes/board.ts` (`review`) |
 | R4 | `service` | the base is the merge-base with origin's default branch, the head the branch's name | `packages/server-libs/stories/src/local-story.ts` (`reviewBranch`) |
-| R5 | `service` | **writes the story** in the checkout's `.once-upon/`, as `once-upon local` with no chapters does | `packages/server-libs/stories/src/local-story.ts` (`createLocalStory`) |
+| R5 | `service` | **writes the story** in `~/.once-upon/<id>/`, as `once-upon local` with no chapters does | `packages/server-libs/stories/src/local-story.ts` (`createLocalStory`) |
 | R6 | `app` | Create pull request on a storyless review pushes the head the diff was drawn at, with no Approve, and refuses a branch that has moved past it | `packages/server/server/src/routes/pull-request.ts` (`isStoryless`) |
 
 ## 2. Ask

@@ -1,7 +1,7 @@
 /**
  * Local mode: a story over a local commit range instead of a GitHub PR. The
- * story lives in the checkout (or worktree) it diffs, at <top>/.once-upon/<id>/,
- * kept out of git by .git/info/exclude (placement.ts). The folder holds meta.json (repo, refs), local.diff (remade whenever the
+ * story lives in the bridge's own folder, at <home>/<id>/ (placement.ts), where a branch
+ * checked out in the checkout it diffs cannot replace it. The folder holds meta.json (repo, refs), local.diff (remade whenever the
  * refs move) and chapters.json in once-upon's format, so the same panel and
  * the same chapters work on either.
  */
@@ -25,7 +25,7 @@ import { removeFile } from '@once-upon-a-diff/adapters/stores/fs/files';
 import { parseUnifiedDiff } from './diff.ts';
 import { refreshLocal, followsHead } from './local-diff.ts';
 import { entryOf } from './chapters.ts';
-import { storyDirFor } from './placement.ts';
+import { realPathOf, storyDirFor } from './placement.ts';
 import { repoOfCheckout, seenCheckout } from '@once-upon-a-diff/foundation/repos';
 import { plural } from '@once-upon-a-diff/terms/text';
 import type { DiffFile } from '@once-upon-a-diff/contracts/types';
@@ -148,7 +148,13 @@ export function createLocalStory({
   if (!STORY_ID_RE.test(id)) {
     throw new Error(`bad story id: ${id}`);
   }
-  const dir = storyDirFor(home, id, { checkout: top, kind: 'local' });
+  // the id (a folder name and a branch) is one folder under the home: another checkout that made it first keeps it
+  const taken = readJson<Partial<StoryMeta>>(path.join(home, id, 'meta.json'), null);
+  const takenBy = typeof taken?.repo_path === 'string' ? realPathOf(taken.repo_path) : null;
+  if (takenBy && takenBy !== realPathOf(top)) {
+    throw new Error(`story id ${id} belongs to ${taken!.repo_path}: pass --id to name this one`);
+  }
+  const dir = storyDirFor(home, id, { kind: 'local' });
   const origin = repoOfCheckout(top);
   if (origin) {
     seenCheckout(home, origin, top);

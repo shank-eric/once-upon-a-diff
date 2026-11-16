@@ -22,6 +22,7 @@ import { editorCommands } from './commands/editor.ts';
 import { approveCommands } from './commands/approve.ts';
 import { reviewedCommands } from './commands/reviewed.ts';
 import { usageCommands } from './commands/usage.ts';
+import { migrateStories } from '@once-upon-a-diff/stories/migrate';
 import { commandLabel, noteCommand } from '@once-upon-a-diff/usage/cli-log';
 import type { Command } from './types.ts';
 
@@ -53,6 +54,7 @@ const HELP_ORDER = [
   'token',
   'list',
   'local',
+  'move-story',
   'bind',
   'page',
   'backlog',
@@ -101,6 +103,22 @@ export function usageText() {
   ].join('\n');
 }
 
+/** Moves stories still kept in a checkout into the home (migrate.ts). Never stops a command; says one line when it moved or left any. */
+function moveStories(home: string): void {
+  try {
+    const { moved, skipped } = migrateStories(home);
+    if (moved.length || skipped.length) {
+      process.stderr.write(
+        `once-upon: moved ${moved.length} story folder${moved.length === 1 ? '' : 's'} into ${home}` +
+          (skipped.length ? `; left ${skipped.length} in place (run \`once-upon doctor\`)` : '') +
+          '\n',
+      );
+    }
+  } catch (err) {
+    process.stderr.write(`once-upon: could not move story folders: ${(err as Error).message}\n`);
+  }
+}
+
 export function main(argv: string[]): void {
   const { command, opts } = parseArgs(argv);
   const entry = COMMANDS.get(command as string);
@@ -112,6 +130,9 @@ export function main(argv: string[]): void {
     return;
   }
   const home = homeDir();
+  if (command !== 'setup') {
+    moveStories(home);
+  }
   Promise.resolve()
     .then(() =>
       entry.run(
