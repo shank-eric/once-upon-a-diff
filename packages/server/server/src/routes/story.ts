@@ -16,7 +16,8 @@ import { freshness } from '@once-upon-a-diff/core/features/review/freshness';
 import { readMarks } from '@once-upon-a-diff/core/features/review/drafts';
 import { Listening } from '@once-upon-a-diff/core/features/listeners/service';
 import { refreshLocal, movedSince } from '@once-upon-a-diff/stories/local-diff';
-import { storyVersion, localVersion, stateKeyOf } from '@once-upon-a-diff/stories/meta';
+import { storyVersion, localVersion, stateKeyOf, readMeta } from '@once-upon-a-diff/stories/meta';
+import { localUpdateStart } from '@once-upon-a-diff/core/features/review/since';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
 import { questionsOf } from './questions.ts';
@@ -154,6 +155,28 @@ function rebuild({ app, body: raw, send }: Call, story: ServedStory) {
   return send(200, { rebuild: rebuildView(app, story) });
 }
 
+/**
+ * POST {}: the panel's Update on a local story, a build request for a "Since you read it" chapter from where the reviewer's
+ * reading stopped (else from the commits the story was told over). Re-tell is the rebuild route.
+ */
+function update({ app, body: raw, send }: Call, story: ServedStory) {
+  const body = parseBody('update', raw);
+  const data = app.stories.load(story.id) as StoryData; // follows the branch, so the meta below is as it is now
+  const { meta, since } = localUpdateStart(app.home, story.dir, story.id, data.chapters);
+  if (meta.kind !== 'local') {
+    throw new HttpError(400, "a PR story is updated with its PR's Update button");
+  }
+  app.statusCache = null;
+  app.builds.requestStoryUpdate({
+    story: story.id,
+    meta,
+    since,
+    story_dir: story.dir,
+    requested_at: body.requested_at,
+  });
+  return send(200, { ok: true });
+}
+
 /** meta.json as written, for the local diff refresh (readMeta fills in defaults). Throws when it's missing or broken. */
 const readMetaFile = (dir: string): LocalMeta =>
   JSON.parse(readFileSync(path.join(dir, 'meta.json'), 'utf8'));
@@ -174,15 +197,13 @@ function position({ app, body, send }: Call, story: ServedStory) {
 }
 
 async function storyFreshness({ app, send }: Call, story: ServedStory) {
-  const { meta } = story;
+  const data = app.stories.load(story.id) as StoryData; // a local story follows its branch: load remakes its diff
+  const meta = story.meta.kind === 'local' ? readMeta(story.dir) : story.meta;
   const lastBuild =
     meta.kind === 'github' && meta.repo && meta.number
       ? app.builds.get(meta.repo, meta.number)
       : null;
-  return send(
-    200,
-    await freshness(meta, (app.stories.load(story.id) as StoryData).chapters, { lastBuild }),
-  );
+  return send(200, await freshness(meta, data.chapters, { lastBuild }));
 }
 
 /** The story's repo for the repo's listener, or a 400 when its meta names none. */
@@ -221,6 +242,7 @@ export const storyRoutes: StoryRoute[] = [
   { route: ROUTES.storyPosition, handle: position },
   { route: ROUTES.storyFreshness, handle: storyFreshness },
   { route: ROUTES.storyRebuildWrite, handle: rebuild },
+  { route: ROUTES.storyUpdateWrite, handle: update },
   { route: ROUTES.storyListenSessions, handle: listenSessions },
   { route: ROUTES.storyListen, handle: listen },
 ];

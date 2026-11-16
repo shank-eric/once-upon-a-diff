@@ -4,7 +4,11 @@
  */
 import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { readMeta, stateKeyOf } from '@once-upon-a-diff/stories/meta';
-import { currentHead, changesSince } from '@once-upon-a-diff/core/features/review/freshness';
+import {
+  currentHead,
+  changesSince,
+  liveRange,
+} from '@once-upon-a-diff/core/features/review/freshness';
 import { newId } from '@once-upon-a-diff/foundation/ids';
 import {
   readReads,
@@ -66,6 +70,7 @@ async function noteChapterRead(
   const record = noteRead(app.home, key, chapterKey as string, {
     head_sha: head,
     story_head: now.head_oid || head,
+    base_sha: now.kind === 'local' ? now.base_oid : null,
     reason: body.reason as string,
     title: chapter.title,
     step: body.step,
@@ -82,6 +87,10 @@ async function noteChapterRead(
   return { chapter: chapterKey, ...record };
 }
 
+/** Where the story's branch is now: a pinned local story's changes are measured against it, not its told head. */
+const liveHead = (now: StoryMeta) =>
+  (now.kind === 'local' ? liveRange(now).head : now.head_oid) || null;
+
 async function reads({ app, req, body: raw, send }: Call, story: ServedStory) {
   const key = stateKeyOf(story.id, story.meta);
   const data = app.stories.load(story.id) as StoryData;
@@ -93,13 +102,16 @@ async function reads({ app, req, body: raw, send }: Call, story: ServedStory) {
   // what changed after they read each chapter: one compare per commit they read at (gh, cached; or git for a local story)
   const changes = new Map<string, Map<string, FileChange>>();
   let error: string | null = null;
-  for (const sha of new Set(
-    Object.values(readsByChapter)
-      .map(readSha)
-      .filter((read): read is string => !!read),
-  )) {
+  const bases = new Map<string, string | null>(); // the base a local story's read was made over, by its head
+  for (const read of Object.values(readsByChapter)) {
+    const sha = readSha(read);
+    if (sha && !bases.get(sha)) {
+      bases.set(sha, read.base_sha || null);
+    }
+  }
+  for (const [sha, thenBase] of bases) {
     try {
-      changes.set(sha, await changesSince(now, sha));
+      changes.set(sha, await changesSince(now, sha, thenBase));
     } catch (e) {
       error = `couldn't compare ${shortSha(sha)} with the story's head: ${(e as Error).message}`;
     }
@@ -108,7 +120,7 @@ async function reads({ app, req, body: raw, send }: Call, story: ServedStory) {
     reads: readsByChapter,
     since: sinceOf(readsByChapter, data.chapters, now.head_oid || null),
     story_head: now.head_oid || null,
-    ...changedSinceRead(data.chapters, readsByChapter, changes, now.head_oid || null),
+    ...changedSinceRead(data.chapters, readsByChapter, changes, liveHead(now)),
     error,
   });
 }

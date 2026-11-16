@@ -64,6 +64,8 @@ export const STORY_BODIES = {
     guidance: clipped(4000),
     requested_at: optional(string()),
   }),
+  /** POST .../update: bring a local story up to its branch (a "Since you read it" chapter) */
+  update: object({ requested_at: optional(string()) }),
   /** POST .../listen */
   listen: object({
     session: sessionId,

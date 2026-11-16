@@ -59,7 +59,11 @@ export function handOverLines(entry: Printable): string[] {
   if (entry.type === 'fix_request') {
     lines.push(fixGuidance(entry));
   }
-  if (entry.type === 'build_request' && entry.mode === 'update' && !entry.retell) {
+  if (entry.type === 'build_request' && entry.mode === 'update' && entry.kind === 'local') {
+    lines.push(
+      `It's an update of a local story: follow once-upon's "Since you read it" path for a local story. \`once-upon since --story ${entry.story}\` says what changed since ${entry.since_sha} (the commits, the files, and the git command that shows them, amended or rebased branches included). Publish with \`once-upon local --chapters\` (the new chapter first, the others as they were); that finishes the request.`,
+    );
+  } else if (entry.type === 'build_request' && entry.mode === 'update' && !entry.retell) {
     lines.push(
       `It's an update: follow once-upon's "Since you read it" path from ${entry.since_sha}, unless the PR was rebased past it.`,
     );

@@ -19,6 +19,8 @@ type Shared = Required<
     | 'markQuestions'
     | 'working'
     | 'requestRebuild'
+    | 'freshness'
+    | 'requestUpdate'
     | 'pulse'
   >
 > & {
@@ -63,6 +65,16 @@ export function bridgeOptions({ client, storyId, pageUrl }: PanelHost): Shared {
     working: () => client.ask(ROUTES.working, { params }),
     // Rebuild story / Rebuild from here: a build request for this story
     requestRebuild: (ask) => client.ask(ROUTES.storyRebuildWrite, { params, body: ask }),
+    // a local story's branch moved: Update (a "Since you read it" chapter) or Re-tell (a rebuild). A PR story's own
+    // Update goes through the PR's build request, which the extension passes in its place
+    freshness: () => client.ask(ROUTES.storyFreshness, { params }),
+    requestUpdate: (_base, { retell }) =>
+      retell
+        ? client.ask(ROUTES.storyRebuildWrite, {
+            params,
+            body: { mode: 'rebuild', requested_at: new Date().toISOString() },
+          })
+        : client.ask(ROUTES.storyUpdateWrite, { params, body: {} }),
     pulse: (signal) => client.ask(ROUTES.storyPulse, { params }, { signal }),
   };
 }

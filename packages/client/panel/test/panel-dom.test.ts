@@ -2369,6 +2369,71 @@ await test('Update and Re-tell: all the buttons go off at once, the one asked fo
   }
 });
 
+await test('a local story that was amended offers Update and Re-tell, worded for the branch', async () => {
+  const panel = await mount(
+    story(),
+    (calls) =>
+      fullOptions(calls, {
+        pulse: undefined,
+        freshness: async () => ({ ...STALE, local: true, rewritten: true, newer: null }),
+        requestUpdate: async (head, options) => {
+          calls.push(['requestUpdate', head, options]);
+          return {};
+        },
+      }),
+    { n: 1 },
+  );
+  try {
+    await settle();
+    const line = $('.ou-fresh').textContent || '';
+    assert.match(line, /the branch was amended or rebased since/);
+    assert.doesNotMatch(line, /PR|re-tell is likely/);
+    assert.ok($('.ou-update[data-retell="1"]'));
+    fire($('.ou-update[data-retell="0"]'), 'click');
+    await settle();
+    assert.deepEqual(calling(panel.calls, 'requestUpdate')[0].slice(1), [
+      STALE.story_head,
+      { retell: false },
+    ]);
+  } finally {
+    panel.done();
+  }
+});
+
+await test('a local story whose told commit cannot be read offers Re-tell, and no Update', async () => {
+  const panel = await mount(
+    story(),
+    (calls) =>
+      fullOptions(calls, {
+        pulse: undefined,
+        freshness: async () => ({
+          state: 'unknown',
+          story_head: STALE.story_head,
+          local: true,
+          error: "couldn't compare with the commit the story was told over",
+        }),
+        requestUpdate: async (head, options) => {
+          calls.push(['requestUpdate', head, options]);
+          return {};
+        },
+      }),
+    { n: 1 },
+  );
+  try {
+    await settle();
+    assert.match($('.ou-fresh').textContent || '', /Can't tell whether the story is up to date/);
+    assert.equal($('.ou-update[data-retell="0"]'), null);
+    fire($('.ou-update[data-retell="1"]'), 'click');
+    await settle();
+    assert.deepEqual(calling(panel.calls, 'requestUpdate')[0].slice(1), [
+      STALE.story_head,
+      { retell: true },
+    ]);
+  } finally {
+    panel.done();
+  }
+});
+
 await test('the request line’s minutes move on with the clock when the page has no freshness call', async () => {
   startClock();
   let request: Record<string, unknown> | null = {

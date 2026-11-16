@@ -24,6 +24,12 @@ export interface StoryMeta {
   base?: string;
   head?: string;
   base_oid?: string | null;
+  /**
+   * The commits the story's chapters were told over (set when a told plan passes the gate, kept when the diff is remade
+   * for a moved branch), so a local story can say what changed since: head_oid and base_oid follow the checkout.
+   */
+  told_head_oid?: string | null;
+  told_base_oid?: string | null;
   branch?: string | null;
   commits?: LocalCommit[];
   /** when the story was told (`once-upon local`, a rebuild), not when its diff was last refreshed (`updated_at`) */

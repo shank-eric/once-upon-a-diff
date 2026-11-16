@@ -35,6 +35,7 @@ export const viewKey = (token: string, story: string): string =>
  *  - Expand: lines (the text of a file of the diff at its head, so the page can show the unchanged lines around a hunk)
  *  - Fix before push: notes, and fixes (the notes' state, Auto-send, Send, Take back)
  *  - Rebuild: asking the listening session to re-tell the story, which writes only the story (drafts are kept)
+ *  - Update: asking for a local story's "Since you read it" chapter, a request like Rebuild
  *  - where the branch's PR stands: GET pr, never the POST that pushes
  * Refused: everything else (approve, pr writes, push, and any route not listed).
  */
@@ -57,6 +58,7 @@ const VIEW_KEY_MAY: Record<string, readonly string[]> = {
   notes: ['POST'],
   fixes: ['GET', 'POST'],
   rebuild: ['POST'],
+  update: ['POST'],
   pr: ['GET'],
   usage: ['POST'],
 };

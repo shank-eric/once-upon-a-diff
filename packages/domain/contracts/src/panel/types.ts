@@ -118,6 +118,8 @@ export interface Freshness {
   changed_files?: string[];
   chapters_touched?: number[];
   updated?: FreshUpdate | null;
+  /** a local story's: its commits are the branch's, not a PR's */
+  local?: boolean;
   error?: string | null;
 }
 

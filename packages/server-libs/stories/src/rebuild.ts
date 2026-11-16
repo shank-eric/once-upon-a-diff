@@ -20,7 +20,7 @@
  */
 import { chaptersOf, entryOf, refOf } from './chapters.ts';
 import { chapterKeyOf } from '@once-upon-a-diff/terms/chapters';
-import { plural } from '@once-upon-a-diff/terms/text';
+import { plural, sameSha } from '@once-upon-a-diff/terms/text';
 import { upgradePlan } from './legacy.ts';
 import { canonical, keptChapters, withoutKey } from './validate.ts';
 import { uncoveredHunks, sidesOf } from './hunk-coverage.ts';
@@ -120,6 +120,71 @@ export function rebuildProblems(
     ...(from > 1 ? keptChapterProblems(before, after, from) : []),
     ...coverageProblems(before, after, diff, { allowUncovered }),
   ];
+}
+
+/**
+ * Why a local story's Update can't be published as it is: [] when it can. The first chapter is the new "Since you read it"
+ * one, ending at the story's head (`headOid`); every chapter after it is a chapter of `before`, as published (a file the
+ * update's commits removed may leave its chapter, as the skill allows); and the whole diff is placed and covered.
+ */
+export function updateProblems(
+  before: Plan,
+  after: Plan,
+  headOid: string | null | undefined,
+  diff: Map<string, DiffFile>,
+  { allowUncovered = false } = {},
+): string[] {
+  const now = after.chapters || [];
+  const old = before.chapters || [];
+  const problems: string[] = [];
+  const since = now[0]?.since as { to?: string } | undefined;
+  if (!since || !sameSha(since.to, headOid)) {
+    problems.push(
+      `the first chapter must be a new "Since you read it" chapter (a \`since\` {from, to, commits}) ending at the story's head ${String(headOid || '').slice(0, 7)}; \`once-upon since --story ID\` says what it covers`,
+    );
+  }
+  if (now.length - 1 !== old.length) {
+    problems.push(
+      `the update adds one chapter and keeps the ${old.length} before it (${now.length - 1} after it here)`,
+    );
+  }
+  const filesOf = (chapter: PlanChapter) =>
+    (chapter.files || []).map((entry) => entryOf(entry).rel);
+  // a chapter published with no key may have been given one since: that is not the author changing it
+  const bare = (chapter: PlanChapter, keyless: boolean) => {
+    const { files: _files, ...rest } = keyless ? withoutKey(chapter) : chapter;
+    return canonical(rest);
+  };
+  old.forEach((chapter, i) => {
+    const kept = now[i + 1];
+    if (!kept) {
+      return;
+    }
+    const left = new Set(filesOf(chapter));
+    if (
+      bare(chapter, chapter.key === undefined) !== bare(kept, chapter.key === undefined) ||
+      filesOf(kept).some((rel) => !left.has(rel))
+    ) {
+      problems.push(
+        `chapter "${chapter.title || ''}" changed; the update keeps the earlier chapters as published (copy them from the published chapters.json)`,
+      );
+    }
+  });
+  return [...problems, ...coverageProblems(before, after, diff, { allowUncovered })];
+}
+
+/** Before a local story's Update is published: refuses it (throws, with every problem) unless it is the one new chapter first and the earlier ones as they were. */
+export function vetUpdate(
+  before: Plan,
+  after: Plan,
+  headOid: string | null | undefined,
+  diff: Map<string, DiffFile>,
+  { allowUncovered = false } = {},
+): void {
+  const problems = updateProblems(before, after, headOid, diff, { allowUncovered });
+  if (problems.length) {
+    throw new Error(`this update can't be published:\n  - ${problems.join('\n  - ')}`);
+  }
 }
 
 const isGeneral = (comment: PlanComment) =>

@@ -190,6 +190,9 @@ export function createLocalStory({
     branch,
     base_oid: sameRange ? old.base_oid : null,
     head_oid: sameRange ? old.head_oid : null, // null makes the diff get remade
+    // what the chapters were told over stays through a told-again with no chapters (a refused one never takes a new one)
+    ...(old.told_head_oid ? { told_head_oid: old.told_head_oid } : {}),
+    ...(old.told_base_oid ? { told_base_oid: old.told_base_oid } : {}),
     built_at: new Date().toISOString(), // a publish or a rebuild: refreshLocal keeps it, so a moved HEAD is not one
     title:
       title ||
@@ -211,7 +214,7 @@ export function createLocalStory({
     }
   };
   writeJsonAtomic(metaFile, meta);
-  refreshLocal(dir, meta);
+  const refreshed = refreshLocal(dir, meta);
 
   const diff = parseUnifiedDiff(readFileSync(path.join(dir, 'local.diff'), 'utf8'));
   const rels = [...diff.keys()];
@@ -233,7 +236,7 @@ export function createLocalStory({
         : {};
       // a chapter's `hunks` ids become refs first, so a rebuild's vet (and the checks below) read refs
       ({ expanded, changed: hunked } = expandHunksForPublish(after, diff));
-      const vetted = vet ? vet({ id, meta, diff, before, after }) : null;
+      const vetted = vet ? vet({ id, meta: refreshed, diff, before, after }) : null;
       // every chapter has a key and its refs (validate.ts); an older story's chapters kept as they were are let through
       const ready = vetted || after;
       const assigned = readyPlan(ready, { diff, served: before });
@@ -250,6 +253,14 @@ export function createLocalStory({
       // what each ref was told over, so a later commit that moves its lines is noticed (anchors.ts); written with a told
       // plan that passed the gate only, so a refusal or telling again with no chapters never takes a new baseline
       writeAnchors(dir, anchorsFor(ready, diff, readAnchors(dir), before));
+      // the commits those chapters were told over: what Update and "Since you read it" count from
+      if (refreshed.head_oid && refreshed.base_oid) {
+        writeJsonAtomic(metaFile, {
+          ...readJson<LocalMeta>(metaFile, refreshed),
+          told_head_oid: refreshed.head_oid,
+          told_base_oid: refreshed.base_oid,
+        });
+      }
     } catch (error) {
       restore(); // any refusal (the plan, a vet, the gate) leaves the folder as it was
       throw error;

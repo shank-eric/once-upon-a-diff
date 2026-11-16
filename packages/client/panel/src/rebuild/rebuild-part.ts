@@ -45,7 +45,7 @@ export function createRebuild(context: PanelContext) {
     const fresh = context.freshness.current;
     const stale =
       fresh && fresh.state === 'stale'
-        ? ' The PR has commits this story doesn’t tell yet, so Update, or Rebuild story on the Overview, may fit better.'
+        ? ` ${fresh.local ? 'The branch' : 'The PR'} has commits this story doesn’t tell yet, so Update, or Rebuild story on the Overview, may fit better.`
         : '';
     const kept =
       step === 2

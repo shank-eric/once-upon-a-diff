@@ -113,12 +113,34 @@ export function parseHunkHeader(line: string): Omit<DiffHunk, 'lines'> | null {
   };
 }
 
+/**
+ * What a file's change says, with none of where it sits: its path, kind and rename, and only its added and removed
+ * lines. Unlike `hash` (every raw line, headers and `@@` numbers included, for viewed marks) it is the same for a patch
+ * re-applied onto a moved base, so "did this file change since" is not fooled by a rebase.
+ */
+export function contentHash(file: DiffFile): string {
+  const body = file.hunks.flatMap((hunk) => hunk.lines.filter((line) => /^[+-]/.test(line)));
+  return createHash('sha1')
+    .update(
+      [
+        file.rel,
+        file.kind,
+        file.renamed_from || '',
+        file.binary ? `binary ${file.blobs || ''}` : '',
+        ...body,
+      ].join('\n'),
+    )
+    .digest('hex')
+    .slice(0, 16);
+}
+
 /** Unified diff -> Map(rel -> DiffFile). */
 export function parseUnifiedDiff(text: string): Map<string, DiffFile> {
   const files = new Map<string, DiffFile>();
   let cur: DiffFile | null = null;
   let hunk: DiffHunk | null = null;
   let raw: string[] = [];
+  let index = ''; // the file's `index a..b` ids, as git printed them; a binary file keeps them in `blobs`
   const close = () => {
     if (cur) {
       cur.hash = createHash('sha1').update(raw.join('\n')).digest('hex').slice(0, 16);
@@ -139,6 +161,7 @@ export function parseUnifiedDiff(text: string): Map<string, DiffFile> {
         raw = [];
       }
       hunk = null;
+      index = '';
       raw.push(line);
       continue;
     }
@@ -159,8 +182,15 @@ export function parseUnifiedDiff(text: string): Map<string, DiffFile> {
       cur.kind = 'renamed';
       continue;
     }
+    const ids = /^index ([0-9a-f]+)\.\.([0-9a-f]+)/.exec(line);
+    if (ids) {
+      // git's abbreviation length can grow with the repo: compare only the first 7
+      index = `${ids[1].slice(0, 7)}..${ids[2].slice(0, 7)}`;
+      continue;
+    }
     if (line.startsWith('Binary files ')) {
       cur.binary = true;
+      cur.blobs = index;
       continue;
     }
     const hunkHeader = parseHunkHeader(line);

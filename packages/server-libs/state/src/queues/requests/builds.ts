@@ -96,6 +96,15 @@ export interface RebuildRequest {
   requested_at?: unknown;
 }
 
+/** A local story's Update, as the panel asks for it (requestStoryUpdate checks it): `since` is sinceOf() in reads.ts. */
+export interface StoryUpdateRequest {
+  story: string;
+  meta: StoryMeta | null;
+  since: UpdateSince | null;
+  story_dir?: string | null;
+  requested_at?: unknown;
+}
+
 export const CLAIM_FRESH_MS = 30 * 60 * 1000;
 
 const MAX_GUIDANCE = 2000;
@@ -124,9 +133,13 @@ function rebuildText(build: Build): string {
  * whole new story (a rebase, or a big rework).
  */
 export function buildText(build: Build, reader = "the reviewer's"): string {
-  const pr = `${build.repo}#${build.number}`;
+  const pr = build.number ? `${build.repo}#${build.number}` : subjectOf(build);
   if (isRebuild(build)) {
     return rebuildText(build);
+  }
+  if (build.kind === 'local' && build.mode === 'update') {
+    const why = build.since_source === 'read' ? `, where ${reader} reading stopped` : '';
+    return `Update the story for ${pr} (told over ${shortSha(build.base_sha)}): put a "Since you read it" chapter first for what changed since ${shortSha(build.since_sha || build.base_sha)}${why} (\`once-upon since --story ${build.story}\` lists it), keep the other chapters${build.story_dir ? ` (${build.story_dir}/chapters.json)` : ''}, then \`once-upon local --chapters\``;
   }
   if (build.mode !== 'update') {
     return `Build a story for ${pr}: ${build.url}`;
@@ -173,6 +186,13 @@ const updateFields = (build: Build) =>
         since_source: build.since_source || 'story',
         reads: build.reads || [],
         story: build.story || null,
+        ...(build.kind === 'local'
+          ? {
+              kind: 'local' as const,
+              story_dir: build.story_dir || null,
+              ...(build.local ? { local: build.local } : {}),
+            }
+          : {}),
       }
     : {};
 /** The rebuild fields a request carries to `wait` and `builds --json`. */
@@ -303,12 +323,16 @@ export class Builds {
     );
     const mine = (build: Build) => {
       if (story) {
-        return isRebuild(build) && build.story === story;
+        // a story's own listener takes its rebuilds and, for a local story, its updates (a PR's update is the repo's)
+        return (isRebuild(build) || build.kind === 'local') && build.story === story;
       }
       if (repo && !sameRepo(build.repo, repo)) {
         return false;
       }
-      return !(isRebuild(build) && storyTakers.some((listener) => listener.story === build.story));
+      return !(
+        (isRebuild(build) || build.kind === 'local') &&
+        storyTakers.some((listener) => listener.story === build.story)
+      );
     };
     const reader = readerOf(this.home);
     return this.queue.take(consumer, mine).map((build) => ({
@@ -459,6 +483,74 @@ export class Builds {
       all[key] = build;
       return build;
     });
+  }
+
+  /**
+   * An Update of a local story (it follows its branch, so no PR): `since` says where the reviewer's reading stopped (sinceOf())
+   * and `meta` is the story's meta.json, which must say what its chapters were told over (told_head_oid). Keyed by the story
+   * (story:<id>) like its rebuild. A pending request no session has taken gives way to it unless it is a rebuild, which stands
+   * (a re-tell is the bigger ask); one being built stands too, and comes back.
+   */
+  requestStoryUpdate({
+    story,
+    meta,
+    since,
+    story_dir = null,
+    requested_at,
+  }: StoryUpdateRequest): Build {
+    const bad = (message: string) => Object.assign(new Error(message), { status: 400 });
+    if (!STORY_ID_RE.test(String(story || '')) || !meta) {
+      throw bad('bad story');
+    }
+    const told = meta.told_head_oid;
+    if (meta.kind !== 'local' || !told || !SHA_RE.test(told)) {
+      throw bad("the story doesn't say which commits it was told over");
+    }
+    return this.queue.update((all) => {
+      const key = storyBuildKey(story);
+      const old = all[key];
+      if (old && old.status === 'pending' && (isRebuild(old) || this.stateOf(old) !== 'queued')) {
+        return old;
+      }
+      const build: Build = {
+        id: old && old.status === 'pending' ? old.id : newId('b'),
+        repo: meta.repo || null,
+        number: null,
+        url: null,
+        requested_at: Number.isFinite(Date.parse(requested_at as string))
+          ? new Date(requested_at as string).toISOString()
+          : new Date().toISOString(),
+        status: 'pending',
+        mode: 'update',
+        story,
+        kind: 'local',
+        base_sha: told,
+        since_sha: since?.since_sha || told,
+        since_source: since?.since_sha ? since.source || 'story' : 'story',
+        reads: (since?.read || []).map((read) => ({
+          chapter: read.chapter,
+          title: read.title,
+          sha: read.sha,
+          at: read.at,
+        })),
+        story_dir,
+        local: { repo_path: meta.repo_path, base: meta.base, head: meta.head },
+      };
+      all[key] = build;
+      return build;
+    });
+  }
+
+  /** The story's pending Update (a local story's, keyed by it), or null. */
+  updateOf(id: string): Build | null {
+    const build = this.all()[storyBuildKey(id)];
+    return build &&
+      build.status === 'pending' &&
+      build.mode === 'update' &&
+      build.story === id &&
+      build.kind === 'local'
+      ? build
+      : null;
   }
 
   /** Mark a request finished, by id or by repo#number (or story:<id>). */

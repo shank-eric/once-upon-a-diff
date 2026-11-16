@@ -321,6 +321,14 @@
    "token+page+view"
   ],
   [
+   "storyUpdateWrite",
+   "POST",
+   "/api/stories/:id/update",
+   "update",
+   null,
+   "token+page+view"
+  ],
+  [
    "storyStatus",
    "GET",
    "/api/stories/:id/status",
@@ -1490,6 +1498,29 @@
       },
       "default": null
      },
+     "requested_at": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(string | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "string",
+       "expects": "string",
+       "async": false
+      }
+     }
+    }
+   }
+  ],
+  [
+   "update",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
      "requested_at": {
       "kind": "schema",
       "type": "optional",

@@ -6,11 +6,12 @@
  *   repos/{o}/{r}/pulls/{n}                       head.sha
  *   repos/{o}/{r}/compare/{story head}...{head}   commits and files since
  */
-import { diffText } from '@once-upon-a-diff/adapters/git';
-import { parseHunkHeader, parseUnifiedDiff } from '@once-upon-a-diff/stories/diff';
+import { commitOf, commitsBetween, diffText, isAncestor } from '@once-upon-a-diff/adapters/git';
+import { contentHash, parseHunkHeader, parseUnifiedDiff } from '@once-upon-a-diff/stories/diff';
+import { movedSince } from '@once-upon-a-diff/stories/local-diff';
 import { ghApiJson } from '@once-upon-a-diff/foundation/gh';
 import { prKey } from '@once-upon-a-diff/terms/ids';
-import { SHA_RE, sameSha } from '@once-upon-a-diff/terms/text';
+import { SHA_RE, sameSha, shortSha } from '@once-upon-a-diff/terms/text';
 import type { DiffFile, FreshUpdate, Freshness } from '@once-upon-a-diff/contracts/types';
 import type { Build } from '@once-upon-a-diff/state/queues/requests/builds';
 import type { PlanFile } from '@once-upon-a-diff/stories/chapters';
@@ -61,28 +62,104 @@ const KIND: Record<string, DiffFile['kind']> = {
   renamed: 'renamed',
 };
 
+/** A local story's range: the commits its diff is between (base is the merge-base), as it was or as it is. */
+interface Range {
+  base: string;
+  head: string;
+}
+
+/** Each file of a range's diff, by its path, with what its change says (diff.ts contentHash). */
+const contentsOf = (repo: string, range: Range): Map<string, string> =>
+  new Map(
+    [...parseUnifiedDiff(diffText(repo, range.base, range.head)).values()].map((file) => [
+      file.rel,
+      contentHash(file),
+    ]),
+  );
+
 /**
- * What changed from `sha` to the story's head: Map(path at `sha` -> {kind, hunks: [{oldStart, oldLines}]}).
- * A PR story asks gh's compare (read-only, cached 60s); a local story asks git. Throws when it can't tell.
+ * What a local story's diff changed between two of its ranges: the files in only one of them or whose change differs
+ * (the +/- lines, so a patch re-applied onto a moved base, or a new message on the same patch, changes nothing).
+ * Not the commit graph: an amend, a rebase and a plain new commit are all just two ranges. Each file is keyed by its path
+ * now, with its kind and, from `git diff then.head now.head`, its hunks (approximate when the base moved too). A landed
+ * story (its base is its head: nothing of its own left) has no changes. Throws when git can't read a commit.
+ */
+export function localChanges(repo: string, then: Range, now: Range): Map<string, FileChange> {
+  const out = new Map<string, FileChange>();
+  if (now.base === now.head) {
+    return out;
+  }
+  for (const [what, sha] of [
+    ['story', then.head],
+    ['base', then.base],
+  ] as const) {
+    if (!commitOf(repo, sha)) {
+      throw new Error(`git doesn't have the ${what} commit ${shortSha(sha)} any more`);
+    }
+  }
+  const before = contentsOf(repo, then);
+  const after = contentsOf(repo, now);
+  const changed = new Set(
+    [...new Set([...before.keys(), ...after.keys()])].filter(
+      (rel) => before.get(rel) !== after.get(rel),
+    ),
+  );
+  if (!changed.size) {
+    return out;
+  }
+  const hunks = parseUnifiedDiff(diffText(repo, then.head, now.head));
+  // a file renamed since is gone from the new range: its old path finds the renamed entry, so a comment on it is flagged
+  const renamed = new Map(
+    [...hunks.values()].flatMap((file) => (file.renamed_from ? [[file.renamed_from, file]] : [])),
+  );
+  for (const rel of changed) {
+    const file = hunks.get(rel) || renamed.get(rel);
+    out.set(rel, {
+      kind: file ? file.kind : 'modified',
+      hunks: (file?.hunks || []).map((hunk) => ({
+        oldStart: hunk.oldStart,
+        oldLines: hunk.oldLines,
+      })),
+    });
+  }
+  return out;
+}
+
+/**
+ * Where a local story's branch is now: the commits freshness, `since` and the read marks all measure against. A story
+ * that follows HEAD is at its own range (refreshLocal keeps it current); a pinned one stays at the range it was told over,
+ * so the tips its refs have now (movedSince) are what count.
+ */
+export function liveRange(meta: StoryMeta): { base: string | null; head: string | null } {
+  const moved = movedSince(meta as Parameters<typeof movedSince>[0]);
+  return {
+    base: moved?.base_oid || meta.base_oid || null,
+    head: moved?.head_oid || meta.head_oid || null,
+  };
+}
+
+/**
+ * What changed from `sha` to the story's head: Map(path -> {kind, hunks: [{oldStart, oldLines}]}).
+ * A PR story asks gh's compare (read-only, cached 60s); a local story asks git (localChanges), `thenBase` being the base
+ * the read at `sha` had (the story's told base, else its base, when the read didn't keep one). Throws when it can't tell.
  */
 export async function changesSince(
   meta: StoryMeta,
   sha: string | null,
+  thenBase: string | null = null,
 ): Promise<Map<string, FileChange>> {
   const out = new Map<string, FileChange>();
-  if (!sha || !meta.head_oid || sha === meta.head_oid) {
+  const live =
+    meta.kind === 'local' ? liveRange(meta) : { base: meta.base_oid, head: meta.head_oid };
+  if (!sha || !live.head || sha === live.head) {
     return out;
   }
   if (meta.kind === 'local') {
-    for (const file of parseUnifiedDiff(
-      diffText(meta.repo_path as string, sha, meta.head_oid),
-    ).values()) {
-      out.set(file.renamed_from || file.rel, {
-        kind: file.kind,
-        hunks: file.hunks.map((hunk) => ({ oldStart: hunk.oldStart, oldLines: hunk.oldLines })),
-      });
-    }
-    return out;
+    return localChanges(
+      meta.repo_path as string,
+      { base: thenBase || meta.told_base_oid || live.base || sha, head: sha },
+      { base: live.base || sha, head: live.head },
+    );
   }
   const cmp = await cached(`cmp ${meta.repo} ${sha} ${meta.head_oid}`, () =>
     ghApiJson<GhCompare>(`repos/${meta.repo}/compare/${sha}...${meta.head_oid}`),
@@ -120,6 +197,68 @@ export const currentHead = (repo: string, number: number | string): Promise<stri
   );
 
 const fileOf = (file: PlanFile) => (typeof file === 'string' ? file : file.rel);
+
+/** The chapters (1-based) that list one of these files. */
+const touchedBy = (chapters: ChapterFiles[], files: Set<string>) =>
+  chapters
+    .map((chapter, i) =>
+      (chapter.files || []).some((file) => files.has(fileOf(file))) ? i + 1 : 0,
+    )
+    .filter(Boolean);
+
+/**
+ * A local story is stale when its diff now says something the chapters were not told over (told_head_oid, told_base_oid):
+ * a new commit, an amend, a rebase that changed a patch. A new message, or the same patch on a moved main, is current, and so
+ * is a story that landed in its base (its diff is empty, so every told file would read as changed). A pinned story is
+ * measured against where its branch is now (movedSince). 'n/a' for a story with no told plan, 'unknown' when git can't
+ * read the commits it was told over.
+ */
+function localFreshness(meta: StoryMeta, chapters: ChapterFiles[]): Freshness {
+  const told = meta.told_head_oid;
+  const repo = meta.repo_path;
+  if (!told || !repo) {
+    return { state: 'n/a' };
+  }
+  const { head, base } = liveRange(meta);
+  const known = { story_head: told, current_head: head || null, local: true };
+  if (!head || !base) {
+    return { state: 'unknown', ...known, error: "the story's commits are not known" };
+  }
+  const current = {
+    state: 'current' as const,
+    ...known,
+    newer: 0,
+    changed_files: [],
+    chapters_touched: [],
+  };
+  const toldBase = meta.told_base_oid || base;
+  if ((told === head && toldBase === base) || base === head) {
+    return current;
+  }
+  let changes: Map<string, FileChange>;
+  try {
+    changes = localChanges(repo, { base: toldBase, head: told }, { base, head });
+  } catch (e) {
+    return {
+      state: 'unknown',
+      ...known,
+      error: `couldn't compare with the commit the story was told over: ${(e as Error).message}`,
+    };
+  }
+  if (!changes.size) {
+    return current;
+  }
+  const rewritten = !isAncestor(repo, told, head);
+  const files = new Set(changes.keys());
+  return {
+    state: 'stale',
+    ...known,
+    newer: rewritten ? null : commitsBetween(repo, told, head).length,
+    rewritten,
+    changed_files: [...files],
+    chapters_touched: touchedBy(chapters, files),
+  };
+}
 
 /**
  * An update that rewrote the story in place, with no "Since you read it" chapter for it: the last build for the PR was
@@ -185,6 +324,9 @@ export async function freshness(
   { lastBuild = null }: { lastBuild?: Build | null } = {},
 ): Promise<Freshness> {
   const story = meta.head_oid || null;
+  if (meta.kind === 'local') {
+    return localFreshness(meta, chapters);
+  }
   if (meta.kind !== 'github' || !meta.repo || !meta.number) {
     return { state: 'n/a' };
   }

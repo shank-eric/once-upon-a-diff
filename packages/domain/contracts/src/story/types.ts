@@ -141,6 +141,8 @@ export interface DiffFile {
   hunks: DiffHunk[];
   renamed_from?: string;
   binary?: boolean;
+  /** a binary file's before and after blob ids (the index line, 7 characters each), so its change is known with no +/- lines */
+  blobs?: string;
   /** a hash of the file's diff text, so a Viewed mark knows when the file changed again */
   hash?: string;
 }

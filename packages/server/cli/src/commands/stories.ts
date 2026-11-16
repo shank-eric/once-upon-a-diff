@@ -11,7 +11,7 @@ import { AGENT_RE, Listening, ownSession } from '@once-upon-a-diff/core/features
 import { storyIdOf } from './inbox.ts';
 
 import { afterRebuild } from '@once-upon-a-diff/core/features/publishing/after-rebuild';
-import { vetRebuild } from '@once-upon-a-diff/stories/rebuild';
+import { vetRebuild, vetUpdate } from '@once-upon-a-diff/stories/rebuild';
 import { createLocalStory } from '@once-upon-a-diff/stories/local-story';
 import { noteTiming } from '@once-upon-a-diff/stories/timings';
 import { findingsSummary, localStoryFindings } from '@once-upon-a-diff/stories/story-report';
@@ -117,6 +117,8 @@ async function local(home: string, cfg: Config, opts: CliOpts) {
   const agent = agentOf(opts);
   const builds = new Builds(home);
   let rebuilt = null as Rebuilt | null; // set by vet, when it publishes a rebuild
+  let updated = null as string | null; // set by vet, when it publishes a local story's Update: the story's id
+  let replaced = null as string | null; // set by vet, when a plain re-tell stands in for a pending Update: the story's id
   const started = performance.now();
   // how long the telling took, in the story's scratch folder beside story.mjs's own timings; a refused telling is
   // marked failed, as story.mjs marks its own
@@ -145,6 +147,19 @@ async function local(home: string, cfg: Config, opts: CliOpts) {
       vet: ({ id, meta, diff, before, after }) => {
         const build = pendingRebuild(builds, id, meta);
         if (!build) {
+          // an Update of this story waits: when the chapters lead with a "Since you read it" chapter they are vetted as the
+          // Update (that chapter and the old ones as they were); any other telling is a plain re-tell, which replaces the Update
+          if (builds.updateOf(id)) {
+            if (!(after.chapters as { since?: unknown }[])[0]?.since) {
+              replaced = id;
+              return null;
+            }
+            vetUpdate(before, after, meta.head_oid, diff, {
+              allowUncovered: !!opts['allow-uncovered'],
+            });
+            updated = id;
+            return after;
+          }
           return null;
         }
         const counts = vetRebuild(build, before, after, diff, {
@@ -161,6 +176,16 @@ async function local(home: string, cfg: Config, opts: CliOpts) {
   noteLocal({ chapters: made.chapters, expanded: made.expanded });
   if (rebuilt) {
     const note = afterRebuild(home, { id: made.id, stateKey: made.id, ...rebuilt });
+    builds.settleStory(made.id, { note });
+    process.stderr.write(`${note}\n`);
+  }
+  if (replaced) {
+    const note = 'Re-told from scratch, which replaces the Update that was asked for.';
+    builds.settleStory(made.id, { note });
+    process.stderr.write(`${note}\n`);
+  }
+  if (updated) {
+    const note = 'Added a "Since you read it" chapter for what changed since it was read.';
     builds.settleStory(made.id, { note });
     process.stderr.write(`${note}\n`);
   }

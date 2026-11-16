@@ -32,6 +32,8 @@ import type { Chapter, DiffFile } from '@once-upon-a-diff/contracts/types';
 export interface ReadRecord {
   head_sha: string | null;
   story_head: string | null;
+  /** a local story's base commit (the merge-base) when it was read, so a rebase onto a moved main can be told from a change */
+  base_sha?: string;
   at: string;
   reason: string;
   title: string;
@@ -70,6 +72,7 @@ export function noteRead(
   {
     head_sha = null,
     story_head = null,
+    base_sha = null,
     reason = 'time',
     title = '',
     step = null,
@@ -77,6 +80,7 @@ export function noteRead(
   }: {
     head_sha?: string | null;
     story_head?: string | null;
+    base_sha?: string | null;
     reason?: string;
     title?: string | null;
     step?: number | string | null;
@@ -87,6 +91,7 @@ export function noteRead(
   all[chapter] = {
     head_sha: SHA_RE.test(String(head_sha || '')) ? head_sha : null,
     story_head: SHA_RE.test(String(story_head || '')) ? story_head : null,
+    ...(SHA_RE.test(String(base_sha || '')) ? { base_sha: base_sha as string } : {}),
     at: new Date().toISOString(),
     reason: READ_REASONS.includes(reason) ? reason : 'time',
     title: String(title || '').slice(0, 300),

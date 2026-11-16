@@ -11,6 +11,7 @@ import { storyCommands } from './commands/stories.ts';
 import { inboxCommands } from './commands/inbox.ts';
 import { draftCommands } from './commands/drafts.ts';
 import { buildCommands } from './commands/builds.ts';
+import { sinceCommands } from './commands/since.ts';
 import { checkCommands } from './commands/checks.ts';
 import { fixCommands } from './commands/fixes.ts';
 import { pullRequestCommands } from './commands/pull-request.ts';
@@ -33,6 +34,7 @@ const COMMANDS = new Map<string, Command>(
     ...inboxCommands,
     ...draftCommands,
     ...buildCommands,
+    ...sinceCommands,
     ...checkCommands,
     ...fixCommands,
     ...pullRequestCommands,
@@ -74,6 +76,8 @@ const HELP_ORDER = [
   'drafts',
   'doctor',
   'builds',
+  'since',
+  'update',
   'done',
   'ask',
   'asking',

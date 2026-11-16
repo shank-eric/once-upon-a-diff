@@ -118,7 +118,7 @@ const BOARD_KEY_REACH = [
 
 /**
  * What the read-only story key may call, by the route's `what` ('' is the story itself) and method: the old
- * VIEW_KEY_MAY in page-key.ts at 60964b3, one pair per entry.
+ * VIEW_KEY_MAY in page-key.ts at 60964b3, one pair per entry (and `update`, added with a local story's Update).
  */
 const VIEW_KEY_REACH = [
   'GET ',
@@ -145,6 +145,7 @@ const VIEW_KEY_REACH = [
   'GET fixes',
   'POST fixes',
   'POST rebuild',
+  'POST update',
   'GET pr',
   // a batch of UI action counts for the usage capture: names from a closed list, never content
   'POST usage',

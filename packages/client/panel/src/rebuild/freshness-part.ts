@@ -157,27 +157,34 @@ export function createFreshness(context: PanelContext) {
     if (freshness.state === 'current') {
       return html`${updatedView(freshness) || html`<span class="ou-why">Up to date with ${shortSha(freshness.story_head)}</span>`}${line && ' '}${line}`;
     }
+    const label = (which: 'update' | 'retell', text: string, askedText: string) =>
+      asked === which ? askedText : text;
+    const retell = html`<button class="ou-update" data-retell="1" title=${RETELL_TITLE} disabled=${asking || !!asked} onClick=${() => ask(true)}>${label('retell', 'Re-tell from scratch', 'Re-tell asked for')}</button>`;
     if (freshness.state === 'unknown') {
-      return html`${freshness.error && html`<span class="ou-why" title=${freshness.error}>Can't tell whether the story is up to date</span>`}${line}`;
+      // a local story whose told commit git can't read has nothing to update from: it falls back to Re-tell
+      const fallback = !line && freshness.local && opts.requestUpdate && html` ${retell}`;
+      return html`${freshness.error && html`<span class="ou-why" title=${freshness.error}>Can't tell whether the story is up to date</span>`}${line}${fallback}`;
     }
     const newer = freshness.newer;
-    let what = 'the PR has newer commits';
+    const subject = freshness.local ? 'the branch' : 'the PR';
+    let what = `${subject} has newer commits`;
     if (freshness.rewritten) {
-      what = 'the PR was rebased or force-pushed since';
+      what = freshness.local
+        ? 'the branch was amended or rebased since'
+        : 'the PR was rebased or force-pushed since';
     } else if (newer != null) {
-      what = `the PR has ${plural(newer, 'newer commit')}`;
+      what = `${subject} has ${plural(newer, 'newer commit')}`;
     }
     const files = (freshness.changed_files || []).length;
     const changed = files
       ? ` (${plural(files, 'file')} changed${inChapters(freshness.chapters_touched || [])})`
       : '';
+    // an amend is what a local story's Update is for; a PR's rebase is better told again
     const rebased =
       freshness.rewritten &&
+      !freshness.local &&
       html`<span class="ou-why">It was rebased, so a re-tell is likely the better fit.</span>`;
-    const label = (which: 'update' | 'retell', text: string, askedText: string) =>
-      asked === which ? askedText : text;
     const update = html`<button class="ou-update" data-retell="0" title=${UPDATE_TITLE} disabled=${asking || !!asked} onClick=${() => ask(false)}>${label('update', 'Update (new commits)', 'Update asked for')}</button>`;
-    const retell = html`<button class="ou-update" data-retell="1" title=${RETELL_TITLE} disabled=${asking || !!asked} onClick=${() => ask(true)}>${label('retell', 'Re-tell from scratch', 'Re-tell asked for')}</button>`;
     // no Update or Re-tell while a session is at work on the story: it would only queue a second request
     const buttons = line || (opts.requestUpdate && html`${update}${retell}${rebased}`);
     return html`Story is for ${shortSha(freshness.story_head)}; ${what}${changed}.${buttons}`;

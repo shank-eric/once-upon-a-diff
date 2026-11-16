@@ -74,7 +74,7 @@ export function checkedMeta(
   } else {
     problem = problem || `kind ${JSON.stringify(kind)} is not one of ${STORY_KINDS.join(', ')}`;
   }
-  for (const field of ['base_oid', 'head_oid'] as const) {
+  for (const field of ['base_oid', 'head_oid', 'told_head_oid', 'told_base_oid'] as const) {
     if (
       meta[field] != null &&
       !(typeof meta[field] === 'string' && FULL_SHA_RE.test(meta[field]))
