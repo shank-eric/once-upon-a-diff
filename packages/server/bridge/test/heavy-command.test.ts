@@ -196,3 +196,95 @@ test('SIGTERM goes on to the command, the run ends 128 + 15 and the lock is free
   assert.equal(await ended, 143);
   assert.equal(existsSync(lock), false);
 });
+
+test('--lane browser runs on its own lock, beside a held main lock, and frees it', async () => {
+  const dir = tmp('heavy');
+  const lock = path.join(dir, 'lock');
+  mkdirSync(lock);
+  writeFileSync(`${lock}.who`, 'full suite\n');
+  const env = lockEnv(lock);
+  const ok = await runCli(home(), ['heavy', '--lane', 'browser', 'one', 'echo', 'ran'], env);
+  assert.equal(ok.code, 0);
+  assert.equal(ok.stdout.trim(), 'ran');
+  assert.equal(ok.stderr, '');
+  assert.equal(existsSync(`${lock}-browser`), false);
+  assert.equal(existsSync(`${lock}-browser.who`), false);
+  const inside = await runCli(
+    home(),
+    ['heavy', '--lane', 'browser', 'one', 'sh', '-c', `cat "${lock}-browser.who"`],
+    env,
+  );
+  assert.match(inside.stdout, /^one \(/);
+  const equals = await runCli(home(), ['heavy', '--lane=browser', 'one', '--', 'echo', 'ran'], env);
+  assert.equal(equals.code, 0);
+  assert.equal(equals.stdout.trim(), 'ran');
+});
+
+test("--lane takes only browser, with a name and a command; after the name it stays the command's own flag", async () => {
+  const env = lockEnv(path.join(tmp('heavy'), 'lock'));
+  for (const args of [
+    ['--lane', 'nope', 'one', 'echo', 'ran'],
+    ['--lane'],
+    ['--lane', 'browser'],
+    ['--lane', 'browser', 'one'],
+    ['--lane=', 'one', 'echo', 'ran'],
+    ['--lane=nope', 'one', 'echo', 'ran'],
+  ]) {
+    const run = await runCli(home(), ['heavy', ...args], env);
+    assert.equal(run.code, 1, args.join(' '));
+    assert.equal(run.stdout, '', args.join(' '));
+    assert.match(run.stderr, /usage: once-upon heavy \[--lane browser\] NAME COMMAND/);
+  }
+  const own = await runCli(home(), ['heavy', 'one', 'echo', '--lane', 'browser'], env);
+  assert.equal(own.stdout, '--lane browser\n');
+});
+
+test('deploy takes no lane: it is a usage error and nothing runs', async () => {
+  const env = lockEnv(path.join(tmp('heavy'), 'lock'));
+  for (const args of [
+    ['--lane', 'browser', 'one', 'echo', 'ran'],
+    ['--lane=browser', 'one', 'echo', 'ran'],
+  ]) {
+    const run = await runCli(home(), ['deploy', ...args], env);
+    assert.equal(run.code, 1, args.join(' '));
+    assert.doesNotMatch(run.stdout, /^ok /);
+    assert.match(run.stderr, /usage: once-upon deploy/);
+  }
+});
+
+test('with no override the browser lane lock is ~/.cache/heavy-run-browser.lock, or under XDG_CACHE_HOME, or ONCE_UPON_HEAVY_LOCK_BROWSER', async () => {
+  const userHome = tmp('heavy-user');
+  const base = { HOME: userHome, ONCE_UPON_HEAVY_LOCK: '', XDG_CACHE_HOME: '' };
+  const seen = await runCli(
+    home(),
+    [
+      'heavy',
+      '--lane',
+      'browser',
+      'x',
+      'sh',
+      '-c',
+      'cat "$HOME/.cache/heavy-run-browser.lock.who"',
+    ],
+    base,
+  );
+  assert.match(seen.stdout, /^x \(/);
+  const xdg = tmp('heavy-xdg');
+  const viaXdg = await runCli(
+    home(),
+    ['heavy', '--lane', 'browser', 'y', 'sh', '-c', `cat "${xdg}/heavy-run-browser.lock.who"`],
+    { ...base, XDG_CACHE_HOME: xdg },
+  );
+  assert.match(viaXdg.stdout, /^y \(/);
+  const own = path.join(tmp('heavy-own'), 'lane');
+  const viaEnv = await runCli(
+    home(),
+    ['heavy', '--lane', 'browser', 'z', 'sh', '-c', `cat "${own}.who"`],
+    {
+      ...base,
+      ONCE_UPON_HEAVY_LOCK: path.join(tmp('heavy'), 'main'),
+      ONCE_UPON_HEAVY_LOCK_BROWSER: own,
+    },
+  );
+  assert.match(viaEnv.stdout, /^z \(/);
+});

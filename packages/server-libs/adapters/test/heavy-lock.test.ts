@@ -324,3 +324,91 @@ test('a stale lock whose holder’s pid is dead is taken over', async () => {
   assert.equal(await runHeavy('one', ['true'], () => {}, lockEnv(lock)), 0);
   assert.deepEqual(readdirSync(dir), []);
 });
+
+// The browser lane: its own one-at-a-time lock (`<main lock>-browser` when a test sets only the main one).
+
+test('a browser-lane run goes while the main lock is held, and a main-lane run still waits', async () => {
+  const dir = tmp('heavy-lock');
+  const lock = path.join(dir, 'lock');
+  mkdirSync(lock);
+  writeFileSync(`${lock}.who`, 'full suite\n');
+  const lines: string[] = [];
+  assert.equal(
+    await runHeavy(
+      'spec',
+      ['true'],
+      (line) => lines.push(line),
+      lockEnv(lock),
+      undefined,
+      'browser',
+    ),
+    0,
+  );
+  assert.deepEqual(lines, []);
+  assert.deepEqual(readdirSync(dir).sort(), ['lock', 'lock.who'], 'the lane left nothing behind');
+  let finished = false;
+  const main = runHeavy('main', ['true'], () => {}, lockEnv(lock)).then((code) => {
+    finished = true;
+    return code;
+  });
+  await pause(300);
+  assert.equal(finished, false, 'the main lock is still held');
+  rmdirSync(lock);
+  assert.equal(await main, 0);
+});
+
+test('the main lock does not wait on a browser-lane run', async () => {
+  const dir = tmp('heavy-lock');
+  const lock = path.join(dir, 'lock');
+  mkdirSync(`${lock}-browser`);
+  writeFileSync(`${lock}-browser.who`, 'a spec\n');
+  assert.equal(await runHeavy('main', ['true'], () => {}, lockEnv(lock)), 0);
+  rmdirSync(`${lock}-browser`);
+});
+
+test('two browser-lane runs take turns, and the second names the lane while it waits', async () => {
+  const dir = tmp('heavy-lock');
+  const lock = path.join(dir, 'lock');
+  const order = path.join(dir, 'order.txt');
+  const release = path.join(dir, 'release');
+  const shell = (script: string) => ['sh', '-c', script];
+  const first = runHeavy(
+    'first',
+    shell(
+      `echo first-start >> ${order}; while [ ! -e ${release} ]; do sleep 0.02; done; echo first-end >> ${order}`,
+    ),
+    () => {},
+    lockEnv(lock),
+    undefined,
+    'browser',
+  );
+  try {
+    for (let waited = 0; !existsSync(order) && waited < 200; waited++) {
+      await pause(50);
+    }
+    assert.ok(existsSync(order), 'the first holds the lane');
+    const lines: string[] = [];
+    const second = runHeavy(
+      'second',
+      shell(`echo second >> ${order}`),
+      (line) => lines.push(line),
+      lockEnv(lock),
+      undefined,
+      'browser',
+    );
+    await pause(400);
+    assert.deepEqual(readFileSync(order, 'utf8').trim().split('\n'), ['first-start']);
+    assert.match(lines.join('\n'), /^once-upon heavy \(browser lane\): waiting for first \(/);
+    writeFileSync(release, '');
+    assert.equal(await second, 0);
+  } finally {
+    writeFileSync(release, '');
+  }
+  assert.equal(await first, 0);
+  assert.deepEqual(readFileSync(order, 'utf8').trim().split('\n'), [
+    'first-start',
+    'first-end',
+    'second',
+  ]);
+  assert.deepEqual(readdirSync(dir).sort(), ['order.txt', 'release']);
+});

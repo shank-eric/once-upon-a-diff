@@ -11,6 +11,11 @@
  * `$ONCE_UPON_HEAVY_POLL` seconds (default 5). A `.who` older than the lock folder is a crashed holder's and is not believed. A lock folder over the stale age whose
  * holder's pid still runs (it stalled, for instance across the Mac's sleep) is waited for, not taken over; a dead or missing pid keeps the stale rule.
  *
+ * A lane is a second lock of the same kind, its own queue with at most one holder at a time, so a single-spec browser run need
+ * not wait behind the main lock: `browser` is the one lane, at `$ONCE_UPON_HEAVY_LOCK_BROWSER`, else `<$ONCE_UPON_HEAVY_LOCK>-browser`
+ * when that is set, else `${XDG_CACHE_HOME:-~/.cache}/heavy-run-browser.lock`. Nothing checks memory: the most that runs at once is one
+ * main-lock holder and one browser-lane run.
+ *
  * A file or link at the lock path is cleared away once it is over two seconds old. The folder with `pid` and `who` files
  * inside is what the shell script this replaced, and once-upon before the package, made. One at the path is taken over when its pid is gone (or it names none and is over a minute old), and waited for while
  * its pid is alive, so an old run and a new one still take turns. Once no such lock can be about, that step can go.
@@ -42,8 +47,18 @@ import { clearLeftover, removeLeftover } from './stores/fs/folder-lock.ts';
 
 const SIGNALS = { SIGINT: 2, SIGTERM: 15, SIGHUP: 1 } as const;
 
-/** Where the lock is. */
-function heavyLockPath(env: NodeJS.ProcessEnv = process.env): string {
+export const HEAVY_LANES = ['browser'] as const;
+export type HeavyLane = (typeof HEAVY_LANES)[number];
+
+/** Where the lock is: the main one, or a lane's own. */
+function heavyLockPath(env: NodeJS.ProcessEnv = process.env, lane?: HeavyLane): string {
+  if (lane === 'browser') {
+    return (
+      env.ONCE_UPON_HEAVY_LOCK_BROWSER ||
+      (env.ONCE_UPON_HEAVY_LOCK && `${env.ONCE_UPON_HEAVY_LOCK}-browser`) ||
+      path.join(env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache'), 'heavy-run-browser.lock')
+    );
+  }
   return (
     env.ONCE_UPON_HEAVY_LOCK ||
     path.join(env.XDG_CACHE_HOME || path.join(os.homedir(), '.cache'), 'heavy-run.lock')
@@ -204,8 +219,9 @@ export async function runHeavy(
   say: (line: string) => void,
   env: NodeJS.ProcessEnv = process.env,
   logFile?: string,
+  lane?: HeavyLane,
 ): Promise<number> {
-  const lock = heavyLockPath(env);
+  const lock = heavyLockPath(env, lane);
   const poll = Number(env.ONCE_UPON_HEAVY_POLL);
   const pollMs = (poll > 0 ? poll : 5) * 1000;
   const stale = Number(env.ONCE_UPON_HEAVY_STALE_MS);
@@ -224,7 +240,7 @@ export async function runHeavy(
       `${name} (${clock(new Date())}): ${command.join(' ')}`,
       pollMs,
       staleMs,
-      (holder) => tell(`once-upon heavy: waiting for ${holder}`),
+      (holder) => tell(`once-upon heavy${lane ? ` (${lane} lane)` : ''}: waiting for ${holder}`),
       () => tell('once-upon heavy: the lock was taken over while this run held it (it stalled)'),
     );
   } catch (err) {

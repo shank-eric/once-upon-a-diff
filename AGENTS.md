@@ -57,7 +57,7 @@ Standing rules for any agent working in Once Upon a Diff. A brief only needs to 
 
 ## Agent setup
 
-- `once-upon beat` posts a progress beat (it writes the `board_progress_file` line and registers the beat), `once-upon heavy` is the machine-wide heavy-run lock (`once-upon deploy NAME COMMAND...` runs a deploy command through it quietly: output in a log, one `ok`/`failed` line, which the editor runs itself, never through an agent), and `skills/once-upon-editor/` runs a repo's build queue. Per-user editor profiles live in `~/.once-upon/editor/`, never in the repo. The agent definitions the editor launches by type (`once-upon-author`, `-critic`, `-storyteller`, `-helper`) live in `agents/` and `scripts/link-agents.sh` links them one file at a time into `~/.claude/agents`; a person's own definitions stay in their folder. The README's "Running a build queue" has the details.
+- `once-upon beat` posts a progress beat (it writes the `board_progress_file` line and registers the beat), `once-upon heavy` is the machine-wide heavy-run lock (`--lane browser` is a second lock for a single-spec browser run; `once-upon deploy NAME COMMAND...` runs a deploy command through it quietly: output in a log, one `ok`/`failed` line, which the editor runs itself, never through an agent), and `skills/once-upon-editor/` runs a repo's build queue. Per-user editor profiles live in `~/.once-upon/editor/`, never in the repo. The agent definitions the editor launches by type (`once-upon-author`, `-critic`, `-storyteller`, `-helper`) live in `agents/` and `scripts/link-agents.sh` links them one file at a time into `~/.claude/agents`; a person's own definitions stay in their folder. The README's "Running a build queue" has the details.
 
 ## Reporting
 

@@ -4,6 +4,9 @@
  * The command's exit code is this command's. Run through `fnm exec --using=24`, pass the shell's own PATH so the command
  * keeps its Node: `ONCE_UPON_PATH="$PATH" fnm exec --using=24 once-upon heavy NAME COMMAND...`.
  *
+ * `once-upon heavy --lane browser NAME COMMAND...` takes the browser lane's own lock instead, for a single-spec browser run, so it
+ * does not wait behind the main lock (one lane run at a time; `--lane` leads, before NAME). A deploy never takes a lane.
+ *
  * `once-upon deploy NAME COMMAND...` is the same run for a repo's deploy command, kept quiet: the output goes to a log
  * (`<home>/logs/deploy-NAME-<time>.log`) and the one line printed is `ok LOG` or `failed LOG`, with the command's exit code
  * (127 when it can't start); the wait for the lock and a command that can't start are noted in the log, never on the terminal,
@@ -11,7 +14,7 @@
  */
 import path from 'node:path';
 import { AGENT_NAME_RE } from '@once-upon-a-diff/terms/patterns';
-import { runHeavy } from '@once-upon-a-diff/core/features/heavy/heavy';
+import { HEAVY_LANES, runHeavy, type HeavyLane } from '@once-upon-a-diff/core/features/heavy/heavy';
 import type { CliOpts, Command } from '../types.ts';
 
 /** The name and command words of `heavy NAME COMMAND...` or `deploy NAME COMMAND...` (`NAME -- COMMAND...` also works). */
@@ -24,13 +27,40 @@ function words(opts: CliOpts, usage: string): { name: string; command: string[] 
   return { name, command };
 }
 
+/** A leading `--lane X` or `--lane=X` (and the words after it), only before NAME. */
+function lanePrefix(opts: CliOpts, usage: string): { lane?: HeavyLane; opts: CliOpts } {
+  const [first, ...rest] = opts._ || [];
+  if (first !== '--lane' && !first?.startsWith('--lane=')) {
+    return { opts };
+  }
+  const value = first === '--lane' ? rest.shift() : first.slice('--lane='.length);
+  const lane = HEAVY_LANES.find((one) => one === value);
+  if (!lane) {
+    throw new Error(usage);
+  }
+  return { lane, opts: { ...opts, _: rest } };
+}
+
 async function heavy(_home: string, _cfg: unknown, opts: CliOpts) {
-  const { name, command } = words(opts, 'usage: once-upon heavy NAME COMMAND...');
-  process.exitCode = await runHeavy(name, command, (line) => process.stderr.write(line + '\n'));
+  const usage = 'usage: once-upon heavy [--lane browser] NAME COMMAND...';
+  const { lane, opts: rest } = lanePrefix(opts, usage);
+  const { name, command } = words(rest, usage);
+  process.exitCode = await runHeavy(
+    name,
+    command,
+    (line) => process.stderr.write(line + '\n'),
+    process.env,
+    undefined,
+    lane,
+  );
 }
 
 async function deploy(home: string, _cfg: unknown, opts: CliOpts) {
-  const { name, command } = words(opts, 'usage: once-upon deploy NAME COMMAND...');
+  const usage = 'usage: once-upon deploy NAME COMMAND...';
+  if (opts._?.[0]?.startsWith('--lane')) {
+    throw new Error(`${usage}: a deploy takes no lane (it runs on the main lock)`);
+  }
+  const { name, command } = words(opts, usage);
   if (!AGENT_NAME_RE.test(name)) {
     throw new Error(
       `usage: once-upon deploy NAME COMMAND...: NAME is a plain agent name (letters, digits, . _ -), not "${name}"`,
@@ -49,6 +79,7 @@ export const heavyCommands: Command[] = [
     usage: [
       '  once-upon heavy NAME COMMAND...                                                  run a heavy command when no other one holds the machine-wide lock (~/.cache/heavy-run.lock); its exit code is ours',
       '                                                                                   ONCE_UPON_PATH, when set, is the PATH the command gets (pass "$PATH" under fnm exec so it keeps its own Node)',
+      '  once-upon heavy --lane browser NAME COMMAND...                                   a single-spec browser command on its own lock (~/.cache/heavy-run-browser.lock), not behind the main one; everything else stays on the main lock',
     ],
     run: heavy,
   },
