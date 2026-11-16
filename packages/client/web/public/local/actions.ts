@@ -80,6 +80,9 @@ export async function setPref(
   }
 }
 
+/** The top bar's height: the tree and a file's header pin at this `top` (diff.css), and a scroll to a file stops here. */
+export const TOP_BAR = 58;
+
 // ---------- files: Viewed, folds, the tree
 export const isFolded = (state: LocalState, file: LocalFile) =>
   state.folds[file.rel] ?? file.viewed;
@@ -104,8 +107,8 @@ export async function toggleViewed(rel: string) {
     alert(`Couldn't save: ${(err as Error).message}`);
   }
   const section = document.getElementById(`diff-${file.sha}`);
-  if (nowViewed && section && section.getBoundingClientRect().top < 0) {
-    section.scrollIntoView();
+  if (nowViewed && section && section.getBoundingClientRect().top < TOP_BAR) {
+    window.scrollTo({ top: section.getBoundingClientRect().top + window.scrollY - TOP_BAR });
   }
 }
 
@@ -215,7 +218,7 @@ export function gotoFile(rel: string) {
   const file = fileByRel(rel);
   const el = file && document.getElementById(`diff-${file.sha}`);
   if (el) {
-    window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 60 });
+    window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - TOP_BAR });
   }
 }
 

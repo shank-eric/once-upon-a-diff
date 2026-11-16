@@ -108,6 +108,16 @@ test('the page keeps the DOM the panel reads: a region for each file, a tree, li
   );
 });
 
+test('Viewed scrolls a file whose top is under the pinned top bar back into view', async () => {
+  await open({ files: [file('a.ts', [' one'])] });
+  const el = section('a.ts');
+  el.getBoundingClientRect = () => ({ top: 30 }) as DOMRect;
+  scrolls.length = 0;
+  (el.querySelector('.ou-local-viewed') as HTMLElement).click();
+  await settle();
+  assert.deepEqual(scrolls, [{ top: 30 - 58 }]);
+});
+
 test('Viewed folds the file, drops "changed since viewed", tells the bridge, and a second click undoes it', async () => {
   await open({ files: [file('a.ts', [' one'], { viewed_changed: true })] });
   assert.ok(one('.ou-local-changed'));

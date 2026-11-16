@@ -1,4 +1,4 @@
-/* The local diff (local/diff/): its palettes (the tints under the added and removed lines, the syntax colours), the file tree, the files, the tables, the notes under a line and the highlight.js tokens. */
+/* The local diff (local/diff/): its palettes (the tints under the added and removed lines, the syntax colours), the file tree, the files (each header pinned under the top bar), the tables, the notes under a line and the highlight.js tokens. */
 :root {
   --ou-local-add-bg: #dafbe1;
   --ou-local-add-num: #aceebb;
@@ -32,8 +32,9 @@
 .ou-local-files { flex: 1; min-width: 0; padding: 12px 16px 60vh; }
 
 .ou-local-file-wrap { margin-bottom: 16px; }
-.ou-local-file { border: 1px solid var(--ou-border); border-radius: 6px; overflow: hidden; }
-.ou-local-file-head { display: flex; gap: 8px; align-items: center; padding: 6px 10px; background: var(--ou-bg-muted); border-bottom: 1px solid var(--ou-border); }
+.ou-local-file { border: 1px solid var(--ou-border); border-radius: 6px; overflow: clip; }
+/* pinned under the top bar (58px, as the tree's top) while the file scrolls; overflow: clip above keeps the corners without making the section a scroll container */
+.ou-local-file-head { position: sticky; top: 58px; z-index: 4; display: flex; gap: 8px; align-items: center; padding: 6px 10px; background: var(--ou-bg-muted); border-bottom: 1px solid var(--ou-border); }
 .ou-local-folded .ou-local-file-head { border-bottom: 0; }
 .ou-local-path { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 /* a Chip (ui-kit) with the page's own line height, so the pill is the size it was */

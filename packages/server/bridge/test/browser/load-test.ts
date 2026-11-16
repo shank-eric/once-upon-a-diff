@@ -1276,6 +1276,55 @@ try {
     style: FIXED_DATE_WIDTH,
     around: hideRepoFolder,
   });
+  // a file's header stays pinned under the top bar while its diff scrolls, and lets go at the file's end
+  // (a tall spacer in the first shown, open file's body gives the section room to scroll; the reload below drops it)
+  const sticky = await localPage.evaluate(async () => {
+    const settle = () => new Promise((resolve) => requestAnimationFrame(() => resolve(null)));
+    const section = [
+      ...document.querySelectorAll<HTMLElement>('.ou-local-file:not(.ou-local-folded)'),
+    ].find((el) => el.offsetHeight > 0); // the panel hides the files outside the chapter
+    const head = section?.querySelector<HTMLElement>('.ou-local-file-head');
+    const body = section?.querySelector<HTMLElement>('.ou-local-file-body');
+    const bar = document.querySelector<HTMLElement>('.ou-local-top');
+    if (!section || !head || !body || !bar) {
+      return null;
+    }
+    const spacer = document.createElement('div');
+    spacer.style.height = '1500px';
+    body.append(spacer);
+    const barBottom = () => bar.getBoundingClientRect().bottom;
+    window.scrollTo({
+      top: section.getBoundingClientRect().top + window.scrollY + 300,
+      behavior: 'instant',
+    });
+    await settle();
+    const pinned = {
+      position: getComputedStyle(head).position,
+      sectionTop: section.getBoundingClientRect().top,
+      headTop: head.getBoundingClientRect().top,
+      barBottom: barBottom(),
+    };
+    window.scrollTo({
+      top: section.getBoundingClientRect().bottom + window.scrollY + 200,
+      behavior: 'instant',
+    });
+    await settle();
+    const past = { headTop: head.getBoundingClientRect().top, barBottom: barBottom() };
+    spacer.remove();
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    return { pinned, past };
+  });
+  check(
+    sticky !== null &&
+      sticky.pinned.position === 'sticky' &&
+      sticky.pinned.sectionTop < 0 &&
+      Math.abs(sticky.pinned.headTop - sticky.pinned.barBottom) <= 2, // 58px, as the tree's, under a bar a pixel taller
+    `a file header stays pinned under the top bar while its diff scrolls: ${JSON.stringify(sticky)}`,
+  );
+  check(
+    sticky !== null && sticky.past.headTop < sticky.past.barBottom - 1,
+    'and lets go once the file has scrolled past',
+  );
   await localPage.reload();
   await localPage.waitForSelector('#once-upon-panel', { state: 'attached', timeout: 5000 });
   await localPage.waitForTimeout(300);
