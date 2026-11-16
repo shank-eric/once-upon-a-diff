@@ -361,7 +361,7 @@
             "build": null,
             "building": null,
             "can_focus": true,
-            "column": "working",
+            "column": "thinking",
             "detail": "compiling",
             "focus_session": "<PID:4>-aaaa-bbbb-cccc-dddddddddddd",
             "id": "<PID:4>-aaaa-bbbb-cccc-dddddddddddd",
@@ -383,6 +383,7 @@
                 "since": "2026-10-26T18:50:00.000Z",
                 "source": "iterm",
                 "status": "working",
+                "thinking": true,
                 "title": "Tab title"
               }
             ],

@@ -47,6 +47,7 @@ import {
   addBacklogCards,
   markLandedWorks,
   nestClaimedAgents,
+  keepWorkWorking,
   readBacklogLinks,
 } from './backlog.ts';
 import { buildCards, placeCards } from './cards.ts';
@@ -164,6 +165,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
 
   // a claimed agent goes on its card's branch's card now, so its state counts when the columns are decided
   nestClaimedAgents(backlogItems, cards, claimed);
+  keepWorkWorking(backlogItems, cards);
   const byStory = new Map<string, StoryFacts>(
     [...stories, ...localStoryList].map((story) => [story.id, story]),
   );

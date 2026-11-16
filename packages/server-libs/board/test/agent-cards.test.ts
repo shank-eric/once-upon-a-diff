@@ -789,7 +789,7 @@ test('the Blank strip: sessions with no prompt yet are chips by place, not cards
   assert.equal(data.blank[1].sessions[1].id, fullId(blankA.pid));
   // a prompt, a busy tab, a waiting tab: cards as always
   assert.equal(cards.find((found) => found.id === fullId(used.pid))?.column, 'idle');
-  assert.equal(cards.find((found) => found.id === fullId(busyBlank.pid))?.column, 'working');
+  assert.equal(cards.find((found) => found.id === fullId(busyBlank.pid))?.column, 'thinking');
   assert.equal(cards.find((found) => found.id === fullId(waitingBlank.pid))?.column, 'waiting');
   // on a branch with a PR it stays in that PR's card
   const work = cards.find((found) => found.id === 'pr:acme/widgets#9');

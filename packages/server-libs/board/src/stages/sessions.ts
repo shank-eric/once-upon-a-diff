@@ -38,7 +38,7 @@ import {
 } from '@once-upon-a-diff/adapters/claude-sessions/live-sessions';
 import type { BuildContext, PinnedVoice, SessionView, Work } from './types.ts';
 import { branchOfWork, startWork } from './works.ts';
-import { endGoneSelfRuns, selfSessions } from './self-runs.ts';
+import { endGoneSelfRuns, openSessions, selfSessions } from './self-runs.ts';
 import { liveEditors } from './editors.ts';
 
 /** What the registry and the status source say of the live sessions and the agents. */
@@ -53,6 +53,8 @@ export interface LiveFacts {
   agents: LedgerAgent[];
   /** the registered editors, not among the agents */
   editors: LedgerAgent[];
+  /** the scan is sound: the registry folder read, and no file it could not use whose pid runs (a session may be missing from `live`) */
+  trusted: boolean;
 }
 
 /** Reads the registry's live sessions, their statuses, branches and repos, and the registered agents. */
@@ -75,14 +77,14 @@ export async function readLive(ctx: BuildContext): Promise<LiveFacts> {
   const { agents: registered, editors } = readAgents(ctx.home);
   // a self run of a session that is gone is shown stopped (self-runs.ts); an unusable registry scan changes nothing, and
   // neither does one with a file it could not use whose pid runs (its session may be that one: unknown, not gone)
-  const agents =
-    health.folder === 'ok' && !unknown
-      ? endGoneSelfRuns(
-          registered,
-          live.map((session) => session.session.slice(0, 8)),
-        )
-      : registered;
-  return { picked, live, known, branches, repos, agents, editors };
+  const trusted = health.folder === 'ok' && !unknown;
+  const agents = trusted
+    ? endGoneSelfRuns(
+        registered,
+        live.map((session) => session.session.slice(0, 8)),
+      )
+    : registered;
+  return { picked, live, known, branches, repos, agents, editors, trusted };
 }
 
 /** What else is known of the live sessions: who listens, the voice session, phone mode, blank sessions, titles and usage. */
@@ -239,7 +241,7 @@ export interface PlacedSessions {
  */
 export function placeSessions(
   ctx: BuildContext,
-  { live, known, branches, repos, picked, editors, agents }: LiveFacts,
+  { live, known, branches, repos, picked, editors, agents, trusted }: LiveFacts,
   facts: SessionFacts,
   works: Map<string, Work>,
   seen: Map<string, { status: BoardStatus; since: number }>,
@@ -257,8 +259,10 @@ export function placeSessions(
   const editorViews: { lane: string; view: BoardSession }[] = [];
   const editorSessions = new Set(liveEditors(editors, live).map((editor) => editor.session));
   // a session that has registered a run of its own (`agent start --self`) is not guessed onto a branch's card; with no run open
-  // it is a card of its own, Thinking while it is busy (self-runs.ts)
+  // it is a card of its own, Thinking while it is busy. Any busy session with no run open under its id is Thinking too, when
+  // it would be a card of its own anyway (self-runs.ts); one on a work card stays there. Both only on a sound scan.
   const own = selfSessions(agents);
+  const withRun = openSessions(agents);
   live.forEach((session, index) => {
     const extra = known.get(session.session);
     const status: BoardStatus = extra?.status || (session.status === 'busy' ? 'working' : 'idle');
@@ -288,9 +292,10 @@ export function placeSessions(
           session.status !== 'busy' && session.statusAt
             ? new Date(session.statusAt).toISOString()
             : null,
-        ...(own.registered.has(session.session.slice(0, 8)) &&
-        !own.open.has(session.session.slice(0, 8)) &&
-        status === 'working'
+        ...(trusted &&
+        status === 'working' &&
+        own.registered.has(session.session.slice(0, 8)) &&
+        !own.open.has(session.session.slice(0, 8))
           ? { thinking: true as const }
           : {}),
       },
@@ -317,6 +322,9 @@ export function placeSessions(
     }
     // a session standing alone is a card of its own, unless it has had no prompt yet: then it is a chip in the Blank strip
     const alone = () => {
+      if (trusted && status === 'working' && !withRun.has(session.session.slice(0, 8))) {
+        view.card.thinking = true;
+      }
       if (blankIds.has(session.session)) {
         blankViews.push({ lane: laneOf(session.cwd, repo), view: view.card });
       } else {

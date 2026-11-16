@@ -53,6 +53,33 @@ export function nestClaimedAgents(
 }
 
 /**
+ * A session card that is on a work card (a started item rides on it, or a run of an author, fixer or storyteller does) is
+ * Working, not Thinking: `thinking` is set where the sessions are placed, before these join the card, so it is cleared here,
+ * before the columns are decided (placeCards). It changes the cards given. A research or helper run on a card is no work.
+ */
+export function keepWorkWorking(items: BacklogItem[], cards: BoardCard[]): void {
+  const onWork = new Set<BoardCard>();
+  for (const item of items) {
+    const rides = item.state === 'started' || (item.state === 'open' && !!item.landed_at);
+    const card = rides && item.branch ? cardOnBranch(item, cards) : null;
+    if (card) {
+      onWork.add(card);
+    }
+  }
+  for (const card of cards) {
+    if (
+      card.kind === 'session' &&
+      (onWork.has(card) ||
+        card.agents.some((agent) => agent.kind !== 'research' && agent.kind !== 'helper'))
+    ) {
+      for (const session of card.sessions) {
+        delete session.thinking;
+      }
+    }
+  }
+}
+
+/**
  * A card that landed (`backlog done`, with or without a sha; its state may still be `open` if no `start` was written) has
  * finished the local story on its branch's work card, whether or not git can see it (a cherry-pick leaves the story's
  * head in no branch). Before the columns are decided, the work card is marked landed, so it is Done; DONE_HOURS after the

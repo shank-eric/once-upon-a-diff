@@ -98,7 +98,7 @@ test('the board page and its key: the board routes only, the other pages’ link
   assert.equal(answer.status, 200);
   const data = answer.body as BoardData;
   assert.equal(data.status_source, 'registry');
-  assert.equal(data.lanes[0].cards[0].column, 'working');
+  assert.equal(data.lanes[0].cards[0].column, 'thinking', 'a busy session with no run open');
   assert.equal((await bridge.call('GET', '/api/board')).status, 200, 'the token reaches it too');
 
   for (const route of ['/api/board/link', '/api/stories', '/api/prefs']) {

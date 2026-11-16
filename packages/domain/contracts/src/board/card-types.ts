@@ -78,7 +78,7 @@ export interface BoardSession {
    * status can change on a glance, so the board splits Done (context still cached) from Idle by this.
    */
   rested_at?: string | null;
-  /** busy, and registered with `agent start --self` before but with no run open now: it is thinking, not working on a card's run (Thinking) */
+  /** busy with no author or fixer run open under its id, and a card of its own (never one on a work card, or one a started item or a run rides on): it is thinking, not working on a card's run (Thinking) */
   thinking?: true;
 }
 

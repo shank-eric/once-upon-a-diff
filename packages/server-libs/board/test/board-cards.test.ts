@@ -300,7 +300,7 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
     [fullId(staleTwo.pid)]: 'idle', // its tab says done, nothing waiting: the Idle lane
     [`agent:${sid(onStory)}:wt-agent`]: 'working',
     [`agent:${sid(onStory)}:crosscut-note`]: 'working',
-    [fullId(loose.pid)]: 'working',
+    [fullId(loose.pid)]: 'thinking', // busy, no run open, no work card
     [`agent:${sid(onStory)}:tagged-one`]: 'working',
     [`agent:${sid(onStory)}:nested-one`]: 'working', // cardless: its branch is no link to PR 7's card
     [`agent:${sid(onStory)}:pr-agent`]: 'working',
@@ -469,7 +469,7 @@ test('a status change moves `since` to when the board saw it', async () => {
     now: () => clock,
   });
   const first = (await board.snapshot()).lanes[0].cards[0];
-  assert.equal(first.column, 'working');
+  assert.equal(first.column, 'thinking', 'busy, no run open');
   assert.equal(
     first.sessions[0].since,
     new Date(NOW.getTime() - 600000).toISOString(),

@@ -120,7 +120,7 @@
             "build": null,
             "building": null,
             "can_focus": false,
-            "column": "working",
+            "column": "thinking",
             "detail": null,
             "focus_session": "<PID:23>-aaaa-bbbb-cccc-dddddddddddd",
             "id": "<PID:23>-aaaa-bbbb-cccc-dddddddddddd",
@@ -142,6 +142,7 @@
                 "since": "2026-10-26T18:50:00.000Z",
                 "source": "registry",
                 "status": "working",
+                "thinking": true,
                 "title": "Reading the retry code"
               }
             ],

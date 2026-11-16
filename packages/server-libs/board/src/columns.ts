@@ -23,8 +23,9 @@
  *             (back or pr_open). A rebuild of a local story since you opened it is a chip on its card
  *   pr_open   pushed with a PR, and nothing waits on you
  *   thinking  a research agent still running with no card to sit in (set by stages/agents.ts on an agent's own card), or a busy
- *             session that registered a run of its own before (`agent start --self`) and has none open now (its `thinking` flag,
- *             set where the sessions are placed: such a session joins no work's card, so a work card is never in it)
+ *             session with no author or fixer run open under its id that is not on a work card (its `thinking` flag, set where the sessions are
+ *             placed: a registered one (`agent start --self`) joins no work's card, and one on a branch's work stays on it, so a
+ *             work card is never in it)
  *   research  a finished research agent with no card to sit in and no result (set by stages/agents.ts on an agent's own card,
  *             never by this function: a work card is never in it)
  *   error     a session whose tab says error

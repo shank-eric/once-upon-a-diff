@@ -1,7 +1,8 @@
 /*
  * A parent session's own runs (`agent start --self`, named `self-XXXXXX`) and what the board does with them. A session that has
  * registered one is a registered session: the board no longer guesses its card from its branch (it sits on no landed or
- * ready card), shows it Thinking while it is busy with no run open, and shows a run whose session is gone as stopped. Pure.
+ * ready card), shows it Thinking while it is busy with no run open, and shows a run whose session is gone as stopped. A busy
+ * session of any kind with no author or fixer run open under its id is Thinking too, unless it sits on a work card (sessions.ts). Pure.
  */
 import { isSelfName } from '@once-upon-a-diff/terms/ids';
 import { runIsOpen } from '@once-upon-a-diff/state/records/agents/events';
@@ -23,6 +24,22 @@ export function selfSessions(agents: LedgerAgent[]): {
     }
   }
   return { registered, open };
+}
+
+/**
+ * The sessions (first 8 of the id) with a work run open now: an author or a fixer (kind author), work on a card. A subagent
+ * shares its parent's sid, so a research or helper run (or a critic or storyteller) under it is no work of the session's own.
+ */
+export function openSessions(agents: LedgerAgent[]): Set<string> {
+  return new Set(
+    agents
+      .filter(
+        (agent) =>
+          runIsOpen(agent) &&
+          (agent.kind === 'author' || agent.role === 'author' || agent.role === 'fixer'),
+      )
+      .map((agent) => agent.sid),
+  );
 }
 
 /**
