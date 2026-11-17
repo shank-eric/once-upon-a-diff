@@ -21,6 +21,7 @@ import { dispatchCommands } from './commands/dispatch.ts';
 import { cardCommands } from './commands/card.ts';
 import { repoCommands } from './commands/repo.ts';
 import { beatCommands } from './commands/beat.ts';
+import { hookCommands } from './commands/hooks.ts';
 import { heavyCommands } from './commands/heavy.ts';
 import { editorCommands } from './commands/editor.ts';
 import { approveCommands } from './commands/approve.ts';
@@ -47,6 +48,7 @@ const COMMANDS = new Map<string, Command>(
     ...repoCommands,
     ...beatCommands,
     ...heavyCommands,
+    ...hookCommands,
     ...editorCommands,
     ...reviewedCommands,
     ...approveCommands,
@@ -59,6 +61,7 @@ const HELP_ORDER = [
   'serve',
   'setup',
   'token',
+  'install-hooks',
   'list',
   'local',
   'bind',

@@ -105,6 +105,14 @@
    "token+board"
   ],
   [
+   "boardListenQueue",
+   "POST",
+   "/api/board/listen-queue",
+   null,
+   null,
+   "token+board"
+  ],
+  [
    "boardVoicePause",
    "POST",
    "/api/board/voice/pause",
@@ -494,6 +502,14 @@
    "/api/stories/:id/listen",
    "listen",
    null,
+   "token+page"
+  ],
+  [
+   "storyListenQueue",
+   "POST",
+   "/api/stories/:id/listen/queue",
+   "listen",
+   "queue",
    "token+page"
   ],
   [
@@ -1567,6 +1583,34 @@
        }
       ]
      },
+     "scope": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "((\"repo\" | \"story\") | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "picklist",
+       "expects": "(\"repo\" | \"story\")",
+       "async": false,
+       "options": [
+        "repo",
+        "story"
+       ],
+       "fallback": "repo"
+      }
+     }
+    }
+   }
+  ],
+  [
+   "listenQueue",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
      "scope": {
       "kind": "schema",
       "type": "optional",
@@ -3053,6 +3097,41 @@
         "expects": "string",
         "async": false
        }
+      }
+     }
+    }
+   }
+  ],
+  [
+   "boardListenQueue",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "repo": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(string | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "string",
+       "expects": "string",
+       "async": false
+      }
+     },
+     "story": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(string | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "string",
+       "expects": "string",
+       "async": false
       }
      }
     }

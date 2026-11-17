@@ -17,6 +17,7 @@ const BOOLEAN_FLAGS = new Set([
   'general',
   'json',
   'fix',
+  'keep',
 ]);
 
 export function parseArgs(argv: string[]): { command: string | undefined; opts: CliOpts } {

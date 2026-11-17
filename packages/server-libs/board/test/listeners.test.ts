@@ -840,15 +840,24 @@ test('a local story whose checkout has no origin finds sessions in that checkout
   typed.length = 0;
   await make().type('listen', fullId(inBare.pid), null, 'local-bare');
   assert.deepEqual(typed, ['/once-upon-listen --story local-bare']);
-  // no iTerm: nothing can be typed into, and the page is told so rather than to click again
+  // no iTerm: nothing can be typed into, so no sessions, and the answer carries the line to run by hand
   writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
   const realHome = process.env.HOME;
   process.env.HOME = tmp('board-no-iterm-home');
   after(() => {
     process.env.HOME = realHome;
   });
-  await assert.rejects(make().listenSessions('acme/widgets'), /needs iTerm/);
-  await assert.rejects(make().storyListenSessions('local-bare'), /needs iTerm/);
+  assert.deepEqual(await make().listenSessions('acme/widgets'), []);
+  assert.deepEqual(await make().listenOffer('acme/widgets'), {
+    repo: 'acme/widgets',
+    sessions: [],
+    line: '/once-upon-listen acme/widgets --keep',
+    typing: false,
+  });
+  const noTab = await make().storyListenSessions('local-bare');
+  assert.equal(noTab.typing, false);
+  assert.deepEqual(noTab.sessions, []);
+  assert.equal(noTab.line, '/once-upon-listen --story local-bare --keep');
 });
 
 test('Build story types the clicked card’s own request, though two cards build in the same session', async () => {

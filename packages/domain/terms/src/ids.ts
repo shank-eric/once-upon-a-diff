@@ -80,6 +80,10 @@ export const stateKeyForPr = (repo: string, number: number | string): string =>
 export const repoListenerName = (repo: string): string =>
   `repo-${String(canonicalRepo(repo)).toLowerCase().replace('/', '-')}`;
 
+/** The key, and file name, of a queued Start listening (pending-listen/<key>.json): `story-<id>` for one story's, else the repo listener's name. */
+export const pendingListenKey = (target: { repo: string | null; story: string | null }): string =>
+  target.story ? `story-${target.story}` : repoListenerName(target.repo as string);
+
 /** The name of a repo's parts file under parts/, `owner-name.json`. */
 export const partsFileName = (repo: string): string =>
   `${canonicalRepo(repo).toLowerCase().replace(/\//g, '-')}.json`;

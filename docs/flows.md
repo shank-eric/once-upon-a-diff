@@ -223,7 +223,7 @@ flowchart LR
 
 | # | Layer | Hop | At |
 |---|---|---|---|
-| 1 | `library` | the panel's button asks the host for sessions | `packages/client/panel/src/components/status-light-part.ts` (`sessions`) |
+| 1 | `library` | the panel's button asks the host for sessions | `packages/client/panel/src/components/status-light-part.ts` (`clickStart`) |
 | 2 | `library` | none, one, or a chooser | `packages/client-libs/ui-kit/src/listen.ts` (`listenPlan`) |
 | 3 | `app` | on GitHub: `GET /api/board/listen-sessions`, with the token through the service worker | `packages/client/extension/src/content/listen.ts` (`ROUTES.boardListenSessions`) |
 | 3' | `app` | on the local page: the story's own route, with the story's key (the board's routes need the board's key) | `packages/client/web/public/local/mount.ts` (`ROUTES.storyListenSessions`) |

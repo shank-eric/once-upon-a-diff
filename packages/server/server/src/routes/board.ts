@@ -102,7 +102,13 @@ async function listenSessions({ app, url, send }: Call) {
   if (!repo || !REPO_RE.test(repo)) {
     throw new HttpError(400, 'a repo (owner/name), or a story that has one, is needed');
   }
-  return send(200, { repo, sessions: await app.sessions.listenSessions(repo) });
+  return send(200, await app.sessions.listenOffer(repo));
+}
+
+/** POST {repo} or {story}: queue Start listening for the next session in that checkout (the hook claims it). */
+function listenQueue({ app, body, send }: Call) {
+  const { repo, story } = parseBody('boardListenQueue', body);
+  return send(200, app.sessions.queueListen(repo || null, story || null));
 }
 
 /** POST {story}: the page link of a local story on a card, which has no URL of its own like a PR story's. */
@@ -244,6 +250,7 @@ function stopListening({ app, body, send }: Call) {
 export const boardRoutes: ApiRoute[] = [
   { route: ROUTES.boardType, handle: type },
   { route: ROUTES.boardListenSessions, handle: listenSessions },
+  { route: ROUTES.boardListenQueue, handle: listenQueue },
   { route: ROUTES.boardVoicePause, handle: voicePause },
   { route: ROUTES.boardVoiceStart, handle: voiceStart },
   { route: ROUTES.boardVoiceStop, handle: voiceStop },

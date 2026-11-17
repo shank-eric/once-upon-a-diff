@@ -420,7 +420,11 @@ export function fullOptions(
       },
     })),
     listen: {
-      sessions: log('listen.sessions', async () => []),
+      sessions: log('listen.sessions', async () => ({
+        sessions: [],
+        line: '/once-upon-listen acme/widgets --keep',
+        typing: true,
+      })),
       start: log('listen.start', async () => undefined),
     },
     drafts: {

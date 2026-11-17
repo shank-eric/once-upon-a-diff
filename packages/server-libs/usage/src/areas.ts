@@ -112,6 +112,7 @@ export const ROUTE_AREAS: Record<RouteName, Area> = {
   boardLink: 'Board backend',
   boardType: 'Listeners and sessions',
   boardListenSessions: 'Listeners and sessions',
+  boardListenQueue: 'Listeners and sessions',
   boardVoicePause: 'Voice',
   boardVoiceStart: 'Voice',
   boardVoiceStop: 'Voice',
@@ -161,6 +162,7 @@ export const ROUTE_AREAS: Record<RouteName, Area> = {
   storyUsageCount: 'Server shell',
   storyListenSessions: 'Listeners and sessions',
   storyListen: 'Listeners and sessions',
+  storyListenQueue: 'Listeners and sessions',
   approve: 'Review',
   prPush: 'Review',
 };
@@ -194,6 +196,7 @@ export const UNCOUNTED_ROUTES: ReadonlySet<string> = new Set(['usageCount', 'sto
 export const COMMAND_AREAS: Record<string, Area> = {
   serve: 'Server shell',
   setup: 'Settings, config and doctor',
+  'install-hooks': 'Listeners and sessions',
   token: 'Settings, config and doctor',
   doctor: 'Settings, config and doctor',
   usage: 'Settings, config and doctor',

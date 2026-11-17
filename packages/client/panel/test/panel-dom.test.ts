@@ -863,6 +863,14 @@ const notListening = (extra: Record<string, unknown> = {}) => ({
 const withStatus = (status: () => unknown) => (calls: unknown[][]) =>
   fullOptions(calls, { status: (async () => status()) as never });
 const SESSION = { id: 's1', title: 'api-1', status: 'idle' as const, since: null };
+/** What the bridge answers Start listening with: the sessions, and the line to run by hand when none can be typed into. */
+const offerOf = (sessions: (typeof SESSION)[], extra: Record<string, unknown> = {}) => ({
+  sessions,
+  line: '/once-upon-listen acme/widgets --keep',
+  storyLine: '/once-upon-listen --story story-x --keep',
+  typing: true,
+  ...extra,
+});
 
 await test("the theme tokens' sheet is linked first, in the shadow root (then ui, the base, the region sheets) and in the page's head, and the head's copy goes when the panel closes", async () => {
   const panel = await mount(story(), bare);
@@ -1241,7 +1249,7 @@ await test('flow-start-listening', async () => {
       listen: {
         sessions: async (target) => {
           calls.push(['listen.sessions', target]);
-          return list() as never;
+          return offerOf(list() as (typeof SESSION)[]) as never;
         },
         start: async (id, target) => {
           calls.push(['listen.start', id, target]);
@@ -1304,6 +1312,53 @@ await test('flow-start-listening', async () => {
   }
 });
 
+await test('Start listening with no iTerm shows the line to run by hand with Copy and Queue, and Queue asks the host to queue it', async () => {
+  const panel = await mount(
+    story(),
+    (calls) =>
+      fullOptions(calls, {
+        listen: {
+          sessions: async (target) => {
+            calls.push(['listen.sessions', target]);
+            return offerOf([], { typing: false }) as never;
+          },
+          start: async () => {},
+          queue: async (target) => {
+            calls.push(['listen.queue', target]);
+          },
+        },
+      }),
+    { n: 1, chatOpen: true },
+  );
+  try {
+    fire($('.ou-askhint .ou-startlisten'), 'click');
+    await settle();
+    const note = $('.ou-askhint .ou-startnote');
+    assert.match(
+      note.textContent || '',
+      /^iTerm isn't set up here, so there is no tab to type into\./,
+    );
+    assert.equal(note.querySelector('code')?.textContent, '/once-upon-listen acme/widgets --keep');
+    const buttons = [...note.querySelectorAll('button')].map((one) => one.textContent);
+    assert.deepEqual(buttons, ['Copy', 'Queue for my next message']);
+    fire(note.querySelectorAll('button')[1], 'click');
+    await settle();
+    assert.deepEqual(calling(panel.calls, 'listen.queue').at(-1)?.slice(1), [
+      { scope: 'repo', repo: 'acme/widgets' },
+    ]);
+    assert.match($('.ou-askhint .ou-startnote').textContent || '', /^Queued for 15 minutes\./);
+    // the story's own button shows the story's line
+    fire($('.ou-askwho .ou-startstory'), 'click');
+    await settle();
+    assert.equal(
+      $('.ou-askwho .ou-startnote code').textContent,
+      '/once-upon-listen --story story-x --keep',
+    );
+  } finally {
+    panel.done();
+  }
+});
+
 await test('Start listening for this story asks for story sessions', async () => {
   const panel = await mount(
     story(),
@@ -1312,7 +1367,7 @@ await test('Start listening for this story asks for story sessions', async () =>
         listen: {
           sessions: async (target) => {
             calls.push(['listen.sessions', target]);
-            return [SESSION];
+            return offerOf([SESSION]);
           },
           start: async (id, target) => {
             calls.push(['listen.start', id, target]);
@@ -1346,7 +1401,7 @@ await test('new hint markup starts the Start listening button over, and a reply 
       fullOptions(calls, {
         status: (async () => notListening({ prompt })) as never,
         listen: {
-          sessions: async () => looking.promise as never,
+          sessions: async () => offerOf(await looking.promise),
           start: async (id, target) => {
             calls.push(['listen.start', id, target]);
           },

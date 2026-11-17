@@ -196,3 +196,10 @@ export const listenPromptFor = (repo: string): string => `/once-upon-listen ${re
 
 /** The one-story form (listenPrompt({story}).prompt). */
 export const listenStoryPromptFor = (story: string): string => `/once-upon-listen --story ${story}`;
+
+/** The line to run by hand in a session nothing can type into: the listen prompt with `--keep` (no 10-minute idle stop). */
+export const listenKeepPromptFor = (repo: string): string => `${listenPromptFor(repo)} --keep`;
+
+/** The one-story form of it. */
+export const listenKeepStoryPromptFor = (story: string): string =>
+  `${listenStoryPromptFor(story)} --keep`;

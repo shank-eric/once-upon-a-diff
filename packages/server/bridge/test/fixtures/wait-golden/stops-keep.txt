@@ -1,0 +1,54 @@
+## --keep story: no idle stop
+args: wait --story acme-widgets-7 --keep --timeout 4
+exit: 2
+--- stdout
+
+--- stderr
+
+--- files
+cursors/story-acme-widgets-7.json: {"offset":0,"at":"<ts>"}
+listeners/story-acme-widgets-7.json: {"consumer":"story-acme-widgets-7","pid":0,"state":"waiting","at":"<ts>","story":"acme-widgets-7","builds":true,"fixes":true}
+
+## --keep repo: no idle stop
+args: wait --repo acme/widgets --keep --timeout 4
+exit: 2
+--- stdout
+
+--- stderr
+
+--- files
+cursors/repo-acme-widgets.json: {"offset":0,"at":"<ts>"}
+listener-history.json: {
+  "acme/widgets": {
+    "repo": "acme/widgets",
+    "consumer": "repo-acme-widgets",
+    "started_at": "<ts>",
+    "last_seen": "<ts>"
+  }
+}
+listeners/repo-acme-widgets.json: {"consumer":"repo-acme-widgets","pid":0,"state":"waiting","at":"<ts>","repo":"acme/widgets","fixes":true}
+
+## --keep repo: the board still stops it
+args: wait --repo acme/widgets --keep --timeout 20
+exit: 0
+--- stdout
+Stopped listening for acme/widgets: stopped from the board.
+Don't start this wait again. Start listening (the panel, the PR pages or the board) starts a repo listener again.
+
+--- stderr
+
+--- files
+cursors/repo-acme-widgets.json: {"offset":0,"at":"<ts>"}
+listener-history.json: {
+  "acme/widgets": {
+    "repo": "acme/widgets",
+    "consumer": "repo-acme-widgets",
+    "started_at": "<ts>",
+    "last_seen": "<ts>"
+  }
+}
+listener-stops.json: {
+  "acme/widgets": <ms>
+}
+listeners/repo-acme-widgets.json: {"consumer":"repo-acme-widgets","pid":0,"state":"waiting","at":"<ts>","repo":"acme/widgets","fixes":true}
+listeners.log: <ts> repo-acme-widgets stopped listening for acme/widgets: stopped from the board

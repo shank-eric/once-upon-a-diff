@@ -118,5 +118,6 @@ test('GET /api/board/listen-sessions?story=: a story with no repo or checkout fa
   assert.match(bare.body.error as string, /no repo or checkout/);
   const fallback = await get('/api/board/listen-sessions?story=local-nowhere&repo=acme/widgets');
   assert.equal(fallback.status, 200);
-  assert.deepEqual(fallback.body, { repo: 'acme/widgets', sessions: [] });
+  assert.equal(fallback.body.repo, 'acme/widgets');
+  assert.deepEqual(fallback.body.sessions, []);
 });

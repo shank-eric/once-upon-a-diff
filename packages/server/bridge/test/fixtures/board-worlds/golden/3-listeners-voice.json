@@ -651,6 +651,7 @@
     }
   ],
   "storyListen": {
+    "line": "/once-upon-listen acme/widgets --keep",
     "repo": "acme/widgets",
     "sessions": [
       {
@@ -659,6 +660,8 @@
         "status": "done",
         "title": "Tab title"
       }
-    ]
+    ],
+    "storyLine": "/once-upon-listen --story local-w --keep",
+    "typing": true
   }
 }

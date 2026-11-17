@@ -8,7 +8,20 @@
  */
 import { obviousChoice, freshestFirst } from '@once-upon-a-diff/terms/choice';
 import { compactAge } from '@once-upon-a-diff/terms/time';
-import type { ListenSession, ListenTarget } from '@once-upon-a-diff/contracts/types';
+import { html, render } from '/assets/preact.mjs';
+import { ListenLine } from './components/listen-line.ts';
+import type {
+  ListenSession,
+  ListenSessions,
+  ListenTarget,
+} from '@once-upon-a-diff/contracts/types';
+
+/** What the bridge answers a click on Start listening with: the sessions to type into, and the line to run by hand. */
+export type ListenOffer = Omit<ListenSessions, 'repo'>;
+
+/** The line to run by hand for this target (a story's own line when the answer has one). */
+export const lineFor = (offer: ListenOffer, target: ListenTarget): string =>
+  (target.scope === 'story' && offer.storyLine) || offer.line;
 
 /** What to do with the sessions the bridge offered. */
 export type ListenPlan =
@@ -39,19 +52,29 @@ export function idleFor(since: string | null, now = Date.now()): string {
 const forWhat = (target: ListenTarget, repo: string | null | undefined) =>
   target.scope === 'story' ? 'this story' : repo || 'the repo';
 
-/** The note when no session can be typed into: start one, then click again. */
+/**
+ * The note when no session can be typed into, ahead of the line to run by hand (`lineNote`, with its Copy button): with no
+ * iTerm (`typing` false) there is no tab at all, else no idle session has one.
+ */
 export function noSessionNote(
   target: ListenTarget,
   repo: string | null | undefined,
   checkout: string | null | undefined,
+  typing = true,
 ) {
   const where = checkout ? `in ${checkout}` : `in your ${repo || 'repo'} checkout`;
+  if (!typing) {
+    return `iTerm isn't set up here, so there is no tab to type into. Run this line in Claude Code ${where}:`;
+  }
   return (
     `No idle Claude Code session in ${repo || 'the repo'} has an iTerm tab to type into. ` +
-    `Start one ${where}, then click Start listening${target.scope === 'story' ? ' for this story' : ''} again` +
-    (target.scope === 'repo' ? `, or run /once-upon-listen ${target.repo} in it yourself.` : '.')
+    `Run this line in Claude Code ${where}, or start a session there and click Start listening${target.scope === 'story' ? ' for this story' : ''} again:`
   );
 }
+
+/** The note after Queue: any message in a session there starts it (the hook, `once-upon install-hooks`, claims the request). */
+export const queuedNote = (checkout: string | null | undefined, repo: string | null | undefined) =>
+  `Queued for 15 minutes. Send any message in a Claude Code session ${checkout ? `in ${checkout}` : `in your ${repo || 'repo'} checkout`} and it will start listening (needs the hook: once-upon install-hooks).`;
 
 /** The note after the line was typed. */
 export const typedNote = (title: string, target: ListenTarget, repo: string | null | undefined) =>
@@ -62,8 +85,10 @@ export const failedNote = (message: string) => `Couldn't start it: ${message}.`;
 
 /** How a host reaches the idle sessions and types the listen line into one (the panel's `opts.listen`). */
 export interface ListenPort {
-  sessions(target: ListenTarget): Promise<ListenSession[]>;
+  sessions(target: ListenTarget): Promise<ListenOffer>;
   start(session: string, target: ListenTarget): Promise<unknown>;
+  /** Queue Start listening for the next session in that checkout (a hook claims it); a host that cannot says nothing. */
+  queue?(target: ListenTarget): Promise<unknown>;
 }
 
 /** What the panel knows of where it is, for the notes. */
@@ -85,18 +110,37 @@ export function wireStartListening(
   where: ListenWhere,
 ): void {
   const label = button.textContent;
-  const say = (text: string) => {
-    note.replaceChildren(text);
-    note.hidden = !text;
+  /** Shows `parts` in the note (nothing hides it). */
+  const show = (...parts: (string | Node)[]) => {
+    note.replaceChildren(...parts);
+    note.hidden = !parts.some(Boolean);
   };
+  const say = (text: string) => show(text);
   const rest = () => {
     button.disabled = false;
     button.textContent = label;
   };
   const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
+  /** No session to type into: why, the line to run by hand with Copy, and Queue when the host has it. */
+  function showLine(offer: ListenOffer) {
+    const box = note.ownerDocument.createElement('span');
+    const queue = listen.queue
+      ? async () => {
+          try {
+            await listen.queue!(target);
+            say(queuedNote(where.checkout, where.repo));
+          } catch (err) {
+            say(failedNote(message(err)));
+          }
+        }
+      : undefined;
+    render(html`<${ListenLine} line=${lineFor(offer, target)} onQueue=${queue} />`, box);
+    show(noSessionNote(target, where.repo, where.checkout, offer.typing), ' ', box);
+  }
+
   async function start(session: ListenSession) {
-    note.replaceChildren(`Typing into “${session.title}”…`);
+    say(`Typing into “${session.title}”…`);
     button.disabled = true;
     try {
       await listen.start(session.id, target);
@@ -117,18 +161,18 @@ export function wireStartListening(
     }
     button.disabled = true;
     button.textContent = 'Looking…';
-    let sessions: ListenSession[];
+    let offer: ListenOffer;
     try {
-      sessions = await listen.sessions(target);
+      offer = await listen.sessions(target);
     } catch (err) {
       say(failedNote(message(err)));
       rest();
       return;
     }
     rest();
-    const plan = listenPlan(sessions);
+    const plan = listenPlan(offer.sessions);
     if (plan.kind === 'none') {
-      say(noSessionNote(target, where.repo, where.checkout));
+      showLine(offer);
     } else if (plan.kind === 'one') {
       await start(plan.session);
     } else {
@@ -147,8 +191,7 @@ export function wireStartListening(
         };
         list.append(pick, ' ');
       }
-      note.replaceChildren(list);
-      note.hidden = false;
+      show(list);
     }
   };
 }

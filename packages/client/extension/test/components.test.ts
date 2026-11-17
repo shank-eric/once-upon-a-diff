@@ -233,7 +233,11 @@ test('the notice lists three repos and says how many more', () => {
 
 test('Start listening asks the bridge for sessions and says what happened in its note, which stays while the notice draws again', async () => {
   worker.sent = [];
-  worker.answer = () => ({ ok: true, status: 200, body: { sessions: [] } });
+  worker.answer = () => ({
+    ok: true,
+    status: 200,
+    body: { sessions: [], line: '/once-upon-listen acme/widgets --keep', typing: true },
+  });
   const notice = listenNotice();
   notice.set([row('acme/widgets', '~/Development/widgets')]);
   const box = noticeRoot();
@@ -248,6 +252,11 @@ test('Start listening asks the bridge for sessions and says what happened in its
   );
   assert.ok(!note.hasAttribute('hidden'));
   assert.match(note.textContent!, /^No idle Claude Code session in acme\/widgets has an iTerm tab/);
+  assert.equal(note.querySelector('code')!.textContent, '/once-upon-listen acme/widgets --keep');
+  assert.deepEqual(
+    [...note.querySelectorAll('button')].map((one) => one.textContent),
+    ['Copy', 'Queue for my next message'],
+  );
   notice.set([row('acme/widgets', '~/Development/widgets')]);
   assert.equal(box.querySelector('.note[data-n="0"]'), note, 'the same note node');
   assert.match(note.textContent!, /^No idle Claude Code session/, 'and its words');
@@ -273,20 +282,28 @@ test('a row that changes while its click waits on the sessions call still gets i
     { ...row('acme/widgets', '~/Development/other'), prompt: '/once-upon-listen --new' },
   ]);
   assert.equal(box.querySelector('button[data-i="0"]'), start, 'the same button');
-  answer({ ok: true, status: 200, body: { sessions: [] } });
+  answer({
+    ok: true,
+    status: 200,
+    body: { sessions: [], line: '/once-upon-listen acme/widgets --keep', typing: true },
+  });
   for (let tries = 0; tries < 50 && note.hasAttribute('hidden'); tries++) {
     await tick();
   }
   assert.equal(start.textContent, 'Start listening');
   assert.match(
     note.textContent!,
-    /Start one in ~\/Development\/other, then click Start listening again/,
+    /Run this line in Claude Code in ~\/Development\/other, or start a session there and click Start listening again/,
   );
   fire(start, 'click');
   for (let tries = 0; tries < 50 && start.textContent !== 'Looking…'; tries++) {
     await tick();
   }
-  answer({ ok: true, status: 200, body: { sessions: [] } });
+  answer({
+    ok: true,
+    status: 200,
+    body: { sessions: [], line: '/once-upon-listen acme/widgets --keep', typing: true },
+  });
   for (let tries = 0; tries < 50 && start.textContent !== 'Start listening'; tries++) {
     await tick();
   }

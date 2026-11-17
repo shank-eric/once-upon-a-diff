@@ -6,7 +6,8 @@
  * queues/requests/conversation.ts. With build_request in its type, it takes the story's Rebuild requests the same way
  * (queues/requests/builds.ts). Fix requests (fix_request in the type) are routed the same way too, from the queue in
  * queues/requests/fixes.ts. A story's wait also stops itself once no page has shown the story for a while (auto-stop.ts), unless
- * --no-auto-stop. A repo's wait stops once none of its stories has been shown, or when the board's Stop listening asks.
+ * --no-auto-stop or --keep. A repo's wait stops once none of its stories has been shown, or when the board's Stop listening asks;
+ * --keep (a listener started by hand) skips only the idle stop, so the board's Stop listening still ends it, which --no-auto-stop does not.
  *
  * The order inside one pass is the contract the once-upon-listen skill leans on: what was handed over wins over a due timeout,
  * a due timeout over a story's idle stop, and that over the repo's.
@@ -64,6 +65,8 @@ export interface WaitOptions {
   /** seconds; none means wait for ever */
   timeout?: Flag;
   noAutoStop?: boolean;
+  /** a listener the user started by hand: no idle stop, but the board's Stop listening still ends a repo wait */
+  keep?: boolean;
   noRelay?: boolean;
   /** seconds between looks at the inbox when nothing has changed (default 2); tests shorten it so a short --timeout ends at once */
   pollSeconds?: number;
@@ -271,7 +274,7 @@ export async function wait(home: string, opts: WaitOptions): Promise<WaitOutcome
   const deadline = opts.timeout ? Date.now() + Number(opts.timeout) * 1000 : Infinity;
   // a story's wait ends on its own once no page has shown the story for the idle window
   const autoStop =
-    story && !opts.noAutoStop
+    story && !opts.noAutoStop && !opts.keep
       ? {
           stories: new StoryStore({ home }),
           story: String(story),
@@ -418,7 +421,7 @@ export async function wait(home: string, opts: WaitOptions): Promise<WaitOutcome
       const repoReason =
         repoStop &&
         (stopRequested(home, repoStop.repo, repoStop.startedAt) ||
-          repoStopReason({ home, consumer, ...repoStop }));
+          (!opts.keep && repoStopReason({ home, consumer, ...repoStop })));
       if (repoReason) {
         clearInterval(heartbeat);
         logStop(home, `${consumer} stopped listening for ${repoStop!.repo}: ${repoReason}`);

@@ -8,6 +8,7 @@ import { compactAge, since } from '/assets/terms/time.ts';
 import { SessionLink, type Api } from '/assets/board/shared.ts';
 import { act, typeInto } from '/assets/board/columns/actions.ts';
 import { listenPlan } from '/assets/ui-kit/listen.ts';
+import { CopyButton } from '/assets/ui-kit/components/copy-button.ts';
 
 /** One listener row: who listens (with Stop), or when it last did (with Start). */
 function Listener(props: { entry: BoardListenerRepo; now: number; api: Api }) {
@@ -39,7 +40,7 @@ function Listener(props: { entry: BoardListenerRepo; now: number; api: Api }) {
   const plan = listenPlan(entry.candidates);
   const choosing = plan.kind === 'choose';
   const line = `/once-upon-listen ${entry.repo}`;
-  let title = 'No idle session in this repo has an iTerm tab';
+  let title = 'No idle session in this repo has an iTerm tab: copy the line to run it yourself';
   if (entry.candidates.length) {
     title = choosing
       ? 'Choose an idle session in the repo to type /once-upon-listen into'
@@ -59,8 +60,12 @@ function Listener(props: { entry: BoardListenerRepo; now: number; api: Api }) {
   const button = choosing
     ? html`<${MenuButton} data-start-listening=${entry.repo} items=${sessions} onPick=${(id: string) => void typeInto(api, 'listen', id, line, entry.repo)} label=${`Sessions in ${entry.repo}`} title=${title}>Start listening ▾</${MenuButton}>`
     : html`<button type="button" data-start-listening=${entry.repo} disabled=${!entry.candidates.length} onClick=${start} title=${title}>Start listening</button>`;
+  // nothing to type into: the line to run by hand in Claude Code, with --keep (a hand-started listener has no idle stop)
+  const copy = !entry.candidates.length
+    ? html` <${CopyButton} text=${`${line} --keep`} class="ou-ui-copy" title=${`Copy: ${line} --keep`} attrs=${{ 'data-copy-listen': entry.repo }}>Copy</${CopyButton}>`
+    : null;
   return html`<li class="ou-board-listener"><strong>${entry.repo}</strong> <span class="ou-local-muted">not listening${seen}</span>${' '}
-    ${button}</li>`;
+    ${button}${copy}</li>`;
 }
 
 /** The Listeners lane: a row per repo, who listens (with Stop) or when it last did (with Start). */

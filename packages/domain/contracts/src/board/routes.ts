@@ -3,7 +3,7 @@
  * cookie handover. Nothing here runs valibot: a body's type comes from the schemas by `import type`, which is erased.
  */
 import { api, type In } from '../route-kit.ts';
-import type { ListenSessions, Ok } from '../bridge/types.ts';
+import type { ListenQueued, ListenSessions, Ok } from '../bridge/types.ts';
 import type { BoardData, WorktreeCleaned } from './types.ts';
 
 export const BOARD_ROUTES = {
@@ -13,6 +13,11 @@ export const BOARD_ROUTES = {
   boardListenSessions: api<undefined, ListenSessions, { repo?: string; story?: string }>(
     'GET',
     '/api/board/listen-sessions',
+    'token+board',
+  ),
+  boardListenQueue: api<In<'boardListenQueue'>, ListenQueued>(
+    'POST',
+    '/api/board/listen-queue',
     'token+board',
   ),
   boardVoicePause: api<In<'boardVoicePause'>, Ok & { paused: boolean }>(

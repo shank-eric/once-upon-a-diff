@@ -222,14 +222,30 @@ async function listenSessions({ app, send }: Call, story: ServedStory) {
 /**
  * POST {session, scope?}: types the listen line into that session's tab, as the board's Start listening does: the repo's
  * (scope 'repo', the default) or this story's own (scope 'story'). The line is made here; the body has no text.
+ * POST .../listen/queue queues it for the next session in the checkout instead (listenQueue).
  */
-async function listen({ app, body: raw, send }: Call, story: ServedStory) {
+async function listen(call: Call, story: ServedStory) {
+  if (story.sub === 'queue') {
+    return listenQueue(call, story);
+  }
+  const { app, body: raw, send } = call;
   const { session, scope } = parseBody('listen', raw);
   const typed =
     scope === 'story'
       ? await app.board.type('listen', session, null, story.id)
       : await app.board.type('listen', session, listenRepo(story), null);
   return send(200, { ok: true, typed });
+}
+
+/** POST {scope?}: queue Start listening for the story's repo (scope 'repo', the default) or for the story, for the hook to claim. */
+function listenQueue({ app, body: raw, send }: Call, story: ServedStory) {
+  const { scope } = parseBody('listenQueue', raw);
+  return send(
+    200,
+    scope === 'story'
+      ? app.board.queueListen(null, story.id)
+      : app.board.queueListen(listenRepo(story), null),
+  );
 }
 
 export const storyRoutes: StoryRoute[] = [
@@ -245,4 +261,5 @@ export const storyRoutes: StoryRoute[] = [
   { route: ROUTES.storyUpdateWrite, handle: update },
   { route: ROUTES.storyListenSessions, handle: listenSessions },
   { route: ROUTES.storyListen, handle: listen },
+  { route: ROUTES.storyListenQueue, handle: listen },
 ];

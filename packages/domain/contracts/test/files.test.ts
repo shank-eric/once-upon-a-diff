@@ -13,6 +13,7 @@ import {
   readFixRequest,
   readInboxEntry,
 } from '../src/files/schemas.ts';
+import { readPendingListen } from '../src/files/pending-listen.ts';
 
 const fixture = (name: string) =>
   readFileSync(new URL(`./fixtures/files/${name}`, import.meta.url), 'utf8');
@@ -119,4 +120,28 @@ test('a note on a whole file (line null) is a note, and a note the schema refuse
     ['n_3', 3],
     ['n_4', null],
   ]);
+});
+
+test('pending-listen: a request reads with null for what is absent, and anything else is null', () => {
+  const entry = { v: 1, key: 'repo-a-b', repo: 'a/b', at: 1, expires: 2 };
+  assert.deepEqual(readPendingListen(entry), {
+    v: 1,
+    key: 'repo-a-b',
+    repo: 'a/b',
+    story: null,
+    checkout: null,
+    at: 1,
+    expires: 2,
+  });
+  for (const bad of [
+    null,
+    [],
+    'x',
+    { ...entry, v: 2 },
+    { ...entry, key: 1 },
+    { ...entry, at: '1' },
+    { ...entry, expires: NaN },
+  ]) {
+    assert.equal(readPendingListen(bad), null);
+  }
 });

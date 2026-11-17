@@ -8,6 +8,7 @@ import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 
 export const EXTENSION_ROUTES = [
   ROUTES.boardLink,
+  ROUTES.boardListenQueue,
   ROUTES.boardListenSessions,
   ROUTES.boardType,
   ROUTES.buildRequest,

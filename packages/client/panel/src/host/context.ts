@@ -11,7 +11,6 @@ import type {
   FixesAct,
   FixesView,
   Freshness,
-  ListenSession,
   ListenTarget,
   PanelPosition,
   PanelUi,
@@ -27,6 +26,7 @@ import type {
   RebuildView,
   WorkingMark,
 } from '@once-upon-a-diff/contracts/types';
+import type { ListenOffer } from '@once-upon-a-diff/ui-kit/listen';
 import type { Side } from '@once-upon-a-diff/terms/line-refs';
 import type { FileStatus, StoryModel } from '../state/story-model.ts';
 import type { InitialUi } from '../state/initial-ui.ts';
@@ -77,14 +77,16 @@ export interface PanelOptions {
   ): Promise<QuestionMarksAnswer>;
   status?(): Promise<BridgeStatus>;
   /**
-   * Start listening (ui/listen.ts): the idle Claude Code sessions that may be typed into, and typing the
+   * Start listening (ui/listen.ts): the idle Claude Code sessions that may be typed into (with the line to run by hand), and typing the
    * listen line into one. Both reject with an Error whose message says why. Only a host that can reach the bridge's board
    * (the extension, and the local page through its own story routes) passes it; without it the panel shows the listen
    * line to type yourself and offers no button.
    */
   listen?: {
-    sessions(target: ListenTarget): Promise<ListenSession[]>;
+    sessions(target: ListenTarget): Promise<ListenOffer>;
     start(sessionId: string, target: ListenTarget): Promise<void>;
+    /** Queue the listen line for the next session in the checkout, for when nothing can be typed into (a hook claims it). */
+    queue?(target: ListenTarget): Promise<void>;
   };
   drafts?: {
     load(): Promise<DraftsAnswer>;

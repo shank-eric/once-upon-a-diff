@@ -767,6 +767,34 @@ describe('wait', { concurrency: 2 }, () => {
       );
     });
 
+    test("stops: --keep skips the idle stop for a story and a repo wait, but the board's Stop listening still ends a repo wait", async () => {
+      const [story, repo, board] = [
+        homeWith({ story: 1 }),
+        homeWith({ repo: 1 }),
+        homeWith({ repo: 1 }),
+      ];
+      const waiting = cli(board.home, [...REPO_WAIT, '--keep', '--timeout', '20']);
+      const runs = await Promise.all([
+        cli(story.home, [...STORY_WAIT, '--keep', '--timeout', '4']),
+        cli(repo.home, [...REPO_WAIT, '--keep', '--timeout', '4']),
+      ]);
+      // the idle window (1 second) is long past in those two; this one is stopped by the board, which still counts
+      while (!existsSync(path.join(board.home, 'listeners', 'repo-acme-widgets.json'))) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      const { requestStop } = await import('@once-upon-a-diff/core/features/listeners/auto-stop');
+      requestStop(board.home, 'Acme/Widgets');
+      check(
+        'stops-keep',
+        [
+          section('--keep story: no idle stop', runs[0], story.home),
+          section('--keep repo: no idle stop', runs[1], repo.home),
+          section('--keep repo: the board still stops it', await waiting, board.home),
+        ].join('\n'),
+      );
+    });
+
     test('stops: a due timeout wins over a due idle stop', async () => {
       const order = homeWith({ story: 1, repo: 1 });
       check(

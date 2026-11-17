@@ -101,6 +101,8 @@ const BOARD_KEY_REACH = [
   'POST /api/board/backlog/move',
   'POST /api/board/backlog/someday',
   'POST /api/board/focus',
+  // Start listening with nothing to type into: queue it for the hook (the board's Copy has no call; the same route the panel's Queue uses)
+  'POST /api/board/listen-queue',
   'POST /api/board/open-story',
   // Review: a storyless review of a card's branch, and its page link (the same full key open-story hands out)
   'POST /api/board/review',

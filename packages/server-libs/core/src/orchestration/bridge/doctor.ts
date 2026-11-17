@@ -8,6 +8,11 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Listening } from '../../features/listeners/service.ts';
+import {
+  claudeConfigDir,
+  LISTEN_HOOK,
+  listenHookWired,
+} from '../../features/sessions/hook-setup.ts';
 import { formatTime, readSettings } from '@once-upon-a-diff/foundation/settings';
 
 import { MIN_NODE_MAJOR, nodeVersionProblem } from '@once-upon-a-diff/foundation/node-version.mjs';
@@ -297,6 +302,23 @@ export async function doctor(
     hookFiles
       ? null
       : 'Wire extras/hooks/board-status.sh into Claude Code hooks (README, "Board status hook"); the file appears on the next prompt',
+  );
+  // the listen hook, which starts a queued Start listening in any terminal: wired in Claude Code's settings or not
+  const wired = listenHookWired();
+  const settingsFile = path.join(claudeConfigDir(), 'settings.json');
+  let listenHook = `${LISTEN_HOOK} is not in ${settingsFile}: with no iTerm tab, Start listening can only show the line to run by hand`;
+  if (wired === true) {
+    listenHook = `${LISTEN_HOOK} is in ${settingsFile}`;
+  } else if (wired === 'unreadable') {
+    listenHook = `${settingsFile} could not be read, so the hook is unknown`;
+  }
+  add(
+    wired === true ? 'PASS' : 'WARN',
+    'Listen hook',
+    listenHook,
+    wired === true
+      ? null
+      : 'Run once-upon install-hooks: it prints the "hooks" block to add (nothing is written for you)',
   );
   // the board's context and usage come from status line files: live sessions and none of them writing one is the setup
   // left undone (a session that is not interactive has no status line to render)

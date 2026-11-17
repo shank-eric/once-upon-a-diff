@@ -33,6 +33,8 @@ export const BOARD_BODIES = {
     /** Build story's card: its own prompt is typed, not another card's built for the same session */
     card: optional(nullable(string())),
   }),
+  /** POST /api/board/listen-queue: a repo's listener, or one story's */
+  boardListenQueue: object({ repo: optional(string()), story: optional(string()) }),
   boardVoicePause: object({ paused: boolean() }),
   boardVoicePhone: object({ on: boolean() }),
   boardVoiceStart: object({ session: optional(sessionId) }),

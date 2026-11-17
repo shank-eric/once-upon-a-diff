@@ -71,6 +71,8 @@ export const STORY_BODIES = {
     session: sessionId,
     scope: optional(fallback(picklist(['repo', 'story']), 'repo')),
   }),
+  /** POST .../listen/queue: queue the listener for the story's repo (scope 'repo', the default) or the story's own */
+  listenQueue: object({ scope: optional(fallback(picklist(['repo', 'story']), 'repo')) }),
   /** POST .../questions: a new question */
   questionAsk: object({
     text: pipe(

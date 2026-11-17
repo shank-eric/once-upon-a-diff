@@ -1,7 +1,7 @@
 /*
  * Start listening on GitHub pages (the panel, and the notice on PR lists and a PR's Conversation tab), through the service
  * worker to the bridge's board routes (the same ones the board page's Start listening uses): which idle Claude Code sessions
- * may be typed into, and typing the listen line into one. The bridge makes the line and checks the session again, so
+ * may be typed into, typing the listen line into one, and queueing it for a session nothing can type into. The bridge makes the line and checks the session again, so
  * nothing the page sends is text to type.
  */
 import { bridgeProblem } from '@once-upon-a-diff/bridge-client/client';
@@ -60,7 +60,16 @@ export function createListenOption(
       if (!answer.ok) {
         throw new Error(listenError(answer));
       }
-      return answer.body.sessions;
+      const { sessions, line, storyLine, typing } = answer.body;
+      return { sessions, line, ...(storyLine ? { storyLine } : {}), typing };
+    },
+    queue: async (target: ListenTarget) => {
+      const answer = await call(ROUTES.boardListenQueue, {
+        body: target.scope === 'story' ? { story: storyOf() } : { repo: target.repo },
+      });
+      if (!answer.ok) {
+        throw new Error(listenError(answer));
+      }
     },
     start: async (sessionId: string, target: ListenTarget) => {
       const answer = await call(ROUTES.boardType, {

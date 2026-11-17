@@ -4,7 +4,14 @@
  * runs valibot: a body's type comes from the schemas by `import type`, which is erased.
  */
 import { story, type In } from '../route-kit.ts';
-import type { BridgeStatus, ListenSessions, ListenTyped, Ok, Prefs } from '../bridge/types.ts';
+import type {
+  BridgeStatus,
+  ListenQueued,
+  ListenSessions,
+  ListenTyped,
+  Ok,
+  Prefs,
+} from '../bridge/types.ts';
 import type { UsageAnswer } from '@once-upon-a-diff/terms/usage-actions';
 import type {
   Freshness,
@@ -76,6 +83,7 @@ export const STORY_ROUTES = {
   storyUsageCount: story<In<'usage'>, UsageAnswer>('POST', 'usage', 'token+page+view'),
   storyListenSessions: story<undefined, ListenSessions>('GET', 'listen', 'token+page'),
   storyListen: story<In<'listen'>, ListenTyped>('POST', 'listen', 'token+page'),
+  storyListenQueue: story<In<'listenQueue'>, ListenQueued>('POST', 'listen', 'token+page', 'queue'),
   approve: story<In<'approve'>, Approval>('POST', 'approve', 'token+page'),
   prPush: story<In<'prPush'>, PrPushAnswer>('POST', 'pr', 'token+page'),
 } as const;

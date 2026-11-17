@@ -24,12 +24,15 @@ import { BoardError } from '@once-upon-a-diff/foundation/errors';
 import {
   listenCandidates,
   listenCandidatesIn,
+  listenKeepPromptFor,
+  listenKeepStoryPromptFor,
   listenPromptFor,
   listenStoryPromptFor,
   withinDir,
 } from './listening.ts';
+import { queueListen } from './pending.ts';
 import type { ListeningInput } from './listening.ts';
-import type { BoardData } from '@once-upon-a-diff/contracts/types';
+import type { BoardData, ListenQueued, ListenSessions } from '@once-upon-a-diff/contracts/types';
 
 /** What Sessions asks of the board it sits beside. */
 export interface SessionsFeed {
@@ -105,15 +108,14 @@ export class Sessions {
     sessionId: string,
     allowBusy = false,
   ): Promise<{ it2: string; session: LiveSession }> {
-    const settings = readSettings(this.home).board;
-    const it2 = findIt2(settings.it2Path);
+    const it2 = this.it2();
     if (!it2) {
       throw new BoardError(
         409,
         'iTerm2 (the it2 CLI) is not set up, so there is no tab to type into',
       );
     }
-    const session = (await liveSessions(settings.sessionsDir)).find(
+    const session = (await liveSessions(readSettings(this.home).board.sessionsDir)).find(
       (live) => live.session === sessionId,
     );
     if (!session) {
@@ -153,28 +155,40 @@ export class Sessions {
   /**
    * The sessions the panel's Start listening may type into for a repo: the board's Start listening rule (idle, in the repo,
    * an iTerm tab known, not the voice session or one that already listens). From the board's last snapshot, so a click costs no more than a page
-   * poll; `type` checks the chosen session again against live status before it types.
+   * poll; `type` checks the chosen session again against live status before it types. With no it2 CLI there is nothing to type
+   * into, so none, and no look at the board.
    */
   async listenSessions(repo: string): Promise<ReturnType<typeof listenCandidates>> {
     if (!REPO_RE.test(repo)) {
       throw new BoardError(400, 'a repo (owner/name) is needed');
     }
-    this.needIterm();
+    if (!this.typing()) {
+      return [];
+    }
     await this.feed.snapshot();
     const known = this.feed.listening();
     return known ? listenCandidates(repo, known) : [];
   }
 
+  /** What the Start listening routes answer for a repo: its sessions, and the line to run by hand when none can be typed into. */
+  async listenOffer(repo: string): Promise<ListenSessions> {
+    return {
+      repo,
+      sessions: await this.listenSessions(repo),
+      line: listenKeepPromptFor(repo),
+      typing: this.typing(),
+    };
+  }
+
   /**
-   * The sessions Start listening may type into for a story: the story's repo's (listenSessions), or, for a local story whose
-   * checkout has no origin, the sessions in that checkout. A story that has neither is a 400.
+   * The sessions Start listening may type into for a story, as listenOffer answers: the story's repo's, or, for a local story
+   * whose checkout has no origin, the sessions in that checkout. A story that has neither is a 400.
    */
-  async storyListenSessions(
-    storyId: string,
-  ): Promise<{ repo: string | null; sessions: ReturnType<typeof listenCandidates> }> {
+  async storyListenSessions(storyId: string): Promise<ListenSessions> {
     const repo = this.storyRepoOf(storyId);
+    const storyLine = listenKeepStoryPromptFor(storyId);
     if (repo) {
-      return { repo, sessions: await this.listenSessions(repo) };
+      return { ...(await this.listenOffer(repo)), storyLine };
     }
     const dir = this.storyCheckoutOf(storyId);
     if (!dir) {
@@ -183,12 +197,40 @@ export class Sessions {
         'this story has no repo or checkout, so no session can be found for it',
       );
     }
-    this.needIterm();
-    await this.feed.snapshot();
+    const typing = this.typing();
+    if (typing) {
+      await this.feed.snapshot();
+    }
     return {
       repo: null,
-      sessions: this.feed.listening() ? listenCandidatesIn(dir, this.feed.listening()!) : [],
+      sessions:
+        typing && this.feed.listening() ? listenCandidatesIn(dir, this.feed.listening()!) : [],
+      line: storyLine,
+      typing,
     };
+  }
+
+  /**
+   * Queues Start listening for the next session you use in the repo's (or the story's) checkout, for a session nothing can
+   * type into: the hook (`extras/hooks/listen-pending.sh`) claims it. One of `repo` or `story`; the repo and the checkout
+   * are the bridge's own (a story's meta), never the page's.
+   */
+  queueListen(repo: string | null, story: string | null): ListenQueued {
+    if (story) {
+      if (!STORY_ID_RE.test(story)) {
+        throw new BoardError(400, 'a story id is needed');
+      }
+      const owner = this.storyRepoOf(story);
+      const checkout = owner ? null : this.storyCheckoutOf(story);
+      if (!owner && !checkout) {
+        throw new BoardError(400, 'this story has no repo or checkout to find a session by');
+      }
+      return { ok: true, ...queueListen(this.home, { repo: owner, story, checkout }) };
+    }
+    if (!repo || !REPO_RE.test(repo)) {
+      throw new BoardError(400, 'a repo (owner/name) or a story is needed');
+    }
+    return { ok: true, ...queueListen(this.home, { repo, story: null, checkout: null }) };
   }
 
   /** A local story's checkout folder, when it names one (a PR story has none here). A 404 for a story that does not exist. */
@@ -201,15 +243,14 @@ export class Sessions {
     return meta.kind === 'local' && meta.repo_path ? meta.repo_path : null;
   }
 
-  /** Start listening types into iTerm tabs, so without the it2 CLI there is nothing to offer, and the page says so. */
-  private needIterm(): void {
-    const settings = readSettings(this.home).board;
-    if (!findIt2(settings.it2Path)) {
-      throw new BoardError(
-        409,
-        'Start listening needs iTerm (its it2 CLI), which is not set up on this Mac, so run the line in Claude Code yourself',
-      );
-    }
+  /** The it2 CLI, or null: Start listening types into iTerm tabs, so without it there is only the line to run by hand. */
+  private it2(): string | null {
+    return findIt2(readSettings(this.home).board.it2Path);
+  }
+
+  /** Whether a line can be typed into a tab at all: the one rule `typeable` refuses by and the routes' `typing` reports. */
+  private typing(): boolean {
+    return this.it2() !== null;
   }
 
   /**

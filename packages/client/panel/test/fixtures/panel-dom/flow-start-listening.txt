@@ -777,7 +777,12 @@ panel
           <button class="ou-startlisten" title="Types /once-upon-listen acme/widgets into an idle Claude Code session in the repo and presses Enter" type="button">
             "Start listening"
         <div class="ou-startnote" role="status">
-          "No idle Claude Code session in acme/widgets has an iTerm tab to type into. Start one in /work/widgets, then click Start listening again, or run /once-upon-listen acme/widgets in it yourself."
+          "No idle Claude Code session in acme/widgets has an iTerm tab to type into. Run this line in Claude Code in /work/widgets, or start a session there and click Start listening again:"
+          <span class="ou-startline">
+            <code>
+              "/once-upon-listen acme/widgets --keep"
+            <button title="Copy this line" type="button">
+              "Copy"
         <div>
           "No idle session to type into? Start Claude Code in"
           <code>

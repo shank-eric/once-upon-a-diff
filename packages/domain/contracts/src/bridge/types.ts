@@ -200,6 +200,19 @@ export interface Ok {
 export interface ListenSessions {
   repo: string | null;
   sessions: ListenSession[];
+  /** The line to run by hand in Claude Code (`--keep`: no idle stop): the repo's, or the story's when it has no repo. */
+  line: string;
+  /** A story's own line, on a story's answer. */
+  storyLine?: string;
+  /** Whether the bridge can type into an iTerm tab (the it2 CLI is set up): false means the line is for pasting. */
+  typing: boolean;
+}
+
+/** POST /api/board/listen-queue and POST .../listen/queue: the request is queued for the next session in that checkout. */
+export interface ListenQueued extends Ok {
+  key: string;
+  /** when the request lapses, ms since the epoch */
+  expires: number;
 }
 
 /** POST .../listen. */

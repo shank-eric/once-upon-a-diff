@@ -9,18 +9,22 @@
  * element did when it was written again. A reply that was on its way then lands on the old state and nothing shows.
  */
 import { h as preactH, html } from '/assets/preact.mjs';
+import { CopyButton } from '@once-upon-a-diff/ui-kit/components/copy-button';
 import { parseMarkup } from '@once-upon-a-diff/ui-kit/parse-markup';
 import { askHintHtml, askWhoHtml, classOf, healthChecks, markOf } from './status-light.ts';
 import {
   failedNote,
+  lineFor,
   listenPlan,
   idleFor,
   noSessionNote,
+  queuedNote,
   typedNote,
 } from '@once-upon-a-diff/ui-kit/listen';
 import type { PanelContext } from '../host/context.ts';
 import type { Health } from './status-light.ts';
 import type { ListenSession, ListenTarget, StatusError } from '@once-upon-a-diff/contracts/types';
+import type { ListenOffer } from '@once-upon-a-diff/ui-kit/listen';
 import type { MarkupHooks, VNode } from '@once-upon-a-diff/ui-kit/parse-markup';
 
 const node = (tag: string, props: Record<string, unknown>, child?: unknown) =>
@@ -35,6 +39,9 @@ interface ListenUi {
   text: string;
   picking: ListenSession[] | null;
   folded: boolean;
+  /** with no session to type into: the line to run by hand (Copy beside it), and whether Queue is offered */
+  line: string | null;
+  queueable: boolean;
 }
 const freshListenUi = (): ListenUi => ({
   busy: false,
@@ -42,6 +49,8 @@ const freshListenUi = (): ListenUi => ({
   text: '',
   picking: null,
   folded: true,
+  line: null,
+  queueable: false,
 });
 
 export function createStatusLight(context: PanelContext) {
@@ -67,6 +76,7 @@ export function createStatusLight(context: PanelContext) {
 
   function say(slot: ListenUi, text: string) {
     slot.text = text;
+    slot.line = null;
     slot.picking = null;
     slot.folded = !text;
     shell.redraw();
@@ -83,6 +93,7 @@ export function createStatusLight(context: PanelContext) {
     where: Health,
   ) {
     slot.text = `Typing into “${session.title}”…`;
+    slot.line = null;
     slot.picking = null;
     slot.busy = true;
     shell.redraw();
@@ -93,6 +104,14 @@ export function createStatusLight(context: PanelContext) {
       say(slot, failedNote(message(err)));
     }
     rest(slot);
+  }
+  async function queue(slot: ListenUi, target: ListenTarget, where: Health) {
+    try {
+      await opts.listen!.queue!(target);
+      say(slot, queuedNote(where.checkout, where.repo));
+    } catch (err) {
+      say(slot, failedNote(message(err)));
+    }
   }
   async function clickStart(slot: ListenUi, target: ListenTarget) {
     const where = health as Health;
@@ -106,22 +125,26 @@ export function createStatusLight(context: PanelContext) {
     slot.busy = true;
     slot.label = 'Looking…';
     shell.redraw();
-    let sessions: ListenSession[];
+    let offer: ListenOffer;
     try {
-      sessions = await opts.listen!.sessions(target);
+      offer = await opts.listen!.sessions(target);
     } catch (err) {
       say(slot, failedNote(message(err)));
       rest(slot);
       return;
     }
     rest(slot);
-    const plan = listenPlan(sessions);
+    const plan = listenPlan(offer.sessions);
     if (plan.kind === 'none') {
-      say(slot, noSessionNote(target, where.repo, where.checkout));
+      say(slot, noSessionNote(target, where.repo, where.checkout, offer.typing));
+      slot.line = lineFor(offer, target);
+      slot.queueable = !!opts.listen!.queue;
+      shell.redraw();
     } else if (plan.kind === 'one') {
       await typeInto(slot, plan.session, target, where);
     } else {
       slot.text = '';
+      slot.line = null;
       slot.picking = plan.sessions;
       slot.folded = false;
       shell.redraw();
@@ -151,7 +174,14 @@ export function createStatusLight(context: PanelContext) {
                 return html`<button type="button" title=${`Types the listen line into “${session.title}” and presses Enter`} onClick=${() => void typeInto(own, session, target(), health as Health)}>${idle ? `${session.title} · ${idle}` : session.title}</button>${' '}`;
               },
             )}</span>`;
-          return node('div', { ...props, hidden: own.folded }, chooser || own.text);
+          const byHand =
+            own.line &&
+            html` <span class="ou-startline"><code>${own.line}</code> <${CopyButton} text=${own.line} title="Copy this line">Copy<//>${own.queueable && html` <button type="button" title="The next message you send in a Claude Code session in that checkout starts it (needs once-upon install-hooks)" onClick=${() => void queue(own, target(), health as Health)}>Queue for my next message</button>`}</span>`;
+          return node(
+            'div',
+            { ...props, hidden: own.folded },
+            chooser || (byHand ? html`${own.text}${byHand}` : own.text),
+          );
         }
         if (tag === 'button' && classes.includes('ou-promptmore')) {
           return node(

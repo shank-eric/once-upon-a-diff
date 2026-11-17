@@ -11,6 +11,7 @@
 # all fire UserPromptSubmit too, so the file records who began the turn ("origin": user or peer) and Stop reads it. A Stop
 # hook that blocks (stop_hook_active) runs this Stop again after the turn goes on; the origin is kept, so the last one counts.
 # A Stop with no prompt hook before it (a queued prompt, a restart) is not a turn you started either.
+. "$(dirname "${BASH_SOURCE[0]}")/typed-prompt.sh" || exit 0
 input="$(cat)"
 home="${ONCE_UPON_HOME:-$HOME/.once-upon}"
 [ -d "$home" ] || exit 0
@@ -38,13 +39,11 @@ put() {
 
 case "$event" in
   UserPromptSubmit)
-    case "$(field '(.prompt // "") | sub("^\\s+"; "")')" in
-      "<cross-session-message"* | "<task-notification"* | "<agent-message"* | "<system-reminder"* | \
-        "Another Claude session sent a message"* | "[Subagent hand-back]"*)
-        put working "" peer
-        ;;
-      *) put working "" user ;;
-    esac
+    if typed_by_you "$(field '(.prompt // "") | sub("^\\s+"; "")')"; then
+      put working "" user
+    else
+      put working "" peer
+    fi
     ;;
   PreToolUse)
     # a question put to you through the AskUserQuestion tool; PostToolUse clears it when you answer

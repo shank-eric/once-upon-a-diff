@@ -337,6 +337,7 @@ test(
       '  <agent-message>done</agent-message>',
       '<system-reminder>\nsomething</system-reminder>\nthe rest',
       '[Subagent hand-back] review-x finished',
+      '[Cross-session idle notice] session x is idle',
     ]) {
       await prompt(text);
       await stop('Is that right?');

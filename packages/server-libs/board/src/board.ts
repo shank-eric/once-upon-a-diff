@@ -583,6 +583,14 @@ export class Board {
     return this.sessions.listenSessions(repo);
   }
 
+  listenOffer(repo: string): ReturnType<Sessions['listenOffer']> {
+    return this.sessions.listenOffer(repo);
+  }
+
+  queueListen(repo: string | null, story: string | null): ReturnType<Sessions['queueListen']> {
+    return this.sessions.queueListen(repo, story);
+  }
+
   storyListenSessions(storyId: string): ReturnType<Sessions['storyListenSessions']> {
     return this.sessions.storyListenSessions(storyId);
   }

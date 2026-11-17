@@ -107,14 +107,17 @@ export function mount(initial: InitialUi) {
       status: () => bridge.ask(ROUTES.storyStatus, { params: PARAMS }).catch(statusError),
       // Start listening: the story's own routes type the listen line into an idle session (the board's routes need the board's key)
       listen: {
-        sessions: () =>
-          bridge
-            .ask(ROUTES.storyListenSessions, { params: PARAMS })
-            .then((answer) => answer.sessions),
+        sessions: () => bridge.ask(ROUTES.storyListenSessions, { params: PARAMS }),
         start: async (session, target) => {
           await bridge.ask(ROUTES.storyListen, {
             params: PARAMS,
             body: { session, scope: target.scope },
+          });
+        },
+        queue: async (target) => {
+          await bridge.ask(ROUTES.storyListenQueue, {
+            params: PARAMS,
+            body: { scope: target.scope },
           });
         },
       },

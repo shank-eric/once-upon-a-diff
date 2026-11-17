@@ -809,7 +809,13 @@ test('a story’s own listen routes: the local page’s full key and the token r
   for (const key of [TOKEN, pageKey(TOKEN, 'local-feat-x')]) {
     const got = await viaKey('GET', '/api/stories/local-feat-x/listen', key);
     assert.equal(got.status, 200);
-    assert.deepEqual(got.body, { repo: 'acme/widgets', sessions: [] });
+    assert.deepEqual(got.body, {
+      repo: 'acme/widgets',
+      sessions: [],
+      line: '/once-upon-listen acme/widgets --keep',
+      storyLine: '/once-upon-listen --story local-feat-x --keep',
+      typing: true,
+    });
     // reached: the board looks for the session and finds none
     for (const scope of ['repo', 'story']) {
       const sent = await viaKey('POST', '/api/stories/local-feat-x/listen', key, {
@@ -835,7 +841,18 @@ test('a story’s own listen routes: the local page’s full key and the token r
   // a local story whose checkout has no origin finds sessions by the checkout: the story's own listener can be asked for,
   // the repo's cannot, and with no checkout either there is nothing to find a session by
   const bareList = await viaKey('GET', '/api/stories/local-bare/listen', TOKEN);
-  assert.deepEqual([bareList.status, bareList.body], [200, { repo: null, sessions: [] }]);
+  assert.deepEqual(
+    [bareList.status, bareList.body],
+    [
+      200,
+      {
+        repo: null,
+        sessions: [],
+        line: '/once-upon-listen --story local-bare --keep',
+        typing: true,
+      },
+    ],
+  );
   assert.equal(
     (
       await viaKey('POST', '/api/stories/local-bare/listen', TOKEN, {
@@ -885,9 +902,24 @@ test('GET /api/board/listen-sessions: the board key or the token, a repo or a st
   for (const key of [TOKEN, boardKey(TOKEN)]) {
     const byRepo = await get('/api/board/listen-sessions?repo=acme/widgets', key);
     assert.equal(byRepo.status, 200);
-    assert.deepEqual(byRepo.body, { repo: 'acme/widgets', sessions: [] });
+    assert.deepEqual(byRepo.body, {
+      repo: 'acme/widgets',
+      sessions: [],
+      line: '/once-upon-listen acme/widgets --keep',
+      typing: true,
+    });
     const byStory = await get('/api/board/listen-sessions?story=acme-widgets-7', key);
-    assert.deepEqual(byStory.body, { repo: 'acme/widgets', sessions: [] }, "the story's own repo");
+    assert.deepEqual(
+      byStory.body,
+      {
+        repo: 'acme/widgets',
+        sessions: [],
+        line: '/once-upon-listen acme/widgets --keep',
+        storyLine: '/once-upon-listen --story acme-widgets-7 --keep',
+        typing: true,
+      },
+      "the story's own repo",
+    );
   }
   assert.equal((await get('/api/board/listen-sessions', TOKEN)).status, 400);
   assert.equal((await get('/api/board/listen-sessions?repo=not%20a%20repo', TOKEN)).status, 400);

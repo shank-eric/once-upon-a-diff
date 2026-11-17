@@ -24,7 +24,7 @@ const ALLOWED: Record<string, [number, string]> = {
   ],
   'parse-markup.ts': [2, 'reads markup into a detached template'],
   'listen.ts': [
-    17,
+    14,
     'wireStartListening, which the extension’s listen notice still uses (the panel has its own, with state)',
   ],
 };

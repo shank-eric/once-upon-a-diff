@@ -22,6 +22,11 @@ import { noteListener } from './history.ts';
 import type { Answering } from '@once-upon-a-diff/contracts/types';
 import { onPath, pidAlive } from '@once-upon-a-diff/adapters/os';
 import { ensureDir } from '@once-upon-a-diff/adapters/stores/fs/files';
+import {
+  removePending,
+  removePendingWhere,
+} from '@once-upon-a-diff/adapters/claude-sessions/pending-listen';
+import { pendingListenKey } from '@once-upon-a-diff/terms/ids';
 
 /** A listener's last heartbeat, <home>/listeners/<consumer>.json. */
 interface Beat {
@@ -80,6 +85,16 @@ export function beat(
     path.join(dir, `${safe}.json`),
     JSON.stringify({ consumer, pid: process.pid, state, at: new Date().toISOString(), ...extra }),
   );
+  // a queued Start listening this listener covers is moot now (a line pasted by hand, a tab that went idle): drop it, so the hook
+  // does not hand it to a session that would start a second listener. A story's covers that story; a repo's, that repo; one for
+  // everything, every repo's.
+  if (extra.story) {
+    removePending(home, pendingListenKey({ repo: null, story: extra.story }));
+  } else if (extra.repo) {
+    removePending(home, pendingListenKey({ repo: extra.repo, story: null }));
+  } else {
+    removePendingWhere(home, (key) => key.startsWith('repo-'));
+  }
   // a repo-wide listener (not a story's) is what the board's Listeners lane remembers: the heartbeat is its writer
   if (extra.repo && !extra.story) {
     noteListener(home, extra.repo, consumer, Date.now(), STRETCH_GAP_MS);

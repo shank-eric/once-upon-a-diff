@@ -2302,11 +2302,20 @@ test('Start listening, with several idle sessions, is a menu of them; with one i
       ...board(),
       listeners: [{ repo: 'acme/widgets', active: null, last_seen: null, candidates }],
     }) as BoardData;
+  // nothing to type into: Start listening is off, and the line to run by hand can be copied (with --keep)
+  answer = listeners([]);
+  await pollNow();
+  assert.equal(($('[data-start-listening="acme/widgets"]') as HTMLButtonElement).disabled, true);
+  assert.equal(
+    $('[data-copy-listen="acme/widgets"]')?.getAttribute('title'),
+    'Copy: /once-upon-listen acme/widgets --keep',
+  );
   answer = listeners([
     { id: 'l-1', title: 'listener one', status: 'idle', since: null },
     { id: 'l-2', title: 'listener two', status: 'idle', since: null },
   ]);
   await pollNow();
+  assert.equal($('[data-copy-listen]'), null, 'a session to type into: nothing to copy');
   await menuBehaves(
     () => $('[data-start-listening="acme/widgets"]'),
     'Sessions in acme/widgets',
