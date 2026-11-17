@@ -5,7 +5,7 @@ import { writeFileSync } from 'node:fs';
 import { claimAt, git, localRepo, runCli, tmp, writeJson } from './helpers.ts';
 import { createLocalStory } from '@once-upon-a-diff/stories/local-story';
 import { StoryStore } from '@once-upon-a-diff/stories/store';
-import { approvalOf, readApproval } from '@once-upon-a-diff/stories/approval';
+import { approvalOf, forgetTips, readApproval } from '@once-upon-a-diff/stories/approval';
 import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
 import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { AutoReview } from '@once-upon-a-diff/core/features/review/github-watcher';
@@ -190,6 +190,7 @@ for (const head of ['HEAD', 'feature']) {
     assert.equal(carried?.carried?.from, first);
     assert.equal(carried?.carried?.run, runs().find((run) => run.name === 'fix-it')?.run);
     // what the board and the page read: the story's own head (a pinned story keeps the one it was told over)
+    forgetTips(); // the CLI ran in another process: this one still knows the branch's old tip for 2 s
     const entry = localEntries(store, { now: Date.now() })[0];
     assert.ok(entry.story.approved_at, 'still approved, so still Ready to ship');
     assert.equal(entry.story.approved_head, second);
@@ -201,6 +202,7 @@ for (const head of ['HEAD', 'feature']) {
     assert.match((await cli(...finishArgs('fix-again', third, card))).stdout, /approval carried/);
     assert.equal(readApproval(store, id)?.head_oid, third);
     assert.equal(readApproval(store, id)?.carried?.from, first);
+    forgetTips();
     assert.ok(localEntries(store, { now: Date.now() })[0].story.approved_at);
   });
 }
