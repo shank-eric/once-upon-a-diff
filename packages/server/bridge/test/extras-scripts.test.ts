@@ -2,13 +2,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { tmp, writeJson } from './helpers.ts';
 import { OPEN_STATES, END_STATES } from '@once-upon-a-diff/contracts/files/agent-states';
 import { ledgerLine } from '@once-upon-a-diff/state/records/agents/events';
 import type { LedgerAgent } from '@once-upon-a-diff/state/records/agents/ledger';
-import { ROOT, runScript } from './script-helpers.ts';
+import { CLI_BIN, ROOT, runScript, writeExecutable } from './script-helpers.ts';
+import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
 
 const has = (cmd: string) => {
   try {
@@ -368,12 +369,96 @@ test(
   },
 );
 
+test(
+  'auto-finish-run.sh logs every stop, ends the run of a subagent that stopped with it running, and does nothing else',
+  { skip: !has('python3') },
+  async () => {
+    const hook = path.join(ROOT, 'extras/hooks/auto-finish-run.sh');
+    const home = tmp('auto-finish-hook');
+    // the real CLI, on a PATH of its own, against the temp home
+    const bin = tmp('auto-finish-bin');
+    writeExecutable(path.join(bin, 'once-upon'), `exec "${process.execPath}" "${CLI_BIN}" "$@"`);
+    const env = { ONCE_UPON_HOME: home, PATH: `${bin}${path.delimiter}${process.env.PATH}` };
+    const session = 'abcdef01-1111-4222-8333-444444444444';
+    const folder = path.join(tmp('auto-finish-projects'), 'proj', session, 'subagents');
+    mkdirSync(folder, { recursive: true });
+    const stopped = (id: string, meta: Record<string, unknown> | null) => {
+      const transcript = path.join(folder, `agent-${id}.jsonl`);
+      writeFileSync(transcript, '');
+      if (meta) {
+        writeJson(path.join(folder, `agent-${id}.meta.json`), meta);
+      }
+      return JSON.stringify({
+        session_id: session,
+        hook_event_name: 'SubagentStop',
+        agent_id: id,
+        agent_transcript_path: transcript,
+        last_assistant_message: 'done',
+      });
+    };
+    const registry = new AgentRegistry(home);
+    registry.start({ name: 'ou-run', sid: 'abcdef01', kind: 'author', task: 'x' });
+    registry.start({ name: 'ou-other', sid: 'abcdef01', kind: 'author', task: 'x' });
+    const log = () => readFileSync(path.join(home, 'logs/subagent-stop.jsonl'), 'utf8');
+    // a stop with no meta file, garbage and empty input: exit 0, silent, nothing finished (garbage is still logged)
+    for (const input of [stopped('none', null), 'not json', '']) {
+      const run = await runScript(hook, [], env, input);
+      assert.equal(run.code, 0, input);
+      assert.equal(run.stdout + run.stderr, '');
+    }
+    assert.deepEqual(
+      registry.agents().map((one) => one.state),
+      ['running', 'running'],
+    );
+    // a stop that is only a turn end (the meta has no finished: true) finishes nothing, but is logged
+    const turn = await runScript(hook, [], env, stopped('t1', { description: 'ou-run: build it' }));
+    assert.equal(turn.code, 0);
+    assert.equal(registry.agents()[0].state, 'running');
+    const notYet = await runScript(
+      hook,
+      [],
+      env,
+      stopped('t2', { description: 'ou-run: build it', finished: false }),
+    );
+    assert.equal(notYet.code, 0);
+    assert.equal(registry.agents()[0].state, 'running');
+    const good = stopped('a1', { description: 'ou-run: build it', finished: true });
+    const run = await runScript(hook, [], env, good);
+    assert.equal(run.code, 0);
+    assert.equal(run.stdout + run.stderr, '');
+    assert.deepEqual(
+      registry.agents().map((one) => [one.name, one.state, one.outcome]),
+      [
+        ['ou-run', 'failed', 'stopped without agent finish'],
+        ['ou-other', 'running', null],
+      ],
+    );
+    assert.ok(log().includes(JSON.parse(good).agent_transcript_path));
+    assert.equal(log().trim().split('\n').length, 6, 'every stop is one line of the log');
+    // no CLI to call: still silent, still exit 0
+    const noCli = await runScript(
+      hook,
+      [],
+      { ONCE_UPON_HOME: home, PATH: '/usr/bin:/bin' },
+      stopped('a2', { description: 'ou-other: x', finished: true }),
+    );
+    assert.equal(noCli.code, 0);
+    assert.equal(registry.agents()[1].state, 'running');
+    // no home: nothing is written
+    const none = path.join(tmp('auto-finish-none'), 'missing');
+    const away = await runScript(hook, [], { ONCE_UPON_HOME: none, PATH: env.PATH }, good);
+    assert.equal(away.code, 0);
+    assert.throws(() => readFileSync(path.join(none, 'logs/subagent-stop.jsonl')));
+  },
+);
+
 test('the scripts and extras name no personal path', () => {
   const files = [
     'scripts/link-skills.sh',
     'extras/subagent-statusline.py',
     'extras/statusline-snippet.sh',
     'extras/hooks/require-beats.sh',
+    'extras/hooks/auto-finish-run.sh',
     'extras/hooks/board-status.sh',
   ];
   for (const rel of files) {

@@ -13,6 +13,7 @@
  *   finish-run.ts   an end, with the findings check.
  *   dispatch.ts     launching an agent for a card: claim, start and the brief (`once-upon dispatch`); briefs.ts the brief's text, checkout.ts the paths.
  *   handback.ts     an agent's hand-back (`once-upon handback`): the run's commit, branch and card recorded, or its state moved.
+ *   auto-finish.ts  an end for a subagent that stopped with its run open (the SubagentStop hook).
  */
 export { startRun } from './start-run.ts';
 export type { RunStartInput, RunIo, StartedRun } from './start-run.ts';
@@ -27,3 +28,4 @@ export { dispatchRun, callLine, DISPATCH_ROLES } from './dispatch.ts';
 export type { DispatchInput, DispatchRole, Dispatched } from './dispatch.ts';
 export { handbackRun } from './handback.ts';
 export type { HandbackInput, HandedBack } from './handback.ts';
+export { autoFinishRun } from './auto-finish.ts';

@@ -9,8 +9,10 @@
  *   {op:'beat',   ..., n, of, step, note}                 also the heartbeat: it counts as the agent's last sign of life
  *   {op:'branch', ..., run, branch}                       the open run's branch moved (a rename)
  *   {op:'card',   ..., run, card}                         a run, open or over, moved to another card (`backlog drop --into`)
+ *   {op:'ack',    ..., run}                               a failed run, open or over, was acknowledged (`agent ack`): the board stops counting it as failed
  *   {op:'finish', ..., state: done|failed|stopped, outcome, result: {commit, pr, branch, card}, findings, notes}
  *
+ * A finish by `auto-finish` (the SubagentStop hook) is the run's end until the agent's own finish: that one replaces it (autoFinished).
  * `id` is `<sid8>:<name>`: the launching session's first 8 characters and the agent's name (agentKey). A `start` begins a
  * run; the other events belong to the latest run of the id. A `start` after a run began a new run, and the earlier
  * run is kept in `earlier` as it stood. Fields the fold does not know are ignored, so later cards can add them.
@@ -126,8 +128,29 @@ export function foldAgentEvents(events: AgentEvent[]): LedgerAgent[] {
       }
       continue;
     }
+    // a run, open or over, acknowledged: a mark and nothing else, no sign of life. One for a run still open is a mistake and changes nothing
+    if (event.op === 'ack') {
+      const run =
+        agent && (!event.run || event.run === agent.run)
+          ? agent
+          : agent?.earlier?.find((one) => one.run === event.run);
+      if (run && event.run && !isOpen(run)) {
+        run.acked = when;
+      }
+      continue;
+    }
+    // the agent's own finish after the hook's replaces it; any other event for a run that is over is ignored
+    // (a later `state` does too: a planner or resumed agent parks as waiting, review or plan after the stop)
+    const replaces =
+      (event.op === 'finish' || event.op === 'state') &&
+      !!agent?.autoFinished &&
+      event.by !== 'auto-finish';
     // an event names its run: one for a run that is not the latest (a restarted agent's old beats and finish) is not this run's
-    if (!agent || !isOpen(agent) || (event.run && agent.run && event.run !== agent.run)) {
+    if (
+      !agent ||
+      (!isOpen(agent) && !replaces) ||
+      (event.run && agent.run && event.run !== agent.run)
+    ) {
       continue;
     }
     // a rename is not the agent working, so it is no sign of life
@@ -154,6 +177,12 @@ export function foldAgentEvents(events: AgentEvent[]): LedgerAgent[] {
       agent.findings =
         event.state === 'running' ? null : (event.findings ?? agent.findings ?? null);
       const state = event.state === 'review' ? 'waiting' : (event.state as LedgerAgent['state']);
+      if (agent.autoFinished) {
+        // the stop was not the end after all: the hook's end and what it recorded are gone
+        delete agent.autoFinished;
+        delete agent.acked;
+        agent.result = null;
+      }
       agent.state = state;
       agent.review = event.state === 'review';
       // running again (a plan checked, a fix begun) clears what the gate said
@@ -167,6 +196,11 @@ export function foldAgentEvents(events: AgentEvent[]): LedgerAgent[] {
     agent.ended = when;
     agent.outcome = event.outcome ?? null;
     agent.result = event.result ?? null;
+    if (event.by === 'auto-finish') {
+      agent.autoFinished = true;
+    } else {
+      delete agent.autoFinished;
+    }
   }
   return [...agents.values()];
 }

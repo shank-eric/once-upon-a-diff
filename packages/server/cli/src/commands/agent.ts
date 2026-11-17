@@ -16,6 +16,7 @@ import {
   startRun,
   trustedLiveSids,
   finishRun,
+  autoFinishRun,
   openSelfRun,
 } from '@once-upon-a-diff/core/features/runs/service';
 import { carryApproval } from '@once-upon-a-diff/core/features/review/carry-approval';
@@ -33,6 +34,8 @@ const USAGE =
   '       once-upon agent beat NAME N/M STEP [NOTE...] [--sid SID8] [--no-mirror]\n' +
   '       once-upon agent finish NAME [--state done|failed|stopped] [--outcome TEXT|--outcome-file PATH] [--commit SHA] [--pr N] [--branch NAME] [--card ID] [--findings N] [--notes PATH] [--sid SID8] [--run ID]\n' +
   '                              with none of --commit, --pr, --branch and --card, a registered branch that moved since the start is recorded as the result\n' +
+  '       once-upon agent ack NAME [--sid SID8]   acknowledge a failed run: it stops holding its card in Waiting (a failed run only)\n' +
+  "       once-upon agent auto-finish --transcript PATH [--session ID]   the SubagentStop hook's verb: ends the run of a subagent that stopped with it still running (always exits 0)\n" +
   '       once-upon agent sweep [--dry-run]\n' +
   '       once-upon agent list [--all] [--json]';
 
@@ -67,6 +70,18 @@ async function agent(home: string, _cfg: Config, opts: CliOpts) {
       ...(lines.length ? [`${lines.length} status line file(s) of gone sessions removed`] : []),
     ];
     return out(said.length ? said.join('\n') : 'Nothing to sweep.');
+  }
+  if (verb === 'auto-finish') {
+    // the SubagentStop hook calls this on every subagent that stops: it never fails, and says nothing unless it ended a run
+    try {
+      const ended = autoFinishRun(home, {
+        transcript: text(opts.transcript),
+        session: text(opts.session),
+      });
+      return ended ? out(`${ended} auto-finished`) : undefined;
+    } catch {
+      return undefined;
+    }
   }
   if (verb === 'list') {
     const now = Date.now();
@@ -110,6 +125,10 @@ async function agent(home: string, _cfg: Config, opts: CliOpts) {
   }
   if (!name && !(opts.self && verb === 'start')) {
     throw new Error(USAGE);
+  }
+  if (verb === 'ack') {
+    const { run: acked, acked: wrote } = registry.ack(name, { sid, by: who });
+    return out(`${agentKey(acked)} ${wrote ? 'acknowledged' : 'was already acknowledged'}`);
   }
   if (verb === 'start') {
     const started = await startRun(
@@ -211,7 +230,7 @@ async function agent(home: string, _cfg: Config, opts: CliOpts) {
 export const agentCommands: Command[] = [
   {
     name: 'agent',
-    subs: ['start', 'state', 'beat', 'finish', 'sweep', 'list'],
+    subs: ['start', 'state', 'beat', 'finish', 'ack', 'auto-finish', 'sweep', 'list'],
     usage: [
       '  once-upon agent start NAME --kind author|critic|helper|research|storyteller --task TEXT   register an agent the board shows (its sid comes from the session; prints its id and run)',
       "                                                                                   --card ID: the card it works on, which gives it its repo and branch (a critic, fixer or storyteller needs one; --role says which, and --kind, --lane and a --repo, --branch or --pr the card already answers are refused, claim the card before an author starts); --pr or --branch on a card with no branch becomes the card's branch. --lane is ignored without a card",
@@ -221,6 +240,8 @@ export const agentCommands: Command[] = [
       '  once-upon agent state NAME --state running|waiting|review|plan|fixing            move it: a plan to check, a question, parked on a story review, fixing findings',
       '  once-upon agent beat NAME N/M STEP [NOTE...]                                     a progress beat, and a sign of life',
       '  once-upon agent finish NAME [--state done|failed|stopped] [--outcome TEXT]       it is over: --commit, --pr, --branch and --card say what it made',
+      '  once-upon agent ack NAME [--sid SID8]                                            acknowledge a failed run: it stops holding its card in Waiting and no longer reads as failed (a failed run only)',
+      '  once-upon agent auto-finish --transcript PATH [--session ID]                     the SubagentStop hook (extras/hooks/auto-finish-run.sh) runs it: ends the run of a subagent that stopped with it still running or fixing, as failed for an author or critic (outcome "stopped without agent finish"), else done (outcome auto-finished). Its own finish later replaces that. Always exits 0',
       '  once-upon agent sweep [--dry-run]                                                stop runs silent for 24 hours that owe beats (running or fixing); agent start does it as it writes',
       '                                                                                   only authors and critics; never one parked on a question, plan or review, nor a helper of any kind, a storyteller or an editor',
       '  once-upon agent list [--all] [--json]                                            the registered agents (open ones, or all)',

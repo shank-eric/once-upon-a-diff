@@ -11,6 +11,7 @@ import { isEndState } from '@once-upon-a-diff/contracts/files/agent-states';
 import { STALE_MS } from '@once-upon-a-diff/state/records/agents/events';
 import {
   gateOf,
+  isAcked,
   isStoryteller,
   lastActivity,
   type LedgerAgent,
@@ -137,7 +138,8 @@ export function claimViews(
       continue;
     }
     // the agents whose runs name the card
-    const found = agentsOnCard(item, agents);
+    // an acknowledged failed run is dismissed: it is no line on the card (the card's "tried" chip still names it, as stopped)
+    const found = agentsOnCard(item, agents).filter((agent) => !isAcked(agent));
     if (found.length) {
       views.set(
         item.id,
@@ -224,6 +226,7 @@ export function placeAgents(
     (agent) =>
       !held.has(agentKey(agent)) &&
       !replacedByRetry(agent, agents) &&
+      !isAcked(agent) &&
       !droppedCard(agent, items) &&
       (agent.state === 'running' ||
         !!pendingOf.get(agent) ||

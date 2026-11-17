@@ -60,11 +60,23 @@ export interface LedgerAgent {
   slots?: number | null;
   result?: AgentResult | null;
   findings?: number | null;
+  /** when a failed run was acknowledged (`agent ack`): the board stops counting it as failed. Set only when it was */
+  acked?: Date;
+  /** this run's end was written by the SubagentStop hook, not by the agent: the agent's own finish replaces it */
+  autoFinished?: true;
   /** this run's latest progress beat */
   beat?: BoardBeat | null;
   /** its latest event of any kind, a beat included: the sign of life staleness is measured from */
   lastEvent?: Date | null;
 }
+
+/** An acknowledged failed run (`agent ack`). */
+export const isAcked = (agent: Pick<LedgerAgent, 'state' | 'acked'>): boolean =>
+  agent.state === 'failed' && !!agent.acked;
+
+/** The state the board shows for a run: an acknowledged failed run reads as stopped, so it no longer holds its card in Waiting or shows the failed mark. */
+export const shownState = (agent: Pick<LedgerAgent, 'state' | 'acked'>): LedgerAgent['state'] =>
+  isAcked(agent) ? 'stopped' : agent.state;
 
 /** The gate an agent is at, or null: its plan to check, findings being fixed, or a critic or a storyteller running. The one place for the rule. */
 export function gateOf(

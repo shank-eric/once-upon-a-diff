@@ -22,7 +22,7 @@ import { checkWrite } from '@once-upon-a-diff/foundation/shared-files';
 import { END_STATES, OPEN_STATES } from '@once-upon-a-diff/contracts/files/agent-states';
 import { readAgentEvent } from '@once-upon-a-diff/contracts/files/schemas';
 import { strictAgentEvent } from '@once-upon-a-diff/contracts/files/strict';
-import { lastActivity } from './ledger.ts';
+import { isCritic, lastActivity } from './ledger.ts';
 import { AGENT_KINDS, type AgentKind, type AgentResult, type AgentRole } from './agent-types.ts';
 import {
   KIND_ALIASES,
@@ -202,13 +202,14 @@ export class AgentRegistry {
     );
     try {
       // an editor is not an agent: a `[running]` line that never closes would read as a running agent in the ledger
-      // (a branch or card move is not a line either: the ledger tells what a run did, and a move is not one of those)
+      // (a branch or card move or an ack is not a line either: the ledger tells what a run did, and a move is not one of those)
       if (
         agent &&
         this.mirror.ledger &&
         event.op !== 'beat' &&
         event.op !== 'branch' &&
         event.op !== 'card' &&
+        event.op !== 'ack' &&
         agent.kind !== 'editor'
       ) {
         appendLine(this.mirror.ledger, ledgerLine(event, agent));
@@ -319,6 +320,41 @@ export class AgentRegistry {
       swept.push(agent);
     }
     return swept;
+  }
+
+  /**
+   * Ends the run of `sid:name` whose subagent has stopped without finishing it (the SubagentStop hook, `agent auto-finish`):
+   * `finish --by auto-finish`: an author's or a critic's run (work that owes a commit or findings) is `failed`, outcome
+   * "stopped without agent finish", so its card shows a failure and not a Done it never reported; any other kind (a helper,
+   * researcher, storyteller) is `done`, outcome `auto-finished`. Only a run still `running` or `fixing`: never one parked on a
+   * person (plan, waiting, review), one already over, a standing helper, an editor or a parent session's own run (`--self`),
+   * which idle between requests by design. A later finish by the agent replaces this one (events.ts). Returns the run it ended, or null when it ended none.
+   */
+  autoFinish(sid: string, name: string): LedgerAgent | null {
+    const agent = this.agents().find((one) => one.sid === sid && one.name === name);
+    if (
+      !agent?.run ||
+      !SWEPT_STATES.includes(agent.state) ||
+      agent.standing ||
+      agent.kind === 'editor' ||
+      isSelfName(agent.name)
+    ) {
+      return null;
+    }
+    // a run with no kind counts as work too (same rule as isWorkRun in queues/backlog/phase.ts)
+    const owesWork = !agent.kind || agent.kind === 'author' || isCritic(agent);
+    try {
+      return this.finish(name, {
+        sid,
+        run: agent.run,
+        state: owesWork ? 'failed' : 'done',
+        outcome: owesWork ? 'stopped without agent finish' : 'auto-finished',
+        by: 'auto-finish',
+      });
+    } catch {
+      // another writer ended it first: the run is over either way
+      return null;
+    }
   }
 
   /**
@@ -510,7 +546,29 @@ export class AgentRegistry {
     if (!(OPEN_STATES as readonly string[]).includes(input.state)) {
       throw new Error(`the state must be one of ${OPEN_STATES.join(', ')}`);
     }
-    const agent = this.open(name, input, warn);
+    let agent: LedgerAgent;
+    try {
+      agent = this.open(name, input, warn);
+    } catch (error) {
+      // a state after the hook's auto-finish is accepted like a finish (the stop was not the end after all)
+      const wanted = optional(input.sid, 'the session id', SID_RE);
+      const prefer = wanted ? null : optional(input.prefer, 'the session id', SID_RE);
+      const ended = this.agents().filter(
+        (one) =>
+          one.name === name &&
+          one.autoFinished &&
+          (!wanted || one.sid === wanted) &&
+          (!input.run || one.run === input.run),
+      );
+      const own = ended.filter((one) => one.sid === prefer);
+      const found = (own.length ? own : ended).sort(
+        (first, second) => (second.ended?.getTime() ?? 0) - (first.ended?.getTime() ?? 0),
+      )[0];
+      if (!found) {
+        throw error;
+      }
+      agent = found;
+    }
     return this.append({
       ...this.base('state', name, agent.sid, input),
       run: agent.run ?? undefined,
@@ -619,6 +677,42 @@ export class AgentRegistry {
     });
   }
 
+  /**
+   * Acknowledges a failed run (`agent ack`): the board stops counting it as failed, and nothing else about it changes. The latest
+   * run of `sid:name` (several sessions with a failed run of the name need the sid). Only a failed run can be acked; an acked one is
+   * left as it is. Returns the run, and whether this call acked it.
+   */
+  ack(name: string, input: Target = {}): { run: LedgerAgent; acked: boolean } {
+    const wanted = optional(input.sid, 'the session id', SID_RE);
+    const named = this.agents().filter(
+      (one) => one.name === name && (!wanted || one.sid === wanted),
+    );
+    if (!named.length) {
+      throw new Error(`no run of ${name}${wanted ? ` for session ${wanted}` : ''}`);
+    }
+    const sids = new Set(named.filter((one) => one.state === 'failed').map((one) => one.sid));
+    if (!wanted && sids.size > 1) {
+      throw new Error(
+        `${name} has a failed run in more than one session (${[...sids].join(', ')}): pass --sid to say which to acknowledge`,
+      );
+    }
+    const run = named.find((one) => one.state === 'failed');
+    if (!run) {
+      throw new Error(`only a failed run is acknowledged: ${name} is ${named[0].state}`);
+    }
+    if (run.acked) {
+      return { run, acked: false };
+    }
+    if (!run.run) {
+      throw new Error(`${name} has a run with no run id, so it cannot be acknowledged`);
+    }
+    this.append({ ...this.base('ack', name, run.sid, input), run: run.run });
+    return {
+      run: this.agents().find((one) => one.sid === run.sid && one.name === name) ?? run,
+      acked: true,
+    };
+  }
+
   /** Ends the run. Finishing a run that is already over is refused: a fix round is a new run (`agent start`). */
   finish(name: string, input: FinishInput = {}, warn?: (text: string) => void): LedgerAgent {
     const state = input.state ?? 'done';
@@ -649,12 +743,20 @@ export class AgentRegistry {
       }
     }
     const named = ofName.filter((one) => !wanted || one.sid === wanted);
-    if (named.length && !named.some(runIsOpen)) {
+    // the agent's own finish replaces the hook's (`agent auto-finish`): the stop was not the end after all, or the agent finishes late
+    const autoFinished =
+      input.by === 'auto-finish'
+        ? undefined
+        : named.find((one) => one.autoFinished && (!input.run || one.run === input.run));
+    if (named.length && !named.some(runIsOpen) && !autoFinished) {
       throw new Error(
         `${name} has already finished, so this finish (and any --commit on it) was not recorded: run \`agent start\` for a new run (a fix round is one), then finish that`,
       );
     }
-    const agent = this.open(name, { ...input, sid: wanted }, warn);
+    const agent =
+      autoFinished && !named.some(runIsOpen)
+        ? autoFinished
+        : this.open(name, { ...input, sid: wanted }, warn);
     // a null count reads as a pass, so a critic on a card must say how many (0 is fine)
     if (
       this.cards &&

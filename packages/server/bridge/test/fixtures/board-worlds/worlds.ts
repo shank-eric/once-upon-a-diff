@@ -1939,6 +1939,80 @@ async function record(
   await record('11-self-runs', board);
 }
 
+// ---- 12. a failed run acknowledged (`agent ack`): its own card is gone, a backlog card's run is no line and no longer holds the
+// card in Waiting (the card's tried chip reads stopped), and a failed run nobody acked stays as it was
+{
+  const home = tmp('home');
+  const sessions = tmp('sessions');
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
+  const minutesAgo = (n: number) => new Date(NOW.getTime() - n * 60000);
+  const et = (hour: number, minute: number) => new Date(Date.UTC(2026, 9, 26, hour + 4, minute));
+  const runs = new AgentRegistry(home);
+  const events: Record<string, unknown>[] = [];
+  const card = (id: string, branch: string, title: string) =>
+    events.push(
+      {
+        op: 'add',
+        id,
+        title,
+        note: null,
+        repo: 'acme/widgets',
+        branch,
+        by: 'cli',
+        at: et(9, 0).toISOString(),
+      },
+      { op: 'start', id, branch, repo: 'acme/widgets', by: 'cli', at: et(9, 1).toISOString() },
+    );
+  // a: a failed helper on its own card, acknowledged: no card. b: the same, nobody acked it: Waiting
+  for (const [sid, name, acked] of [
+    ['aaaaaaa1', 'deploy-acked', true],
+    ['aaaaaaa2', 'deploy-open', false],
+  ] as const) {
+    runs.start({
+      sid,
+      name,
+      kind: 'helper',
+      task: `${name}'s task`,
+      repo: 'acme/widgets',
+      at: minutesAgo(25),
+    });
+    runs.finish(name, { sid, state: 'failed', outcome: `${name} failed`, at: minutesAgo(20) });
+    if (acked) {
+      runs.ack(name, { sid, at: minutesAgo(10) });
+    }
+  }
+  // c: a backlog card whose author failed and was acked, d: the same, not acked (the card stays in Waiting)
+  for (const [id, branch, name, acked] of [
+    ['bl_ackedrun', 'feat/acked', 'ou-acked', true],
+    ['bl_openrun', 'feat/open', 'ou-open', false],
+  ] as const) {
+    card(id, branch, `Card of ${name}`);
+    runs.start({
+      sid: 'bbbbbbb1',
+      name,
+      kind: 'author',
+      task: `build ${id}`,
+      card: id,
+      at: minutesAgo(25),
+    });
+    runs.finish(name, { sid: 'bbbbbbb1', state: 'failed', outcome: 'broke', at: minutesAgo(20) });
+    if (acked) {
+      runs.ack(name, { sid: 'bbbbbbb1', at: minutesAgo(10) });
+    }
+  }
+  writeFileSync(
+    path.join(home, 'backlog.jsonl'),
+    events.map((event) => JSON.stringify(event)).join('\n') + '\n',
+  );
+  const { watcher } = fakeWatcher([], {});
+  const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
+    source: sourceSaying({}),
+    now: () => NOW,
+    repoOf,
+  });
+  await record('12-failed-run-acked', board);
+}
+
 // ---- normalize paths and pids
 export const snapshots: Record<string, string> = {};
 for (const [name, value] of Object.entries(results)) {

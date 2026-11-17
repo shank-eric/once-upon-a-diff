@@ -15,7 +15,7 @@ import path from 'node:path';
 import { sameRepo } from '@once-upon-a-diff/foundation/repos';
 import type { BoardStartedLinks } from '@once-upon-a-diff/contracts/types';
 import { parseWorktreeEntries } from '../../records/worktrees/worktrees.ts';
-import type { LedgerAgent } from '../../records/agents/ledger.ts';
+import { shownState, type LedgerAgent } from '../../records/agents/ledger.ts';
 import type { BacklogItem } from './types.ts';
 import { OPEN } from './claims.ts';
 import { workAgent } from './phase.ts';
@@ -78,7 +78,7 @@ export function agentLinks(
 function agentLink(agent: LedgerAgent): NonNullable<BoardStartedLinks['agent']> {
   return {
     name: agent.name,
-    state: agent.state,
+    state: shownState(agent),
     beat: agent.beat ?? null,
     outcome: agent.outcome,
     ended_at: agent.ended ? agent.ended.toISOString() : null,

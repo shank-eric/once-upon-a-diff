@@ -129,6 +129,11 @@ const StrictAgentEvent = pipe(
       run: matches(RUN_ID_RE, 'a run id (r_ and 10 hex)'),
       card,
     }),
+    looseObject({
+      ...agentCommon,
+      op: literal('ack'),
+      run: matches(RUN_ID_RE, 'a run id (r_ and 10 hex)'),
+    }),
     looseObject({ ...agentCommon, op: literal('finish'), state: picklist(END_STATES) }),
   ]),
   check((event) => event.id === agentId(event.sid8, event.name), 'id is not sid8:name'),

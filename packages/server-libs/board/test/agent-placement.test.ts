@@ -5,7 +5,7 @@ import { tmp, writeJson } from '@once-upon-a-diff/test-kit/files';
 import path from 'node:path';
 import { readSettings } from '@once-upon-a-diff/foundation/settings';
 import { finishedColumn, landedFor } from '../src/agent-home.ts';
-import { NO_PARENT, placeAgents } from '../src/stages/agents.ts';
+import { NO_PARENT, claimViews, placeAgents } from '../src/stages/agents.ts';
 import { columnOf } from '../src/columns.ts';
 import { worktreeSection } from '../src/stages/worktrees.ts';
 import { markFinished, readFinished } from '@once-upon-a-diff/adapters/stores/finished-agents';
@@ -15,6 +15,7 @@ import type {
 } from '@once-upon-a-diff/state/records/worktrees/worktrees';
 import type { PrWatcher } from '../src/stages/pr-watcher.ts';
 import { backlogCards } from '@once-upon-a-diff/state/queues/backlog/backlog';
+import { agentLinks } from '@once-upon-a-diff/state/queues/backlog/backlog-links';
 import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
 import { nestClaimedAgents } from '../src/stages/backlog.ts';
 import type { BuildContext } from '../src/stages/types.ts';
@@ -851,4 +852,82 @@ test('a Ready author’s own card carries its branch’s worktree, for Review an
   assert.deepEqual(own.review, { branch: 'feat/x', path: '/wt/feat-x' });
   const [merged] = placeWith([committer()], { tree: { merged: true } });
   assert.equal(merged?.review ?? null, null, 'merged: nothing to review');
+});
+
+test('an acked failed run has no card of its own inside the finished wait; an unacked one does', () => {
+  const broke = (over: Partial<LedgerAgent> = {}) =>
+    agent({
+      name: 'ou-broke',
+      kind: 'helper',
+      state: 'failed',
+      repo: 'acme/widgets',
+      ended: new Date(NOW - 60000),
+      ...over,
+    });
+  assert.equal(place([broke()], []).length, 1);
+  assert.deepEqual(place([broke({ acked: new Date(NOW - 30000) })], []), []);
+});
+
+test('an acked failed run is no line on its card and no longer holds it in Waiting; an unacked one still does', () => {
+  const sessionCard = () =>
+    card({
+      kind: 'session',
+      repo: 'acme/widgets',
+      branch: 'feat/z',
+      sessions: [{ id: 'cccccccc-1', status: 'idle' } as BoardCard['sessions'][number]],
+    });
+  const placed = (acked: boolean) => {
+    const target = sessionCard();
+    placeAgents(ctx(), [target], {
+      agents: [
+        registered({
+          name: 'ou-broke',
+          state: 'failed',
+          card: 'ic_cccccccccccc',
+          repo: 'acme/widgets',
+          branch: 'feat/z',
+          ended: new Date(NOW - 60000),
+          ...(acked ? { acked: new Date(NOW - 30000) } : {}),
+        }),
+      ],
+      pin: null,
+    });
+    return target;
+  };
+  const columnWith = (target: BoardCard) =>
+    columnOf({
+      sessions: target.sessions,
+      agents: target.agents,
+      pr: null,
+      story: null,
+      building: false,
+    });
+  const unacked = placed(false);
+  assert.equal(unacked.agents[0].state, 'failed');
+  assert.equal(columnWith(unacked), 'waiting');
+  const acked = placed(true);
+  assert.deepEqual(nestedIn(acked), []);
+  assert.notEqual(columnWith(acked), 'waiting');
+});
+
+test('an acked failed run on a backlog card is no line on it, and its chip reads stopped, not failed', () => {
+  const item = { ...started('bl_aaaaaa111111', 'feat/ack') } as BacklogItem;
+  const run = (acked: boolean) =>
+    registered({
+      name: 'ou-broke',
+      state: 'failed',
+      card: item.id,
+      ended: new Date(NOW - 60000),
+      ...(acked ? { acked: new Date(NOW - 30000) } : {}),
+    });
+  const linesOf = (acked: boolean) =>
+    claimViews([item], [run(acked)], NOW)
+      .get(item.id)
+      ?.map((one) => one.state);
+  assert.deepEqual(linesOf(false), ['failed']);
+  assert.equal(linesOf(true), undefined);
+  const chip = (acked: boolean) =>
+    agentLinks({ ...item, state: 'open' }, { agents: [run(acked)] })?.agent?.state;
+  assert.equal(chip(false), 'failed');
+  assert.equal(chip(true), 'stopped');
 });
