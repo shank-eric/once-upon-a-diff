@@ -15,7 +15,7 @@ import { readMeta, storyRepo, stateKeyOf } from '@once-upon-a-diff/stories/meta'
 import { readReads } from '@once-upon-a-diff/stories/reads';
 import { unwrittenCount } from '@once-upon-a-diff/stories/skeleton';
 import { isStoryless } from '@once-upon-a-diff/stories/local-story';
-import { approvalOf, readApproval, type Approval } from '@once-upon-a-diff/stories/approval';
+import { approvalAtTip, readApproval, type Approval } from '@once-upon-a-diff/stories/approval';
 import type { StoryStore } from '@once-upon-a-diff/stories/store';
 import type { InboxLocalStory, InboxStory, ReviewedBy } from '@once-upon-a-diff/contracts/types';
 import { prUrl } from '@once-upon-a-diff/terms/github-urls';
@@ -161,12 +161,7 @@ export function localEntries(
       ...Object.values(reads).map((read) => read.at),
     ]);
     const current = readApproval(stories, story.id);
-    const approved = approvalOf(
-      stories,
-      story.id,
-      typeof meta.head_oid === 'string' ? meta.head_oid : null,
-      now,
-    );
+    const approved = approvalAtTip(stories, story.id, { ...meta, repo_path: story.repo_path }, now);
     let reviewedAt = state?.at || null;
     let reviewedBy: ReviewedBy | null = state?.at ? state.by || 'manual' : null;
     // the mark Approve wrote goes with the approval (a new commit, or a week), so the story is back in Ready at once

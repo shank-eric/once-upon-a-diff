@@ -360,17 +360,17 @@ export function defaultBranchOf(repo: string): string | null {
 export const remoteUrl = (dir: string): string =>
   runGit(dir, ['remote', 'get-url', 'origin'], { quiet: true });
 
-/** The full sha of a commit the checkout has (a short sha, a ref), or null when it is not one of this repo's. */
-export function commitOf(repo: string, ref: string): string | null {
+/**
+ * The full sha of a commit the checkout has (a short sha, a ref), or null when it is not one of this repo's. With
+ * `timeoutMs` a git that takes longer is killed and counts as null.
+ */
+export function commitOf(repo: string, ref: string, timeoutMs?: number): string | null {
   try {
     return (
-      runGit(repo, [
-        'rev-parse',
-        '--verify',
-        '--quiet',
-        '--end-of-options',
-        `${ref}^{commit}`,
-      ]).trim() || null
+      runGit(repo, ['rev-parse', '--verify', '--quiet', '--end-of-options', `${ref}^{commit}`], {
+        quiet: true,
+        timeoutMs,
+      }).trim() || null
     );
   } catch {
     return null;

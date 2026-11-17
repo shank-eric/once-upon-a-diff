@@ -9,7 +9,7 @@ import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
 import { unwrittenCount } from '@once-upon-a-diff/stories/skeleton';
-import { approvalOf } from '@once-upon-a-diff/stories/approval';
+import { approvalAtTip } from '@once-upon-a-diff/stories/approval';
 import { approveStory, clearApproval } from '@once-upon-a-diff/core/features/review/approve';
 import { finishStoryRuns } from '@once-upon-a-diff/core/features/review/approve-runs';
 import { storyRepo } from '@once-upon-a-diff/stories/meta';
@@ -71,7 +71,7 @@ function approve({ app, body: raw, send }: Call, story: ServedStory) {
   // the head as it is now: a commit since the page drew moves it
   const meta = refreshLocal(story.dir, story.meta as LocalMeta);
   const answer = () => {
-    const found = approvalOf(app.stories, story.id, meta.head_oid);
+    const found = approvalAtTip(app.stories, story.id, meta);
     return { approved: found ? { at: found.at, head_oid: found.head_oid } : null };
   };
   if (body.approved === false) {

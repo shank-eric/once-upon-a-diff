@@ -1,7 +1,7 @@
 import '@once-upon-a-diff/test-kit/env';
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, utimesSync, writeFileSync } from 'node:fs';
+import { readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { tmp, writeJson } from '@once-upon-a-diff/test-kit/files';
 import { git, localRepo } from '@once-upon-a-diff/test-kit/git';
@@ -21,6 +21,7 @@ import {
   LOCAL_IDLE_DAYS,
 } from '@once-upon-a-diff/core/features/review/story-lists';
 import { createLocalStory } from '@once-upon-a-diff/stories/local-story';
+import { forgetTips } from '@once-upon-a-diff/stories/approval';
 import { refreshLocal } from '@once-upon-a-diff/stories/local-diff';
 import { type LocalMeta } from '@once-upon-a-diff/stories/types';
 import {
@@ -298,6 +299,70 @@ test('a card whose branch has a local story: an open storyteller holds it in Age
     });
     assert.equal(await columnAt(0), 'ready', name);
   }
+});
+
+test('a story approved at a head the branch has left is Ready for your review, even while its meta still names the approved head; approved at the branch tip it stays Ready to ship', async () => {
+  const home = tmp('board-approved-head');
+  const checkout = checkoutOf('widgets', 'feat/told');
+  git(checkout, 'commit', '-q', '--allow-empty', '-m', 'first');
+  const approvedHead = git(checkout, 'rev-parse', 'HEAD').trim();
+  builtLocal(home, 'local-told', checkout, 'feat/told', iso(NOW.getTime() - 20 * 60000), {
+    head_oid: approvedHead,
+  });
+  const stories = new StoryStore({ home });
+  writeJson(path.join(home, 'state', 'local-told', 'approved.json'), {
+    at: iso(NOW.getTime() - 60000),
+    head_oid: approvedHead,
+    base_oid: null,
+    marked: true,
+  });
+  writeJson(path.join(home, 'state', 'local-told', 'reviewed.json'), {
+    at: iso(NOW.getTime() - 60000),
+    by: 'approved',
+  });
+  const columnOf = async () => {
+    const cards = (
+      await new Board(home, stories, noPrWatcher, new Builds(home), {
+        source: registrySource,
+        now: () => NOW,
+      }).snapshot()
+    ).lanes.flatMap((lane) => lane.cards);
+    return cards.find((card) => card.story?.id === 'local-told')?.column;
+  };
+  // the branch is still at the approved head
+  assert.equal(await columnOf(), 'ship');
+  // a fix round amends the branch: meta.json has not been refreshed (no page is polling), the approval still names the old head
+  git(checkout, 'commit', '-q', '--allow-empty', '--amend', '-m', 'first, fixed');
+  assert.notEqual(git(checkout, 'rev-parse', 'HEAD').trim(), approvedHead);
+  forgetTips(); // where the branch is stays known for 2 s
+  assert.equal(await columnOf(), 'ready');
+});
+
+test('an approved story whose ref git cannot resolve (the branch deleted, the checkout gone) stays Ready to ship', async () => {
+  const home = tmp('board-approved-unresolvable');
+  const checkout = checkoutOf('widgets', 'feat/told');
+  git(checkout, 'commit', '-q', '--allow-empty', '-m', 'first');
+  const approvedHead = git(checkout, 'rev-parse', 'HEAD').trim();
+  builtLocal(home, 'local-gone', checkout, 'feat/told', iso(NOW.getTime() - 20 * 60000), {
+    head_oid: approvedHead,
+  });
+  const stories = new StoryStore({ home });
+  writeJson(path.join(home, 'state', 'local-gone', 'approved.json'), {
+    at: iso(NOW.getTime() - 60000),
+    head_oid: approvedHead,
+    base_oid: null,
+    marked: true,
+  });
+  const approvedAt = () => localEntries(stories, { now: NOW.getTime() })[0].story.approved_head;
+  forgetTips();
+  assert.equal(approvedAt(), approvedHead);
+  git(checkout, 'checkout', '-q', '--detach');
+  git(checkout, 'branch', '-q', '-D', 'feat/told');
+  forgetTips();
+  assert.equal(approvedAt(), approvedHead, 'the branch is deleted');
+  rmSync(checkout, { recursive: true, force: true });
+  forgetTips();
+  assert.equal(approvedAt(), approvedHead, 'the checkout is gone');
 });
 
 test('local stories: nothing opened, read, marked or rebuilt for 3 days is done (idle), computed and never written; a hand mark or unmark wins', () => {

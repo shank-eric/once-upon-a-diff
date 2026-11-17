@@ -17,7 +17,7 @@ import { StoryStore } from '@once-upon-a-diff/stories/store';
 import { Inbox } from '@once-upon-a-diff/state/queues/requests/inbox';
 import { AutoReview } from '@once-upon-a-diff/core/features/review/github-watcher';
 import type { BranchCheck } from '@once-upon-a-diff/state/records/github/github-checks';
-import { APPROVED_DAYS, approvalOf } from '@once-upon-a-diff/stories/approval';
+import { APPROVED_DAYS, approvalOf, forgetTips } from '@once-upon-a-diff/stories/approval';
 import { localEntries, localStories } from '@once-upon-a-diff/core/features/review/story-lists';
 import { columnOf } from '@once-upon-a-diff/board/columns';
 import { boardKey, pageKey, viewKey } from '@once-upon-a-diff/state/records/page-links/page-key';
@@ -25,7 +25,7 @@ import type { Printable } from '@once-upon-a-diff/cli/output';
 import type { BoardData, StoryData } from '@once-upon-a-diff/contracts/types';
 
 /** A local story on a real checkout, and a bridge serving it. */
-async function setup(options: { checkBranch?: BranchCheck } = {}) {
+async function setup(options: { checkBranch?: BranchCheck; head?: string } = {}) {
   const home = tmp('home');
   const { repo, base } = localRepo();
   git(repo, 'remote', 'add', 'origin', 'git@github.com:acme/widgets.git');
@@ -41,7 +41,7 @@ async function setup(options: { checkBranch?: BranchCheck } = {}) {
       },
     ],
   });
-  const { id } = createLocalStory({ home, repo, base, head: 'HEAD', chapters });
+  const { id } = createLocalStory({ home, repo, base, head: options.head ?? 'HEAD', chapters });
   const bridge = await startBridge({ home, checkBranch: options.checkBranch });
   const head = () => git(repo, 'rev-parse', 'HEAD');
   const post = (key: string, url: string, body: unknown) =>
@@ -268,6 +268,28 @@ test('the board shows an approved local story in Ready to ship with its time, an
     }); // a page polling the story remakes its diff at the new head
     await new Promise((resolve) => setTimeout(resolve, 2100)); // the board's snapshot is kept 2 s
     assert.equal((await board())?.column, 'ready');
+  } finally {
+    await bridge.close();
+  }
+});
+
+test('a story told over a branch the branch has left: the page and the board both drop the approval at once, without a page refreshing the story', async () => {
+  const { id, bridge, head, post, repo, store } = await setup({ head: 'feature' });
+  try {
+    await post(pageKey(TOKEN, id), `/api/stories/${id}/approve`, { head_sha: head() });
+    const page = async () =>
+      (
+        await bridge.call<StoryData>('GET', `/api/stories/${id}`, undefined, {
+          Authorization: `Bearer ${pageKey(TOKEN, id)}`,
+        })
+      ).body.local?.approved;
+    assert.equal((await page())?.head_oid, head());
+    assert.ok(localEntries(store)[0].story.approved_at);
+    git(repo, 'commit', '-q', '--allow-empty', '--amend', '-m', 'amended by someone');
+    await new Promise((resolve) => setTimeout(resolve, 2100)); // where the branch is stays known 2 s
+    assert.equal(await page(), null, 'the page');
+    forgetTips();
+    assert.equal(localEntries(store)[0].story.approved_at, null, 'the board');
   } finally {
     await bridge.close();
   }

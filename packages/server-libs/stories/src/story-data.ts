@@ -3,7 +3,7 @@
  * files, and for a local story the diff and the
  * bridge's state (viewed files, notes).
  */
-import { approvalOf } from './approval.ts';
+import { approvalAtTip } from './approval.ts';
 import path from 'node:path';
 import { pathSha } from './diff.ts';
 import { readPrefs } from '@once-upon-a-diff/foundation/settings';
@@ -160,7 +160,7 @@ export function storyData(store: StoryStateReader, id: string, dir: string): Sto
       files: localFilesOf(rels, diff, shown, viewed as Record<string, { hash?: string }>),
       notes: store.readState<LocalNote[]>(id, 'notes.json', []) as LocalNote[],
       approved: (() => {
-        const found = approvalOf(store, id, local.head_oid);
+        const found = approvalAtTip(store, id, local);
         return found ? { at: found.at, head_oid: found.head_oid } : null;
       })(),
       moved: movedSince(local),

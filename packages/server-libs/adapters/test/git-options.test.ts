@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { chmodSync, existsSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { tmp } from '@once-upon-a-diff/test-kit/files';
 import { localRepo } from '@once-upon-a-diff/test-kit/git';
@@ -113,4 +113,22 @@ test('each subcommand given --end-of-options accepts it', () => {
     '--end-of-options',
     git('branch', '--show-current').trim(),
   );
+});
+
+test('commitOf with a timeout gives up on a git that hangs, and answers null', async () => {
+  const { repo } = localRepo();
+  assert.match(commitOf(repo, 'HEAD', 5000) ?? '', /^[0-9a-f]{40}$/);
+  const bin = tmp('slow-git');
+  const shim = path.join(bin, 'git');
+  writeFileSync(shim, '#!/bin/sh\nexec sleep 20\n');
+  chmodSync(shim, 0o755);
+  const before = process.env.PATH;
+  process.env.PATH = `${bin}${path.delimiter}${before}`;
+  const started = Date.now();
+  try {
+    assert.equal(commitOf(repo, 'HEAD', 300), null);
+  } finally {
+    process.env.PATH = before;
+  }
+  assert.ok(Date.now() - started < 5000, 'the call outlived its timeout');
 });
