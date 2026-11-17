@@ -54,7 +54,7 @@ GIT_COMMITTER_DATE=2001-01-01T00:00:00 git -C "$R" cherry-pick "$(git -C "$W/b2"
 out="$(cleanup_landed_worktree "$R" "$W" b2 main patch)"
 echo "$out" | grep -q "not every commit" && [ -e "$W/b2" ] || fail "patch partial: $out"
 # 10. regenerable ignored paths are allowed, other ignored files (.env) still block
-printf '%s\n' node_modules dist build '.venv*' __pycache__ '*.log' .wxt .yarn/cache .husky/_ .env '*.pem' >"$R/.gitignore"; git -C "$R" add .gitignore; git -C "$R" commit -qm ign2
+printf '%s\n' node_modules dist build '.venv*' __pycache__ '*.log' .wxt .output .yarn/cache .husky/_ .env '*.pem' >"$R/.gitignore"; git -C "$R" add .gitignore; git -C "$R" commit -qm ign2
 mk regen
 mkdir -p "$W/regen/node_modules/x" "$W/regen/packages/a/node_modules/y" "$W/regen/dist" "$W/regen/build" "$W/regen/.venv-app" "$W/regen/pkg/__pycache__" "$W/regen/.yarn/cache" "$W/regen/.husky/_" "$W/regen/packages/extension/.wxt/types"
 for f in node_modules/x/i dist/o build/o .venv-app/p pkg/__pycache__/c .yarn/cache/z .husky/_/h packages/a/node_modules/y/i run.log packages/extension/.wxt/types/t.d.ts; do echo 1 >"$W/regen/$f"; done
@@ -64,6 +64,9 @@ echo "$out" | grep -q "removed worktree $W/regen" || fail "regen: $out"
 mk envf; mkdir "$W/envf/node_modules"; echo 1 >"$W/envf/node_modules/i"; echo S=1 >"$W/envf/.env"
 out="$(cleanup_landed_worktree "$R" "$W" envf main)"
 echo "$out" | grep -q "\.env" && [ -e "$W/envf" ] || fail "env: $out"
+mk outonly; mkdir -p "$W/outonly/packages/client/extension/.output/chrome-mv3"; echo 1 >"$W/outonly/packages/client/extension/.output/chrome-mv3/m.json"
+out="$(cleanup_landed_worktree "$R" "$W" outonly main)"
+echo "$out" | grep -q "removed worktree $W/outonly" && [ ! -e "$W/outonly" ] || fail "extension .output only: $out"
 # 10b. a landed worktree holding only tool caches is removed; the same plus an untracked file, or a tracked change, is kept
 printf '%s\n' .eslintcache .prettiercache '*.tsbuildinfo' .env '*.pem' '*.secret' >"$R/.gitignore"; git -C "$R" add .gitignore; git -C "$R" commit -qm ign3
 mk caches; mkdir -p "$W/caches/packages/web"
