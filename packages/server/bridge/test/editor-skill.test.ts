@@ -104,3 +104,43 @@ test('every deploy command the skill writes starts with a program, not a VAR=val
   assert.match(profile, /once-upon deploy <name> scripts\/deploy-local\.sh --yes <branch>/);
   assert.ok(seen >= 3, 'the skill, the template and the profile each write one');
 });
+
+test('the claim/start ordering is dispatch’s: the skill and AGENTS.md "Backlog cards" point at dispatch and handback, not the by-hand rules', () => {
+  const skill = readFileSync(path.join(SKILL, 'SKILL.md'), 'utf8');
+  const agents = read('AGENTS.md');
+  const cards = agents.slice(
+    agents.indexOf('## Backlog cards'),
+    agents.indexOf('## The live bridge'),
+  );
+  for (const [where, text] of [
+    ['SKILL.md', skill],
+    ['AGENTS.md Backlog cards', cards],
+  ] as const) {
+    assert.match(text, /once-upon dispatch/, `${where} names dispatch`);
+    assert.match(text, /once-upon handback/, `${where} names handback`);
+    assert.ok(!/claim the card before/i.test(text), `${where}: no claim-before-start rule by hand`);
+    assert.ok(!text.includes('an author started on a card with no claim is refused'), where);
+  }
+  // (AGENTS.md keeps the line for an author that takes a card itself, with no editor)
+  assert.ok(!skill.includes('backlog claim <id> --agent'), 'the skill types no claim');
+  // the repo profiles no longer carry the lines the editor typed the commands from
+  for (const rel of ['repos/_template.md', 'repos/once-upon-a-diff.md']) {
+    const text = readFileSync(path.join(SKILL, rel), 'utf8');
+    assert.doesNotMatch(text, /^- (Claim|Agent command)/m, rel);
+  }
+  // what a brief used to carry by hand is in the generated brief and the agent types
+  assert.doesNotMatch(skill, /Every brief carries the beat line/);
+  assert.match(skill, /brief-extra\.md/);
+});
+
+test('the cleanup helper is started by hand: a landed card refuses every run, so dispatch cannot launch it', () => {
+  const skill = readFileSync(path.join(SKILL, 'SKILL.md'), 'utf8');
+  assert.doesNotMatch(skill, /dispatch <card> --role helper --name cleanup-/);
+  assert.match(skill, /agent start cleanup-<branch>/);
+});
+
+test('the skill says a general-purpose launch asks dispatch for it (--general), which carries the standing rules', () => {
+  const skill = readFileSync(path.join(SKILL, 'SKILL.md'), 'utf8');
+  assert.match(skill, /--general/);
+  assert.doesNotMatch(skill, /are in the agent types, not in each brief/);
+});

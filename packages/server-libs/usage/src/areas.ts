@@ -214,6 +214,8 @@ export const COMMAND_AREAS: Record<string, Area> = {
   card: 'Backlog',
   beat: 'Ledger and agent registry',
   heavy: 'Ledger and agent registry',
+  dispatch: 'Ledger and agent registry',
+  handback: 'Ledger and agent registry',
   deploy: 'Ledger and agent registry',
   editor: 'Ledger and agent registry',
   inbox: 'Inbox, Q&A, fix and build requests',

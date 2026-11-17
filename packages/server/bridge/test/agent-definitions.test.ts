@@ -62,7 +62,7 @@ test('each definition has a name equal to its file, a one-sentence description, 
     assert.ok(def.fields.get('tools'), `${file} has tools`);
     assert.match(def.fields.get('model') ?? '', /^(sonnet|opus|haiku)$/, file);
     assert.equal(def.fields.has('effort'), false, `${file}: effort comes from the call`);
-    assert.ok(def.body.split(/\s+/).filter(Boolean).length <= 140, `${file}: body stays short`);
+    assert.ok(def.body.split(/\s+/).filter(Boolean).length <= 280, `${file}: body stays short`);
   }
 });
 
@@ -108,6 +108,11 @@ test('no body names a person, a personal path or a private repo, and each says w
     );
     assert.match(parse(file).body, /3 short lines/, `${file}: short report`);
     assert.match(parse(file).body, /never [^.]*push/i, `${file}: no push`);
+    // the standing rules live here, not in every brief: the beat line, the handback and the probe and stash rules
+    assert.match(parse(file).body, /handback/, `${file}: ends with the handback line`);
+    assert.match(parse(file).body, /beat/, `${file}: posts beats`);
+    assert.match(parse(file).body, /git stash/, `${file}: never git stash`);
+    assert.match(parse(file).body, /timeout 30/, `${file}: probes under a timeout`);
   }
 });
 

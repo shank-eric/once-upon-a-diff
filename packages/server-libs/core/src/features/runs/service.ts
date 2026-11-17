@@ -11,6 +11,8 @@
  *   start-run.ts    a start: refusals, the PR's head branch, the card's stamp, the run, then the card.
  *   move-branch.ts  a card's branch change: the card first, then its open runs.
  *   finish-run.ts   an end, with the findings check.
+ *   dispatch.ts     launching an agent for a card: claim, start and the brief (`once-upon dispatch`); briefs.ts the brief's text, checkout.ts the paths.
+ *   handback.ts     an agent's hand-back (`once-upon handback`): the run's commit, branch and card recorded, or its state moved.
  */
 export { startRun } from './start-run.ts';
 export type { RunStartInput, RunIo, StartedRun } from './start-run.ts';
@@ -21,3 +23,7 @@ export { runRegistry } from './registry.ts';
 export { trustedLiveSids } from './live-sids.ts';
 export type { Mirror } from './registry.ts';
 export { ROLE_KIND, openSelfRun } from './roles.ts';
+export { dispatchRun, callLine, DISPATCH_ROLES } from './dispatch.ts';
+export type { DispatchInput, DispatchRole, Dispatched } from './dispatch.ts';
+export { handbackRun } from './handback.ts';
+export type { HandbackInput, HandedBack } from './handback.ts';

@@ -17,6 +17,7 @@ import { fixCommands } from './commands/fixes.ts';
 import { pullRequestCommands } from './commands/pull-request.ts';
 import { backlogCommands } from './commands/backlog.ts';
 import { agentCommands } from './commands/agent.ts';
+import { dispatchCommands } from './commands/dispatch.ts';
 import { cardCommands } from './commands/card.ts';
 import { beatCommands } from './commands/beat.ts';
 import { heavyCommands } from './commands/heavy.ts';
@@ -40,6 +41,7 @@ const COMMANDS = new Map<string, Command>(
     ...pullRequestCommands,
     ...backlogCommands,
     ...agentCommands,
+    ...dispatchCommands,
     ...cardCommands,
     ...beatCommands,
     ...heavyCommands,
@@ -61,6 +63,8 @@ const HELP_ORDER = [
   'page',
   'backlog',
   'agent',
+  'dispatch',
+  'handback',
   'card',
   'beat',
   'heavy',
@@ -99,8 +103,8 @@ export function usageText() {
     '',
     ...lines,
     '',
-    'Long text (--note, --outcome, --task, --title, --text) goes in a file or on stdin, never in one long argument:',
-    '--note-file PATH reads a file, --note - reads stdin (the same for the other four). Short values stay inline.',
+    'Long text (--note, --outcome, --task, --title, --text, --check) goes in a file or on stdin, never in one long argument:',
+    '--note-file PATH reads a file, --note - reads stdin (the same for the other five). Short values stay inline.',
     '',
     'ONCE_UPON_HOME moves ~/.once-upon. Personal settings (display name, time zone, checkout folders,',
     'opener, gh token handling) are optional keys in its config.json: see readSettings in foundation/src/settings.ts.',
