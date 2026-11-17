@@ -182,7 +182,7 @@ const DEFAULT_HOSTS = ['once-upon.test', 'once-upon.fidev.net'];
  *   board_ledger_file       a Markdown file the agent registry appends a line to for each agent event, a log for people and
  *                           scripts (ledger/events.ts ledgerLine); the board does not read it; no default, off when unset
  *   board_progress_file     the same for progress beats (`- <time> <name> <N>/<M> <step>: <note>`); no default, off when unset
- *   board_larmor_dir        the Larmor checkout (~/Development/SideProjects/larmor): the board runs its
+ *   board_larmor_dir        optional voice add-on, for people who run Larmor (a voice MCP): its checkout. The board runs its
  *                           `.venv-app/bin/python app/voice_ctl.py` there for everything of Larmor's, and reads none of Larmor's
  *                           files: voice state and what was said (status, log), Pause and Resume, Start and Stop voice and the
  *                           phone buttons. Once voice has started in a session today, that session is pinned at the top of the

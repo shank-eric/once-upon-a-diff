@@ -1626,6 +1626,20 @@ test('a pause left with voice off shows Resume next to Start, and Resume asks th
   await pollNow();
 });
 
+test('with no Larmor (voice, phone and Start all null) the header and page draw no voice controls', async () => {
+  requests.length = 0;
+  answer = () => board({ voice: null, phone: null, voice_start: null, voice_paused: false });
+  await pollNow();
+  assert.equal($('.ou-board-voice'), null, 'no voice tab');
+  assert.equal($('[data-voice-pause]'), null);
+  assert.equal($('[data-voice-start]'), null);
+  assert.equal($('[data-voice-start-menu]'), null);
+  assert.equal($('[data-voice-stop]'), null);
+  assert.equal($('[data-voice-phone-menu]'), null);
+  answer = () => board();
+  await pollNow();
+});
+
 const EDITOR: BoardEditor = {
   lane: 'widgets',
   label: 'widgets',

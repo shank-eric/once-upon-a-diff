@@ -531,7 +531,7 @@ export class WorktreeScanner {
         ? list[0].ref.replace(/^refs\/(heads|remotes\/origin)\//, '')
         : null;
     }
-    // the main checkout's own branch, when it is built on the default (larmor's phone/live): work in it is not lost
+    // the main checkout's own branch, when it is built on the default branch: work in it is not lost
     const attached = await this.git(main.path, ['symbolic-ref', '--quiet', '--short', 'HEAD']);
     const branch = attached.code === 0 ? attached.stdout.trim() : '';
     if (branch && !list.some((target) => target.ref === `refs/heads/${branch}`)) {
