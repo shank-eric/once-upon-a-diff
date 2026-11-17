@@ -192,6 +192,7 @@ test('only the full page key approves: not the read-only key, the board key, ano
   const { home, id, bridge, head, post, events } = await setup();
   try {
     const url = `/api/stories/${id}/approve`;
+    githubStory(path.join(home, 'other')); // another story that exists, so its key is a good key out of place
     for (const key of [viewKey(TOKEN, id), boardKey(TOKEN), pageKey(TOKEN, 'other')]) {
       const refused = await post(key, url, { head_sha: head() });
       assert.equal(refused.status, 403, refused.text);

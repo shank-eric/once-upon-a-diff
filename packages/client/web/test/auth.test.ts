@@ -25,7 +25,7 @@ test('the page drops its key only once a call by cookie alone has worked', async
     // a fresh copy of the module each time, since it keeps whether the cookie is in use
     const auth = await import(new URL(`../public/local/auth.ts?${name}`, import.meta.url).href);
     await auth.startAuth('page.abc', '/api/board');
-    return { header: auth.authHeader('page.abc'), replaced, calls };
+    return { header: auth.authHeader(), replaced, calls };
   };
   try {
     const worked = await scenario('worked', { cookie: true }, 200);
@@ -44,7 +44,11 @@ test('the page drops its key only once a call by cookie alone has worked', async
     const none = await scenario('none', { cookie: false }, 200);
     assert.deepEqual(none.header, { Authorization: 'Bearer page.abc' });
     assert.deepEqual(none.replaced, []);
-    assert.deepEqual(none.calls, ['/auth/session'], 'no cookie, nothing to check');
+    assert.deepEqual(
+      none.calls,
+      ['/auth/session', '/api/board'],
+      'no cookie: the key is tried as a header before it is saved',
+    );
   } finally {
     Object.assign(globalThis, saved);
   }

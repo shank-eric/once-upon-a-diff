@@ -133,6 +133,7 @@ describe("a story listener's natural end", { concurrency: 6 }, () => {
 
   test("the panel's pulse notes that a page shows the story", async () => {
     const home = homeWith(60);
+    githubStory(path.join(home, 'other')); // another story that exists, so its key is a good key out of place
     const bridge = await startBridge({ home });
     try {
       assert.equal(existsSync(seenFile(home)), false);
@@ -146,6 +147,7 @@ describe("a story listener's natural end", { concurrency: 6 }, () => {
 
   test("a hidden tab's still-open signal notes the story as seen, and nothing else", async () => {
     const home = homeWith(60);
+    githubStory(path.join(home, 'other')); // another story that exists, so its key is a good key out of place
     const bridge = await startBridge({ home });
     try {
       assert.equal(existsSync(seenFile(home)), false);

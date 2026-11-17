@@ -9,6 +9,7 @@ import {
   existsSync,
   mkdirSync,
   readdirSync,
+  readFileSync,
   statSync,
   utimesSync,
   writeFileSync,
@@ -66,13 +67,17 @@ test('read-only commands leave a home’s files and mode alone, and make no conf
   }
 });
 
-test('the commands that hand out the token still make the home and config.json', async () => {
+test('the commands that hand out the token still make the home, the token file and config.json', async () => {
   const home = path.join(tmp('reads-token'), 'once-upon');
   const run = await runCli(home, ['token']);
   assert.equal(run.code, 0);
-  assert.match(run.stdout.trim(), /^[A-Za-z0-9_-]{20,}$/);
+  assert.match(run.stdout, /not printed/);
   assert.equal(modeOf(home), '700');
   assert.equal(modeOf(path.join(home, 'config.json')), '600');
+  assert.equal(modeOf(path.join(home, 'token')), '600');
+  assert.deepEqual(JSON.parse(readFileSync(path.join(home, 'config.json'), 'utf8')), {
+    port: 4823,
+  });
 });
 
 test('a first write to a home that is not there yet makes it owner-only, whichever writer it is', async () => {

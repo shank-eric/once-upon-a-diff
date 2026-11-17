@@ -231,13 +231,22 @@ async function local(home: string, cfg: Config, opts: CliOpts) {
   } else if (state === 'free') {
     process.stderr.write(`No bridge on port ${port}. Start one with: once-upon serve\n`);
   }
-  out(url);
+  out(printedLink(url, opts));
   if (!opts['no-open']) {
     openTarget(url, home);
   }
 }
 
-/** `once-upon page --story ID`: prints (and opens) a local story's page link, with its key. */
+/**
+ * The link to print. What a command prints lands in a session's report and transcript, so the key stays out of it: the link
+ * prints without its #key, and the page has remembered the key from the keyed link the command opened. The keyed link prints
+ * on a terminal or with --with-key (to open elsewhere, or in a browser profile that has not opened one yet).
+ */
+function printedLink(url: string, opts: CliOpts): string {
+  return process.stdout.isTTY || opts['with-key'] ? url : url.split('#')[0];
+}
+
+/** `once-upon page --story ID`: prints a local story's page link (keyless unless on a terminal or --with-key) and opens it with its key. */
 function page(home: string, cfg: Config, opts: CliOpts) {
   const id = String(opts.story || '');
   const store = new StoryStore({ home });
@@ -246,7 +255,7 @@ function page(home: string, cfg: Config, opts: CliOpts) {
     throw new Error(`no local story ${id || '(say --story ID)'}: once-upon list shows them`);
   }
   const url = localPageUrl(Number(opts.port || cfg.port), id, cfg.token);
-  out(url);
+  out(printedLink(url, opts));
   const bound = new Listening(home).activeBinding(id);
   if (bound) {
     process.stderr.write(
@@ -285,7 +294,7 @@ export const storyCommands: Command[] = [
     name: 'local',
     needsConfig: true,
     usage: [
-      '  once-upon local   --repo DIR --base REF [--head REF] [--chapters FILE] [--id ID] [--title T] [--agent NAME] [--no-open] [--allow-uncovered] [--allow-missing]',
+      '  once-upon local   --repo DIR --base REF [--head REF] [--chapters FILE] [--id ID] [--title T] [--agent NAME] [--no-open] [--with-key] [--allow-uncovered] [--allow-missing]',
       '                                                                 story over local commits, served at /local/<id>/; with a Rebuild',
       '                                                                 pending, the chapters must keep what it keeps and tell every file and hunk',
     ],
@@ -304,7 +313,7 @@ export const storyCommands: Command[] = [
     name: 'page',
     needsConfig: true,
     usage: [
-      "  once-upon page    --story ID [--no-open]                      a local story's page link, with the key for that story only",
+      "  once-upon page    --story ID [--no-open] [--with-key]         a local story's page link (keyless; --with-key or a terminal prints its key too)",
     ],
     run: page,
   },

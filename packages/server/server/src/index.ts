@@ -336,6 +336,18 @@ export function createBridge({
       } else if (sameToken(auth, viewKey(token, id))) {
         scope = id;
         readOnly = true;
+      } else if (
+        !stories
+          .dirs()
+          .some(
+            (known) =>
+              sameToken(auth, pageKey(token, known.id)) ||
+              sameToken(auth, viewKey(token, known.id)),
+          )
+      ) {
+        // on a story's route, a page key that is no story's key (a stale one, from before the token changed, or a typo) is a
+        // wrong key: 401 makes a page forget the key it saved. A good key on another story stays a 403.
+        throw new HttpError(401, 'missing or wrong token');
       } else {
         throw new HttpError(403, "this page's key works only for its own story");
       }

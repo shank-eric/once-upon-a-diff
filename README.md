@@ -15,7 +15,7 @@ The once-upon skill (`skills/once-upon/`) writes the stories, and this extension
 
 You need Node 24 or newer, the current LTS (`.nvmrc` says 24, so `fnm use` or `nvm use` in the repo picks it). On an older Node the CLI, the skill helper and the package scripts stop with one line saying so. The repo is a Yarn workspaces monorepo in TypeScript: `yarn` installs the build and test tools and links the ten packages (`domain`, `contracts`, `bridge-client`, `ui-kit`, `github-page`, `panel`, `web`, `bridge`, `extension` and the dev-only `test-kit`, under `packages/`). The bridge has no build, and one runtime dependency, Valibot, which checks what a page sends: Node 24 runs its TypeScript directly. The extension is built with WXT. The repo uses Yarn 4, kept in `.yarn/releases` and named in `package.json`'s `packageManager`. Any `yarn` hands off to it, and `corepack enable` gets you a `yarn` if you have none.
 
-1. Install, build the extension, and print the bridge's port and token. `setup` also creates `~/.once-upon/config.json` with a random token:
+1. Install, build the extension, and print the bridge's port and token. `setup` also creates `~/.once-upon/token` (mode 600) with a random token, and `config.json` with the port. `setup` prints the token only on a terminal; a script or a Claude session gets the file's name instead:
    ```bash
    yarn
    yarn build
@@ -290,7 +290,7 @@ A Claude session fulfils the request. `once-upon wait` hands it build requests f
 once-upon local --repo ~/Development/web-app-worktrees/tidy-up --base 3a669da7625 --head HEAD --chapters chapters.json
 ```
 
-This builds `git diff <base> <head>` into `~/.once-upon/local-<repo>-<branch>/`. If no bridge is running, it starts one. It knows its own bridge by `~/.once-upon/bridge.json` (the bridge's pid, port and a fingerprint of its token, written when it starts listening), without calling it: a port held by anything else is an error that says so, and a bridge that started before `once-upon token --rotate` gets a warning to restart it, since its page keys no longer match. Then it opens `http://127.0.0.1:<port>/local/<id>/#key=<page key>`. The key in the link works for that one story only, and is the full one that can push for Create pull request (see [The bridge](#the-bridge)), and `once-upon page --story <id>` prints the link again. The page draws the diff with the same DOM shapes as GitHub's `/changes` page, so the same panel code runs on it unchanged.
+This builds `git diff <base> <head>` into `~/.once-upon/local-<repo>-<branch>/`. If no bridge is running, it starts one. It knows its own bridge by `~/.once-upon/bridge.json` (the bridge's pid, port and a fingerprint of its token, written when it starts listening), without calling it: a port held by anything else is an error that says so, and a bridge that started before `once-upon token --rotate` gets a warning to restart it, since its page keys no longer match. Then it opens `http://127.0.0.1:<port>/local/<id>/#key=<page key>`. The key in the link works for that one story only, and is the full one that can push for Create pull request (see [The bridge](#the-bridge)). The page saves the key in the browser (`localStorage`, for that address and port alone) and takes it out of the address bar. What the command prints is the same link without the key, so a report or a transcript never carries one: the keyless link opens in the browser that has opened the keyed one. `once-upon page --story <id>` opens the keyed link again and prints the keyless one; in a terminal, or with `--with-key`, it prints the keyed link too, for a browser that has not saved a key (a new profile, cleared site data, or after `token --rotate`). The page draws the diff with the same DOM shapes as GitHub's `/changes` page, so the same panel code runs on it unchanged.
 
 - **Viewed** toggles are kept by the bridge. A file whose diff changes after you marked it shows as "changed since viewed" and is unviewed again.
 - **Comments become "fix before push" notes.** Click a line number to add a note. Notes are listed under "Fix before push" at the top, can be ticked done, and go to the inbox. The panel's Fix before push box sends them to a Claude session ([above](#fix-before-push-send-notes-to-a-session)). `once-upon notes --story <id>` prints them as a checklist. Comments drafted in `chapters.json` show in the panel as "Fix before push (drafted)".
@@ -425,7 +425,8 @@ Stories live in the repo they're about, in a hidden `.once-upon/` folder in its 
   <owner>-<repo>-<N>/               chapters.json, file-map.json, meta.json   (a PR story, in the repo's main checkout)
 
 ~/.once-upon/                        (ONCE_UPON_HOME moves it)
-  config.json                       {port, token}, mode 600
+  token                             the bridge token, mode 600 (printed only on a terminal, never into a session)
+  config.json                       {port, ...settings}, mode 600, no secret: `once-upon config get <key>` reads one
   prefs.json                        page settings for every story: {hideWhitespace, diffView}
   stories.json                      the index: story id -> folder
   checkouts.json                    repo -> the checkout the bridge has seen
@@ -444,7 +445,7 @@ The bridge learns a repo's checkout from local stories, from where `once-upon wa
 
 `once-upon serve` binds to `127.0.0.1` only. Every `/api` call needs `Authorization: Bearer <token>`, with one exception: a local page uses its story's page key instead.
 
-**The local page never holds the token.** The page the bridge serves at `/local/<id>/` carries only the story id, so fetching it gives nothing away. Its key comes in the link's `#key=` fragment, which the browser never sends to the bridge: an HMAC of the story id under the token, printed by `once-upon local` and `once-upon page --story <id>`. The bridge takes a page key only on that local story's own `/api/stories/<id>/...` routes. It can't read or change another story, reach a bridge-wide route (builds, the story list, prefs, status) or add to a GitHub review.
+**The local page never holds the token.** The page the bridge serves at `/local/<id>/` carries only the story id, so fetching it gives nothing away. Its key comes in the link's `#key=` fragment, which the browser never sends to the bridge: an HMAC of the story id under the token, in the link `once-upon local` and `once-upon page --story <id>` open (they print it only on a terminal or with `--with-key`, and the page saves it). The bridge takes a page key only on that local story's own `/api/stories/<id>/...` routes. It can't read or change another story, reach a bridge-wide route (builds, the story list, prefs, status) or add to a GitHub review.
 
 A story has two keys, both HMACs under the token with their own labels, so neither can be turned into the other. The full key is what `once-upon local`, `once-upon page` and the board's **Open story** print: it can also push the story's branch (Create pull request's `git push`) and read where it stands. The read-only key is the same story's reading routes, Ask, Viewed and Fix before push notes, and a look at where the branch's PR stands (`GET .../pr`, so the page's Open PR link shows), with a 403 on what writes (`POST .../pr`: push, PR text, and `.../push`, both ways). A page opened with it says so, and its Create pull request button points to the board or `once-upon page` instead of failing on click. Listeners and the extension use the token as before, and rotating the token changes every page key.
 
@@ -491,7 +492,7 @@ The reason: some machines run endpoint security that SIGKILLs a `node` process (
 
 ### Personal settings
 
-`~/.once-upon/config.json` holds the port and token, and can also hold a few optional settings. All of them default to something neutral, so a fresh install needs none:
+`~/.once-upon/config.json` holds the port, and can also hold a few optional settings (the token is in `~/.once-upon/token`, so the file is safe to print; `once-upon config get <key>` prints one setting). An older `config.json` that still holds a token is migrated by the first command that makes the config (`setup`, `token`, `serve`, `local`, `page`): the token moves to its own file, with the same value. All of them default to something neutral, so a fresh install needs none:
 
 | Key | What it does | Default |
 |---|---|---|

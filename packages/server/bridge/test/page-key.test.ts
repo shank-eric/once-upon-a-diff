@@ -14,7 +14,7 @@ import {
 } from './helpers.ts';
 import { createLocalStory } from '@once-upon-a-diff/stories/local-story';
 import { Inbox } from '@once-upon-a-diff/state/queues/requests/inbox';
-import { pageKey } from '@once-upon-a-diff/state/records/page-links/page-key';
+import { pageKey, viewKey } from '@once-upon-a-diff/state/records/page-links/page-key';
 import type { Printable } from '@once-upon-a-diff/cli/output';
 
 /** A local story with one drafted comment, a PR story beside it, and a bridge serving both. */
@@ -55,8 +55,12 @@ test("the local page carries no token: its key comes in the link's fragment", as
     writeJson(path.join(home, 'config.json'), { port: 1, token: TOKEN });
     const printed = await runCli(home, ['page', '--story', id, '--no-open']);
     assert.equal(printed.code, 0, printed.stderr);
+    // what a command prints (a pipe, so a session's report) has no key; --with-key prints the keyed link
+    assert.equal(printed.stdout.trim(), `http://127.0.0.1:1/local/${encodeURIComponent(id)}/`);
+    assert.ok(!printed.stdout.includes('key='));
+    const keyed = await runCli(home, ['page', '--story', id, '--no-open', '--with-key']);
     assert.equal(
-      printed.stdout.trim(),
+      keyed.stdout.trim(),
       `http://127.0.0.1:1/local/${encodeURIComponent(id)}/#key=${pageKey(TOKEN, id)}`,
     );
     const github = await runCli(home, ['page', '--story', 'acme-widgets-7', '--no-open']);
@@ -147,10 +151,22 @@ test("a story listener gets the page's question, rebuild and fix request; the ke
       action: 'review',
     });
     assert.equal(review.status, 403, 'never Add to my review');
+    // a page key no story's key matches is a wrong key (401, which makes a page forget the key it saved), not a key out of place
     assert.equal(
       (await withKey(bridge, `${key}x`, 'GET', story)).status,
-      403,
+      401,
       'a wrong key is refused',
+    );
+    const stale = pageKey('a-token-from-before-the-rotate', id);
+    assert.equal(
+      (await withKey(bridge, stale, 'GET', story)).status,
+      401,
+      'a stale key, on its story',
+    );
+    assert.equal(
+      (await withKey(bridge, viewKey(TOKEN, id), 'GET', '/api/stories')).status,
+      403,
+      "a good key off its story's routes is still 403",
     );
     assert.equal(
       (await bridge.call('GET', '/api/stories')).status,

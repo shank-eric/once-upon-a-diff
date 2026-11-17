@@ -109,7 +109,8 @@ test('loadConfig: an empty or unparseable config.json is kept as a copy before a
     assert.equal(kept.length, 1);
     assert.equal(readFileSync(path.join(home, kept[0]), 'utf8'), '{"ship":{"a/b":"pr"},');
     assert.match(errors.join('\n'), /not JSON/);
-    assert.equal(readJson<{ token: string }>(file)!.token, cfg.token);
+    assert.equal(readFileSync(path.join(home, 'token'), 'utf8'), `${cfg.token}\n`);
+    assert.equal(readJson<{ token?: string }>(file)!.token, undefined);
     errors.length = 0;
     loadConfig(home); // a good file is left alone, quietly
     assert.deepEqual(errors, []);

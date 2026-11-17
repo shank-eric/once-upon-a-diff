@@ -9,6 +9,7 @@ import {
   closeSync,
   copyFileSync,
   fsyncSync,
+  linkSync,
   openSync,
   readFileSync,
   renameSync,
@@ -52,6 +53,37 @@ export function writeFileAtomic(file: string, text: string, mode?: number): void
   } catch (err) {
     discard(temp);
     throw err;
+  }
+}
+
+/**
+ * Makes the file with this text only if nothing is there, and says whether it did. The text is written to a temp file and linked
+ * into place, so a reader sees the whole file or none, and of two writers at the same moment exactly one gets true.
+ */
+export function writeFileIfAbsent(file: string, text: string, mode?: number): boolean {
+  const temp = tempName(file);
+  try {
+    const handle = openSync(temp, 'wx', mode);
+    try {
+      writeSync(handle, text);
+      fsyncSync(handle);
+    } finally {
+      closeSync(handle);
+    }
+    if (mode !== undefined) {
+      chmodSync(temp, mode);
+    }
+    try {
+      linkSync(temp, file);
+      return true;
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'EEXIST') {
+        return false;
+      }
+      throw err;
+    }
+  } finally {
+    discard(temp);
   }
 }
 

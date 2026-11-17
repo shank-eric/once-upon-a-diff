@@ -946,6 +946,16 @@ try {
     (await localPage.locator('[role=region][id^="diff-"]').count()) === 3,
     'local page draws 3 file regions',
   );
+  // the page saved the key from its link and took it out of the address bar, so the link without a key opens too
+  check(!localPage.url().includes('key='), 'the local page drops the key from its address bar');
+  const keyless = await context.newPage();
+  await keyless.goto(localPageUrl(port, local.id, TOKEN).split('#')[0]);
+  await keyless.waitForSelector('#once-upon-panel', { state: 'attached', timeout: 5000 });
+  check(
+    (await keyless.locator('[role=region][id^="diff-"]').count()) === 3,
+    'the keyless local link draws 3 file regions from the saved key',
+  );
+  await keyless.close();
   await localPage.waitForTimeout(500);
   check(
     (await localPage.locator('#ou-panel .ou-light[data-level="ok"]').count()) === 1,

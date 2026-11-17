@@ -14,7 +14,7 @@ import { createClient, type Transport } from '/assets/bridge-client/client.ts';
 import { usePoll } from '/assets/bridge-client/use-poll.ts';
 import { createUsage } from '/assets/bridge-client/usage.ts';
 import { ROUTES } from '/assets/contracts/routes.ts';
-import { authHeader, startAuth } from '/assets/local/auth.ts';
+import { authHeader, keyRefused, startAuth } from '/assets/local/auth.ts';
 import { notConnectedHtml } from '/assets/local/not-connected.ts';
 import { focusSession, useSetting, type Api } from '/assets/board/shared.ts';
 import { VoicePanel } from '/assets/board/voice/voice-panel.ts';
@@ -46,13 +46,16 @@ const transport: Transport = async ({ method, path, body, signal }) => {
       cache: 'no-store',
       signal,
       headers: {
-        ...authHeader(KEY),
+        ...authHeader(),
         ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
       },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     const json: unknown = await response.json().catch(() => ({}));
     if (!response.ok) {
+      if (response.status === 401) {
+        keyRefused(); // a key saved by an earlier visit that the bridge no longer takes
+      }
       const message = (json as { error?: string }).error;
       return {
         ok: false,

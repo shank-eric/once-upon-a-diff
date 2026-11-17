@@ -21,6 +21,7 @@ test("the bridge's folder and a checkout's .once-upon are the user's alone, even
   loadConfig(home);
   assert.equal(modeOf(home), '700');
   assert.equal(modeOf(path.join(home, 'config.json')), '600');
+  assert.equal(modeOf(path.join(home, 'token')), '600');
 
   const { repo } = localRepo();
   mkdirSync(path.join(repo, '.once-upon'), { mode: 0o755 });

@@ -4,7 +4,7 @@
  * PASS, WARN or FAIL with what it found and, when it isn't passing, the fix. It writes nothing, except with `fix`
  * (`--fix`), which compacts the logs that only grow and keeps the old ones (compact-logs.ts).
  */
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { Listening } from '../../features/listeners/service.ts';
@@ -13,7 +13,13 @@ import {
   LISTEN_HOOK,
   listenHookWired,
 } from '../../features/sessions/hook-setup.ts';
-import { formatTime, readSettings } from '@once-upon-a-diff/foundation/settings';
+import {
+  configHoldsToken,
+  formatTime,
+  modeOfFile,
+  readSettings,
+  tokenFile,
+} from '@once-upon-a-diff/foundation/settings';
 
 import { MIN_NODE_MAJOR, nodeVersionProblem } from '@once-upon-a-diff/foundation/node-version.mjs';
 import type { Config } from '@once-upon-a-diff/foundation/settings';
@@ -171,17 +177,41 @@ export async function doctor(
       : null,
   );
 
-  // config and token
+  // config and token: the token is in its own file, config.json holds none
   const cfgFile = path.join(home, 'config.json');
-  const mode = existsSync(cfgFile) ? (statSync(cfgFile).mode & 0o777).toString(8) : null;
+  const mode = modeOfFile(cfgFile);
+  const tokenPath = tokenFile(home);
+  const tokenMode = modeOfFile(tokenPath);
   if (!cfg.token) {
-    add('FAIL', 'Token', 'config.json has no token', 'Run: once-upon setup');
+    add('FAIL', 'Token', `${tokenPath} has no token`, 'Run: once-upon setup');
   } else {
+    const wide = [
+      ...(mode && mode !== '600' ? [cfgFile] : []),
+      ...(tokenMode && tokenMode !== '600' ? [tokenPath] : []),
+    ];
+    const legacy = !tokenMode && configHoldsToken(home);
+    if (legacy) {
+      add(
+        'WARN',
+        'Config and token',
+        `${cfgFile} still holds the token, port ${port}`,
+        'Run any once-upon command that makes the config (once-upon setup): it moves the token to its own file',
+      );
+    } else {
+      add(
+        wide.length ? 'WARN' : 'PASS',
+        'Config and token',
+        `${tokenPath} (mode ${tokenMode}), ${cfgFile} (mode ${mode}), port ${port}`,
+        wide.length ? `chmod 600 ${wide.join(' ')}` : null,
+      );
+    }
+  }
+  if (tokenMode && configHoldsToken(home)) {
     add(
-      mode === '600' ? 'PASS' : 'WARN',
-      'Config and token',
-      `${cfgFile} (mode ${mode}), port ${port}`,
-      mode === '600' ? null : `chmod 600 ${cfgFile}`,
+      'WARN',
+      'Token in config.json',
+      `${cfgFile} still holds a token as well as ${tokenPath}`,
+      'Run any once-upon command that makes the config (once-upon setup): the token file wins and the old one is dropped',
     );
   }
 
@@ -208,7 +238,7 @@ export async function doctor(
       'FAIL',
       'Bridge token',
       `the bridge on ${port} rejects this config's token${proc ? ` (pid ${proc.pid})` : ''}`,
-      'Restart the bridge so it reads config.json again, and paste the same token into the extension options',
+      'Restart the bridge so it reads the token file again, and paste the same token into the extension options',
     );
   } else if (health.body && health.body.name === 'once-upon-bridge') {
     add(

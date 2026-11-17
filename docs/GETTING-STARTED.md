@@ -38,7 +38,7 @@ The repo uses Yarn 4 and carries its own copy (`.yarn/releases`), which any `yar
 once-upon setup
 ```
 
-The first run creates `~/.once-upon/config.json` (mode 600) with a port, 4823 by default, and a random token. It prints both. You'll paste them into the extension in step 5.
+The first run creates `~/.once-upon/token` (mode 600) with a random token, and `~/.once-upon/config.json` (mode 600) with a port, 4823 by default. In a terminal it prints both (from a script or a Claude session it prints the token file's name). You'll paste them into the extension in step 5.
 
 ### 4. Start the bridge (optional)
 

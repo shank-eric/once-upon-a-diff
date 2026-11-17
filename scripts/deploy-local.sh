@@ -23,6 +23,8 @@ BRIDGE_LOG="$HOME/.once-upon/bridge.log"
 
 # shellcheck source=lib/worktree-cleanup.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/worktree-cleanup.sh"
+# shellcheck source=lib/read-token.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/read-token.sh"
 
 die() { echo "deploy-local: $*" >&2; exit 1; }
 say() { echo "deploy-local: $*"; }
@@ -224,8 +226,8 @@ respawn_bridge() {
 verify_live() {
   local code type f name want got tok terms base="http://127.0.0.1:$PORT"
   # /api/board wants the bridge token. It goes to curl on stdin (-K -), so it is never in argv, output or logs.
-  tok="$(node -e 'process.stdout.write(String(JSON.parse(require("fs").readFileSync(process.env.HOME+"/.once-upon/config.json","utf8")).token||""))' 2>/dev/null)" || tok=""
-  [ -n "$tok" ] || die "no token in ~/.once-upon/config.json for the /api/board check"
+  tok="$(read_token)" || tok=""
+  [ -n "$tok" ] || die "no token in ${ONCE_UPON_HOME:-$HOME/.once-upon}/token for the /api/board check"
   curl -s --max-time 10 -o /dev/null "$base/" || die "port $PORT does not answer"
   # The first /api/board call starts the worktree scanner and can take about a minute.
   code="$(printf 'header = "Authorization: Bearer %s"\n' "$tok" | curl -s -K - --max-time 180 -o /dev/null -w '%{http_code}' "$base/api/board")"

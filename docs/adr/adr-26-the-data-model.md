@@ -56,7 +56,8 @@ These are written by one or both apps and read by the bridge or the CLI, with no
 
 | File | Format and key | Writers | Readers | Rule |
 |---|---|---|---|---|
-| `config.json` | JSON `{port, token, ...settings}`, mode 600 | `loadConfig` (`packages/server-libs/foundation/src/settings.ts` (`loadConfig`)), `token --rotate`, a person | Every process (`readSettings`) | Atomic; a file that is not JSON is copied aside before a fresh one is made (`packages/server-libs/foundation/src/settings.ts` (`.unreadable-`)). The `checkout_dirs` are here |
+| `token` | one line, mode 600 | `loadConfig` (the first run, and the move of an older config.json's token), `saveToken` (`token --rotate`) | `readConfig`, `loadConfig`, `scripts/lib/read-token.sh` | Made whole, never half (a temp file linked into place, so of two first runs one wins); `saveToken` renames over it. Printed only on a terminal, never to a pipe. Every page key is an HMAC of it |
+| `config.json` | JSON `{port, ...settings}`, mode 600, no token | `loadConfig` (`packages/server-libs/foundation/src/settings.ts` (`loadConfig`)), `token --rotate`, a person | Every process (`readSettings`) | Atomic; a file that is not JSON is copied aside before a fresh one is made (`packages/server-libs/foundation/src/settings.ts` (`.unreadable-`)). The `checkout_dirs` are here |
 | `prefs.json` | JSON `{hideWhitespace, diffView, layout?}` | `writePrefs` (`packages/server-libs/foundation/src/settings.ts` (`writePrefs`)): the bridge | The bridge, the pages | Atomic |
 | `bridge.json` | JSON `{pid, port, token fingerprint}` | `writeBridgeFile` (`packages/server-libs/adapters/src/stores/bridge-file.ts` (`writeBridgeFile`)), removed on close when it is the bridge's own | `once-upon local`, doctor | Atomic |
 | `extension-seen.json` | JSON `{at, origin}` | The bridge (`packages/server-libs/core/src/orchestration/bridge/bridge.ts` (`writeExtensionSeen`)) | Doctor | Atomic, overwritten |

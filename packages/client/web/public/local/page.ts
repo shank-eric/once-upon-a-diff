@@ -1,10 +1,11 @@
 /*
  * The local page's shared state, and its one way to the bridge. The boot
- * block in the page names the story; its key comes in the link's #fragment.
+ * block in the page names the story; its key comes in the link's #fragment, or from the one an earlier visit saved.
  */
 import { createClient, type Transport } from '/assets/bridge-client/client.ts';
 import { createUsage } from '/assets/bridge-client/usage.ts';
 import { ROUTES } from '/assets/contracts/routes.ts';
+import { dropKeyFromAddress, forgetKey, saveKey, savedKey } from '/assets/local/saved-key.ts';
 import type { LocalStory, StoryData } from '/assets/types.ts';
 import type { InitialUi, StoryOverlay } from '/assets/panel/shell/overlay.ts';
 import type { Highlighter } from '/assets/local/diff/syntax.ts';
@@ -29,10 +30,17 @@ const BOOT: { story: string } = JSON.parse(
 );
 
 /**
- * The page's key for its story, from the link's #key= (`once-upon local` and `once-upon page` print the link). The
- * bridge takes it only for this story's routes, and the page itself carries no token.
+ * The page's key for its story: the link's #key= (`once-upon local` and `once-upon page` open the keyed link and print the keyless
+ * one), else the key an earlier visit saved. A key from the link is saved and taken out of the address bar once the bridge has
+ * accepted it on a call (the transport below), so an old or refused link cannot replace a good saved key, and the keyless
+ * link opens next time. The bridge takes it only for this story's routes, and the page itself carries no token.
  */
-const KEY = new URLSearchParams(location.hash.slice(1)).get('key') || '';
+const FRAGMENT_KEY = new URLSearchParams(location.hash.slice(1)).get('key') || '';
+const KEY = FRAGMENT_KEY || savedKey(BOOT.story);
+/** The key came from storage, so a refusal means it is stale: the token changed since. */
+const FROM_STORAGE = !FRAGMENT_KEY && !!KEY;
+/** The link's key has been saved (after the bridge took it), so later calls skip that. */
+let fragmentKeySaved = false;
 
 /** The page's address without its #key, for what the page tells the bridge (position, questions). */
 export const pageUrl = () => location.href.split('#')[0];
@@ -63,7 +71,7 @@ const transport: Transport = async ({ method, path, body, signal }) => {
     return {
       ok: false,
       status: 0,
-      error: `this link has no key: open the page from the link \`once-upon page --story ${BOOT.story}\` prints`,
+      error: `this browser has no key for this story: run \`once-upon page --story ${BOOT.story}\` in a terminal to open it`,
     };
   }
   try {
@@ -80,12 +88,27 @@ const transport: Transport = async ({ method, path, body, signal }) => {
     const json: unknown = await response.json().catch(() => ({}));
     if (!response.ok) {
       const message = (json as { error?: string }).error;
+      if (response.status === 401 && FROM_STORAGE) {
+        forgetKey(BOOT.story); // saved before the token changed: say how to get a new one
+        return {
+          ok: false,
+          status: response.status,
+          body: json,
+          error: `the key this browser saved is not accepted any more: run \`once-upon page --story ${BOOT.story}\` in a terminal to open it again`,
+        };
+      }
       return {
         ok: false,
         status: response.status,
         body: json,
         error: message || `HTTP ${response.status}`,
       };
+    }
+    if (FRAGMENT_KEY && !fragmentKeySaved) {
+      fragmentKeySaved = true;
+      if (saveKey(BOOT.story, FRAGMENT_KEY)) {
+        dropKeyFromAddress();
+      }
     }
     return { ok: true, status: response.status, body: json };
   } catch (err) {

@@ -7,6 +7,7 @@ import { homeDir, loadConfig, readConfig } from '@once-upon-a-diff/foundation/se
 import { parseArgs } from './args.ts';
 import { resolveLongText } from './options.ts';
 import { bridgeCommands } from './commands/bridge.ts';
+import { configCommands } from './commands/config.ts';
 import { storyCommands } from './commands/stories.ts';
 import { inboxCommands } from './commands/inbox.ts';
 import { draftCommands } from './commands/drafts.ts';
@@ -33,6 +34,7 @@ import type { Command } from './types.ts';
 const COMMANDS = new Map<string, Command>(
   [
     ...bridgeCommands,
+    ...configCommands,
     ...storyCommands,
     ...inboxCommands,
     ...draftCommands,
@@ -62,6 +64,7 @@ const HELP_ORDER = [
   'setup',
   'token',
   'install-hooks',
+  'config',
   'list',
   'local',
   'bind',

@@ -2,7 +2,8 @@
  * Where the bridge keeps things, and its port and token.
  *
  *   ~/.once-upon/                   ONCE_UPON_HOME overrides it
- *     config.json                  {port, token, ...personal settings (readSettings)}, mode 600
+ *     token                        the bridge token (and what every page key is derived from), mode 600: one line, never printed
+ *     config.json                  {port, ...personal settings (readSettings)}, mode 600: safe to print, it holds no secret
  *     house-rules.md               optional: your own rules, which the skills read and follow
  *     prefs.json                   page settings that hold across stories and restarts: {hideWhitespace, diffView,
  *                                  layout}
@@ -15,13 +16,17 @@
  */
 import { spawnDetached } from '@once-upon-a-diff/adapters/os';
 import { randomBytes } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { DEFAULT_PORT } from '@once-upon-a-diff/terms/bridge-port';
 import { repoKey } from '@once-upon-a-diff/terms/ids';
 import { repoName } from '@once-upon-a-diff/terms/text';
-import { readJson, writeFileAtomic } from '@once-upon-a-diff/adapters/stores/fs/json-file';
+import {
+  readJson,
+  writeFileAtomic,
+  writeFileIfAbsent,
+} from '@once-upon-a-diff/adapters/stores/fs/json-file';
 import {
   ownerOnly,
   ensureDir,
@@ -29,7 +34,7 @@ import {
   copyFile,
 } from '@once-upon-a-diff/adapters/stores/fs/files';
 
-/** config.json: the port and token, and any personal settings (readSettings). */
+/** config.json's port and any personal settings (readSettings), and the token, which lives in the token file. */
 export interface Config {
   token: string;
   port: number;
@@ -93,46 +98,129 @@ export const newToken = () => randomBytes(24).toString('base64url');
 export const UNPACKED_EXTENSION_ID = 'faaibhigocihefldbmdgchcnnclalkmo';
 const EXTENSION_ID = /^[a-p]{32}$/;
 
+/** The token file: <home>/token, one line, mode 600. Where the token lives; config.json holds none. */
+export const tokenFile = (home = homeDir()): string => path.join(home, 'token');
+
+/** The token file's token (its trailing newline trimmed), or '' when the file is missing, empty or unreadable. */
+function readTokenFile(home: string): string {
+  try {
+    return readFileSync(tokenFile(home), 'utf8').trim();
+  } catch {
+    return '';
+  }
+}
+
+/** The file's mode in octal text ('600'), or null when it is not there. */
+export function modeOfFile(file: string): string | null {
+  try {
+    return (statSync(file).mode & 0o777).toString(8);
+  } catch {
+    return null;
+  }
+}
+
+/** A parsed config.json that is a plain object, else null (missing, empty, unparseable, an array or a scalar). */
+function readConfigObject(home: string): Partial<Config> | null {
+  const cfg = readJson<unknown>(path.join(home, 'config.json'), null);
+  return cfg && typeof cfg === 'object' && !Array.isArray(cfg) ? (cfg as Partial<Config>) : null;
+}
+
+/** A token an older config.json still holds (before `loadConfig` moved it to the token file), else ''. */
+const legacyTokenOf = (cfg: Partial<Config> | null): string =>
+  typeof cfg?.token === 'string' ? cfg.token.trim() : '';
+
 /**
- * What config.json says now, for a command that only reads: the port defaults to DEFAULT_PORT and the token is '' when there
- * is none. A missing, unparseable or non-object file reads as empty. Writes, makes and changes the mode of nothing:
+ * What the config says now, for a command that only reads: the port defaults to DEFAULT_PORT and the token is '' when there
+ * is none. The token is the token file's, else (a home `loadConfig` has not migrated yet) the one still in config.json.
+ * A missing, unparseable or non-object config.json reads as empty. Writes, makes and changes the mode of nothing:
  * `loadConfig` is the writer, for the commands that hand out or use the token.
  */
 export function readConfig(home = homeDir()): Config {
-  const cfg = readJson<unknown>(path.join(home, 'config.json'), null);
-  const saved =
-    cfg && typeof cfg === 'object' && !Array.isArray(cfg) ? (cfg as Partial<Config>) : {};
-  return { ...saved, token: saved.token || '', port: saved.port || DEFAULT_PORT };
+  const saved = readConfigObject(home) ?? {};
+  return {
+    ...saved,
+    token: readTokenFile(home) || legacyTokenOf(saved),
+    port: saved.port || DEFAULT_PORT,
+  };
 }
 
-/** Reads config.json, creating it (with a fresh random token) the first time. The writer: a read-only command uses `readConfig`. */
+/** Whether config.json still holds a token key (an older layout, or a hand edit): `loadConfig` takes it out. */
+export const configHoldsToken = (home = homeDir()): boolean =>
+  readConfigObject(home) !== null && 'token' in (readConfigObject(home) as object);
+
+/** Every setting config.json holds, with the port defaulted and the token left out (it is not a setting: `readConfig` has it). */
+export function readConfigValues(home = homeDir()): Record<string, unknown> {
+  const { token: _token, ...saved } = readConfigObject(home) ?? {};
+  return { ...saved, port: saved.port || DEFAULT_PORT };
+}
+
+/**
+ * Writes the token file, replacing what is there (`once-upon token --rotate`). The new token lands whole through a rename,
+ * mode 600; config.json is not touched.
+ */
+export function saveToken(token: string, home = homeDir()): void {
+  ownerOnly(home);
+  const file = tokenFile(home);
+  writeFileAtomic(file, `${token}\n`, 0o600);
+  restrictFile(file, 0o600);
+}
+
+/**
+ * Makes the token file with this token when it is not there, and returns the token the file holds: the winner's when another
+ * process made it first (two commands on a fresh home each mint a token, and only one may stand). An empty file counts as
+ * missing and is replaced.
+ */
+function claimToken(token: string, home: string): string {
+  const file = tokenFile(home);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (writeFileIfAbsent(file, `${token}\n`, 0o600)) {
+      return token;
+    }
+    const held = readTokenFile(home);
+    if (held) {
+      return held;
+    }
+    // there but empty (a hand edit or a crash from an older tool): replace it
+    saveToken(token, home);
+  }
+  return readTokenFile(home) || token;
+}
+
+/**
+ * Reads the config, making what is missing: the token file with a fresh random token the first time, and config.json with the
+ * port. A token an older config.json still holds moves to the token file (written first and then dropped from config.json, so
+ * a crash leaves both and the next run cleans up, never neither); the token file wins when both hold one. The writer: a
+ * read-only command uses `readConfig`.
+ */
 export function loadConfig(home = homeDir()): Config {
   ownerOnly(home);
   const file = path.join(home, 'config.json');
-  let cfg = readJson<Partial<Config>>(file, null);
-  let changed = false;
-  if (existsSync(file) && (!cfg || typeof cfg !== 'object' || Array.isArray(cfg))) {
+  let cfg = readConfigObject(home);
+  if (existsSync(file) && !cfg) {
     // a crash or a bad edit left it empty or unparseable: saving a fresh one would wipe every setting in it
     const keep = `${file}.unreadable-${new Date().toISOString().replace(/[:.]/g, '-')}`;
     copyFile(file, keep);
+    restrictFile(keep, 0o600); // it may hold a token we could not parse out
+    const newTokenNote = readTokenFile(home) ? '' : ' (new token)';
     console.error(
-      `once-upon: ${file} is empty or not JSON. Kept a copy at ${keep} and started a fresh one (new token).`,
+      `once-upon: ${file} is empty or not JSON. Kept a copy at ${keep} and started a fresh one${newTokenNote}.`,
     );
-    cfg = null;
   }
-  cfg ??= {};
-  if (!cfg.token) {
-    cfg.token = newToken();
-    changed = true;
+  let token = readTokenFile(home);
+  if (token) {
+    if (modeOfFile(tokenFile(home)) !== '600') {
+      restrictFile(tokenFile(home), 0o600);
+    }
+  } else {
+    token = claimToken(legacyTokenOf(cfg) || newToken(), home);
   }
-  if (!cfg.port) {
-    cfg.port = DEFAULT_PORT;
-    changed = true;
+  if (!cfg || 'token' in cfg || !cfg.port) {
+    // read it again just before the rewrite, and take out only the token: a hand edit made since is kept
+    cfg = readConfigObject(home) ?? {};
+    saveConfig({ ...cfg, port: cfg.port || DEFAULT_PORT }, home);
+    cfg = readConfigObject(home) ?? {};
   }
-  if (changed) {
-    saveConfig(cfg, home);
-  }
-  return cfg as Config; // both filled in above
+  return { ...cfg, token, port: cfg.port || DEFAULT_PORT };
 }
 
 /** The folders to look for checkouts in: ONCE_UPON_DEV_DIR (tests), else checkout_dirs, else ~/Development. */
@@ -429,10 +517,12 @@ export function formatTime(iso: string | null | undefined, home = homeDir()): st
   return new Date(iso).toLocaleString('en-US', { ...opts, timeZoneName: 'short' });
 }
 
+/** Writes config.json, mode 600, without a `token`: the token is kept in the token file, never here (`saveToken`). */
 export function saveConfig(cfg: Partial<Config>, home = homeDir()): void {
   ownerOnly(home);
   const file = path.join(home, 'config.json');
-  writeFileAtomic(file, JSON.stringify(cfg, null, 2) + '\n', 0o600);
+  const { token: _token, ...rest } = cfg;
+  writeFileAtomic(file, JSON.stringify(rest, null, 2) + '\n', 0o600);
   restrictFile(file, 0o600);
 }
 

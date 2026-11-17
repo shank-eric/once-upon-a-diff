@@ -157,7 +157,8 @@ test('the story’s own queue route takes the story’s full key, for the repo o
   assert.ok(existsSync(path.join(pendingDir(home), 'repo-acme-widgets.json')));
   assert.equal((await call('POST', route, { scope: 'story' }, key)).status, 200);
   assert.ok(existsSync(path.join(pendingDir(home), 'story-local-feat-x.json')));
-  assert.equal((await call('POST', route, {}, pageKey(TOKEN, 'other'))).status, 403);
+  // a good key on another story is a 403 (a key that is no story's key is a 401, and a page forgets it)
+  assert.equal((await call('POST', route, {}, pageKey(TOKEN, 'acme-widgets-7'))).status, 403);
 });
 
 test('a live listener for the target refuses the queue with 409, and writes nothing', async () => {
