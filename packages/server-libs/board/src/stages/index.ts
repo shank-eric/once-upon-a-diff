@@ -39,7 +39,7 @@ import { listenCandidates } from '@once-upon-a-diff/core/features/sessions/liste
 import type { ListeningInput } from '@once-upon-a-diff/core/features/sessions/listening';
 import type { SessionTitles } from '@once-upon-a-diff/adapters/claude-sessions/titles';
 import type { WorktreeScanner } from '@once-upon-a-diff/state/records/worktrees/worktrees';
-import type { BoardData, BoardStatus } from '@once-upon-a-diff/contracts/types';
+import type { BoardData } from '@once-upon-a-diff/contracts/types';
 import { claimViews, placeAgents } from './agents.ts';
 import { editorsOf } from './editors.ts';
 import { carriedKeys } from '@once-upon-a-diff/state/queues/backlog/phase';
@@ -57,7 +57,7 @@ import { groupLanes } from './lanes.ts';
 import { laneLabels } from '@once-upon-a-diff/terms/lane-key';
 import { markListening } from './listeners.ts';
 import { voiceLines } from '@once-upon-a-diff/adapters/larmor';
-import { placeSessions, readLive, readSessionFacts } from './sessions.ts';
+import { placeSessions, readLive, readSessionFacts, type SeenSession } from './sessions.ts';
 import { blankStrip, voiceOf } from './strips.ts';
 import type { BuildContext, StoryFacts } from './types.ts';
 import { collectWorks } from './works.ts';
@@ -66,7 +66,7 @@ import { worktreeSection } from './worktrees.ts';
 /** What the Board keeps between builds and hands to one. */
 export interface BoardState {
   /** when each session entered its status, since the registry's time is for its own */
-  seen: Map<string, { status: BoardStatus; since: number }>;
+  seen: Map<string, SeenSession>;
   blank: BlankSessions;
   titles: SessionTitles;
   listenerSessions: Map<string, string>;

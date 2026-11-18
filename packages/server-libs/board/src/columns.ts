@@ -27,8 +27,9 @@
  *             session with no author or fixer run open under its id that is not on a work card (its `thinking` flag, set where the sessions are
  *             placed: a registered one (`agent start --self`) joins no work's card, and one on a branch's work stays on it, so a
  *             work card is never in it)
- *   research  a finished research agent with no card to sit in and no result (set by stages/agents.ts on an agent's own card,
- *             never by this function: a work card is never in it)
+ *   research  a finished research agent with no card to sit in and no result (set by stages/agents.ts on an agent's own card;
+ *             a work card is never in it), or a session that was Thinking and went idle within the finished-agent timer (its
+ *             `researched` flag, set where the sessions are placed)
  *   error     a session whose tab says error
  *   idle      nothing is happening and there is no PR: a session at its prompt (a lane along the bottom of the page)
  *
@@ -43,7 +44,7 @@ import type {
 } from '@once-upon-a-diff/contracts/types';
 
 export interface ColumnInput {
-  sessions: Pick<BoardSession, 'status' | 'thinking'>[];
+  sessions: Pick<BoardSession, 'status' | 'thinking' | 'researched'>[];
   agents: (Pick<BoardAgent, 'status' | 'state'> & {
     kind?: BoardAgent['kind'];
     stale?: boolean;
@@ -153,6 +154,10 @@ export function columnOf(input: ColumnInput): BoardColumn {
   }
   if (sessions.some((session) => session.status === 'error')) {
     return 'error';
+  }
+  // a side-tab session that finished a thinking turn is a finished research for a while (the Research timer)
+  if (sessions.some((session) => session.researched)) {
+    return 'research';
   }
   return 'idle';
 }

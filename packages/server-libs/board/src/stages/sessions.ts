@@ -215,6 +215,18 @@ export async function readSessionFacts(
   };
 }
 
+/**
+ * What the board remembers of a session between builds: its status and since when, whether its last working build had it
+ * Thinking (`thought`), and when it went idle after that (`restedAt`, ms): it is in Research until the finished-agent timer
+ * runs out. Memory only, so a restart forgets it and the session just goes quiet.
+ */
+export interface SeenSession {
+  status: BoardStatus;
+  since: number;
+  thought: boolean;
+  restedAt: number | null;
+}
+
 /** Where each live session went: the cards of sessions standing alone, and the sessions set aside. */
 export interface PlacedSessions {
   /** a session standing alone is a card of its own */
@@ -230,7 +242,7 @@ export interface PlacedSessions {
   /** each live session's repo */
   repoBySession: Map<string, string | null>;
   /** when each session entered its status, kept for the next build */
-  seen: Map<string, { status: BoardStatus; since: number }>;
+  seen: Map<string, SeenSession>;
 }
 
 /**
@@ -244,9 +256,10 @@ export function placeSessions(
   { live, known, branches, repos, picked, editors, agents, trusted }: LiveFacts,
   facts: SessionFacts,
   works: Map<string, Work>,
-  seen: Map<string, { status: BoardStatus; since: number }>,
+  seen: Map<string, SeenSession>,
 ): PlacedSessions {
   const { nowMs } = ctx;
+  const researchMs = ctx.settings.finishedWaitMinutes * 60 * 1000;
   const { quiet, voiceFiles, blankIds, titles, statusLines } = facts;
   const quietViews: BoardSession[] = [];
   const pin: { found: PinnedVoice | null } = { found: null };
@@ -254,7 +267,7 @@ export function placeSessions(
   // sessions: one on a branch of its own joins that branch's work, the rest are cards of their own
   const sessionCards: BoardCard[] = [];
   const repoBySession = new Map<string, string | null>();
-  const next = new Map<string, { status: BoardStatus; since: number }>();
+  const next = new Map<string, SeenSession>();
   // an editor's own session is in the editors strip, busy or not: never a card or a listener
   const editorViews: { lane: string; view: BoardSession }[] = [];
   const editorSessions = new Set(liveEditors(editors, live).map((editor) => editor.session));
@@ -271,7 +284,15 @@ export function placeSessions(
     if (tracked) {
       since = tracked.status === status ? tracked.since : nowMs;
     }
-    next.set(session.session, { status, since });
+    // a session that was Thinking and is now at rest is in Research until the timer a finished research agent has runs out
+    const resting = status === 'idle' || status === 'done';
+    const finishedThinking = !!tracked?.thought;
+    let restedAt = null as number | null;
+    if (resting && session.status !== 'busy') {
+      restedAt = finishedThinking ? (session.statusAt ?? nowMs) : (tracked?.restedAt ?? null);
+    }
+    const entry: SeenSession = { status, since, thought: false, restedAt };
+    next.set(session.session, entry);
     const repo = repos[index];
     repoBySession.set(session.session, repo);
     const branch = branches[index];
@@ -326,6 +347,17 @@ export function placeSessions(
     const alone = () => {
       if (trusted && status === 'working' && !withRun.has(session.session.slice(0, 8))) {
         view.card.thinking = true;
+      }
+      // `thought` outlives a build that sees the session not working (a tab status ahead of the registry, an untrusted scan)
+      // until the session is at rest, so the move to Research is not lost to one such build
+      entry.thought = !!view.card.thinking || (session.status === 'busy' && !!tracked?.thought);
+      if (
+        trusted &&
+        restedAt !== null &&
+        restedAt + researchMs > nowMs &&
+        !withRun.has(session.session.slice(0, 8))
+      ) {
+        view.card.researched = true;
       }
       if (blankIds.has(session.session)) {
         blankViews.push({ lane: laneOf(session.cwd, repo), view: view.card });

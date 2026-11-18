@@ -8,6 +8,7 @@ import { registerRuns } from '@once-upon-a-diff/state/test/helpers';
 import {
   NOW,
   checkoutOf,
+  fakeLarmor,
   fullId,
   liveChild,
   prStory,
@@ -328,4 +329,177 @@ test('a busy editor session is in the editors strip, never Thinking', async () =
     false,
   );
   assert.equal(JSON.stringify(data.editors).includes(busyId), true);
+});
+
+/**
+ * A session alone (no repo, so no work card) and an idle one beside it. `look(when)` builds at that time; `rest()`
+ * makes the first session idle in its registry file (the iTerm source, saying nothing then, leaves the registry's word).
+ */
+function restingWorld(prep?: (home: string, sid: string, voiceDir: string) => void) {
+  const home = tmp('rest-home');
+  const sessions = tmp('rest-sessions');
+  const voiceDir = tmp('rest-voice');
+  const child = liveChild();
+  after(child.stop);
+  const sid = String(child.pid).padStart(8, '0');
+  const cwd = tmp('rest-no-repo');
+  writeJson(path.join(home, 'config.json'), {
+    board_sessions_dir: sessions,
+    board_finished_wait_minutes: 30,
+    board_larmor_dir: fakeLarmor(voiceDir),
+  });
+  const write = (status: 'busy' | 'idle', when: Date) =>
+    registry(
+      sessions,
+      child.pid,
+      { cwd, name: 'side-tab', status, statusUpdatedAt: when.getTime() },
+      child.procStart,
+    );
+  const says: Record<string, { status: 'working' | 'done'; detail: null }> = {
+    [sid]: { status: 'working', detail: null },
+  };
+  let now = NOW;
+  write('busy', NOW);
+  prep?.(home, sid, voiceDir);
+  const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
+    source: sourceSaying(says),
+    now: () => now,
+  });
+  const look = async (when: Date) => {
+    now = when;
+    const data = await board.snapshot();
+    const cards = data.lanes.flatMap((lane) => lane.cards);
+    return {
+      data,
+      card: cards.find((card) => card.sessions.some((one) => one.id === fullId(child.pid))),
+    };
+  };
+  return {
+    sid,
+    home,
+    look,
+    // the tab's status reads `done` while the registry still says busy
+    tabDone: () => {
+      says[sid] = { status: 'done', detail: null };
+    },
+    rest: (when: Date) => {
+      delete says[sid];
+      write('idle', when);
+    },
+    resume: (when: Date) => {
+      says[sid] = { status: 'working', detail: null };
+      write('busy', when);
+    },
+  };
+}
+
+const minutesAfter = (minutes: number) => new Date(NOW.getTime() + minutes * 60000);
+
+test('a side-tab session that was Thinking and went idle is in Research, then leaves when the Research timer runs out', async () => {
+  const world = restingWorld();
+  assert.equal((await world.look(NOW)).card?.column, 'thinking');
+  world.rest(minutesAfter(1));
+  const resting = await world.look(minutesAfter(2));
+  assert.equal(resting.card?.column, 'research');
+  assert.equal(resting.card?.sessions[0].researched, true);
+  assert.equal((await world.look(minutesAfter(30))).card?.column, 'research');
+  // 30 minutes (the default wait) after it went idle
+  const gone = await world.look(minutesAfter(32));
+  assert.equal(gone.card?.column, 'idle');
+  assert.equal(gone.card?.sessions[0].researched, undefined);
+});
+
+test('a session that was never seen Thinking (idle from the start, or Thinking before a restart) is not in Research', async () => {
+  const world = restingWorld();
+  world.rest(minutesAfter(-5));
+  assert.equal((await world.look(NOW)).card?.column, 'idle');
+});
+
+test('a Thinking session that goes busy again is Thinking, not Research', async () => {
+  const world = restingWorld();
+  await world.look(NOW);
+  world.rest(minutesAfter(1));
+  assert.equal((await world.look(minutesAfter(2))).card?.column, 'research');
+  world.resume(minutesAfter(3));
+  const again = (await world.look(minutesAfter(4))).card;
+  assert.equal(again?.column, 'thinking');
+  assert.equal(again?.sessions[0].researched, undefined);
+});
+
+test('a Thinking session that launched an author before it went idle is not in Research: its work has a card', async () => {
+  const world = restingWorld();
+  assert.equal((await world.look(NOW)).card?.column, 'thinking');
+  new AgentRegistry(world.home).start({
+    name: 'author-late',
+    sid: world.sid,
+    kind: 'author',
+    task: 'build it',
+    at: minutesAfter(0.5),
+  });
+  world.rest(minutesAfter(1));
+  const { data } = await world.look(minutesAfter(2));
+  const cards = data.lanes.flatMap((lane) => lane.cards);
+  assert.equal(
+    cards.some((card) => card.column === 'research'),
+    false,
+  );
+  assert.equal(
+    cards.some((card) => card.sessions.some((one) => one.researched)),
+    false,
+  );
+});
+
+test('a Thinking session that one build sees as done (tab ahead of the registry) still moves to Research once it rests', async () => {
+  const world = restingWorld();
+  assert.equal((await world.look(NOW)).card?.column, 'thinking');
+  world.tabDone();
+  assert.notEqual((await world.look(minutesAfter(1))).card?.column, 'research');
+  world.rest(minutesAfter(2));
+  const resting = (await world.look(minutesAfter(3))).card;
+  assert.equal(resting?.column, 'research');
+  assert.equal(resting?.sessions[0].researched, true);
+});
+
+test('a busy editor session that goes idle is in the editors strip, never Research', async () => {
+  const world = restingWorld((home, sid) => {
+    new AgentRegistry(home).start({
+      name: 'editor-one',
+      sid,
+      session: `${sid}-aaaa-bbbb-cccc-dddddddddddd`,
+      kind: 'editor',
+      task: 'queue',
+      slots: 2,
+      at: new Date(NOW.getTime() - 3600000),
+    });
+  });
+  await world.look(NOW);
+  world.rest(minutesAfter(1));
+  const { data, card } = await world.look(minutesAfter(2));
+  assert.equal(card, undefined);
+  assert.equal(
+    data.lanes.flatMap((lane) => lane.cards).some((one) => one.column === 'research'),
+    false,
+  );
+});
+
+test('the voice session that goes idle stays pinned, never Research', async () => {
+  const world = restingWorld((_home, sid, voiceDir) => {
+    writeJson(path.join(voiceDir, 'session'), {
+      on: true,
+      session_id: `${sid}-aaaa-bbbb-cccc-dddddddddddd`,
+      owner: process.pid,
+      last_listen: 5,
+      last_speak: 4,
+    });
+    writeFileSync(path.join(voiceDir, 'voice-session-name'), 'clarifi-f9\n');
+  });
+  await world.look(NOW);
+  world.rest(minutesAfter(1));
+  const { data, card } = await world.look(minutesAfter(2));
+  assert.equal(card, undefined);
+  assert.equal(data.voice?.session, `${world.sid}-aaaa-bbbb-cccc-dddddddddddd`);
+  assert.equal(
+    data.lanes.flatMap((lane) => lane.cards).some((one) => one.column === 'research'),
+    false,
+  );
 });

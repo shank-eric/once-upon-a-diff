@@ -49,10 +49,11 @@ import type { StatusSource } from '@once-upon-a-diff/adapters/status-source';
 import { BoardError } from '@once-upon-a-diff/foundation/errors';
 import type { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
 import type { StoryStore } from '@once-upon-a-diff/stories/store';
-import type { BoardCard, BoardData, BoardStatus } from '@once-upon-a-diff/contracts/types';
+import type { BoardCard, BoardData } from '@once-upon-a-diff/contracts/types';
 import { isFinished } from './stages/agents.ts';
 import { prOfFacts } from './stages/worktrees.ts';
 import { buildBoard } from './stages/index.ts';
+import type { SeenSession } from './stages/sessions.ts';
 import { liveSessions } from '@once-upon-a-diff/adapters/claude-sessions/live-sessions';
 import { noPrWatcher, type PrWatcher } from './stages/pr-watcher.ts';
 import type { BuildContext, Lookups } from './stages/types.ts';
@@ -82,7 +83,7 @@ const REPO_WAIT_MS = 500;
 
 /** The data behind /board/. The instance remembers when each session entered its status, since the registry's time is for its own. */
 export class Board {
-  private seen = new Map<string, { status: BoardStatus; since: number }>();
+  private seen = new Map<string, SeenSession>();
   private branches = new Map<string, { at: number; branch: string | null }>();
   /** whether a branch's commits are in its repo's main checkout (mergedLocally), kept a few seconds */
   private landed = new Map<string, { at: number; merged: boolean; mergedAt: number | null }>();

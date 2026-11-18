@@ -80,6 +80,8 @@ export interface BoardSession {
   rested_at?: string | null;
   /** busy with no author or fixer run open under its id, and a card of its own (never one on a work card, or one a started item or a run rides on): it is thinking, not working on a card's run (Thinking) */
   thinking?: true;
+  /** it was Thinking, went idle within the finished-agent timer (`finishedWaitMinutes`), and is a card of its own: it is in Research until the timer runs out */
+  researched?: true;
 }
 
 /**
