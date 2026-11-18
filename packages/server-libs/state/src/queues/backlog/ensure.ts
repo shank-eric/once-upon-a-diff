@@ -12,6 +12,11 @@ import type { BacklogItem, CardSource } from './types.ts';
 
 export interface EnsureInput extends AddInput {
   source: CardSource;
+  /**
+   * With an `id` that no card has: an open card already on this repo and branch is the card (`joined`), and the id is unused.
+   * Work and its card are one card, so an agent starting on a branch whose card is still open joins it.
+   */
+  joinBranch?: boolean;
 }
 
 /** A card the work can still be on: not dropped, not landed. */
@@ -20,6 +25,10 @@ const open = (item: BacklogItem): boolean => item.state !== 'dropped' && !item.l
 /** Whether a branch can name one piece of work: a feature branch, never main or a detached HEAD (no branch). */
 const namesWork = (branch: string | null | undefined): branch is string =>
   !!branch && !DEFAULT_BRANCHES.has(branch);
+
+/** Which of two open cards on one branch is the work's: one with a story or PR, then a listed (backlog) one, then the oldest. */
+const rank = (item: BacklogItem): number =>
+  (item.story || item.pr ? 2 : 0) + (item.source === 'backlog' ? 1 : 0);
 
 /** The card these facts are about, or undefined: by explicit id, then repo and PR number, then repo and branch, then (for a session's card) the session. */
 export function findCard(
@@ -35,7 +44,12 @@ export function findCard(
   return (
     (input.pr ? live.find((item) => item.pr === input.pr && sameWork(item)) : undefined) ??
     (namesWork(input.branch)
-      ? live.find((item) => item.branch === input.branch && sameWork(item))
+      ? live
+          .filter((item) => item.branch === input.branch && sameWork(item))
+          .reduce<BacklogItem | undefined>(
+            (best, item) => (!best || rank(item) > rank(best) ? item : best),
+            undefined,
+          )
       : undefined) ??
     (input.source === 'session' && input.session
       ? live.find((item) => item.source === 'session' && item.session === input.session)
@@ -50,9 +64,13 @@ export function findCard(
 export function ensureCard(
   store: BacklogStore,
   input: EnsureInput,
-): { item: BacklogItem; made: boolean } {
+): { item: BacklogItem; made: boolean; joined: boolean } {
   return withLock(store.file, () => {
-    const found = findCard(store.items(), input);
+    let found = findCard(store.items(), input);
+    const joined = !found && !!input.id && !!input.joinBranch && namesWork(input.branch);
+    if (joined) {
+      found = findCard(store.items(), { ...input, id: undefined });
+    }
     if (found) {
       return {
         item: store.link(found.id, {
@@ -65,11 +83,13 @@ export function ensureCard(
           by: input.by,
         }),
         made: false,
+        joined,
       };
     }
     return {
       item: store.add({ ...input, branch: namesWork(input.branch) ? input.branch : null }),
       made: true,
+      joined: false,
     };
   });
 }

@@ -226,7 +226,8 @@ test('a fixer on an implicit card (no backlog row) carries by its own repo and b
   const { id, store, head, commit, cli, home, startRun } = world();
   assert.equal((await cli('approve', id)).code, 0);
   const first = head();
-  // ad-hoc work on the story's branch: an author run with no backlog card of its own mints the implicit one
+  // ad-hoc work on the story's branch: an author run with no backlog card of its own mints the implicit one (--new-card: with
+  // no flag it would join the branch's open card)
   const author = await cli(
     'agent',
     'start',
@@ -237,6 +238,7 @@ test('a fixer on an implicit card (no backlog row) carries by its own repo and b
     'acme/widgets',
     '--branch',
     'feature',
+    '--new-card',
     '--task',
     't',
     '--sid',

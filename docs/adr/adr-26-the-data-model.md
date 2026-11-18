@@ -111,11 +111,11 @@ Added 11/16 (card bl_mwfe82tn84b02d). A run is the only thing that puts a sessio
 |---|---|---|---|
 | editor (its own session) | dispatch only, never codes | `editor start --slots N` | the editors strip, on no card |
 | editor's subagent author | coding for a card | the editor claims the card (`backlog claim ID --agent NAME --sid SID8`), then `agent start NAME --card ID --role author`; a fix round is a fresh `--role fixer --card ID` | the card: Working, then Ready for your review |
-| editor's subagent author | coding with no card | `agent start NAME --role author --branch B` (an implicit card, ADR-27) | a card of its own, adopted by `backlog adopt` |
+| editor's subagent author | coding with no card | `agent start NAME --role author --branch B` (an implicit card, ADR-27, or the branch's open card when it has one: the start says it joined) | a card of its own, adopted by `backlog adopt`, or the branch's card |
 | editor's subagent critic or storyteller | review, story | `--role critic --card ID`; `--role storyteller --card ID` or `--pr N` or `--branch B` | on the card, as a gate |
 | editor's subagent helper or research | lookup, plan check | `--role helper` or `--role research`, with `--card ID` when it is for a card (a plan check names its card) | the helpers row, or Thinking then Research |
 | parent session, coding on a card | its own code | `agent start --self --role author --card ID`, then `agent finish --self --commit SHA --branch B --card ID` | the card: Working, then Ready for your review (Agent checks first in a critic-hold repo, as for any author) |
-| parent session, coding on a branch with no card | its own code | `agent start --self --role author --branch B` | an implicit card |
+| parent session, coding on a branch with no card | its own code | `agent start --self --role author --branch B` | an implicit card, or the branch's open card |
 | parent session, researching | looking things up | `agent start --self --role research` (optional: research needs no registration) | Thinking, then Research |
 | parent session, registered once, no run open | chat, thinking, planning | nothing more: busy is Thinking, idle is idle | a session card of its own; it never holds a landed or Ready card |
 | parent session, never registered, no author or fixer run open under its id | chat | nothing | busy: a card of its own in Thinking, unless it is on its branch's open work, which it stays on and keeps Working (the guess, as before); idle: the guess |

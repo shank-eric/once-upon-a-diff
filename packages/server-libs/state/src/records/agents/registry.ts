@@ -87,6 +87,8 @@ export interface StartInput extends Target {
   newCard?: boolean;
   /** the id of the card the caller already stored for the run this start would mint (ADR-29); used in place of a fresh `ic_` id */
   mintedCard?: string | null;
+  /** the caller claims the card for this author once the start is accepted (a start that joined an unclaimed card): the claim check is waived */
+  claimsOnStart?: boolean;
   /** what the run does on a card (`--role`): checked at start, and kept on the start row (a fixer's finish can carry an approval) */
   role?: AgentRole | null;
   /** the name of the earlier run of this session that this one retries: once this run is done, a failed one of that name is off the board */
@@ -528,6 +530,11 @@ export class AgentRegistry {
         'a storyteller tells a card’s story: pass --card ID (once-upon backlog list shows the ids), --pr N or --branch NAME. Without one the board cannot tie the story to its work',
       );
     }
+    // a card the caller stored for this start has no runs, unless a start that joined it got in first: two authors on one card
+    // are the same refusal there
+    if (mints && cardId && kind === 'author' && input.mintedCard) {
+      this.refuseSecondAuthor(cardId, sid, name, input.at);
+    }
     if (this.cards && cardId && !mints) {
       const card = this.cardFacts(cardId);
       if (!card) {
@@ -537,25 +544,9 @@ export class AgentRegistry {
         throw new Error(`${cardId} is ${card.closed}: a run cannot start on it`);
       }
       if (kind === 'author') {
-        const key = agentId(sid, name);
-        const nowMs = (input.at ?? new Date()).getTime();
-        // a restart of the same sid:name is a fix round and ends the run before it; any other open author on the card is a second one
-        const other = this.agents().find(
-          (one) =>
-            one.card === cardId &&
-            one.kind === 'author' &&
-            agentId(one.sid, one.name) !== key &&
-            // an author parked at a question or a story review is not working, so it does not block a fixer
-            ['running', 'plan', 'fixing'].includes(one.state) &&
-            nowMs - (lastActivity(one)?.getTime() ?? nowMs) <= STALE_MS,
-        );
-        if (other) {
-          throw new Error(
-            `${cardId} already has an open author run (${agentId(other.sid, other.name)}): finish it first, then start the fixer or the next author under a fresh name`,
-          );
-        }
+        this.refuseSecondAuthor(cardId, sid, name, input.at);
         // the claim comes before the first start: the launcher claims the card for the agent, then registers it
-        if (!card.claimed) {
+        if (!card.claimed && !input.claimsOnStart) {
           throw new Error(
             `${cardId} has no claim: claim it first, once-upon backlog claim ${cardId} --agent ${name} (the claim comes before agent start)`,
           );
@@ -610,6 +601,26 @@ export class AgentRegistry {
       ...(kind === 'editor' ? { slots: slots ?? earlier?.slots ?? DEFAULT_SLOTS } : {}),
     });
     return { id: agentId(sid, name), run, card: cardId };
+  }
+
+  /** Refuses an author start when another author of the card is open (a restart of the same sid:name is a fix round, not a second). */
+  private refuseSecondAuthor(cardId: string, sid: string, name: string, when?: Date): void {
+    const key = agentId(sid, name);
+    const nowMs = (when ?? new Date()).getTime();
+    const other = this.agents().find(
+      (one) =>
+        one.card === cardId &&
+        one.kind === 'author' &&
+        agentId(one.sid, one.name) !== key &&
+        // an author parked at a question or a story review is not working, so it does not block a fixer
+        ['running', 'plan', 'fixing'].includes(one.state) &&
+        nowMs - (lastActivity(one)?.getTime() ?? nowMs) <= STALE_MS,
+    );
+    if (other) {
+      throw new Error(
+        `${cardId} already has an open author run (${agentId(other.sid, other.name)}): finish it first, then start the fixer or the next author under a fresh name`,
+      );
+    }
   }
 
   state(name: string, input: StateInput, warn?: (text: string) => void): LedgerAgent {

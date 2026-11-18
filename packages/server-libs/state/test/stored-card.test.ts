@@ -139,6 +139,79 @@ test('ensureCard: one id for the same explicit id, PR, branch and session; main 
   );
 });
 
+test('ensureCard with joinBranch and an id no card has joins the open card on that repo and branch, and adds nothing', () => {
+  const store = new BacklogStore(tmp('ensure-join'));
+  const base = { source: 'agent' as const, title: 'again', repo: REPO, joinBranch: true };
+  const first = ensureCard(store, { ...base, id: 'ic_aaaaaa1111', branch: 'feat-a' });
+  assert.equal(first.made, true);
+  assert.equal(first.joined, false);
+  // a second start on the branch, with its own minted id, is on the first card
+  const second = ensureCard(store, { ...base, id: 'ic_bbbbbb2222', branch: 'feat-a' });
+  assert.equal(second.item.id, 'ic_aaaaaa1111');
+  assert.equal(second.made, false);
+  assert.equal(second.joined, true);
+  assert.equal(store.items().length, 1);
+  // without joinBranch it makes its own, as before
+  const own = ensureCard(store, {
+    source: 'agent',
+    title: 'own',
+    repo: REPO,
+    branch: 'feat-a',
+    id: 'ic_cccccc3333',
+  });
+  assert.equal(own.made, true);
+  // no join on main, no branch, another repo, a landed card or a dropped one
+  for (const input of [
+    { branch: 'main' },
+    { branch: null },
+    { branch: 'feat-a', repo: 'acme/other' },
+  ]) {
+    assert.equal(
+      ensureCard(store, { ...base, id: `ic_${Math.random().toString(36).slice(2, 12)}`, ...input })
+        .made,
+      true,
+    );
+  }
+  const landed = ensureCard(store, { ...base, id: 'ic_dddddd4444', branch: 'feat-l' });
+  store.done(landed.item.id);
+  const dropped = ensureCard(store, { ...base, id: 'ic_eeeeee5555', branch: 'feat-d' });
+  store.drop(dropped.item.id);
+  assert.equal(ensureCard(store, { ...base, id: 'ic_ffffff6666', branch: 'feat-l' }).made, true);
+  assert.equal(ensureCard(store, { ...base, id: 'ic_gggggg7777', branch: 'feat-d' }).made, true);
+});
+
+test('findCard on a branch with several open cards picks the one with a story, then a listed one, then the oldest', () => {
+  const store = new BacklogStore(tmp('ensure-rank'));
+  const old = ensureCard(store, { source: 'agent', title: 'old', repo: REPO, branch: 'feat-r' });
+  const storied = ensureCard(store, {
+    id: 'ic_hhhhhh8888',
+    source: 'agent',
+    title: 'storied',
+    repo: REPO,
+    branch: 'feat-r',
+    story: 'acme-widgets-r',
+  });
+  assert.notEqual(old.item.id, storied.item.id);
+  const pick = () =>
+    ensureCard(store, { source: 'pr', title: 'x', repo: REPO, branch: 'feat-r' }).item.id;
+  assert.equal(pick(), storied.item.id);
+  // a listed card beats an unlisted one with no story, and the oldest of equals wins
+  const listed = store.add({ title: 'listed', repo: REPO, branch: 'feat-s' });
+  store.start(listed.id, { branch: 'feat-s', repo: REPO });
+  const bare = ensureCard(store, {
+    id: 'ic_iiiiii9999',
+    source: 'agent',
+    title: 'bare',
+    repo: REPO,
+    branch: 'feat-s',
+  });
+  assert.notEqual(bare.item.id, listed.id);
+  assert.equal(
+    ensureCard(store, { source: 'pr', title: 'x', repo: REPO, branch: 'feat-s' }).item.id,
+    listed.id,
+  );
+});
+
 test('a row with no source folds as a backlog card', () => {
   const rows = [
     { op: 'add', id: 'bl_old1111111', title: 'old row', by: 'cli', at: '2026-11-01T00:00:00.000Z' },

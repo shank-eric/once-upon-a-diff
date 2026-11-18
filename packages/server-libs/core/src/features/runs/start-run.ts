@@ -9,20 +9,31 @@
  * locks and no lock spans both: if the stamp fails after the run is written, the error says so and names
  * `once-upon backlog branch`, which is idempotent and repairs it.
  */
-import { REPO_RE, repoOfCheckout, typedRepoNote } from '@once-upon-a-diff/foundation/repos';
+import {
+  REPO_RE,
+  repoOfCheckout,
+  sameRepo,
+  typedRepoNote,
+} from '@once-upon-a-diff/foundation/repos';
+import { DEFAULT_BRANCHES } from '@once-upon-a-diff/foundation/settings';
 import { BACKLOG_NOTE_MAX } from '@once-upon-a-diff/terms/text';
 import { prHeadBranch } from '@once-upon-a-diff/foundation/gh';
 import { canonicalKind, runIsOpen } from '@once-upon-a-diff/state/records/agents/events';
+import { lastActivity } from '@once-upon-a-diff/state/records/agents/ledger';
 import type { AgentKind } from '@once-upon-a-diff/state/records/agents/agent-types';
 import {
   flagsBesideCard,
   flagsBesideCardError,
   type AgentRegistry,
 } from '@once-upon-a-diff/state/records/agents/registry';
-import { BacklogStore, cardLookup } from '@once-upon-a-diff/state/queues/backlog/backlog';
+import {
+  BacklogStore,
+  cardLookup,
+  type LinkInput,
+} from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { newImplicitCardId, newRunId } from '@once-upon-a-diff/foundation/ids';
-import { ensureCard } from '@once-upon-a-diff/state/queues/backlog/ensure';
-import { implicitTitle } from '@once-upon-a-diff/state/records/agents/implicit';
+import { ensureCard, findCard } from '@once-upon-a-diff/state/queues/backlog/ensure';
+import { implicitCards, implicitTitle } from '@once-upon-a-diff/state/records/agents/implicit';
 import { SESSION_RE } from '@once-upon-a-diff/terms/patterns';
 import { isAbsolute } from 'node:path';
 import { worktreeFacts } from '@once-upon-a-diff/adapters/git';
@@ -77,6 +88,38 @@ export interface StartedRun {
   card: string | null;
   /** the branch (and repo) the card was stamped with, when it had none */
   stamped: { branch: string; repo: string | null } | null;
+  /** the open card on the run's branch that this start joined, instead of making its own; null when it made one or named one */
+  joined: { card: string; title: string; branch: string } | null;
+}
+
+/** How long after its last run ended a card that exists only as runs (made before stored cards) is still the branch's open card. */
+const LEGACY_JOIN_DAYS = 14;
+
+/**
+ * The card a start on this branch joins when no stored card is on it: a card made before stored cards (it exists only as runs, and
+ * is never "landed", so it counts as open only while a run is open or the latest ended within LEGACY_JOIN_DAYS). Delete with the
+ * `card backfill` that stores those cards.
+ */
+function legacyCard(
+  registry: AgentRegistry,
+  store: BacklogStore,
+  repo: string | null,
+  branch: string,
+  now: number,
+) {
+  const recent = LEGACY_JOIN_DAYS * 24 * 3600 * 1000;
+  const stored = new Set(store.items().map((item) => item.id));
+  return implicitCards(registry.agents())
+    .filter(
+      (card) =>
+        !stored.has(card.id) &&
+        (repo ? sameRepo(card.repo, repo) : !card.repo) &&
+        card.runs.some((run) => (run.result?.branch ?? run.branch) === branch) &&
+        card.runs.some(
+          (run) => runIsOpen(run) || now - (lastActivity(run)?.getTime() ?? 0) <= recent,
+        ),
+    )
+    .pop();
 }
 
 const text = (value: unknown): string | null => (typeof value === 'string' && value ? value : null);
@@ -234,7 +277,7 @@ export async function startRun(
       warn(`once-upon: ${note}`);
     }
   }
-  const startInput = {
+  const startInput: Parameters<AgentRegistry['start']>[0] = {
     name,
     sid,
     session: input.session,
@@ -257,26 +300,92 @@ export async function startRun(
     by: text(input.by),
   };
   // a run with no card makes its own (the registry mints its id): the card is stored first, with that id, so the run row and the
-  // card agree. An author with no branch is refused by the registry, so nothing is stored for it
+  // card agree. An author with no branch is refused by the registry, so nothing is stored for it. A run on a branch whose card is
+  // still open (a story, a finished author run, a card not landed or dropped) joins that card instead, unless --new-card: the
+  // find and the make are one step in ensureCard, so two starts on one branch make one card
   let minted: string | null = null;
+  let joined: StartedRun['joined'] = null;
+  let joinLink: Pick<LinkInput, 'repo' | 'branch' | 'worktree' | 'session'> | null = null;
+  let claimOnStart = false;
   if (registry.wouldMint(startInput) && !(kind === 'author' && !branch)) {
     minted = newImplicitCardId();
     const task = input.task.trim();
     const title = implicitTitle(task) || name;
     const repo = startInput.repo;
-    ensureCard(store, {
-      id: minted,
-      source: 'agent',
-      title,
-      note: task && task !== title ? task.slice(0, BACKLOG_NOTE_MAX) : null,
-      repo: repo && REPO_RE.test(repo) ? repo : null,
-      branch,
-      worktree: worktreeOn(input.cwd, branch),
-      session: input.session && SESSION_RE.test(input.session) ? input.session : null,
-      by: name.slice(0, 40),
-    });
+    const cardRepo = repo && REPO_RE.test(repo) ? repo : null;
+    const sessionOk = !!input.session && SESSION_RE.test(input.session);
+    const joinable = !input.newCard && branch && !DEFAULT_BRANCHES.has(branch) ? branch : null;
+    // a stored card that is still open is the work's card: finding it writes nothing, so a start the registry then refuses
+    // leaves the card as it was
+    const open = joinable
+      ? findCard(store.items(), { source: 'agent', repo: cardRepo, branch: joinable })
+      : undefined;
+    const legacy =
+      joinable && !open ? legacyCard(registry, store, cardRepo, joinable, Date.now()) : undefined;
+    if (legacy) {
+      joined = { card: legacy.id, title: legacy.title, branch: joinable ?? '' };
+    } else if (open) {
+      joined = { card: open.id, title: open.title, branch: open.branch ?? '' };
+      joinLink = {
+        repo: open.repo ? null : cardRepo,
+        branch: open.branch ? null : joinable,
+        worktree: open.worktree ? null : worktreeOn(input.cwd, branch),
+        session: open.session || !sessionOk ? null : input.session,
+      };
+    } else {
+      const made = ensureCard(store, {
+        id: minted,
+        source: 'agent',
+        title,
+        note: task && task !== title ? task.slice(0, BACKLOG_NOTE_MAX) : null,
+        repo: cardRepo,
+        branch,
+        worktree: worktreeOn(input.cwd, branch),
+        session: sessionOk ? input.session : null,
+        by: name.slice(0, 40),
+        joinBranch: !!joinable,
+      });
+      if (made.joined) {
+        // a start that joined this card between the find above and the make (the card was made meanwhile): it is joined and linked
+        joined = { card: made.item.id, title: made.item.title, branch: made.item.branch ?? '' };
+      }
+    }
+    if (joined) {
+      // the run is on that card: it gives the repo and branch, which the registry refuses beside a card
+      startInput.card = joined.card;
+      startInput.repo = null;
+      startInput.branch = null;
+      startInput.pr = null;
+      // a lane is dropped with a warning, as on a run that makes its card (the registry refuses one beside a card)
+      if (startInput.lane) {
+        warn('once-upon: --lane is ignored: a run’s lane is its repo’s');
+        startInput.lane = null;
+      }
+      // an author takes a card with no claim as its own, since the dispatcher that would claim it is not here; the claim is
+      // written once the registry has accepted the start, so a refused start leaves no claim
+      claimOnStart = kind === 'author' && !legacy && !lookup(joined.card)?.claimed;
+      startInput.claimsOnStart = claimOnStart;
+      minted = null;
+    }
   }
-  const started = registry.start({ ...startInput, mintedCard: minted }, warn);
+  let started: ReturnType<AgentRegistry['start']>;
+  try {
+    started = registry.start({ ...startInput, mintedCard: minted }, warn);
+  } catch (err) {
+    if (joined && /already has an open author run/.test((err as Error).message)) {
+      throw new Error(
+        `${(err as Error).message} (${branch} already has the open card ${joined.card}; --new-card starts another)`,
+      );
+    }
+    throw err;
+  }
+  // the join's writes, now that the start is accepted: what the card lacked, and the claim of an author
+  if (joined && joinLink) {
+    store.link(joined.card, { ...joinLink, by: name.slice(0, 40) });
+  }
+  if (joined && claimOnStart) {
+    store.claim(joined.card, { agent: name, sid, session: input.session, by: 'join' });
+  }
   // what the run teaches its card: the checkout an author or fixer works in, and a branch or repo the card lacked (a card
   // an agent made is not started by it: only a backlog card is, `store.start`)
   const onCard = started.card ? store.items().find((one) => one.id === started.card) : undefined;
@@ -300,5 +409,5 @@ export async function startRun(
       );
     }
   }
-  return { ...started, stamped: card && stamp ? stamp : null };
+  return { ...started, stamped: card && stamp ? stamp : null, joined };
 }

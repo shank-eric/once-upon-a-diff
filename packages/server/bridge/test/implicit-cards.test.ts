@@ -9,8 +9,9 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { runCli, tmp, writeJson } from './helpers.ts';
 import { Board, noPrWatcher } from '@once-upon-a-diff/board/board';
-import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
+import { BacklogStore, cardLookup } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
+import { startRun } from '@once-upon-a-diff/core/features/runs/start-run';
 import { registrySource } from '@once-upon-a-diff/core/features/sessions/sources';
 import { StoryStore } from '@once-upon-a-diff/stories/store';
 import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
@@ -26,7 +27,7 @@ const backlog = (home: string, ...args: string[]) => runCli(home, ['backlog', ..
 const start = async (home: string, ...args: string[]) => {
   const done = await agent(home, 'start', ...args);
   assert.equal(done.code, 0, done.stderr);
-  const [id, run, card] = done.stdout.trim().split(' ');
+  const [id, run, card] = done.stdout.trim().split('\n')[0].split(' ');
   return { id, run, card };
 };
 const cardOf = (home: string, name: string) =>
@@ -596,4 +597,316 @@ test('a dropped backlog card takes its stopped run off the board too; the run st
     new AgentRegistry(home).agents().some((one) => one.name === 'retell-x'),
     true,
   );
+});
+
+/** `agent start` raw: the whole answer, so a test can read the `joined` line. */
+const startOut = async (home: string, ...args: string[]) => {
+  const done = await agent(home, 'start', ...args);
+  assert.equal(done.code, 0, done.stderr);
+  return done.stdout.trim().split('\n');
+};
+const AUTHOR = ['--role', 'author', '--repo', 'acme/widgets'];
+
+test('a cardless start on a branch whose card is still open joins it, says so, and puts the card in Working', async () => {
+  const home = tmp('join-open');
+  const first = await start(home, 'ou-one', ...AUTHOR, '--branch', 'feat-join', '--task', 'build');
+  assert.equal((await agent(home, 'finish', 'ou-one', '--commit', 'abc1234')).code, 0);
+  // finished, not landed or dropped: the branch's card is still open (a built branch under review)
+  const [line, joined] = await startOut(
+    home,
+    'ou-two',
+    ...AUTHOR,
+    '--branch',
+    'feat-join',
+    '--task',
+    'rework',
+  );
+  assert.equal(line.split(' ')[2], first.card);
+  assert.match(
+    joined,
+    new RegExp(`^joined ${first.card} \\(build\\): the open card on feat-join\\.`),
+  );
+  assert.deepEqual(cardOf(home, 'ou-two'), [first.card]);
+  assert.equal(rowsOf(home).filter((row) => row.op === 'add').length, 1, 'no second card');
+  const card = (await cardsOf(home)).find((one) => one.agents.some((one) => one.name === 'ou-two'));
+  assert.equal(card?.column, 'working');
+  assert.deepEqual(card?.agents.map((one) => one.name).sort(), ['ou-one', 'ou-two']);
+  // the open author on the card stops a third, and the stop names the card and the way out
+  const third = await agent(
+    home,
+    'start',
+    'ou-three',
+    ...AUTHOR,
+    '--branch',
+    'feat-join',
+    '--task',
+    'again',
+  );
+  assert.notEqual(third.code, 0);
+  assert.match(third.stderr, /already has an open author run/);
+  assert.match(third.stderr, new RegExp(`${first.card}.*--new-card`));
+});
+
+test('--new-card, a landed or dropped card, a branchless helper and a typed --card do not join', async () => {
+  const home = tmp('join-not');
+  const first = await start(home, 'ou-one', ...AUTHOR, '--branch', 'feat-n', '--task', 'build');
+  assert.equal((await agent(home, 'finish', 'ou-one')).code, 0);
+  const fresh = await start(
+    home,
+    'ou-fresh',
+    ...AUTHOR,
+    '--branch',
+    'feat-n',
+    '--new-card',
+    '--task',
+    'b',
+  );
+  assert.notEqual(fresh.card, first.card);
+  assert.equal((await agent(home, 'finish', 'ou-fresh')).code, 0);
+  // the oldest card with no story or listing: the first is still the join target for a later start
+  const store = new BacklogStore(home);
+  store.done(first.card);
+  store.drop(fresh.card);
+  const later = await start(home, 'ou-later', ...AUTHOR, '--branch', 'feat-n', '--task', 'reuse');
+  assert.notEqual(
+    later.card,
+    first.card,
+    'a landed card ends the work: the reused name is its own',
+  );
+  assert.notEqual(later.card, fresh.card, 'and so does a dropped one');
+  assert.equal((await agent(home, 'finish', 'ou-later')).code, 0);
+  // a helper with no branch makes its own, and helper or research with a branch is put on the open card
+  const scout = await start(home, 'a-scout', '--kind', 'helper', '--task', 'look');
+  assert.notEqual(scout.card, later.card);
+  const [, note] = await startOut(
+    home,
+    'a-lookup',
+    '--kind',
+    'research',
+    '--repo',
+    'acme/widgets',
+    '--branch',
+    'feat-n',
+    '--task',
+    'look at it',
+  );
+  assert.match(note, new RegExp(`^joined ${later.card}`));
+  // a typed card is unchanged
+  const typed = await start(
+    home,
+    'ou-typed',
+    '--role',
+    'author',
+    '--card',
+    later.card,
+    '--task',
+    't',
+  );
+  assert.equal(typed.card, later.card);
+});
+
+test('a joining author takes the claim of a listed card that has none; main and a storyteller by branch never join', async () => {
+  const home = tmp('join-listed');
+  const item = new BacklogStore(home).add({
+    title: 'Listed work',
+    repo: 'acme/widgets',
+    branch: 'feat-l',
+  });
+  assert.equal(item.claim, null);
+  const [line, joined] = await startOut(
+    home,
+    'ou-l',
+    ...AUTHOR,
+    '--branch',
+    'feat-l',
+    '--task',
+    'go',
+  );
+  assert.equal(line.split(' ')[2], item.id);
+  assert.match(joined, new RegExp(`^joined ${item.id} \\(Listed work\\)`));
+  assert.equal(
+    new BacklogStore(home).items().find((one) => one.id === item.id)?.claim?.agent,
+    'ou-l',
+  );
+  // main names no work, so a helper on it makes its own card
+  const onMain = await start(
+    home,
+    'a-main',
+    '--kind',
+    'helper',
+    '--repo',
+    'acme/widgets',
+    '--branch',
+    'main',
+    '--task',
+    'x',
+  );
+  assert.match(onMain.card, IMPLICIT);
+  // a storyteller reading a branch has no card of its own and joins nothing
+  const before = new BacklogStore(home).items().length;
+  const teller = await start(
+    home,
+    'tell-l',
+    '--role',
+    'storyteller',
+    '--repo',
+    'acme/widgets',
+    '--branch',
+    'feat-l',
+    '--task',
+    's',
+  );
+  assert.equal(teller.card, undefined);
+  assert.equal(new BacklogStore(home).items().length, before);
+});
+
+test('a joined start with --lane warns as a minting start does, and a joined start the registry refuses leaves no claim or link', async () => {
+  const home = tmp('join-lane-refused');
+  const store = new BacklogStore(home);
+  const item = store.add({ title: 'Listed work', repo: 'acme/widgets', branch: 'feat-lane' });
+  // a typed lane is ignored with the same warning, not refused as a lane beside a card
+  const minting = await agent(
+    home,
+    'start',
+    'a-lane-mint',
+    '--kind',
+    'helper',
+    '--repo',
+    'acme/widgets',
+    '--branch',
+    'feat-other',
+    '--lane',
+    'x',
+    '--task',
+    't',
+  );
+  assert.equal(minting.code, 0, minting.stderr);
+  const joining = await agent(
+    home,
+    'start',
+    'a-lane-join',
+    '--kind',
+    'helper',
+    '--repo',
+    'acme/widgets',
+    '--branch',
+    'feat-lane',
+    '--lane',
+    'x',
+    '--task',
+    't',
+  );
+  assert.equal(joining.code, 0, joining.stderr);
+  assert.match(joining.stdout, new RegExp(`joined ${item.id}`));
+  const warning = /--lane is ignored: a run’s lane is its repo’s/;
+  assert.match(minting.stderr, warning);
+  assert.match(joining.stderr, warning);
+  // a refused start (an effort too long) writes nothing to the card: no claim, no link
+  const other = store.add({ title: 'More work', repo: 'acme/widgets', branch: 'feat-refused' });
+  const before = rowsOf(home).length;
+  const refused = await agent(
+    home,
+    'start',
+    'ou-refused',
+    ...AUTHOR,
+    '--branch',
+    'feat-refused',
+    '--effort',
+    'x'.repeat(40),
+    '--task',
+    'go',
+    '--session',
+    '11111111-2222-3333-4444-555555555555',
+  );
+  assert.notEqual(refused.code, 0);
+  assert.equal(rowsOf(home).length, before, 'no row on the card: no claim, no link');
+  const kept = new BacklogStore(home).items().find((one) => one.id === other.id);
+  assert.equal(kept?.claim, null);
+  assert.equal(kept?.session ?? null, null);
+});
+
+test('a minting author start whose stored card another start already joined is refused as a second author', async () => {
+  const home = tmp('join-race');
+  // start B joined the card start A stored and got in first; A then starts on its minted id
+  const first = await start(home, 'ou-b', ...AUTHOR, '--branch', 'feat-race', '--task', 'b');
+  const registry = new AgentRegistry(home, undefined, cardLookup(new BacklogStore(home)));
+  assert.throws(
+    () =>
+      registry.start({
+        name: 'ou-a',
+        sid: SID,
+        kind: 'author',
+        task: 'a',
+        repo: 'acme/widgets',
+        branch: 'feat-race',
+        mintedCard: first.card,
+      }),
+    /already has an open author run/,
+  );
+});
+
+test('a card that exists only as runs (made before stored cards) is joined while its work is recent, and not once it ended long ago', async () => {
+  const home = tmp('join-legacy');
+  const day = 24 * 3600 * 1000;
+  const old = (name: string, card: string, branch: string, agoDays: number) => {
+    const registry = new AgentRegistry(home);
+    const started = new Date(Date.now() - agoDays * day);
+    registry.start({
+      name,
+      sid: SID,
+      kind: 'author',
+      task: `old ${name}`,
+      repo: 'acme/widgets',
+      branch,
+      card,
+      at: started,
+    });
+    registry.finish(name, { sid: SID, outcome: 'done', at: new Date(started.getTime() + 60_000) });
+  };
+  old('ou-old-recent', 'ic_legacyrec001', 'feat-rec', 2);
+  old('ou-old-aged', 'ic_legacyold001', 'feat-aged', 40);
+  assert.equal(new BacklogStore(home).items().length, 0, 'no stored card: a legacy one');
+  const [line, joined] = await startOut(
+    home,
+    'ou-new-rec',
+    ...AUTHOR,
+    '--branch',
+    'feat-rec',
+    '--task',
+    'rework',
+  );
+  assert.equal(line.split(' ')[2], 'ic_legacyrec001');
+  assert.match(joined, /^joined ic_legacyrec001 /);
+  const aged = await start(
+    home,
+    'ou-new-aged',
+    ...AUTHOR,
+    '--branch',
+    'feat-aged',
+    '--task',
+    'again',
+  );
+  assert.notEqual(aged.card, 'ic_legacyold001');
+  assert.match(aged.card, IMPLICIT);
+});
+
+test('a start with --pr and no branch joins the card on the PR’s head branch', async () => {
+  const home = tmp('join-pr');
+  const first = await start(home, 'ou-one', ...AUTHOR, '--branch', 'feat-pr', '--task', 'build');
+  assert.equal((await agent(home, 'finish', 'ou-one')).code, 0);
+  const run = await startRun(
+    home,
+    {
+      name: 'ou-two',
+      sid: SID,
+      role: 'author',
+      repo: 'acme/widgets',
+      pr: '7',
+      cwd: tmp('join-pr-cwd'),
+      task: 'rework',
+    },
+    { prHead: async () => 'feat-pr' },
+  );
+  assert.equal(run.card, first.card);
+  assert.equal(run.joined?.card, first.card);
 });

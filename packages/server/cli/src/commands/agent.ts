@@ -163,9 +163,13 @@ async function agent(home: string, _cfg: Config, opts: CliOpts) {
     );
     // the day-old status line files of gone sessions go with a start that was accepted (housekeeping, not part of the run)
     await sweepStatusLines(home);
-    // an implicit card's id is printed beside the run's, so a later run on the same work (a critic of it) can pass --card
+    // an implicit card's id is printed beside the run's, so a later run on the same work (a critic of it) can pass --card; so is
+    // the card a start joined, whatever its id
+    const line = `${started.id} ${started.run}${isImplicitCard(started.card) || started.joined ? ` ${started.card}` : ''}`;
     return out(
-      `${started.id} ${started.run}${isImplicitCard(started.card) ? ` ${started.card}` : ''}`,
+      started.joined
+        ? `${line}\njoined ${started.joined.card} (${started.joined.title}): the open card on ${started.joined.branch}. --new-card starts another.`
+        : line,
     );
   }
   if (verb === 'state') {
