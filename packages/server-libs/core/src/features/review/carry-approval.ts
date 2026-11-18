@@ -40,7 +40,7 @@ import type { LocalMeta } from '@once-upon-a-diff/stories/types';
 import type { LocalCommit } from '@once-upon-a-diff/contracts/types';
 import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import type { LedgerAgent } from '@once-upon-a-diff/state/records/agents/ledger';
-import { localEntries } from './story-lists.ts';
+import { localEntries, type LocalEntry } from './story-lists.ts';
 import { updateReviewRecord } from './review-record.ts';
 
 const SHA_RE = /^[0-9a-f]{7,40}$/i;
@@ -67,7 +67,8 @@ const patchIdOr = (repo: string, sha: string): string | null => {
 /**
  * Where the branch's own commits now start when `tip` is a rebase of the commits approved (`approved` newest first, from
  * the approval's base to its head), made since `since`; null when it is not. A fixer's own rebase that conflicted may keep
- * the subjects with other patches; `patchesOnly` refuses that, for a caller that needs the same code.
+ * the subjects with other patches; `patchesOnly` refuses that, for a caller that needs the same code. `tipFallback` false drops the `tip~N` base, so a hand rebase cannot carry a commit added below the
+ * approved ones: the base must come from the story's base ref or main/master.
  */
 export function rebasedOnto(
   repo: string,
@@ -76,6 +77,7 @@ export function rebasedOnto(
   told: string | undefined,
   since: number,
   patchesOnly = false,
+  tipFallback = true,
 ): string | null {
   // the story's base ref and main/master first; then wherever the branch's own commits sit, so a branch stacked on
   // another unlanded branch (its merge-base with main is that branch's commits further down) carries too
@@ -87,7 +89,7 @@ export function rebasedOnto(
       // the ref is not here
     }
   }
-  if (approved.length) {
+  if (approved.length && tipFallback) {
     try {
       bases.push(revParse(repo, `${tip}~${approved.length}`));
     } catch {
@@ -132,6 +134,79 @@ export function approvableTip(meta: LocalMeta): { tip: string; base: string } | 
   const approved = commitLog(meta.repo_path, [`${meta.base_oid}..${meta.head_oid}`]);
   const base = rebasedOnto(meta.repo_path, tip, approved, meta.base, 0, true);
   return base ? { tip, base } : 'stale';
+}
+
+/** Moves the story's approval to `tip` (`rebasedBase` is the tip's new base for a rebase), recording where it came from. */
+function moveApproval(
+  stories: StoryStore,
+  entry: LocalEntry,
+  approval: NonNullable<ReturnType<typeof readApproval>>,
+  tip: string,
+  rebasedBase: string | null,
+  run: string,
+  now: number,
+): void {
+  const id = entry.story.id;
+  const dir = stories.dirOf(id);
+  // the story follows its checkout, so its head moves to the commit now rather than on the next page poll
+  const meta = dir ? refreshLocal(dir, readMeta(dir) as LocalMeta) : null;
+  const { lapsed: _lapsed, ...kept } = approval;
+  updateReviewRecord(stories, id, (record) => {
+    record.approval = {
+      ...kept,
+      head_oid: tip,
+      base_oid: rebasedBase ?? meta?.base_oid ?? approval.base_oid,
+      carried: {
+        from: approval.carried?.from ?? approval.head_oid,
+        at: new Date(now).toISOString(),
+        run,
+        ...(rebasedBase && { via: 'rebase' as const }),
+      },
+    };
+  });
+}
+
+const MAX_REBASED_COMMITS = 30;
+
+/**
+ * An approved story's branch moved to `tip` with no fixer run: carries the approval when the tip is the approved commits
+ * rebased with every patch unchanged (a reworded message is fine; a reordered, dropped, added or edited commit is not).
+ * Returns whether it carried; any git trouble means no.
+ */
+export function carryRebasedApproval(
+  stories: StoryStore,
+  entry: LocalEntry,
+  tip: string,
+  now = Date.now(),
+): boolean {
+  try {
+    const approval = readApproval(stories, entry.story.id);
+    if (
+      !entry.repo_path ||
+      !approval ||
+      approval.lapsed ||
+      !approval.base_oid ||
+      tip === approval.head_oid ||
+      !approvalFresh(approval, now) ||
+      isAncestor(entry.repo_path, approval.head_oid, tip)
+    ) {
+      return false;
+    }
+    const approved = commitLog(entry.repo_path, [`${approval.base_oid}..${approval.head_oid}`]);
+    if (!approved.length || approved.length > MAX_REBASED_COMMITS) {
+      return false;
+    }
+    const toldDir = stories.dirOf(entry.story.id);
+    const told = toldDir ? (readMeta(toldDir) as LocalMeta | null)?.base : undefined;
+    const base = rebasedOnto(entry.repo_path, tip, approved, told, 0, true, false);
+    if (!base) {
+      return false;
+    }
+    moveApproval(stories, entry, approval, tip, base, '', now);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Carries the approval of the finished fixer run's story to its commit; returns where from and to, and `via: 'rebase'` for a rebase, or null when nothing carried. */
@@ -182,23 +257,6 @@ export function carryApproval(
       return null;
     }
   }
-  const id = entry.story.id;
-  const dir = stories.dirOf(id);
-  // the story follows its checkout, so its head moves to the commit now rather than on the next page poll
-  const meta = dir ? refreshLocal(dir, readMeta(dir) as LocalMeta) : null;
-  const { lapsed: _lapsed, ...kept } = approval;
-  updateReviewRecord(stories, id, (record) => {
-    record.approval = {
-      ...kept,
-      head_oid: tip,
-      base_oid: rebasedBase ?? meta?.base_oid ?? approval.base_oid,
-      carried: {
-        from: approval.carried?.from ?? approval.head_oid,
-        at: new Date(now).toISOString(),
-        run: run.run ?? '',
-        ...(rebasedBase && { via: 'rebase' as const }),
-      },
-    };
-  });
+  moveApproval(stories, entry, approval, tip, rebasedBase, run.run ?? '', now);
   return { from: approval.head_oid, to: tip, ...(rebasedBase && { via: 'rebase' as const }) };
 }

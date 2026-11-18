@@ -33,6 +33,7 @@ import { runGitAsync } from '@once-upon-a-diff/adapters/git';
 import { readApproval } from '@once-upon-a-diff/stories/approval';
 import type { MarkBy } from '@once-upon-a-diff/stories/review-record';
 import { clearApproval } from './approve.ts';
+import { carryRebasedApproval } from './carry-approval.ts';
 import { updateReviewRecord } from './review-record.ts';
 import { inDefaultBranch } from './default-branch.ts';
 import {
@@ -597,7 +598,11 @@ export class AutoReview {
           current?.head_oid === approval.head_oid &&
           tip !== approval.head_oid
         ) {
-          clearApproval(this.stories, entry.story.id, { lapsed: true });
+          // a moved tip is looked at again on the next poll until it is carried or lapsed
+          this.delivered.delete(key);
+          if (!carryRebasedApproval(this.stories, entry, tip, now)) {
+            clearApproval(this.stories, entry.story.id, { lapsed: true });
+          }
         }
       })
       .finally(() => this.running.delete(job));
