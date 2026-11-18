@@ -14,6 +14,7 @@ import { agentKey } from '@once-upon-a-diff/state/queues/backlog/claims';
 import {
   runRegistry,
   startRun,
+  liveWrites,
   trustedLiveSids,
   finishRun,
   autoFinishRun,
@@ -59,6 +60,7 @@ async function agent(home: string, _cfg: Config, opts: CliOpts) {
     const swept = registry.sweep({
       dryRun: !!opts['dry-run'],
       liveSids: await trustedLiveSids(home),
+      lastWrite: await liveWrites(home, registry.agents()),
     });
     // the day-old status line files of gone sessions go here too, not on the board's read
     const lines = opts['dry-run'] ? [] : await sweepStatusLines(home);

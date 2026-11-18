@@ -435,3 +435,21 @@ test('heavyHolders names the live holder of the main lock and of the browser lan
   writeFileSync(`${lock}.who`, 'first waiter\n');
   assert.deepEqual([...heavyHolders(env)], ['check-ui'], 'a who with no pid is not believed');
 });
+
+test('heavyHolders names a run while it waits for the lock, not once it has run, and ignores a dead pid’s waiter record', async () => {
+  const dir = tmp('heavy-waiters');
+  const lock = path.join(dir, 'lock');
+  const env = lockEnv(lock);
+  mkdirSync(lock);
+  writeFileSync(`${lock}.who`, `holder (3:40 PM): yarn test\npid ${process.pid}\n`);
+  mkdirSync(`${lock}-waiters`);
+  writeFileSync(path.join(`${lock}-waiters`, `crashed.${deadPid()}`), '');
+  const run = runHeavy('queued-run', [process.execPath, '-e', '0'], () => {}, env);
+  await pause(300);
+  assert.deepEqual([...heavyHolders(env)].sort(), ['holder', 'queued-run']);
+  assert.deepEqual(readdirSync(`${lock}-waiters`), [`queued-run.${process.pid}`]);
+  rmSync(`${lock}.who`, { force: true });
+  rmSync(lock, { recursive: true, force: true });
+  assert.equal(await run, 0);
+  assert.deepEqual([...heavyHolders(env)], []);
+});

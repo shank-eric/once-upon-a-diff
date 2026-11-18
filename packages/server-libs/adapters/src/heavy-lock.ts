@@ -11,6 +11,8 @@
  * `$ONCE_UPON_HEAVY_POLL` seconds (default 5). A `.who` older than the lock folder is a crashed holder's and is not believed. A lock folder over the stale age whose
  * holder's pid still runs (it stalled, for instance across the Mac's sleep) is waited for, not taken over; a dead or missing pid keeps the stale rule.
  *
+ * A run waiting for the lock keeps `<lock>-waiters/<name>.<its pid>` (removed when it has the lock; the folder goes when empty, a dead pid's file is ignored and cleared by `heavyHolders`), so a run queued behind another is still known to be at work.
+ *
  * A lane is a second lock of the same kind, its own queue with at most one holder at a time, so a single-spec browser run need
  * not wait behind the main lock: `browser` is the one lane, at `$ONCE_UPON_HEAVY_LOCK_BROWSER`, else `<$ONCE_UPON_HEAVY_LOCK>-browser`
  * when that is set, else `${XDG_CACHE_HOME:-~/.cache}/heavy-run-browser.lock`. Nothing checks memory: the most that runs at once is one
@@ -33,7 +35,9 @@ import {
   lstatSync,
   mkdirSync,
   openSync,
+  readdirSync,
   readFileSync,
+  rmdirSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -118,13 +122,25 @@ function holderOf(lock: string): string {
 
 /**
  * The names of the runs holding a heavy lock now (the main lock and the browser lane), read from each `.who` as `take` writes it
- * (`<name> (3:40 PM): <command>`). A holder shows only while its lock folder is there, its `.who` belongs to it and its pid
- * (the `.who`'s second line) still runs. Only the holder is recorded: a run waiting for the lock has no record to read.
+ * (`<name> (3:40 PM): <command>`), and of the runs waiting for one, read from `<lock>-waiters/<name>.<pid>`. A holder shows only
+ * while its lock folder is there, its `.who` belongs to it and its pid (the `.who`'s second line) still runs; a waiter only
+ * while its pid runs (a waiter file of a dead pid is deleted here).
  */
 export function heavyHolders(env: NodeJS.ProcessEnv = process.env): Set<string> {
   const names = new Set<string>();
   for (const lane of [undefined, 'browser'] as const) {
     const lock = heavyLockPath(env, lane);
+    for (const entry of readdirSafe(`${lock}-waiters`)) {
+      const match = /^(\S+)\.(\d+)$/.exec(entry);
+      if (!match) {
+        continue;
+      }
+      if (pidAlive(Number(match[2]))) {
+        names.add(match[1]);
+      } else {
+        rmSync(path.join(`${lock}-waiters`, entry), { force: true });
+      }
+    }
     if (!lstatSafe(lock)?.isDirectory()) {
       continue;
     }
@@ -161,48 +177,84 @@ async function take(
 ): Promise<() => Promise<void>> {
   mkdirSync(path.dirname(lock), { recursive: true });
   let said = false;
-  for (;;) {
-    try {
-      if (stalledHolderLives(lock, staleMs)) {
-        throw Object.assign(new Error('the holder is alive'), { code: 'ELOCKED' });
+  let waiter = '';
+  try {
+    return await takeLoop();
+  } finally {
+    if (waiter) {
+      rmSync(waiter, { force: true });
+      try {
+        rmdirSync(path.dirname(waiter)); // only when it is empty: the last waiter out leaves nothing behind
+      } catch {
+        // others wait too
       }
-      const release = await lockfile.lock(lock, {
-        lockfilePath: lock,
-        realpath: false,
-        stale: staleMs,
-        onCompromised: lost,
-      });
-      writeFileSync(`${lock}.who`, `${who.replace(/\s+/g, ' ')}\npid ${process.pid}\n`);
-      return async () => {
-        rmSync(`${lock}.who`, { force: true });
-        try {
-          await release();
-        } catch {
-          // taken over after a stall: nothing of ours is left to remove
+    }
+  }
+
+  async function takeLoop(): Promise<() => Promise<void>> {
+    for (;;) {
+      try {
+        if (stalledHolderLives(lock, staleMs)) {
+          throw Object.assign(new Error('the holder is alive'), { code: 'ELOCKED' });
         }
-      };
-    } catch (err) {
-      const code = (err as NodeJS.ErrnoException).code;
-      const entry = lstatSafe(lock);
-      let old: 'gone' | 'live' | null = null;
-      if (entry?.isDirectory()) {
-        old = oldFormatHolder(lock);
-      } else if (entry && clearLeftover(lock, LEFTOVER_MS)) {
-        continue; // a file or a link where the folder belongs
+        const release = await lockfile.lock(lock, {
+          lockfilePath: lock,
+          realpath: false,
+          stale: staleMs,
+          onCompromised: lost,
+        });
+        writeFileSync(`${lock}.who`, `${who.replace(/\s+/g, ' ')}\npid ${process.pid}\n`);
+        return async () => {
+          rmSync(`${lock}.who`, { force: true });
+          try {
+            await release();
+          } catch {
+            // taken over after a stall: nothing of ours is left to remove
+          }
+        };
+      } catch (err) {
+        const code = (err as NodeJS.ErrnoException).code;
+        const entry = lstatSafe(lock);
+        let old: 'gone' | 'live' | null = null;
+        if (entry?.isDirectory()) {
+          old = oldFormatHolder(lock);
+        } else if (entry && clearLeftover(lock, LEFTOVER_MS)) {
+          continue; // a file or a link where the folder belongs
+        }
+        if (old === 'gone') {
+          removeLeftover(lock);
+          continue;
+        }
+        if (code !== 'ELOCKED' && !(code === 'ENOTEMPTY' && old === 'live')) {
+          throw err;
+        }
       }
-      if (old === 'gone') {
-        removeLeftover(lock);
-        continue;
+      if (!said) {
+        const name = /^(\S+)/.exec(who)?.[1];
+        if (name) {
+          try {
+            mkdirSync(`${lock}-waiters`, { recursive: true });
+            waiter = path.join(`${lock}-waiters`, `${name}.${process.pid}`);
+            writeFileSync(waiter, '');
+          } catch {
+            waiter = '';
+          }
+        }
+        waiting(
+          holderOf(lock) || readFileSafe(path.join(lock, 'who')).trim() || 'another heavy run',
+        );
+        said = true;
       }
-      if (code !== 'ELOCKED' && !(code === 'ENOTEMPTY' && old === 'live')) {
-        throw err;
-      }
+      await wait(pollMs);
     }
-    if (!said) {
-      waiting(holderOf(lock) || readFileSafe(path.join(lock, 'who')).trim() || 'another heavy run');
-      said = true;
-    }
-    await wait(pollMs);
+  }
+}
+
+function readdirSafe(dir: string): string[] {
+  try {
+    return readdirSync(dir);
+  } catch {
+    return [];
   }
 }
 

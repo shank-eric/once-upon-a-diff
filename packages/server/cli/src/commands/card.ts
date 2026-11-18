@@ -10,7 +10,11 @@ import { prHeadBranch } from '@once-upon-a-diff/foundation/gh';
 import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { implicitItems } from '@once-upon-a-diff/state/queues/backlog/implicit';
 import { PHASE_ROWS, cardPhase, runsOf } from '@once-upon-a-diff/state/queues/backlog/phase';
-import { runRegistry, trustedLiveSids } from '@once-upon-a-diff/core/features/runs/service';
+import {
+  liveWrites,
+  runRegistry,
+  trustedLiveSids,
+} from '@once-upon-a-diff/core/features/runs/service';
 import { agentKey } from '@once-upon-a-diff/state/queues/backlog/claims';
 import { out } from '../output.ts';
 import type { Config } from '@once-upon-a-diff/foundation/settings';
@@ -96,7 +100,10 @@ async function card(home: string, _cfg: Config, opts: CliOpts) {
   }
   // a self run whose session is gone is closed first, so the column below is the stored one (the board shows the same)
   const registry = runRegistry(home);
-  registry.sweep({ liveSids: await trustedLiveSids(home) });
+  registry.sweep({
+    liveSids: await trustedLiveSids(home),
+    lastWrite: await liveWrites(home, registry.agents()),
+  });
   const agents = registry.agents();
   const store = new BacklogStore(home);
   const items = store.listed();

@@ -28,6 +28,7 @@ import { isAbsolute } from 'node:path';
 import { worktreeFacts } from '@once-upon-a-diff/adapters/git';
 import { SELF_PREFIX, isSelfName } from '@once-upon-a-diff/terms/ids';
 import { trustedLiveSids } from './live-sids.ts';
+import { liveWrites } from './live-writes.ts';
 import { roleKind, selfProblem } from './roles.ts';
 import { runRegistry, type Mirror } from './registry.ts';
 
@@ -145,7 +146,10 @@ export async function startRun(
     throw new Error('a story run needs --role storyteller with --pr N (or --branch NAME)');
   }
   const registry = runRegistry(home, options.mirror);
-  registry.sweep({ liveSids: await (options.liveSids ?? (() => trustedLiveSids(home)))() });
+  registry.sweep({
+    liveSids: await (options.liveSids ?? (() => trustedLiveSids(home)))(),
+    lastWrite: await liveWrites(home, registry.agents()),
+  });
   const sid = text(input.sid) ?? input.session?.slice(0, 8) ?? '';
   // a session's own author claims the card it starts on, as this run, since it has no launcher to do it: a card claimed by
   // another session is theirs, and the registry's one-author check says the rest. The claim comes before the start, so a

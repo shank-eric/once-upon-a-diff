@@ -3,13 +3,16 @@
  * subagent-liveness.ts finds it), so a transcript that keeps changing is a run that is alive, and a run that has written nothing
  * and logged nothing for QUIET_MS is dead: shown ended, so it no longer holds its card in Working or a build slot. A write of
  * the transcript counts as a sign of life like a beat does (the ledger's `lastEvent`), so the stale rules that read it (24 hours,
- * a storyteller's hour) see a working run as alive however long its ledger has been silent. Pure: the board never writes, so the
- * CLI (`agent sweep`, the one-open-author guard) still sees the run open until its own 24-hour rule, and a run that writes again
- * simply shows open again. A run with no transcript found has no entry and is left to those rules. Which runs, and how they end,
+ * a storyteller's hour) see a working run as alive however long its ledger has been silent. Pure: the board never writes, and a run that writes again
+ * simply shows open again; the CLI's sweep (registry.ts `sweep`) applies the same rule to authors and critics and writes the end. A run with no transcript found has no entry and is left to those rules. Which runs, and how they end,
  * is the SubagentStop hook's (state/records/agents/auto-end.ts), so the two ways a stopped subagent ends read the same.
  */
 import { QUIET_MS } from '@once-upon-a-diff/state/records/agents/events';
-import { canAutoEnd, endOfStopped } from '@once-upon-a-diff/state/records/agents/auto-end';
+import {
+  canAutoEnd,
+  endOfStopped,
+  quietSign,
+} from '@once-upon-a-diff/state/records/agents/auto-end';
 import { lastActivity, type LedgerAgent } from '@once-upon-a-diff/state/records/agents/ledger';
 import {
   livenessKey,
@@ -41,12 +44,12 @@ export function endDeadRuns(
     return agents;
   }
   return agents.map((agent) => {
-    const wrote = lastWrite.get(livenessKey(agent));
-    if (!wrote || !Number.isFinite(wrote) || wrote <= 0 || !canAutoEnd(agent)) {
+    const wrote = lastWrite.get(livenessKey(agent)) as number | undefined;
+    const sign = quietSign(agent, wrote);
+    if (sign === null || !wrote) {
       return agent;
     }
     const logged = lastActivity(agent)?.getTime() ?? 0;
-    const sign = Math.max(wrote, logged);
     if (nowMs - sign > QUIET_MS) {
       // dead from `sign + QUIET_MS` (the moment the rule says so): that is when it ended and when its stay begins, so a
       // finished run's card (30 minutes, or an author's hour) is shown for its stay from here, not from a sign already past

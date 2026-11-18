@@ -7,6 +7,7 @@
  * What sits behind it:
  *   roles.ts        the role table: which kind a role runs as, and what a session's own (`--self`) run takes.
  *   live-sids.ts    the live sessions the sweep may trust, to end a gone session's self run.
+ *   live-writes.ts  the transcript writes of open author and critic runs, for the sweep's 30-minute rule.
  *   registry.ts     the registry built with the card lookup, and which logs it mirrors to.
  *   start-run.ts    a start: refusals, the PR's head branch, the card's stamp, the run, then the card.
  *   move-branch.ts  a card's branch change: the card first, then its open runs.
@@ -22,6 +23,7 @@ export type { BranchMove } from './move-branch.ts';
 export { finishRun } from './finish-run.ts';
 export { runRegistry } from './registry.ts';
 export { trustedLiveSids } from './live-sids.ts';
+export { liveWrites } from './live-writes.ts';
 export type { Mirror } from './registry.ts';
 export { ROLE_KIND, openSelfRun } from './roles.ts';
 export { dispatchRun, callLine, DISPATCH_ROLES } from './dispatch.ts';

@@ -24,12 +24,14 @@ import { END_STATES, OPEN_STATES } from '@once-upon-a-diff/contracts/files/agent
 import { readAgentEvent } from '@once-upon-a-diff/contracts/files/schemas';
 import { strictAgentEvent } from '@once-upon-a-diff/contracts/files/strict';
 import { lastActivity } from './ledger.ts';
-import { SWEPT_STATES, canAutoEnd, endOfStopped } from './auto-end.ts';
+import { SWEPT_STATES, canAutoEnd, endOfStopped, quietSign } from './auto-end.ts';
+import { livenessKey } from '@once-upon-a-diff/adapters/claude-sessions/subagent-liveness';
 import { AGENT_KINDS, type AgentKind, type AgentResult, type AgentRole } from './agent-types.ts';
 import {
   KIND_ALIASES,
   canonicalKind,
   STALE_MS,
+  QUIET_MS,
   beatLine,
   foldAgentEvents,
   ledgerLine,
@@ -308,16 +310,29 @@ export class AgentRegistry {
    * closed (SWEPT_KINDS). A parent session's own run is the one exception to the quiet rule: it is closed `stopped` (outcome "its
    * session ended") when `liveSids` (the first 8 of each live Claude session's id) is given, is not empty and lacks its session. An
    * empty or absent list closes nothing: it is a scan that found nothing or could not be trusted, not proof every session left.
+   * A run with an entry in `lastWrite` (its transcript's last write, per `quietSign`) is instead ended QUIET_MS after its last sign of
+   * life, `failed` by `auto-finish` (so its own later finish replaces it); one with none keeps the STALE_MS rule above.
    * Returns the runs it closed (or, with `dryRun`, would). Only the CLI calls it, on `agent start`, `agent sweep` and `card status`: a board read never writes.
    */
   sweep(
-    options: { at?: Date; dryRun?: boolean; liveSids?: readonly string[] } = {},
+    options: {
+      at?: Date;
+      dryRun?: boolean;
+      liveSids?: readonly string[];
+      /** The adapter's last transcript write per run (ms, keyed `sid:name`): an author or critic with an entry is judged by QUIET_MS, one without by STALE_MS. */
+      lastWrite?: ReadonlyMap<string, number>;
+    } = {},
   ): LedgerAgent[] {
     const now = options.at ?? new Date();
     const swept: LedgerAgent[] = [];
     const live = options.liveSids;
     for (const agent of this.agents()) {
       const sign = lastActivity(agent)?.getTime() ?? now.getTime();
+      const judged =
+        !isSelfName(agent.name) && SWEPT_KINDS.includes(agent.kind as never) && !agent.standing;
+      const transcript = judged
+        ? quietSign(agent, options.lastWrite?.get(livenessKey(agent)))
+        : null;
       // a parent session's own run beats no one while it works, so it is never quiet: it ends when its session is gone
       const self = isSelfName(agent.name);
       const gone = self && runIsOpen(agent) && !!live?.length && !live.includes(agent.sid);
@@ -327,7 +342,9 @@ export class AgentRegistry {
           : !SWEPT_STATES.includes(agent.state) ||
             !SWEPT_KINDS.includes(agent.kind as never) ||
             agent.standing ||
-            now.getTime() - sign <= STALE_MS
+            (transcript === null
+              ? now.getTime() - sign <= STALE_MS
+              : now.getTime() - transcript <= QUIET_MS)
       ) {
         continue;
       }
@@ -336,10 +353,19 @@ export class AgentRegistry {
           this.finish(agent.name, {
             sid: agent.sid,
             run: agent.run,
-            state: 'stopped',
-            outcome: self ? 'its session ended' : 'no sign of life for 24 hours',
-            by: 'sweep',
-            at: now,
+            ...(transcript === null
+              ? {
+                  state: 'stopped' as const,
+                  outcome: self ? 'its session ended' : 'no sign of life for 24 hours',
+                  by: 'sweep',
+                  at: now,
+                }
+              : {
+                  ...endOfStopped(agent),
+                  // auto-finish, not sweep: the run's own later finish replaces it, so a live run judged dead is never locked out
+                  by: 'auto-finish',
+                  at: new Date(transcript + QUIET_MS),
+                }),
           });
         } catch {
           // another writer closed it first: the run is over either way

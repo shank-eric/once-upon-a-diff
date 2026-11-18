@@ -5,7 +5,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { runCli, tmp, writeJson } from './helpers.ts';
 import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
@@ -13,14 +13,30 @@ import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
 const ago = (hours: number) => new Date(Date.now() - hours * 3600 * 1000);
 const SID = 'abcdef01';
 
+const SESSION = `${SID}-1111-4222-8333-444444444444`;
+
 function world() {
   const home = tmp('sweep-home');
   const ledger = path.join(tmp('sweep-notes'), 'ledger.md');
+  const projects = tmp('sweep-projects');
   writeFileSync(ledger, '');
-  writeJson(path.join(home, 'config.json'), { board_ledger_file: ledger });
+  writeJson(path.join(home, 'config.json'), {
+    board_ledger_file: ledger,
+    board_projects_dir: projects,
+  });
   const registry = new AgentRegistry(home, { ledger, progress: null });
   const states = () => new Map(registry.agents().map((one) => [one.name, one.state]));
-  return { home, ledger, registry, states };
+  /** A run's subagent transcript, last written `minutes` ago. */
+  const transcript = (name: string, minutes: number) => {
+    const dir = path.join(projects, 'proj', SESSION, 'subagents');
+    mkdirSync(dir, { recursive: true });
+    const file = path.join(dir, `agent-${name}.jsonl`);
+    writeFileSync(file, '');
+    writeJson(path.join(dir, `agent-${name}.meta.json`), { description: `${name}: do it` });
+    const when = new Date(Date.now() - minutes * 60 * 1000);
+    utimesSync(file, when, when);
+  };
+  return { home, ledger, registry, states, transcript };
 }
 
 test('agent sweep stops a running or fixing run silent for 25 hours, by sweep, with a ledger line that closes it', async () => {
@@ -197,4 +213,70 @@ test('agent sweep leaves a parent session’s own run (self-XXXXXX): a long sess
       ['ou-dead', 'stopped'],
     ],
   );
+});
+
+const min = (minutes: number) => new Date(Date.now() - minutes * 60 * 1000);
+
+test('agent sweep ends an author or critic whose transcript has been silent 30 minutes, by auto-finish, so its own finish still replaces it', async () => {
+  const { home, registry, states, transcript } = world();
+  registry.start({ name: 'ou-dead', sid: SID, kind: 'author', task: 'x', at: min(60) });
+  registry.start({ name: 'ou-crit', sid: SID, kind: 'critic', task: 'x', at: min(60) });
+  registry.start({ name: 'ou-live', sid: SID, kind: 'author', task: 'x', at: min(60) });
+  registry.start({ name: 'ou-beat', sid: SID, kind: 'author', task: 'x', at: min(60) });
+  registry.start({ name: 'ou-help', sid: SID, kind: 'helper', task: 'x', at: min(60) });
+  registry.start({ name: 'ou-plain', sid: SID, kind: 'author', task: 'x', at: min(60) });
+  registry.beat('ou-beat', { sid: SID, n: 2, of: 5, step: 'code', at: min(5) });
+  transcript('ou-dead', 40);
+  transcript('ou-crit', 40);
+  transcript('ou-live', 5);
+  transcript('ou-beat', 40);
+  transcript('ou-help', 40);
+  const swept = await runCli(home, ['agent', 'sweep']);
+  assert.equal(swept.code, 0, swept.stderr);
+  assert.deepEqual(
+    [...states()],
+    [
+      ['ou-dead', 'failed'],
+      ['ou-crit', 'failed'],
+      ['ou-live', 'running'],
+      ['ou-beat', 'running'],
+      ['ou-help', 'running'],
+      ['ou-plain', 'running'],
+    ],
+  );
+  const finish = registry.events().filter((one) => one.op === 'finish');
+  assert.deepEqual(
+    finish.map((one) => [one.name, one.by]),
+    [
+      ['ou-dead', 'auto-finish'],
+      ['ou-crit', 'auto-finish'],
+    ],
+  );
+  const late = await runCli(home, [
+    'agent',
+    'finish',
+    'ou-dead',
+    '--sid',
+    SID,
+    '--commit',
+    'abc1234',
+  ]);
+  assert.equal(late.code, 0, late.stderr);
+  assert.equal(states().get('ou-dead'), 'done');
+});
+
+test('agent sweep keeps a run that waits for the heavy lock (a live waiter record), not one with none', async () => {
+  const { home, registry, states, transcript } = world();
+  const lock = path.join(tmp('sweep-lock'), 'lock');
+  mkdirSync(`${lock}-waiters`);
+  writeFileSync(path.join(`${lock}-waiters`, `ou-wait.${process.pid}`), '');
+  registry.start({ name: 'ou-wait', sid: SID, kind: 'author', task: 'x', at: min(60) });
+  transcript('ou-wait', 40);
+  await runCli(home, ['agent', 'sweep'], { ONCE_UPON_HEAVY_LOCK: lock });
+  assert.equal(states().get('ou-wait'), 'running');
+  // the same run with no waiter record is ended
+  await runCli(home, ['agent', 'sweep'], {
+    ONCE_UPON_HEAVY_LOCK: path.join(tmp('sweep-lock2'), 'lock'),
+  });
+  assert.equal(states().get('ou-wait'), 'failed');
 });

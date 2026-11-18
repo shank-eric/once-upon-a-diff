@@ -4,7 +4,7 @@
  * which only shows it). Pure.
  */
 import { isSelfName } from '@once-upon-a-diff/terms/ids';
-import { isCritic, type LedgerAgent } from './ledger.ts';
+import { isCritic, lastActivity, type LedgerAgent } from './ledger.ts';
 
 /** The states a sweep or an auto-end closes: a run that owes beats. One parked on a person (waiting, review, plan) is never closed. */
 export const SWEPT_STATES: LedgerAgent['state'][] = ['running', 'fixing'];
@@ -34,4 +34,21 @@ export function endOfStopped(agent: Partial<Pick<LedgerAgent, 'kind'>>): {
   return owesWork
     ? { state: 'failed', outcome: 'stopped without agent finish' }
     : { state: 'done', outcome: 'auto-finished' };
+}
+
+/**
+ * A run's last sign of life when its transcript is known: the later of the transcript's last write (`wrote`, the adapter's
+ * answer in ms) and its last ledger event. null when there is no answer (an entry that is not a positive number) or the run is
+ * not one an auto-end judges (`canAutoEnd`): no verdict, so the 24-hour rule stands.
+ */
+export function quietSign(
+  agent: Pick<LedgerAgent, 'state' | 'name'> &
+    Partial<Pick<LedgerAgent, 'standing' | 'kind'>> &
+    Parameters<typeof lastActivity>[0],
+  wrote: number | undefined,
+): number | null {
+  if (!wrote || !Number.isFinite(wrote) || wrote <= 0 || !canAutoEnd(agent)) {
+    return null;
+  }
+  return Math.max(wrote, lastActivity(agent)?.getTime() ?? 0);
 }
