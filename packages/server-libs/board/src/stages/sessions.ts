@@ -239,6 +239,21 @@ export interface SeenSession {
   restedAt: number | null;
 }
 
+/** A session that is a card or on a work, with what the card keeper (learned.ts) needs to give it a stored card. */
+export interface SessionLearned {
+  session: string;
+  title: string;
+  cwd: string;
+  repo: string | null;
+  /** whether the repo lookup answered in time (false: it is the last known one) */
+  repoAnswered: boolean;
+  branch: string | null;
+  /** the work it is on, null when it stands alone */
+  workKey: string | null;
+  /** it has a run of its own open: its agent card is the card */
+  hasRun: boolean;
+}
+
 /** Where each live session went: the cards of sessions standing alone, and the sessions set aside. */
 export interface PlacedSessions {
   /** a session standing alone is a card of its own */
@@ -257,6 +272,8 @@ export interface PlacedSessions {
   seen: Map<string, SeenSession>;
   /** the agents each session launched, by the first 8 of its id (dispatching.ts) */
   launched: Map<string, Launched>;
+  /** the sessions that ended as a card or on a work (not an editor, a listener, the voice session or a blank one) */
+  learned: SessionLearned[];
 }
 
 /**
@@ -298,6 +315,7 @@ export function placeSessions(
   const launched = launchedBy(agents, nowMs);
   // where each session's runs say its work is, computed once; an unsound scan changes nothing
   const homes = trusted ? sessionHomes(agents, items, nowMs, researchMs) : new Map();
+  const learned: SessionLearned[] = [];
   live.forEach((session, index) => {
     const extra = known.get(session.session);
     const status: BoardStatus = extra?.status || (session.status === 'busy' ? 'working' : 'idle');
@@ -368,6 +386,22 @@ export function placeSessions(
     const placeRepo = joined ? (joined.repo ?? repo) : repo;
     const placeBranch = joined ? joined.branch : branch;
     const placed = joined && { repo: placeRepo, branch: joined.branch };
+    const learnedOf = (
+      one: typeof session,
+      shown: SessionView,
+      repoOfOne: string | null,
+      branchOfOne: string | null,
+      workKey: string | null,
+    ): SessionLearned => ({
+      session: one.session,
+      title: shown.card.title,
+      cwd: one.cwd,
+      repo: repoOfOne,
+      repoAnswered: ctx.lookups.repoAnswered(one.cwd),
+      branch: branchOfOne,
+      workKey,
+      hasRun: withRun.has(one.session.slice(0, 8)),
+    });
     // a session standing alone is a card of its own, unless it has had no prompt yet: then it is a chip in the Blank strip
     const alone = () => {
       if (trusted && status === 'working' && !withRun.has(session.session.slice(0, 8))) {
@@ -404,6 +438,7 @@ export function placeSessions(
             joinedCards.add(made);
           }
         }
+        learned.push(learnedOf(session, view, placeRepo, placeBranch, null));
       }
     };
     // a registered session with no run open sits on no work's card: its runs say where its work is (unless a recent run names one)
@@ -472,6 +507,7 @@ export function placeSessions(
       // thinking marks a session card of its own (a work's column would read it as Thinking)
       delete view.card.thinking;
       work.sessions.push(view);
+      learned.push(learnedOf(session, view, placeRepo, placeBranch, work.key));
     } else {
       alone();
     }
@@ -485,5 +521,6 @@ export function placeSessions(
     repoBySession,
     seen: next,
     launched,
+    learned,
   };
 }

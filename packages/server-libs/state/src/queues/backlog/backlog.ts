@@ -105,6 +105,8 @@ export interface AddInput {
   pr?: number | null;
   story?: string | null;
   session?: string | null;
+  /** when the card was first made, as an ISO time in the past (a backfilled card's: its first run's start); now when left out */
+  at?: string | null;
 }
 
 /** The facts a `link` writes onto a card (ADR-29): the ones it carries are set, the rest stay. */
@@ -336,6 +338,18 @@ const cardSource = (value: string): CardSource => {
   return value as CardSource;
 };
 
+/** An ISO time that is not in the future, as written. */
+function pastTime(value: string): string {
+  const time = Date.parse(value);
+  if (!/^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/.test(value) || !Number.isFinite(time)) {
+    throw new Error('the time must be an ISO date (2026-11-18T12:00:00.000Z)');
+  }
+  if (time > Date.now()) {
+    throw new Error('the time cannot be in the future');
+  }
+  return new Date(time).toISOString();
+}
+
 /** The checked worktree, PR, story and session of an add or a link: only the ones given (a null or empty one is left out). */
 function cardFacts(input: {
   worktree?: string | null;
@@ -375,15 +389,10 @@ export class BacklogStore implements BacklogStorage {
     return this.items().filter(isListed);
   }
 
-  private append(event: Record<string, unknown>): void {
-    // the line is stamped with its time as it is appended; the check sees the same
-    checkWrite(
-      this.file,
-      { ...event, at: new Date().toISOString() },
-      readBacklogEvent,
-      strictBacklogEvent,
-    );
-    appendBacklogEvent(this.file, event);
+  private append(event: Record<string, unknown>, stamp: string = new Date().toISOString()): void {
+    // the line is stamped with its time as it is appended (`at` is a backfilled card's own); the check sees the same
+    checkWrite(this.file, { ...event, at: stamp }, readBacklogEvent, strictBacklogEvent);
+    appendBacklogEvent(this.file, event, stamp);
   }
 
   private find(id: string): BacklogItem {
@@ -403,17 +412,20 @@ export class BacklogStore implements BacklogStorage {
     if (input.id && this.items().some((one) => one.id === id)) {
       throw new Error(`${id} is already a card`);
     }
-    this.append({
-      op: 'add',
-      id,
-      title,
-      note: clean(input.note, 'the note', NOTE_MAX, true) || null,
-      repo: optional(input.repo, 'the repo', REPO_RE),
-      branch: optional(input.branch, 'the branch', CARD_BRANCH_RE),
-      by: clean(input.by, 'the name', BY_MAX) || 'cli',
-      ...cardFacts(input),
-      ...(input.source && input.source !== 'backlog' ? { source: cardSource(input.source) } : {}),
-    });
+    this.append(
+      {
+        op: 'add',
+        id,
+        title,
+        note: clean(input.note, 'the note', NOTE_MAX, true) || null,
+        repo: optional(input.repo, 'the repo', REPO_RE),
+        branch: optional(input.branch, 'the branch', CARD_BRANCH_RE),
+        by: clean(input.by, 'the name', BY_MAX) || 'cli',
+        ...cardFacts(input),
+        ...(input.source && input.source !== 'backlog' ? { source: cardSource(input.source) } : {}),
+      },
+      input.at ? pastTime(input.at) : undefined,
+    );
     return this.find(id);
   }
 

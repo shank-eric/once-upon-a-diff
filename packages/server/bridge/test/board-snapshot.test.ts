@@ -11,7 +11,7 @@ const golden = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
   'fixtures/board-worlds/golden',
 );
-const { snapshots, finish, storedCardsChangeNothing } =
+const { snapshots, finish, storedCardsChangeNothing, keeperChangesNothing } =
   await import('./fixtures/board-worlds/worlds.ts');
 after(finish);
 
@@ -33,4 +33,19 @@ test('stored cards of every source change no board', async () => {
   for (const [name, { before, after }] of Object.entries(await storedCardsChangeNothing())) {
     assert.equal(after, before, `${name}: the board changed when stored cards were added`);
   }
+});
+
+// ADR-29, branch B: the card keeper writes stored cards from what a build learned, and every world's board is the same with it on, built
+// again (it writes nothing the second time). A started backlog card on a story's branch is in each world: it takes facts, not a change.
+test('the card keeper changes no board, and writes nothing a second time', async () => {
+  const worlds = Object.entries(await keeperChangesNothing());
+  for (const [name, one] of worlds) {
+    assert.equal(one.first, one.before, `${name}: the board changed when the keeper wrote`);
+    assert.equal(one.second, one.before, `${name}: the board changed on the keeper's second build`);
+    assert.equal(one.again, 0, `${name}: the keeper wrote again on an unchanged build`);
+  }
+  assert.ok(
+    worlds.some(([, one]) => one.wrote > 0),
+    'the keeper wrote a card in at least one world',
+  );
 });

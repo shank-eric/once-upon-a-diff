@@ -15,7 +15,7 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { tmp, runCli } from './helpers.ts';
+import { tmp, runCli, writeJson } from './helpers.ts';
 import { doctor } from '@once-upon-a-diff/core/orchestration/bridge/doctor';
 import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { Inbox } from '@once-upon-a-diff/state/queues/requests/inbox';
@@ -198,7 +198,9 @@ test('doctor --fix twice, and with nothing old, drops nothing more and keeps no 
   const lines = await run(home, { fix: true });
   assert.equal(board(home), once);
   assert.ok(
-    lines.some((line) => /Logs: nothing in agents\.jsonl or inbox\.jsonl to drop/.test(line)),
+    lines.some((line) =>
+      /Logs: nothing in agents\.jsonl, backlog\.jsonl or inbox\.jsonl to drop/.test(line),
+    ),
   );
   assert.equal(readdirSync(home).filter((name) => name.endsWith('.bak')).length, 2);
 });
@@ -246,4 +248,144 @@ test('doctor says when a story still has the old review files, and --fix folds t
   assert.equal(JSON.parse(readFileSync(path.join(state, 'review.json'), 'utf8')).mark.by, 'review');
   assert.match((await run(home, { fix: true })).join('\n'), /Review files: no story has/);
   assert.doesNotMatch((await run(home)).join('\n'), /Review files/);
+});
+
+/** Stored cards of agents and sessions, old and new, with the facts a run or a story would give them. */
+function storedHome() {
+  const home = tmp('doctor-fix-stored');
+  const file = path.join(home, 'backlog.jsonl');
+  const line = (event: Record<string, unknown>) => JSON.stringify({ by: 'test', ...event }) + '\n';
+  const add = (id: string, days: number, more: Record<string, unknown> = {}) =>
+    line({
+      op: 'add',
+      id,
+      title: id,
+      note: null,
+      repo: null,
+      branch: null,
+      at: ago(days),
+      ...more,
+    });
+  writeFileSync(
+    file,
+    [
+      add('bl_listed0', 60),
+      add('ic_oldidle0', 40, { source: 'agent' }),
+      line({ op: 'link', id: 'ic_oldidle0', branch: 'old-branch', at: ago(39) }),
+      add('ic_oldnamed', 40, { source: 'agent' }),
+      add('ic_recent00', 1, { source: 'session' }),
+    ].join(''),
+  );
+  writeFileSync(
+    path.join(home, 'agents.jsonl'),
+    row('start', 'on-old', 'r_0000000009', ago(1), {
+      kind: 'author',
+      task: 't',
+      card: 'ic_oldnamed',
+    }),
+  );
+  return { home, file };
+}
+
+test('doctor --fix drops an old stored card no run names, keeps the rest, and the listed cards read the same', async () => {
+  const { home, file } = storedHome();
+  const store = new BacklogStore(home);
+  const listedBefore = JSON.stringify(store.listed());
+  assert.equal(store.items().length, 4);
+  const lines = await run(home, { fix: true });
+  assert.ok(
+    lines.some((line) => /^PASS\s+Logs: backlog\.jsonl .* -> /.test(line)),
+    lines.join('\n'),
+  );
+  // the reader that already parsed the file starts over on the new one
+  assert.deepEqual(
+    store.items().map((card) => card.id),
+    ['bl_listed0', 'ic_oldnamed', 'ic_recent00'],
+  );
+  assert.equal(JSON.stringify(store.listed()), listedBefore);
+  assert.equal(
+    readdirSync(home).filter((name) => /^backlog\.jsonl\..*\.bak$/.test(name)).length,
+    1,
+  );
+  assert.ok(readFileSync(file, 'utf8').includes('bl_listed0'));
+  // a second run drops nothing and keeps no second copy
+  const again = await run(home, { fix: true });
+  assert.ok(again.some((line) => /nothing in agents\.jsonl, backlog\.jsonl/.test(line)));
+  assert.equal(readdirSync(home).filter((name) => name.endsWith('.bak')).length, 1);
+});
+
+test('doctor --fix keeps the idle card of a session that is still running, and drops the one of a session that is gone', async () => {
+  const { home, file } = storedHome();
+  const liveId = '11111111-2222-4333-8444-555555555555';
+  const goneId = '99999999-2222-4333-8444-555555555555';
+  appendFileSync(
+    file,
+    [
+      { id: 'ic_livesess0', session: liveId },
+      { id: 'ic_gonesess0', session: goneId },
+    ]
+      .map(
+        (one) =>
+          JSON.stringify({
+            op: 'add',
+            ...one,
+            title: one.id,
+            note: null,
+            repo: null,
+            branch: null,
+            source: 'session',
+            by: 'test',
+            at: ago(40),
+          }) + '\n',
+      )
+      .join(''),
+  );
+  const sessions = tmp('doctor-fix-sessions');
+  // this test process is the running session: its pid is alive
+  writeJson(path.join(sessions, `${process.pid}.json`), {
+    pid: process.pid,
+    sessionId: liveId,
+    cwd: home,
+  });
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
+  await run(home, { fix: true });
+  const kept = new BacklogStore(home).items().map((card) => card.id);
+  assert.ok(kept.includes('ic_livesess0'), kept.join(' '));
+  assert.ok(!kept.includes('ic_gonesess0'), kept.join(' '));
+  assert.ok(!kept.includes('ic_oldidle0'));
+});
+
+test('doctor --fix with no session registry to trust keeps every idle session card', async () => {
+  const { home, file } = storedHome();
+  appendFileSync(
+    file,
+    JSON.stringify({
+      op: 'add',
+      id: 'ic_sessnoreg',
+      session: '99999999-2222-4333-8444-555555555555',
+      title: 'x',
+      note: null,
+      repo: null,
+      branch: null,
+      source: 'session',
+      by: 'test',
+      at: ago(40),
+    }) + '\n',
+  );
+  writeJson(path.join(home, 'config.json'), {
+    board_sessions_dir: path.join(home, 'no-such-registry'),
+  });
+  await run(home, { fix: true });
+  const kept = new BacklogStore(home).items().map((card) => card.id);
+  assert.ok(kept.includes('ic_sessnoreg'), kept.join(' '));
+});
+
+test('doctor --fix keeps a half-written last line of backlog.jsonl and a card made after it', async () => {
+  const { home, file } = storedHome();
+  appendFileSync(file, '{"op":"add","id":"ic_halfline');
+  await run(home, { fix: true });
+  assert.ok(readFileSync(file, 'utf8').endsWith('{"op":"add","id":"ic_halfline'));
+  const store = new BacklogStore(home);
+  appendFileSync(file, '0","title":"x","by":"test","at":"2026-11-18T00:00:00.000Z"}\n');
+  assert.ok(store.items().some((card) => card.id === 'ic_halfline0'));
 });

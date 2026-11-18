@@ -29,7 +29,7 @@ export interface GithubAnswers {
   branches: Record<string, { at: number; pr: StoredBranchPr | null }>;
   /** by `<repo lower>#<number>` */
   prs: Record<string, { at: number; info: PrInfo }>;
-  requested: { at: number; list: { repo: string; number: number }[] } | null;
+  requested: { at: number; list: { repo: string; number: number; created_at?: string }[] } | null;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

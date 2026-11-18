@@ -665,6 +665,33 @@ test('the branch check keeps PRs from this repo, prefers an open one, and counts
   });
 });
 
+test('the board’s PR search keeps GitHub’s createdAt as created_at on each row, and asks for it', async () => {
+  await withFakeGh(tmp('requested-created'), async ({ answer, calls }) => {
+    writeJson(answer, {
+      data: {
+        requested: { nodes: [{ number: 4, repository: { nameWithOwner: 'acme/widgets' } }] },
+        mine: {
+          nodes: [
+            {
+              number: 5,
+              createdAt: '2026-11-18T12:00:00Z',
+              repository: { nameWithOwner: 'acme/widgets' },
+            },
+          ],
+        },
+      },
+    });
+    assert.deepEqual(await ghRequestedCheck(), [
+      { repo: 'acme/widgets', number: 4 },
+      { repo: 'acme/widgets', number: 5, created_at: '2026-11-18T12:00:00Z' },
+    ]);
+    assert.match(
+      calls()[0].find((arg) => arg.startsWith('query=')) as string,
+      /number createdAt repository/,
+    );
+  });
+});
+
 test('the board’s PR search: requests made of you by name and your own open PRs, each once; PrInfo.review_requested by name too', async () => {
   await withFakeGh(tmp('requested'), async ({ answer, calls }) => {
     writeJson(answer, {

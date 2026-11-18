@@ -17,6 +17,7 @@ const BOOLEAN_FLAGS = new Set([
   'general',
   'json',
   'fix',
+  'cardless',
   'keep',
   'with-key',
 ]);

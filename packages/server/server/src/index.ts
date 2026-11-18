@@ -74,6 +74,7 @@ import { pullRequestRoutes } from './routes/pull-request.ts';
 import { boardRoutes } from './routes/board.ts';
 import { githubRoutes } from './routes/github.ts';
 import { AutoReview } from '@once-upon-a-diff/core/features/review/github-watcher';
+import { CardKeeper } from '@once-upon-a-diff/core/features/cards/card-keeper';
 import {
   ghBranchCheck,
   ghPrCheck,
@@ -166,6 +167,7 @@ export function createBridge({
   checkBranch = ghBranchCheck,
   checkRequested = ghRequestedCheck,
   checkMerged = ghMergedCheck,
+  keeper = true,
   now = Date.now,
 }: {
   home: string;
@@ -181,6 +183,8 @@ export function createBridge({
   checkRequested?: RequestedCheck;
   /** how the board asks GitHub whether a card's branch has a merged PR (the tests' stand-in; the real check by default) */
   checkMerged?: MergedCheck;
+  /** whether the board's builds write stored cards (the card keeper, ADR-29); on by default, the tests' bridge turns it off */
+  keeper?: boolean;
   /** the clock the GitHub refresh route measures its gaps and per-minute cap by (the tests' stand-in) */
   now?: () => number;
 }): Bridge {
@@ -194,7 +198,10 @@ export function createBridge({
   const inbox = new Inbox(home);
   const autoReview = new AutoReview(stories, checkPr, undefined, checkBranch, checkRequested, home);
   const builds = new Builds(home);
-  const board = new Board(home, stories, autoReview, builds, { checkMerged });
+  const board = new Board(home, stories, autoReview, builds, {
+    checkMerged,
+    ...(keeper ? { keeper: new CardKeeper(home, log) } : {}),
+  });
   const portOf = () => (server.address() as { port: number }).port;
   const app: App = {
     home,

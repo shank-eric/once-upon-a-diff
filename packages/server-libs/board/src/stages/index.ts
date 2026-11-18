@@ -59,6 +59,9 @@ import { groupLanes } from './lanes.ts';
 import { laneLabels } from '@once-upon-a-diff/terms/lane-key';
 import { markListening } from './listeners.ts';
 import { voiceLines } from '@once-upon-a-diff/adapters/larmor';
+import { learnCards } from './learned.ts';
+import { NOTHING_LEARNED } from '@once-upon-a-diff/core/features/cards/learned';
+import type { LearnedCards } from '@once-upon-a-diff/core/features/cards/learned';
 import { placeSessions, readLive, readSessionFacts, type SeenSession } from './sessions.ts';
 import { blankStrip, voiceOf } from './strips.ts';
 import type { BuildContext, StoryFacts } from './types.ts';
@@ -78,6 +81,8 @@ export interface BoardState {
   listenerSessions: Map<string, string>;
   backlog: BacklogStore;
   scanner: WorktreeScanner;
+  /** work out what the card keeper is to write (`BuiltBoard.learned`); left off, it is nothing */
+  learn?: boolean;
 }
 
 /** A build's answer, with what the Board keeps from it. */
@@ -87,6 +92,8 @@ export interface BuiltBoard {
   listening: ListeningInput;
   /** `state.seen` as the build leaves it */
   seen: BoardState['seen'];
+  /** what the build learned for the card keeper (stages/learned.ts): nothing unless `state.learn` */
+  learned: LearnedCards;
 }
 
 /**
@@ -291,5 +298,6 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
   };
   // the subagents nobody registered, as light rows on their session's card or strip entry (subagents.ts)
   await addSubagentRows(ctx, state.liveness, data, [...read.agents, ...read.editors]);
-  return { data, listening, seen: placed.seen };
+  const learned = state.learn ? await learnCards(ctx, works, placed.learned) : NOTHING_LEARNED;
+  return { data, listening, seen: placed.seen, learned };
 }

@@ -20,6 +20,9 @@ import { listenersLane } from '@once-upon-a-diff/core/features/listeners/board-v
 import { markFinished } from '@once-upon-a-diff/adapters/stores/finished-agents';
 import { noteAsking } from '@once-upon-a-diff/state/queues/requests/conversation';
 import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
+import { Board, noPrWatcher } from '@once-upon-a-diff/board/board';
+import { StoryStore } from '@once-upon-a-diff/stories/store';
+import { registrySource } from '@once-upon-a-diff/core/features/sessions/sources';
 import type { Listener } from '@once-upon-a-diff/state/records/listeners/listeners';
 
 const modeOf = (file: string) => (statSync(file).mode & 0o777).toString(8);
@@ -55,6 +58,27 @@ test('the board’s Listeners lane reads the history and writes nothing', () => 
   });
   assert.equal(rows.length, 1);
   assert.deepEqual(listing(home), [], 'a board read wrote into the home');
+});
+
+test('a board snapshot with no keeper writes nothing into a home with a PR story', async () => {
+  const home = tmp('reads-board');
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: tmp('reads-board-sessions') });
+  writeJson(path.join(home, 'acme-widgets-7', 'meta.json'), {
+    kind: 'github',
+    repo: 'acme/widgets',
+    number: 7,
+    pr_title: 'PR 7',
+    head_ref: 'feat/pr',
+  });
+  writeJson(path.join(home, 'acme-widgets-7', 'chapters.json'), { title: 'Story 7', chapters: [] });
+  const before = listing(home);
+  const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
+    source: registrySource,
+    now: () => new Date(),
+  });
+  await board.snapshot();
+  assert.deepEqual(listing(home), before, 'a board build wrote into the home');
+  assert.ok(!existsSync(path.join(home, 'backlog.jsonl')));
 });
 
 test('read-only commands leave a home’s files and mode alone, and make no config.json', async () => {

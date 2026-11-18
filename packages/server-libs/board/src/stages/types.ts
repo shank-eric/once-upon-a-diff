@@ -56,6 +56,8 @@ export interface Lookups {
   branchOf(cwd: string, now: number): Promise<string | null>;
   /** the GitHub repo of a session's folder, waiting for the lookup only a moment */
   repoOf(cwd: string): Promise<string | null>;
+  /** whether `repoOf` last answered for the folder in time (false: it went on with the last known repo) */
+  repoAnswered(cwd: string): boolean;
   /** the worktrees of a checkout's repo, none when it isn't a repo */
   worktreesOf(cwd: string, now: number): Promise<Worktree[]>;
   /** whether a branch's work is in the repo's main line with no PR to say so */

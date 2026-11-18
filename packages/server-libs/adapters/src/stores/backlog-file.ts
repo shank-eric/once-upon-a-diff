@@ -8,7 +8,11 @@ import { appendLogLine, readLogText } from './fs/jsonl.ts';
 /** The file's text, or '' when there is no file yet. */
 export const readBacklogFile: (file: string) => string = readLogText;
 
-/** Appends one event as a line, stamped with the time. The file is the user's alone (0600). */
-export function appendBacklogEvent(file: string, event: Record<string, unknown>): void {
-  appendLogLine(file, { ...event, at: new Date().toISOString() });
+/** Appends one event as a line, stamped with the time (or `at`, a backfilled card's own). The file is the user's alone (0600). */
+export function appendBacklogEvent(
+  file: string,
+  event: Record<string, unknown>,
+  stamp: string = new Date().toISOString(),
+): void {
+  appendLogLine(file, { ...event, at: stamp });
 }

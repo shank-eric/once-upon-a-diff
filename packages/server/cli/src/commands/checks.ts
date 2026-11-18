@@ -29,7 +29,7 @@ export const checkCommands: Command[] = [
     usage: [
       '  once-upon doctor  [--port N] [--wait S]                       is everything connected? a pass/fail list with fixes',
       '                    (--wait: give a bridge that was just started up to S seconds to answer)',
-      '  once-upon doctor --fix [--keep-days N]                        shrink agents.jsonl and inbox.jsonl: runs over N days old (14) on a done or dropped card, and old chapter reads,',
+      '  once-upon doctor --fix [--keep-days N]                        shrink agents.jsonl, backlog.jsonl and inbox.jsonl: runs over N days old (14) on a done or dropped card, idle stored cards no run names, and old chapter reads,',
       '                    go; the old logs are kept as <file>.<yyyymmdd>.bak',
       "                    and folds a story's old reviewed.json and approved.json into review.json",
     ],

@@ -56,6 +56,7 @@ import { BoardError } from '@once-upon-a-diff/foundation/errors';
 import type { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
 import type { StoryStore } from '@once-upon-a-diff/stories/store';
 import type { BoardCard, BoardData } from '@once-upon-a-diff/contracts/types';
+import type { LearnedCards } from '@once-upon-a-diff/core/features/cards/learned';
 import { isFinished } from './stages/agents.ts';
 import { prOfFacts } from './stages/worktrees.ts';
 import { buildBoard } from './stages/index.ts';
@@ -146,12 +147,18 @@ export class Board {
     worktreeListMs?: number;
     /** how a started card's merged PR is found; with none, nothing is asked and nothing lands (createBridge passes the real one) */
     checkMerged?: MergedCheck;
+    /** what a build learned about the work it saw, handed on after the build (the card keeper: ADR-29); with none, nothing is worked out */
+    keeper?: { apply(learned: LearnedCards): void };
   };
+
+  /** whether `repoOf` last answered for a folder in time, as against the last known repo */
+  private repoAnswers = new Map<string, boolean>();
 
   /** what the build stages ask of this Board's caches */
   private lookups: Lookups = {
     branchOf: (cwd, now) => this.branchOf(cwd, now),
     repoOf: (cwd) => this.repoOf(cwd),
+    repoAnswered: (cwd) => this.repoAnswers.get(cwd) ?? false,
     worktreesOf: (cwd, now) => this.worktreesOf(cwd, now),
     mergedLocally: (trees, branch, now) => this.mergedLocally(trees, branch, now),
     aheadFor: (found, branch) => this.aheadFor(found, branch),
@@ -176,6 +183,7 @@ export class Board {
       worktreeListMs?: number;
       worktreeListRun?: typeof runGitAsync;
       checkMerged?: MergedCheck;
+      keeper?: { apply(learned: LearnedCards): void };
     } = {},
   ) {
     this.home = home;
@@ -334,6 +342,7 @@ export class Board {
       }),
     ]);
     clearTimeout(timer);
+    this.repoAnswers.set(cwd, first !== late);
     if (first !== late) {
       return first;
     }
@@ -514,9 +523,16 @@ export class Board {
       listenerSessions: this.listenerSessions,
       backlog: this.backlog,
       scanner: this.scanner,
+      learn: !!this.options.keeper,
     });
     this.seen = built.seen;
     this.listeningNow = { input: built.listening };
+    // what the build learned goes to the keeper, which writes stored cards and never throws: nothing it does reaches the board
+    try {
+      this.options.keeper?.apply(built.learned);
+    } catch {
+      /* the keeper logs its own failures */
+    }
     return built.data;
   }
 

@@ -9,6 +9,7 @@ import { StoryStore } from '@once-upon-a-diff/stories/store';
 import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
 import { BacklogStore, cardLookup } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { cardPhase, cardRunProblems, runsOf } from '@once-upon-a-diff/state/queues/backlog/phase';
+import { doctor } from '@once-upon-a-diff/core/orchestration/bridge/doctor';
 import { claimViews } from '@once-upon-a-diff/board/stages/agents';
 import { nestClaimedAgents } from '@once-upon-a-diff/board/stages/backlog';
 import type { BoardCard } from '@once-upon-a-diff/contracts/types';
@@ -656,4 +657,56 @@ test('N. a card takes --role alone: --kind beside it is refused, whether it agre
   assert.notEqual(agrees.code, 0);
   assert.match(agrees.stderr, /--kind is not taken with --card/);
   assert.notEqual((await start('a-three', '--role', 'critic', '--kind', 'helper')).code, 0);
+});
+
+test('O. doctor reads a run on a stored card an agent, session, PR or story made as on a card, and checks it no further', async () => {
+  const home = tmp('card-runs-stored');
+  const store = new BacklogStore(home);
+  const stored = store.add({ title: 'a PR', source: 'pr', repo: REPO, pr: 5, branch: 'feat-pr' });
+  const agentCard = store.add({
+    id: 'ic_stored001',
+    title: 'an agent',
+    source: 'agent',
+    repo: REPO,
+    branch: 'feat-a',
+  });
+  const registry = new AgentRegistry(home);
+  const nowMs = Date.now();
+  registry.start({
+    name: 'on-pr',
+    sid: SID,
+    kind: 'author',
+    task: 't',
+    card: stored.id,
+    at: new Date(nowMs),
+  });
+  registry.start({
+    name: 'on-agent',
+    sid: SID,
+    kind: 'author',
+    task: 't',
+    card: agentCard.id,
+    branch: 'typed-else',
+    repo: 'other/repo',
+    at: new Date(nowMs),
+  });
+  // the listed cards only: a run on a stored PR card is "not a card" (the old reading)
+  assert.match(
+    cardRunProblems(store.listed(), registry.agents(), nowMs).join('\n'),
+    /on-pr .* names bl_\w+, which is not a card/,
+  );
+  // every stored card as the items would check the typed repo and branch of a run on an agent's card, which no run was checked for
+  assert.match(
+    cardRunProblems(store.items(), registry.agents(), nowMs).join('\n'),
+    /typed branch typed-else/,
+  );
+  // with the stored ids known, nothing is said, and the listed cards are checked as before
+  const known = new Set(store.items().map((item) => item.id));
+  assert.deepEqual(cardRunProblems(store.listed(), registry.agents(), nowMs, known), []);
+  const lines: string[] = [];
+  await doctor(home, { token: 't', port: 1 }, { out: (line) => lines.push(line) });
+  assert.ok(
+    lines.some((line) => /^PASS\s+Card runs:/.test(line)),
+    lines.join('\n'),
+  );
 });

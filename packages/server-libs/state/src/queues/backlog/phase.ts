@@ -266,12 +266,15 @@ export function cardPhase(
  * The joins between runs and cards that do not hold, one line each, for `once-upon doctor` (read only: nothing is fixed here):
  * a run naming a card that is not there or was dropped, a run whose typed repo or branch is not its card's (the card's is
  * the one the board reads), a finish naming another card than its start, a run still open with no sign of life for STALE_MS,
- * and a card with two open author runs at once (a restart of one agent is a fix round, not a second).
+ * and a card with two open author runs at once (a restart of one agent is a fix round, not a second). `known` is the ids of every
+ * stored card (`items` are the listed ones, which the other checks are about): a run on a stored card an agent, a session, a PR or a
+ * story made is on a card, and is checked no further, as a run on an implicit card is.
  */
 export function cardRunProblems(
   items: BacklogItem[],
   agents: LedgerAgent[],
   nowMs: number,
+  known: ReadonlySet<string> = new Set(items.map((item) => item.id)),
 ): string[] {
   const byId = new Map(items.map((item) => [item.id, item]));
   const problems: string[] = [];
@@ -280,7 +283,7 @@ export function cardRunProblems(
     const label = `${agentKey(run)}${run.run ? ` ${run.run}` : ''}`;
     const item = run.card ? byId.get(run.card) : undefined;
     // an implicit card (ADR-27) is its runs: no backlog item holds it until it is adopted
-    if (run.card && !item && isImplicitCard(run.card)) {
+    if (run.card && !item && (isImplicitCard(run.card) || known.has(run.card))) {
       continue;
     }
     if (run.card && (!item || item.state === 'dropped')) {

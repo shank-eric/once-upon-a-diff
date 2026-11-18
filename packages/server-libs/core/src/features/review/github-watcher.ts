@@ -47,6 +47,7 @@ import {
   type PrFacts,
   isGone,
   type RequestedCheck,
+  type RequestedPr,
 } from '@once-upon-a-diff/state/records/github/github-checks';
 import { isFeatureBranch } from '@once-upon-a-diff/foundation/settings';
 import { markStoryDone, markStoryReviewed, storyHasState, type LocalEntry } from './story-lists.ts';
@@ -129,7 +130,7 @@ export class AutoReview {
   private check: PrCheck;
   private checkBranch: BranchCheck;
   private checkRequested: RequestedCheck;
-  private asked: { at: number; list: { repo: string; number: number }[] } | null = null;
+  private asked: { at: number; list: RequestedPr[] } | null = null;
   /** how many asks for the lists were made (only the newest one's answer is kept) */
   private askedSeq = 0;
   /** when each branch or PR was last refreshed, and the lists were */
@@ -225,7 +226,7 @@ export class AutoReview {
   }
 
   /** The open PRs GitHub last said wait on your review or are yours ([] until it first answers). */
-  requested(): { repo: string; number: number }[] {
+  requested(): RequestedPr[] {
     return this.asked?.list || [];
   }
 

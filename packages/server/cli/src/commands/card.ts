@@ -1,4 +1,6 @@
 /*
+ * `once-upon card backfill [--dry-run] [--days N] [--cardless]`: stores the cards the registry's runs made before ADR-29 (the `ic_` ids), and with
+ * `--cardless` gives the recent runs that name no card one each (core/src/features/runs/backfill.ts).
  * `once-upon card link ID`: writes a fact onto a stored card (ADR-29): its PR (confirmed against GitHub's head branch), story, branch
  * or worktree. `once-upon card status ID`: where a card stands and the rule that put it there. It reads the files only (ADR-15: the CLI never
  * calls the bridge, and `board` is not its to import), so the rule it prints is the run-decided one, the row of the table
@@ -11,6 +13,9 @@ import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { implicitItems } from '@once-upon-a-diff/state/queues/backlog/implicit';
 import { PHASE_ROWS, cardPhase, runsOf } from '@once-upon-a-diff/state/queues/backlog/phase';
 import {
+  backfillCards,
+  backfillLine,
+  BACKFILL_DAYS,
   liveWrites,
   runRegistry,
   trustedLiveSids,
@@ -22,7 +27,7 @@ import type { Config } from '@once-upon-a-diff/foundation/settings';
 import type { CliOpts, Command } from '../types.ts';
 
 const USAGE =
-  'usage: once-upon card status ID [--json] | once-upon card link ID [--pr N] [--story ID] [--branch B] [--worktree PATH]';
+  'usage: once-upon card status ID [--json] | once-upon card link ID [--pr N] [--story ID] [--branch B] [--worktree PATH] | once-upon card backfill [--dry-run] [--days N] [--cardless]';
 
 const text = (value: unknown): string | null => (typeof value === 'string' && value ? value : null);
 
@@ -110,6 +115,17 @@ async function link(home: string, id: string, opts: CliOpts) {
     linked.worktree && `worktree ${linked.worktree}`,
   ].filter(Boolean);
   return out(`${id} linked: ${facts.join(', ') || 'nothing to link'}`);
+}
+
+/** `card backfill`: the counts of what was (or, with --dry-run, would be) written. */
+function backfill(home: string, opts: CliOpts) {
+  const days = opts.days === undefined ? BACKFILL_DAYS : Number(opts.days);
+  if (!(days >= 0)) {
+    throw new Error('--days takes a number of days, 0 or more');
+  }
+  const dryRun = opts['dry-run'] === true;
+  const counts = backfillCards(home, { dryRun, cardless: opts.cardless === true, days });
+  return out(backfillLine(counts, dryRun));
 }
 
 type Phase = ReturnType<typeof cardPhase>;
@@ -247,6 +263,9 @@ const VERBS: Record<string, (home: string, id: string, opts: CliOpts) => Promise
 
 async function card(home: string, _cfg: Config, opts: CliOpts) {
   const [verb, id] = opts._ || [];
+  if (verb === 'backfill' && !id) {
+    return backfill(home, opts);
+  }
   if (!id || !Object.hasOwn(VERBS, verb ?? '')) {
     throw new Error(USAGE);
   }
@@ -256,9 +275,10 @@ async function card(home: string, _cfg: Config, opts: CliOpts) {
 export const cardCommands: Command[] = [
   {
     name: 'card',
-    subs: ['status', 'link'],
+    subs: ['status', 'link', 'backfill'],
     usage: [
       "  once-upon card link ID [--pr N] [--story ID] [--branch B] [--worktree PATH]       writes a fact learned about a stored card onto it (the PR is checked against GitHub's head branch)",
+      '  once-upon card backfill [--dry-run] [--days N] [--cardless]                       stores the cards of the runs made before stored cards (`ic_` ids); --cardless also gives each recent cardless run (open, or ended in the last N days, 7) a card of its agent, which moves it on the board',
       '  once-upon card status ID [--json]                                                where a card stands and the rule that put it there (the run-decided row of ADR-25; the board page has the final column)',
     ],
     run: card,

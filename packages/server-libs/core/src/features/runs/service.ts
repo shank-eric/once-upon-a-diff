@@ -15,6 +15,7 @@
  *   record-fix.ts   a fix made outside any run, recorded as a done fixer run on the branch's card (`once-upon fixed --sha`, the board's Record as fix).
  *   dispatch.ts     launching an agent for a card: claim, start and the brief (`once-upon dispatch`); briefs.ts the brief's text, checkout.ts the paths.
  *   handback.ts     an agent's hand-back (`once-upon handback`): the run's commit, branch and card recorded, or its state moved.
+ *   backfill.ts     `once-upon card backfill`: stores the `ic_` cards of runs made before ADR-29, and with `cardless` a card for each recent cardless run.
  *   auto-finish.ts  an end for a subagent that stopped with its run open (the SubagentStop hook).
  */
 export { startRun } from './start-run.ts';
@@ -31,6 +32,8 @@ export type { Mirror } from './registry.ts';
 export { ROLE_KIND, openSelfRun } from './roles.ts';
 export { dispatchRun, callLine, DISPATCH_ROLES } from './dispatch.ts';
 export type { DispatchInput, DispatchRole, Dispatched } from './dispatch.ts';
+export { backfillCards, backfillLine, BACKFILL_DAYS } from './backfill.ts';
+export type { BackfillCounts } from './backfill.ts';
 export { handbackRun } from './handback.ts';
 export type { HandbackInput, HandedBack } from './handback.ts';
 export { autoFinishRun } from './auto-finish.ts';

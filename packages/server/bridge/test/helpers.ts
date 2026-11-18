@@ -79,6 +79,8 @@ export async function startBridge(opts: {
   checkBranch?: BranchCheck;
   checkRequested?: RequestedCheck;
   checkMerged?: MergedCheck;
+  /** the card keeper writes stored cards from the board's builds: off here, so the tests that read the home's files see none (card-keeper.test.ts turns it on) */
+  keeper?: boolean;
   now?: () => number;
 }) {
   // no test asks GitHub unless it brings its own check
@@ -88,6 +90,7 @@ export async function startBridge(opts: {
     checkBranch: async () => null,
     checkRequested: async () => [],
     checkMerged: async () => null,
+    keeper: false,
     ...opts,
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));

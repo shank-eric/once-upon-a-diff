@@ -2419,6 +2419,48 @@ export async function storedCardsChangeNothing(): Promise<
   return out;
 }
 
+/**
+ * The gate for ADR-29's branch B: the card keeper changes no board. For every world, the board is built, a started backlog card is put
+ * on a branch the world has a story on (its `worktree` unset, which the fold defaults from its claim), a keeper is attached, and the
+ * board is built twice more. The three builds are returned by world name, with how many lines the keeper wrote; the second build of
+ * the keeper writes nothing, so its count is the first's.
+ */
+export async function keeperChangesNothing(): Promise<
+  Record<string, { before: string; first: string; second: string; wrote: number; again: number }>
+> {
+  const { CardKeeper } = await src('core', 'features/cards/card-keeper.ts');
+  const out: Record<
+    string,
+    { before: string; first: string; second: string; wrote: number; again: number }
+  > = {};
+  const at = NOW.toISOString();
+  const lines = (home: string) => {
+    const file = path.join(home, 'backlog.jsonl');
+    return existsSync(file) ? readFileSync(file, 'utf8').split('\n').filter(Boolean).length : 0;
+  };
+  for (const { name, board, home } of worldBoards) {
+    const seed = [
+      { op: 'add', id: 'bl_keepergate01', title: 'a started card', repo: 'acme/widgets' },
+      { op: 'start', id: 'bl_keepergate01', branch: 'feat/z', repo: 'acme/widgets' },
+    ].map((row) => ({ ...row, by: 'keeper-gate', at }));
+    appendFileSync(
+      path.join(home, 'backlog.jsonl'),
+      seed.map((row) => JSON.stringify(row)).join('\n') + '\n',
+    );
+    const before = JSON.stringify(await board.rebuild());
+    const kept = lines(home);
+    board.options.keeper = new CardKeeper(home, (line: string) => {
+      throw new Error(`the keeper logged in ${name}: ${line}`);
+    });
+    const first = JSON.stringify(await board.rebuild());
+    const wrote = lines(home) - kept;
+    const second = JSON.stringify(await board.rebuild());
+    out[name] = { before, first, second, wrote, again: lines(home) - kept - wrote };
+    board.options.keeper = undefined;
+  }
+  return out;
+}
+
 export function finish() {
   children.forEach((child) => child.kill());
   rmSync(WORK, { recursive: true, force: true });

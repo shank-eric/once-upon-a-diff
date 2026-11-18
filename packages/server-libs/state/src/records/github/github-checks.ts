@@ -143,20 +143,27 @@ export function whyReviewed(facts: PrFacts, builtAt: string): PrFacts['why'] {
  * watch). Only review requests made of you by name count (`user-review-requested:@me`, where `review-requested:@me`
  * also takes the teams you are in), the same as PrInfo's `review_requested`, which reads the requested reviewer as a User.
  */
-export type RequestedCheck = () => Promise<{ repo: string; number: number }[]>;
+export type RequestedCheck = () => Promise<RequestedPr[]>;
 
-const SEARCH_FIELDS = 'nodes{... on PullRequest{number repository{nameWithOwner}}}';
+/** One PR of those lists. `created_at` (GitHub's `createdAt`) is there when GitHub gave one: the card keeper's "opened in the last 24 hours". */
+export interface RequestedPr {
+  repo: string;
+  number: number;
+  created_at?: string;
+}
+
+const SEARCH_FIELDS = 'nodes{... on PullRequest{number createdAt repository{nameWithOwner}}}';
 const REQUESTED_QUERY = `query{
   requested:search(query:"is:pr is:open user-review-requested:@me archived:false",type:ISSUE,first:30){${SEARCH_FIELDS}}
   mine:search(query:"is:pr is:open author:@me archived:false",type:ISSUE,first:50){${SEARCH_FIELDS}}}`;
 
-type SearchNode = { number?: number; repository?: { nameWithOwner: string } };
+type SearchNode = { number?: number; createdAt?: string; repository?: { nameWithOwner: string } };
 
 /** The PRs in both searches' answers, each once, review requests first. */
 function requestedOf(data: {
   requested?: { nodes: SearchNode[] };
   mine?: { nodes: SearchNode[] };
-}): { repo: string; number: number }[] {
+}): RequestedPr[] {
   const seen = new Set<string>();
   return [...(data.requested?.nodes ?? []), ...(data.mine?.nodes ?? [])].flatMap((node) => {
     if (!node.number || !node.repository) {
@@ -167,7 +174,13 @@ function requestedOf(data: {
       return [];
     }
     seen.add(key);
-    return [{ repo: node.repository.nameWithOwner, number: node.number }];
+    return [
+      {
+        repo: node.repository.nameWithOwner,
+        number: node.number,
+        ...(node.createdAt ? { created_at: node.createdAt } : {}),
+      },
+    ];
   });
 }
 

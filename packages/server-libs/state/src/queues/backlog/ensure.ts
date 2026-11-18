@@ -7,7 +7,7 @@
 import { withLock } from '@once-upon-a-diff/adapters/stores/fs/lock';
 import { isFeatureBranch } from '@once-upon-a-diff/foundation/settings';
 import { sameRepo } from '@once-upon-a-diff/foundation/repos';
-import type { BacklogStore, AddInput } from './backlog.ts';
+import { isListed, type BacklogStore, type AddInput } from './backlog.ts';
 import type { BacklogItem, CardSource } from './types.ts';
 
 export interface EnsureInput extends AddInput {
@@ -17,6 +17,8 @@ export interface EnsureInput extends AddInput {
    * Work and its card are one card, so an agent starting on a branch whose card is still open joins it.
    */
   joinBranch?: boolean;
+  /** the card keeper's: a worktree is never written onto a listed card, decided here under the lock (the keeper's own read may be stale) */
+  keepListedClear?: boolean;
 }
 
 /** A card the work can still be on: not dropped, not landed. */
@@ -47,8 +49,14 @@ export function findCard(
             undefined,
           )
       : undefined) ??
+    // a session that moved to another feature branch is on other work: its card on the old branch stays there
     (input.source === 'session' && input.session
-      ? live.find((item) => item.source === 'session' && item.session === input.session)
+      ? live.find(
+          (item) =>
+            item.source === 'session' &&
+            item.session === input.session &&
+            (!isFeatureBranch(input.branch) || !item.branch || item.branch === input.branch),
+        )
       : undefined)
   );
 }
@@ -59,7 +67,7 @@ export function findCard(
  */
 export function ensureCard(
   store: BacklogStore,
-  input: EnsureInput,
+  { keepListedClear, ...input }: EnsureInput,
 ): { item: BacklogItem; made: boolean; joined: boolean } {
   return withLock(store.file, () => {
     let found = findCard(store.items(), input);
@@ -72,7 +80,7 @@ export function ensureCard(
         item: store.link(found.id, {
           repo: found.repo ? null : input.repo,
           branch: found.branch || !isFeatureBranch(input.branch) ? null : input.branch,
-          worktree: found.worktree ? null : input.worktree,
+          worktree: found.worktree || (keepListedClear && isListed(found)) ? null : input.worktree,
           pr: found.pr ? null : input.pr,
           story: found.story ? null : input.story,
           session: found.session ? null : input.session,

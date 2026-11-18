@@ -1,5 +1,5 @@
 import type { LocalEntry } from '@once-upon-a-diff/core/features/review/story-lists';
-import type { BranchPr } from '@once-upon-a-diff/state/records/github/github-checks';
+import type { BranchPr, RequestedPr } from '@once-upon-a-diff/state/records/github/github-checks';
 import type { InboxStory, PrInfo } from '@once-upon-a-diff/contracts/types';
 
 /**
@@ -12,7 +12,7 @@ export interface PrWatcher {
   kickBranch(repo: string, branch: string, checkout: string, now: number, heads?: string[]): void;
   kickLocal(list: LocalEntry[], now: number): void;
   kickRequested(now: number): void;
-  requested(): { repo: string; number: number }[];
+  requested(): RequestedPr[];
   info(repo: string, number: number): PrInfo | null;
   /** When GitHub last answered about the PR (this run or the kept file), null when it never has. */
   infoAt(repo: string, number: number): number | null;

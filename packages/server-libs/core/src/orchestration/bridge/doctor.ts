@@ -25,6 +25,7 @@ import { MIN_NODE_MAJOR, nodeVersionProblem } from '@once-upon-a-diff/foundation
 import type { Config } from '@once-upon-a-diff/foundation/settings';
 import { listenerPid, openListeners } from '@once-upon-a-diff/adapters/os';
 import {
+  liveRegistry,
   liveSessions,
   registryHealth,
   registryNote,
@@ -36,6 +37,7 @@ import { gitVersionText } from '@once-upon-a-diff/adapters/git';
 import { gitVersionProblem, MIN_GIT } from '@once-upon-a-diff/foundation/git-version';
 import { fetchHealth } from '@once-upon-a-diff/adapters/bridge-health';
 import { readExtensionSeen } from './bridge.ts';
+import { backfillCards } from '../../features/runs/service.ts';
 import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import {
   cardBranchProblems,
@@ -440,21 +442,40 @@ const statusLineCheck: Check = async ({ home }) => {
 };
 
 /** Every run is a run of one card, and says nothing the card does not (ADR-25); one piece of work is one card. */
-const backlogCheck: Check = ({ items, agents }) => {
+const backlogCheck: Check = ({ home, items, agents }) => {
   const now = Date.now();
   const runs = [
-    ...cardRunProblems(items(), agents(), now),
+    ...cardRunProblems(
+      items(),
+      agents(),
+      now,
+      new Set(new BacklogStore(home).items().map((item) => item.id)),
+    ),
     ...cardBranchProblems(items(), now),
     ...claimWorktreeProblems(items()),
   ];
   // a backlog card and an implicit card on one repo and branch are a pair to merge by hand
   const duplicates = duplicateCardProblems(items(), agents());
+  // the runs made before stored cards (ADR-29): their `ic_` cards, and the recent runs with no card, are what `card backfill` stores
+  const stray = backfillCards(home, { dryRun: true });
+  const cardless = backfillCards(home, { dryRun: true, cardless: true });
+  const unstored = stray.added || cardless.moved;
   return [
     lookAt(
       'Card runs',
       runs,
       'every run names a card that holds, and every claimed card has a branch',
     ),
+    {
+      level: unstored ? 'WARN' : 'PASS',
+      name: 'Stored cards',
+      detail: unstored
+        ? `${stray.added} ic_ ids on runs have no stored card, ${cardless.moved} recent cardless runs name none`
+        : 'every ic_ id on a run has a stored card, and no recent run is without one',
+      fix: unstored
+        ? 'Run: once-upon card backfill [--cardless] (--dry-run says what it would write; --cardless moves runs on the board)'
+        : null,
+    },
     lookAt(
       'Duplicate cards',
       duplicates,
@@ -584,10 +605,16 @@ const repoCheck: Check = ({ home, items, agents, stories: facts }) => {
 };
 
 /** The logs only grow: a plain doctor says when one is big, `--fix` rewrites them smaller and keeps the old ones. */
-const logsCheck: Check = ({ home, fix, keepDays }) => {
+const logsCheck: Check = async ({ home, fix, keepDays }) => {
   if (fix) {
-    const done = compactLogs(home, { keepDays });
-    const nothing = `nothing in agents.jsonl or inbox.jsonl to drop (runs older than ${keepDays} days)`;
+    // a session still running keeps its card; with a registry that cannot be trusted, every session card stays
+    const scan = await liveRegistry(readSettings(home).board.sessionsDir);
+    const trusted = scan.health.folder === 'ok' && !scan.unknown;
+    const done = compactLogs(home, {
+      keepDays,
+      liveSessions: trusted ? scan.sessions.map((one) => one.session) : null,
+    });
+    const nothing = `nothing in agents.jsonl, backlog.jsonl or inbox.jsonl to drop (runs older than ${keepDays} days)`;
     return [{ level: 'PASS', name: 'Logs', detail: done.length ? done.join('; ') : nothing }];
   }
   const big = bigLogs(home);
