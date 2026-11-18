@@ -81,7 +81,7 @@ test('a finish with a clean worktree, or with a commit, records nothing uncommit
   await clean.start();
   assert.equal((await clean.finish()).code, 0);
   assert.equal(clean.run().uncommitted, undefined);
-  assert.deepEqual(clean.column(), [{ column: 'waiting', why: 'made nothing to point at' }]);
+  assert.deepEqual(clean.column(), [{ column: 'done', why: 'made nothing to point at' }]);
 
   const committed = world();
   await committed.start();

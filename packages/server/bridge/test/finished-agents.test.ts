@@ -124,7 +124,7 @@ test('appendLine starts a new line when the file does not end with one, and make
   assert.equal(readFileSync(file, 'utf8'), 'one\ntwo\nthree\n');
 });
 
-test('a finished agent sits in Waiting with its outcome, notes and parent, then leaves 30 minutes after its last event', async () => {
+test('a finished agent sits in its column with its outcome, notes and parent, then leaves 30 minutes after its last event', async () => {
   const rig = world();
   ended(rig.home, 'research-a', pmET(3, 20), 'options laid out', 'stopped', {
     notes: 'notes/research/a.md',
@@ -134,14 +134,14 @@ test('a finished agent sits in Waiting with its outcome, notes and parent, then 
   ended(rig.home, 'research-old', pmET(2, 0), 'long ago');
   const first = await rig.card('research-a');
   assert.ok(first, 'a card of its own');
-  assert.equal(first.column, 'waiting');
+  assert.equal(first.column, 'done', 'stopped, no kind: nothing to ask');
   assert.equal(first.detail, 'options laid out');
   assert.equal(first.parent, 'main-session');
   assert.equal(first.agents[0].notes, 'notes/research/a.md');
   assert.equal(first.agents[0].clears_at, '2026-11-02T20:50:00.000Z');
   assert.equal(first.since, '2026-11-02T20:20:00.000Z');
-  assert.equal((await rig.card('research-b'))?.column, 'waiting', 'failed too');
-  assert.equal((await rig.card('research-c'))?.column, 'waiting', 'stopped too');
+  assert.equal((await rig.card('research-b'))?.column, 'error', 'failed is Error');
+  assert.equal((await rig.card('research-c'))?.column, 'done', 'stopped too');
   assert.equal(await rig.card('research-old'), undefined, 'past its 30 minutes');
   rig.moveTo(11);
   assert.equal(await rig.card('research-a'), undefined, 'gone at 3:51 PM');
@@ -161,10 +161,10 @@ test('finishedColumn reads fields only: kind, state, result', () => {
   assert.equal(column('done', { kind: 'author', result }), 'done');
   assert.equal(column('done', { kind: 'author', result: { pr: 7 } }), 'done');
   assert.equal(column('done', { kind: 'research', result: { card: 'bl_x' } }), 'done');
-  // no result: an author or an unknown kind waits, research is Research, a helper is Done
-  assert.equal(column('done', { kind: 'author', result: null }), 'waiting');
-  assert.equal(column('done', { kind: 'author', result: {} }), 'waiting', '{} is no result');
-  assert.equal(column('done', { kind: null, result: null }), 'waiting', 'no kind: not research');
+  // no result: an author or an unknown kind is Done, research is Research, a helper is Done
+  assert.equal(column('done', { kind: 'author', result: null }), 'done');
+  assert.equal(column('done', { kind: 'author', result: {} }), 'done', '{} is no result');
+  assert.equal(column('done', { kind: null, result: null }), 'done', 'no kind: not research');
   assert.equal(column('done', { kind: 'research', result: null }), 'research');
   assert.equal(column('done', { kind: 'research', result: {} }), 'research');
   assert.equal(
@@ -173,24 +173,24 @@ test('finishedColumn reads fields only: kind, state, result', () => {
     'a plain helper did its job',
   );
   assert.equal(column('done', { kind: 'helper', result: {} }), 'done');
-  // stopped: nothing to point at; a stopped research run lost nothing, other kinds were interrupted
+  // stopped: nothing to point at and nothing to answer: Done (Waiting is only an agent in state waiting)
   assert.equal(column('stopped', { kind: 'research' }), 'research');
-  assert.equal(column('stopped', { kind: 'author' }), 'waiting');
-  assert.equal(column('stopped', { kind: 'helper' }), 'waiting');
+  assert.equal(column('stopped', { kind: 'author' }), 'done');
+  assert.equal(column('stopped', { kind: 'helper' }), 'done');
   assert.equal(
     column('stopped', { kind: 'research', result }),
     'research',
     'a stopped run made nothing',
   );
-  assert.equal(column('stopped', { kind: 'author', result }), 'waiting');
-  // failed is always Waiting; a reviewer is Done
-  assert.equal(column('failed', { kind: 'research' }), 'waiting');
-  assert.equal(column('failed', { kind: 'helper' }), 'waiting');
-  assert.equal(column('failed', { kind: 'author', result }), 'waiting');
+  assert.equal(column('stopped', { kind: 'author', result }), 'done');
+  // failed is always Error; a reviewer is Done
+  assert.equal(column('failed', { kind: 'research' }), 'error');
+  assert.equal(column('failed', { kind: 'helper' }), 'error');
+  assert.equal(column('failed', { kind: 'author', result }), 'error');
   assert.equal(column('done', { kind: 'critic', result: null }), 'done');
   assert.equal(column('stopped', { kind: 'critic' }), 'done');
   // a name is only a name: review- in it makes no critic
-  assert.equal(column('stopped', { kind: 'helper' }, 'review-x'), 'waiting');
+  assert.equal(column('stopped', { kind: 'helper' }, 'review-x'), 'done');
 });
 
 /** Registered agents (once-upon agent start/finish), at minutes from the test clock's NOW (3:40 PM ET). */
@@ -226,7 +226,7 @@ test('a finished research agent with no result is in Research for 30 minutes; a 
     '30 minutes after its finish',
   );
   assert.equal((await rig.card('ou-scout-stopped'))?.column, 'research');
-  assert.equal((await rig.card('ou-scout-failed'))?.column, 'waiting');
+  assert.equal((await rig.card('ou-scout-failed'))?.column, 'error');
   assert.equal((await rig.card('ou-scout-card'))?.column, 'done');
   assert.equal((await rig.card('ou-asker'))?.column, 'waiting', 'a question stays a question');
   rig.moveTo(19);
@@ -258,15 +258,15 @@ test('Finish clears a Research card at once, and a later event brings it back', 
   assert.equal(back?.agents[0].clears_at, '2026-11-02T21:14:00.000Z');
 });
 
-test('an author that finishes with no result is in Waiting and is gone after an hour; other finished cards still clear at 30 minutes', async () => {
+test('an author that finishes with no result is in Done and is gone after an hour; other finished cards still clear at 30 minutes', async () => {
   const rig = world();
   register(rig.home, 'ou-author', 'builder', {});
   register(rig.home, 'ou-author-stopped', 'builder', { state: 'stopped' });
   register(rig.home, 'ou-built', 'builder', { result: { card: 'bl_mvzro4kube937c' } });
   const author = await rig.card('ou-author');
-  assert.equal(author?.column, 'waiting');
+  assert.equal(author?.column, 'done', 'an author that made nothing');
   assert.equal(author?.agents[0].clears_at, '2026-11-02T21:30:00.000Z', 'an hour after its finish');
-  assert.equal((await rig.card('ou-author-stopped'))?.column, 'waiting');
+  assert.equal((await rig.card('ou-author-stopped'))?.column, 'done');
   assert.equal((await rig.card('ou-built'))?.column, 'done');
   rig.moveTo(21);
   assert.equal(await rig.card('ou-built'), undefined, 'Done: 30 minutes');

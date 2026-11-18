@@ -413,7 +413,7 @@
             "build": null,
             "building": null,
             "can_focus": false,
-            "column": "waiting",
+            "column": "done",
             "detail": "no sign of life for 24 hours",
             "focus_session": "<PID:19>-aaaa-bbbb-cccc-dddddddddddd",
             "id": "agent:<PID:19>:e-swept",

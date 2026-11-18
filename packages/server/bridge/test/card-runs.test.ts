@@ -319,13 +319,19 @@ test('G. cardPhase: every row of the table', () => {
     })?.column,
     'waiting',
   );
-  // 3: failed goes back to Backlog, tried
+  // 3: failed is Error; stopped goes back to Backlog, tried
   const failed = phase(OTHER, (card) => {
     const name = unique();
     run(card, name, 'author', 0);
     registry.finish(name, { sid: SID, state: 'failed', at: stamp(5) });
   });
-  assert.deepEqual([failed?.column, failed?.tried], ['backlog', true]);
+  assert.deepEqual([failed?.column, failed?.tried], ['error', false]);
+  const stopped = phase(OTHER, (card) => {
+    const name = unique();
+    run(card, name, 'author', 0);
+    registry.finish(name, { sid: SID, state: 'stopped', at: stamp(5) });
+  });
+  assert.deepEqual([stopped?.column, stopped?.tried], ['backlog', true]);
   // 4: findings pending, in any repo, until the fix round (row 1) opens
   const findings = (repo: string) =>
     phase(repo, (card) => {
@@ -407,7 +413,7 @@ test('G. cardPhase: every row of the table', () => {
   assert.equal(telling(LARMOR, 'storyteller', 'done'), 'ship');
   assert.equal(telling(ONCE, 'storyteller', 'waiting'), 'ready', 'a question is not Agent checks');
   assert.equal(telling(OTHER, 'storyteller', 'quiet'), 'ready', 'a dead storyteller holds nothing');
-  // a failed build goes back to Backlog even with a storyteller open
+  // a failed build is Error even with a storyteller open
   assert.equal(
     phase(ONCE, (card) => {
       const author = unique();
@@ -422,7 +428,7 @@ test('G. cardPhase: every row of the table', () => {
         at: stamp(6),
       });
     })?.column,
-    'backlog',
+    'error',
   );
   // an author at its fixing state is working; at its plan check it is Agent checks
   const gate = (state: 'fixing' | 'plan') =>

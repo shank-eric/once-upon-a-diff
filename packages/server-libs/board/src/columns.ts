@@ -117,10 +117,10 @@ export function columnOf(input: ColumnInput): BoardColumn {
   if (pr?.state === 'merged' || (story?.local && story.landed && !pr)) {
     return 'done';
   }
-  // a failed agent on the card (nested by its branch, PR or card, or the claimed author) needs a look, as its own card
-  // would in Waiting (finishedColumn); it is Waiting, not Error, which is the session's tab, and it stays a line on the card
+  // a failed agent on the card (nested by its branch, PR or card, or the claimed author) is Error, as its own card is
+  // (finishedColumn); an acknowledged one is no line on the card (claimViews), so it never gets here
   if (agents.some((agent) => agent.state === 'failed')) {
-    return 'waiting';
+    return 'error';
   }
   if (story?.local && story.approved && !pr) {
     return 'ship';

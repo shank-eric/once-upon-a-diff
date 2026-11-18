@@ -156,3 +156,25 @@ test('a landed card is not built: no critic holds it, and it reads Done (row 7)'
   );
   assert.equal(cardPhase({ ...landed, critic_skipped: true }, [done], NOW)?.row, '7');
 });
+
+test('a failed work run is Error, an acknowledged or stopped one is back in Backlog, tried', () => {
+  const failed = run({ state: 'failed', ended: minutes(5) });
+  assert.deepEqual(cardPhase(plain, [failed], NOW), {
+    column: 'error',
+    when: NOW - 5 * 60000,
+    tried: false,
+    row: '3',
+  });
+  for (const over of [
+    { state: 'failed' as const, acked: minutes(1) },
+    { state: 'stopped' as const },
+  ]) {
+    const phase = cardPhase(plain, [{ ...failed, ...over }], NOW);
+    assert.deepEqual([phase?.column, phase?.tried, phase?.row], ['backlog', true, '3']);
+  }
+});
+
+test('a work run parked on your story review is Ready, a question is Waiting', () => {
+  assert.equal(cardPhase(plain, [run({ state: 'waiting', review: true })], NOW)?.column, 'ready');
+  assert.equal(cardPhase(plain, [run({ state: 'waiting' })], NOW)?.column, 'waiting');
+});

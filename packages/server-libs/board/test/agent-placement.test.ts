@@ -362,7 +362,7 @@ test('Finish clears a finished agent nested in a card, and a new line brings it 
   );
 });
 
-test('a failed agent nested in a card puts the card in Waiting, not Error or Idle, and stays a line on it', () => {
+test('a failed agent nested in a card puts the card in Error, not Waiting or Idle, and stays a line on it', () => {
   const sessionCard = card({
     kind: 'session',
     repo: 'acme/widgets',
@@ -385,7 +385,7 @@ test('a failed agent nested in a card puts the card in Waiting, not Error or Idl
   assert.deepEqual(nestedIn(sessionCard), ['ou-broke']);
   const columnWith = (pr: BoardCard['pr'], agents: BoardCard['agents']) =>
     columnOf({ sessions: sessionCard.sessions, agents, pr, story: null, building: false });
-  assert.equal(columnWith(null, sessionCard.agents), 'waiting');
+  assert.equal(columnWith(null, sessionCard.agents), 'error');
   assert.equal(
     columnWith({ state: 'merged' } as BoardCard['pr'], sessionCard.agents),
     'done',
@@ -475,8 +475,8 @@ test('a done author with no result whose registered card has landed is Done, wit
     outcome: 'landed at fc59563 (closed 11/4 by sid 989b3246)',
   });
   assert.equal(finishedColumn(author, true), 'done');
-  assert.equal(finishedColumn(author, false), 'waiting', 'not landed: an author that made nothing');
-  assert.equal(finishedColumn({ ...author, state: 'stopped' }, true), 'waiting', 'a stopped run');
+  assert.equal(finishedColumn(author, false), 'done', 'not landed: an author that made nothing');
+  assert.equal(finishedColumn({ ...author, state: 'stopped' }, true), 'done', 'a stopped run');
   const item = {
     id: 'bl_aaaaaa111111',
     title: 'Rename builders to authors',
@@ -612,7 +612,7 @@ test('a card dropped after it landed is not landed for its agent, and its finish
 test('a landing from before the run started is an earlier run’s; one at its start counts', () => {
   const before = new Date(landedStart.getTime() - 60000).toISOString();
   assert.deepEqual(onLandedCard({}, landedItem({ landed_at: before })), {
-    column: 'waiting',
+    column: 'done',
     why: 'made nothing to point at',
   });
   assert.deepEqual(onLandedCard({}, landedItem({ landed_at: landedStart.toISOString() })), {
@@ -784,8 +784,8 @@ test('a critic, a helper, a research run, a stopped author and a landed card kee
     column: 'done',
     why: 'committed c80964d',
   });
-  assert.deepEqual(ownCard(committer({ state: 'stopped' })), { column: 'waiting', why: 'stopped' });
-  assert.deepEqual(ownCard(committer({ state: 'failed' })), { column: 'waiting', why: 'failed' });
+  assert.deepEqual(ownCard(committer({ state: 'stopped' })), { column: 'done', why: 'stopped' });
+  assert.deepEqual(ownCard(committer({ state: 'failed' })), { column: 'error', why: 'failed' });
   assert.deepEqual(
     ownCard(committer({ card: 'bl_aaaaaa222222', started: landedStart }), {
       items: [landedItem()],
@@ -958,7 +958,7 @@ test('an acked failed run has no card of its own inside the finished wait; an un
   assert.deepEqual(place([broke({ acked: new Date(NOW - 30000) })], []), []);
 });
 
-test('an acked failed run is no line on its card and no longer holds it in Waiting; an unacked one still does', () => {
+test('an acked failed run is no line on its card and no longer holds it in Error; an unacked one still does', () => {
   const sessionCard = () =>
     card({
       kind: 'session',
@@ -994,10 +994,10 @@ test('an acked failed run is no line on its card and no longer holds it in Waiti
     });
   const unacked = placed(false);
   assert.equal(unacked.agents[0].state, 'failed');
-  assert.equal(columnWith(unacked), 'waiting');
+  assert.equal(columnWith(unacked), 'error');
   const acked = placed(true);
   assert.deepEqual(nestedIn(acked), []);
-  assert.notEqual(columnWith(acked), 'waiting');
+  assert.notEqual(columnWith(acked), 'error');
 });
 
 test('an acked failed run on a backlog card is no line on it, and its chip reads stopped, not failed', () => {
@@ -1063,4 +1063,16 @@ test('a storyteller silent for 61 minutes leaves Working and holds no gate, one 
   });
   assert.equal(place([author61], [])[0].column, 'working');
   assert.equal(place([author61], [])[0].agents[0].stale, false);
+});
+
+test('a work card with a failed agent lands in Error and says which agent failed, and since when', async () => {
+  const { placeCards } = await import('../src/stages/cards.ts');
+  const ended = new Date(NOW - 60000).toISOString();
+  const work = card({
+    agents: [{ name: 'ou-broke', state: 'failed', ended_at: ended }] as BoardCard['agents'],
+  });
+  placeCards([work], new Map());
+  assert.equal(work.column, 'error');
+  assert.equal(work.detail, 'ou-broke failed');
+  assert.equal(work.since, ended);
 });

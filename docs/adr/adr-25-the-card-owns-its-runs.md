@@ -28,9 +28,9 @@ Each is a join by name, time or a typed copy. The fix is that a run says which c
 
 | # | Condition | Column |
 |---|---|---|
-| 1 | a work run is open | waiting (a question): Waiting; plan (the plan to check): Agent checks; running or fixing: Working |
+| 1 | a work run is open | waiting (a question): Waiting, or Ready when parked on your story review; plan (the plan to check): Agent checks; running or fixing: Working |
 | 2 | a critic is open and alive (a sign of life in the last 24 h) | Agent checks |
-| 3 | the latest work run failed or stopped | back in Backlog, tried |
+| 3 | the latest work run failed or stopped | failed: Error (until acked or the card is set aside); stopped: back in Backlog, tried |
 | 3b | a storyteller is running with a sign of life in the last 24 h, in any repo (after row 3, so a failed build is never hidden; one waiting on a question holds nothing) | Agent checks |
 | 4 | the latest critic finished with findings above 0 after the latest work run ended (and under 24 h ago) | Agent checks until a fix run opens (then row 1) |
 | 5 | built (started, with a branch), and no critic has passed (none, or the latest failed, stopped or died), and the card's critic is not skipped (`backlog skip-critic`) | Waiting (11/18: Eric's call, skip the critic or start one) |

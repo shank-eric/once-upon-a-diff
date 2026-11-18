@@ -465,7 +465,7 @@ test('a started item with no card is Working until its work ends, then Ready, or
     columnOf(linked({ agent: agentLink('done', ended) }), startedAt + 3 * hour, ['done', ended]),
     ['ready'],
   );
-  // failed or stopped: back in Backlog, marked tried
+  // stopped: back in Backlog, marked tried; failed: Error
   assert.deepEqual(
     columnOf(linked({ agent: agentLink('stopped', ended) }), startedAt + 3 * hour, [
       'stopped',
@@ -478,7 +478,7 @@ test('a started item with no card is Working until its work ends, then Ready, or
       'failed',
       ended,
     ]),
-    ['backlog'],
+    ['error'],
   );
   assert.deepEqual(
     columnOf(linked({ agent: agentLink('done', ended) }), startedAt + 27 * hour, ['done', ended]),
@@ -999,14 +999,17 @@ test('an open item with a claimed agent: one card in the agent’s column while 
     ['done'],
   );
   assert.deepEqual(cardsFor('done', ended, NOW + 2 * hour), []);
-  // failed or stopped: back in Backlog, marked tried
-  for (const state of ['failed', 'stopped'] as const) {
+  // stopped: back in Backlog, marked tried; failed: Error
+  for (const [state, column, tried] of [
+    ['failed', 'error', false],
+    ['stopped', 'backlog', true],
+  ] as const) {
     const back = cardsFor(state, ended);
     assert.deepEqual(
       back.map((card) => card.column),
-      ['backlog'],
+      [column],
     );
-    assert.equal(back[0].backlog?.agent?.tried, true);
+    assert.equal(back[0].backlog?.agent?.tried, tried);
   }
   // a claim whose agent has no ledger line yet: Working, pending, until the grace is over
   const pending = backlogCards(

@@ -512,8 +512,8 @@ test('a registered agent that finishes with a result is Done, with no outcome te
   assert.ok(scout);
   assert.equal(
     finishedColumn(scout),
-    'waiting',
-    'an author with no result waits, whatever its words',
+    'done',
+    'an author with no result is Done, whatever its words',
   );
 });
 
@@ -521,7 +521,7 @@ test('a registered agent that finishes with a result is Done, with no outcome te
 const columnOf = async (home: string, name: string) =>
   (await boardOf(home)()).find((one) => one.kind === 'agent' && one.title === name)?.column;
 
-test('Done, Research or Waiting comes from the finish event, never its words', async () => {
+test('Done, Research, Ready or Waiting comes from the finish event, never its words', async () => {
   const home = tmp('reg-done-waiting');
   const registry = new AgentRegistry(home);
   const finished = (name: string, outcome: string, result: object = {}, kind = 'author') => {
@@ -563,13 +563,13 @@ test('Done, Research or Waiting comes from the finish event, never its words', a
     columns[name] = await columnOf(home, name);
   }
   assert.deepEqual(columns, {
-    'ou-negated': 'waiting',
-    'ou-words': 'waiting',
+    'ou-negated': 'done',
+    'ou-words': 'done',
     'ou-commit': 'done',
     'ou-pr': 'done',
     'ou-branch': 'done',
     'ou-card': 'done',
-    'ou-nothing': 'waiting',
+    'ou-nothing': 'done',
     'ou-scout': 'research',
     'ou-lookup': 'done',
     'ou-scout-card': 'done',
@@ -606,7 +606,7 @@ test('a finish with no result records what the registered branch gained since th
   fixture.commit(dir, 'work');
   registry.finish('ou-new', { at: minute(5) });
   assert.equal(resultOf('ou-new'), null);
-  assert.equal(await columnOf(home, 'ou-new'), 'waiting');
+  assert.equal(await columnOf(home, 'ou-new'), 'done');
   // deployed before it finished: main fast-forwarded to the branch, the ref is still there
   const deployed = fixture.add('deployed');
   begin('ou-deployed', 'deployed');
@@ -619,7 +619,7 @@ test('a finish with no result records what the registered branch gained since th
   begin('ou-same', 'new-branch');
   registry.finish('ou-same', { at: minute(5) });
   assert.equal(resultOf('ou-same'), null);
-  assert.equal(await columnOf(home, 'ou-same'), 'waiting');
+  assert.equal(await columnOf(home, 'ou-same'), 'done');
   // the same branch moving on
   begin('ou-moved', 'new-branch');
   fixture.commit(dir, 'more', 2);
@@ -672,7 +672,7 @@ test('the automatic result is for a builder whose branch moved since its start t
   const dir = fixture.add('work');
   registry.finish('ou-cut-only', { at: minute(5) });
   assert.equal(resultOf('ou-cut-only'), null, 'no start tip, no result');
-  assert.equal(await columnOf(home, 'ou-cut-only'), 'waiting');
+  assert.equal(await columnOf(home, 'ou-cut-only'), 'done');
   // an old start event has no tip either: the same
   appendAgentEvent(registry.file, {
     op: 'start',
@@ -716,9 +716,9 @@ test('the automatic result is for a builder whose branch moved since its start t
   });
   assert.equal(
     finishedColumn(registry.agents().find((one) => one.name === 'ou-stopped-given')!),
-    'waiting',
+    'done',
   );
-  assert.equal(await columnOf(home, 'ou-stopped-given'), 'waiting');
+  assert.equal(await columnOf(home, 'ou-stopped-given'), 'done');
   // another repo's checkout: neither the start tip nor the result is taken from it
   begin('ou-elsewhere', { repo: 'other/repo', branch: 'work' });
   assert.equal(registry.agents().find((one) => one.name === 'ou-elsewhere')?.tip, null);
@@ -1206,9 +1206,9 @@ test('old agents.jsonl lines with kind builder or reviewer read as author and cr
   const [, critic] = registry.agents();
   assert.deepEqual(gateOf(critic), { kind: 'review', findings: null });
   assert.equal(readFileSync(file, 'utf8'), before);
-  // finishing an old author with nothing made is still a miss in Waiting, as an author is
+  // finishing an old author with nothing made is Done, as an author's is
   registry.finish('old-a', { outcome: 'nothing', at: minute(5) });
-  assert.equal(finishedColumn(registry.agents().find((one) => one.name === 'old-a')!), 'waiting');
+  assert.equal(finishedColumn(registry.agents().find((one) => one.name === 'old-a')!), 'done');
 });
 
 test('the CLI: a 1,000-character task and outcome go in through a file or stdin, and a 5,000-character one is refused by name, not killed', async () => {

@@ -108,7 +108,7 @@ export function leftUncommitted(
  * The column of a finished agent that is not inside a card. No text is read: not the outcome, not the task, only what it
  * registered. In order:
  *
- *   failed                                    Waiting: it needs a look (stages/agents.ts)
+ *   failed                                    Error (stages/agents.ts)
  *   a critic                                  Done: its findings are in the story and the review file
  *   registered, done, its card landed         Done: the card it registered (--card) landed during this run (landedFor),
  *                                             though its finish named no commit (a launcher closing it after the deploy)
@@ -123,18 +123,17 @@ export function leftUncommitted(
  *   registered, no result, kind research      Research: done or stopped, it asks nothing and lost nothing
  *   registered, done, no result, kind helper  Done: a deploy, plan check or lookup did its job and asks nothing (a standing
  *                                             helper has no card at all, stages/helpers.ts; a plain one does)
- *   registered, no result, kind author        Waiting: an author that made nothing is a miss to look at
- *   registered, no result, no kind            Waiting, as before kinds existed: not known to be research or a helper
- *   registered, stopped, any kind but research  Waiting: interrupted work, a decision
+ *   registered, no result, any other kind     Done: an author that made nothing, or a run of no known kind, asks nothing
+ *   registered, stopped, any kind but research  Done: nothing to answer (Waiting is only an agent in state waiting)
  */
 export function finishedColumn(
   agent: Pick<LedgerAgent, 'name' | 'state'> &
     Partial<Pick<LedgerAgent, 'kind' | 'result' | 'uncommitted'>>,
   landed = false,
   pending: PendingReview | null = null,
-): 'done' | 'research' | 'waiting' | 'ready' | 'ship' | 'pr_open' {
+): 'done' | 'research' | 'error' | 'ready' | 'ship' | 'pr_open' {
   if (agent.state === 'failed') {
-    return 'waiting';
+    return 'error';
   }
   if (isCritic(agent)) {
     return 'done';
@@ -156,9 +155,8 @@ export function finishedColumn(
   if (agent.kind === 'research') {
     return 'research';
   }
-  // a helper (or an editor) that finished its job with nothing to point at is done; only an author's miss, a stopped run
-  // and a failure are for you to look at
-  return agent.state === 'done' && agent.kind && agent.kind !== 'author' ? 'done' : 'waiting';
+  // nothing to point at and nothing to answer: Waiting is only an agent in state waiting, and a failure is Error
+  return 'done';
 }
 
 /**

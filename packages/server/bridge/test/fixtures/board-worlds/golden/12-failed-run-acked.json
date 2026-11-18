@@ -38,7 +38,7 @@
             "build": null,
             "building": null,
             "can_focus": false,
-            "column": "waiting",
+            "column": "error",
             "detail": "deploy-open failed",
             "focus_session": null,
             "id": "agent:aaaaaaa2:deploy-open",
@@ -101,7 +101,29 @@
             "title": "Card of ou-acked"
           },
           {
-            "agents": [],
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": "2026-10-26T18:40:00.000Z",
+                "gate": null,
+                "key": "bbbbbbb1:ou-open",
+                "kind": "author",
+                "model": null,
+                "name": "ou-open",
+                "notes": null,
+                "outcome": "broke",
+                "review": false,
+                "sid": "bbbbbbb1",
+                "stale": false,
+                "started_at": "2026-10-26T18:35:00.000Z",
+                "state": "failed",
+                "status": "error",
+                "summary": null,
+                "task": "build bl_openrun"
+              }
+            ],
             "backlog": {
               "added_by": "cli",
               "agent": null,
@@ -132,7 +154,7 @@
             "build": null,
             "building": null,
             "can_focus": false,
-            "column": "backlog",
+            "column": "error",
             "detail": null,
             "focus_session": null,
             "id": "backlog:bl_openrun",
@@ -143,7 +165,7 @@
             "pr": null,
             "repo": "acme/widgets",
             "sessions": [],
-            "since": "2026-10-26T13:00:00.000Z",
+            "since": "2026-10-26T18:40:00.000Z",
             "story": null,
             "title": "Card of ou-open"
           }

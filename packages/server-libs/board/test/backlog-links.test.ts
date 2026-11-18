@@ -279,7 +279,7 @@ test('a finished carded author on a branch with no work card: unpushed is Ready 
   assert.deepEqual(asked, [], 'no typed PR number: nothing asked for');
 });
 
-test('a claimed card (no start) is out of Backlog while the run that names it runs, and back in it when the run fails', async () => {
+test('a claimed card (no start) is out of Backlog while the run that names it runs, and in Error when the run fails', async () => {
   const home = tmp('links-named');
   writeJson(path.join(home, 'config.json'), { board_sessions_dir: tmp('links-named-sessions') });
   const store = new BacklogStore(home);
@@ -303,15 +303,15 @@ test('a claimed card (no start) is out of Backlog while the run that names it ru
   const mine = cards.find((one) => one.backlog?.id === item.id);
   assert.equal(mine?.column, 'working');
   assert.equal(mine?.agents[0].name, 'ou-scout');
-  // it fails: the item is a Backlog card, marked tried by the agent
+  // it fails: the card is in Error, not marked tried
   registry.finish('ou-scout', {
     state: 'failed',
     outcome: 'gave up',
     at: new Date('2026-10-26T18:45:00Z'),
   });
   const back = await backlogCard(boardOf(home, NOW), item.id);
-  assert.equal(back?.column, 'backlog');
-  assert.equal(back?.backlog?.agent?.tried, true);
+  assert.equal(back?.column, 'error');
+  assert.equal(back?.backlog?.agent?.tried, false);
   assert.equal(back?.backlog?.agent?.links.agent?.name, 'ou-scout');
   // a task that names a card, for a reviewer or in passing, claims nothing; neither does a claim no run names
   const other = store.add({ title: 'Another card', repo: 'acme/widgets' });

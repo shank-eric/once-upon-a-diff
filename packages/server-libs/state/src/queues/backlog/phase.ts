@@ -14,6 +14,7 @@ import { isImplicitCard, sameRepo } from '@once-upon-a-diff/terms/ids';
 import { STALE_MS, runIsOpen, staleAfterMs } from '../../records/agents/events.ts';
 import { implicitCards } from '../../records/agents/implicit.ts';
 import {
+  isAcked,
   isCritic,
   isStoryteller,
   lastActivity,
@@ -106,9 +107,9 @@ export interface CardPhase {
 
 /** The rows of the table `cardPhase` reads, one line each: the doc comment below and `once-upon card status` both say it from here. */
 export const PHASE_ROWS = {
-  '1': 'a work run is open: waiting (a question) is Waiting, plan is Agent checks, running or fixing is Working',
+  '1': 'a work run is open: waiting (a question) is Waiting, parked on your story review is Ready, plan is Agent checks, running or fixing is Working',
   '2': 'a critic is open: Agent checks',
-  '3': 'the latest work run failed or stopped: back in Backlog, tried',
+  '3': 'the latest work run failed (Error) or stopped (back in Backlog, tried)',
   '3b': 'a storyteller is running: Agent checks',
   '4': 'fixes are due: the latest critic finished with findings after the latest work run: Agent checks until a fix run opens',
   '5': 'built, and no critic has passed (none yet, or the latest failed, stopped or died), with no skip recorded: Waiting for your call (skip the critic or start one)',
@@ -123,10 +124,10 @@ const msOf = (date: Date | null | undefined): number | null => (date ? date.getT
 /**
  * The column of a card from its runs, first row that fits (ADR-25). `runs` is `runsOf(item, agents)`, oldest first.
  *
- *   1  a work run is open        waiting (a question) is Waiting; plan is Agent checks (the plan to check); running or fixing is
+ *   1  a work run is open        waiting (a question) is Waiting, parked on your story review (`review`) is Ready; plan is Agent checks (the plan to check); running or fixing is
  *                                Working. A fix round is the card's run, so it is Working here whether or not it was told `fixing`
  *   2  a critic is open          Agent checks, in every repo (an open critic with no sign of life for STALE_MS is dead and holds nothing)
- *   3  the latest work run       failed or stopped: back in Backlog, tried
+ *   3  the latest work run       failed: Error (until `agent ack` clears it or the card is set aside as someday, then as stopped); stopped: back in Backlog, tried
  *   3b a storyteller is open     running with a sign of life in the last hour: Agent checks, in every repo (a failed build is read first; a waiting one, with a question, holds nothing)
  *   4  fixes are due             the latest critic finished with findings above 0, after the latest work run
  *                                ended (and under STALE_MS ago: findings nobody fixed lapse): Agent checks until a fix run opens (row 1)
@@ -144,7 +145,7 @@ const msOf = (date: Date | null | undefined): number | null => (date ? date.getT
  */
 export function cardPhase(
   item: Pick<BacklogItem, 'state' | 'repo' | 'branch' | 'critic_skipped'> &
-    Partial<Pick<BacklogItem, 'landed_at'>>,
+    Partial<Pick<BacklogItem, 'landed_at' | 'someday'>>,
   runs: LedgerAgent[],
   nowMs: number,
   ready: ReadyFacts = UNKNOWN_READY,
@@ -161,7 +162,7 @@ export function cardPhase(
   if (working) {
     const when = msOf(working.ended);
     if (working.state === 'waiting') {
-      return { column: 'waiting', when, tried: false, row: '1' };
+      return { column: working.review ? 'ready' : 'waiting', when, tried: false, row: '1' };
     }
     return {
       column: working.state === 'plan' ? 'checks' : 'working',
@@ -172,6 +173,10 @@ export function cardPhase(
   }
   if (critics.some(alive)) {
     return { column: 'checks', when: null, tried: false, row: '2' };
+  }
+  // a card you set aside (someday) after its failure is dealt with: it goes back to Backlog, as an acked one does
+  if (latestWork?.state === 'failed' && !isAcked(latestWork) && !item.someday) {
+    return { column: 'error', when: msOf(latestWork.ended), tried: false, row: '3' };
   }
   if (latestWork && (latestWork.state === 'failed' || latestWork.state === 'stopped')) {
     return { column: 'backlog', when: msOf(latestWork.ended), tried: true, row: '3' };

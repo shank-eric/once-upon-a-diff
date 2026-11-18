@@ -175,7 +175,7 @@ test('a claim whose agent is not registered yet is Working, pending, for CLAIM_G
   assert.equal(back?.backlog?.claim, null);
 });
 
-test('a claimed agent that fails sends its card back to Backlog, tried', async () => {
+test('a claimed agent that fails puts its card in Error', async () => {
   const { store, cards, home } = world();
   const item = store.add({ title: 'Try it', repo: 'acme/widgets' });
   claimAt(store, item.id, 'ou-scout', '2026-10-26T18:35:00Z');
@@ -185,8 +185,8 @@ test('a claimed agent that fails sends its card back to Backlog, tried', async (
     now: { state: 'failed', at: '2026-10-26T18:45:00Z', outcome: 'gave up' },
   });
   const back = (await cards()).find((one) => one.backlog?.id === item.id);
-  assert.equal(back?.column, 'backlog');
-  assert.equal(back?.backlog?.agent?.tried, true);
+  assert.equal(back?.column, 'error');
+  assert.equal(back?.backlog?.agent?.tried, false);
   assert.equal((await cards()).filter((one) => one.kind === 'agent').length, 0);
 });
 
