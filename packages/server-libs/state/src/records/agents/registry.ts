@@ -35,7 +35,7 @@ import {
   type AgentEvent,
 } from './events.ts';
 import { implicitCards } from './implicit.ts';
-import { branchTip, madeOnBranch } from './made.ts';
+import { branchTip, madeOnBranch, uncommittedWorktree } from './made.ts';
 import { agentsFile } from './read.ts';
 import { clean, count, optional } from '@once-upon-a-diff/foundation/input';
 import type { LedgerAgent } from './ledger.ts';
@@ -111,6 +111,8 @@ export interface FinishInput extends Target {
   };
   findings?: number | string | null;
   notes?: string | null;
+  /** told --no-commit (a planner or capped author): there is no commit to wait for, so the worktree is not read */
+  noCommit?: boolean;
 }
 
 /** The states a sweep closes: a run that owes beats. One parked on a person (waiting, review, plan) is never swept. */
@@ -799,12 +801,30 @@ export class AgentRegistry {
     if (!Object.keys(result).length && state === 'done' && agent.kind === 'author') {
       Object.assign(result, madeOnBranch(agent));
     }
+    // an author done with no commit and changes left in its worktree: recorded once, here (a planner made none to hold)
+    let uncommitted: true | null = null;
+    if (
+      !result.commit &&
+      !input.noCommit &&
+      state === 'done' &&
+      agent.kind === 'author' &&
+      agent.state !== 'plan'
+    ) {
+      const dir = uncommittedWorktree(agent);
+      if (dir) {
+        uncommitted = true;
+        warn?.(
+          `once-upon: ${name} left uncommitted changes in ${dir}: commit them before the finish`,
+        );
+      }
+    }
     return this.append({
       ...this.base('finish', name, agent.sid, input),
       run: agent.run ?? undefined,
       state,
       outcome: clean(input.outcome, 'the outcome') || null,
       result: Object.keys(result).length ? result : null,
+      uncommitted,
       findings: count(input.findings, 'the findings count'),
       notes: clean(input.notes, 'the notes path', 500) || null,
     });

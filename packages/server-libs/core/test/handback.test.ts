@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import '@once-upon-a-diff/test-kit/env';
+import { writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { tmp } from '@once-upon-a-diff/test-kit/files';
 import { git, worktreeFixture } from '@once-upon-a-diff/test-kit/git';
 import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
@@ -76,6 +78,22 @@ test('--no-commit records only the card, even with a commit on the branch', asyn
   ctx.fixture.commit(tree, 'one');
   handbackRun(ctx.home, 'feat-x', { noCommit: true });
   assert.deepEqual(ctx.run('feat-x').result, { card: ctx.card });
+});
+
+test('--no-commit of an author with a dirty worktree records no "left uncommitted changes"', async () => {
+  const ctx = world();
+  await ctx.dispatch();
+  const tree = ctx.fixture.add('feat-x');
+  writeFileSync(path.join(tree, 'notes.txt'), 'not committed\n');
+  const done = handbackRun(ctx.home, 'feat-x', { noCommit: true });
+  assert.doesNotMatch(done.warnings.join('\n'), /uncommitted/);
+  assert.equal(ctx.run('feat-x').uncommitted, undefined);
+  // without --no-commit the same worktree is recorded
+  const other = world();
+  await other.dispatch();
+  writeFileSync(path.join(other.fixture.add('feat-x'), 'notes.txt'), 'not committed\n');
+  handbackRun(other.home, 'feat-x', {});
+  assert.equal(other.run('feat-x').uncommitted, true);
 });
 
 test('--plan leaves the run in plan with the outcome "plan written"; the planner’s finish then records the card only', async () => {

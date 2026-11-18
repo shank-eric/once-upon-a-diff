@@ -60,3 +60,35 @@ export function madeOnBranch(agent: Registered): AgentResult | null {
   const tip = branchTip(agent.cwd, agent.branch, agent.repo);
   return tip && tip !== agent.tip ? { commit: tip, branch: agent.branch } : null;
 }
+
+/**
+ * Whether an author's worktree has changes no commit holds (modified, staged or untracked files), read once at its finish: the
+ * worktree is the checkout of the agent's branch, found from the registered checkout's `git worktree list`. Null when there is
+ * no such worktree or git fails or is slow: nothing to say, never an error.
+ */
+export function uncommittedWorktree(agent: Pick<LedgerAgent, 'cwd' | 'branch'>): string | null {
+  if (!agent.cwd || !agent.branch) {
+    return null;
+  }
+  try {
+    const listed = runGit(agent.cwd, ['worktree', 'list', '--porcelain'], {
+      quiet: true,
+      timeoutMs: GIT_TIMEOUT_MS,
+    });
+    for (const block of listed.split(/\n\s*\n/)) {
+      const lines = block.split('\n').map((line) => line.trimEnd());
+      const dir = lines.find((line) => line.startsWith('worktree '))?.slice('worktree '.length);
+      if (dir && lines.includes(`branch refs/heads/${agent.branch}`)) {
+        const status = runGit(
+          dir,
+          ['-c', 'core.fsmonitor=false', '--no-optional-locks', 'status', '--porcelain'],
+          { quiet: true, timeoutMs: GIT_TIMEOUT_MS },
+        );
+        return status.trim() ? dir : null;
+      }
+    }
+  } catch {
+    /* no worktree to look at */
+  }
+  return null;
+}

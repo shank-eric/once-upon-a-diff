@@ -188,6 +188,7 @@ export function foldAgentEvents(events: AgentEvent[]): LedgerAgent[] {
         // the stop was not the end after all: the hook's end and what it recorded are gone
         delete agent.autoFinished;
         delete agent.acked;
+        delete agent.uncommitted;
         agent.result = null;
       }
       agent.state = state;
@@ -203,6 +204,11 @@ export function foldAgentEvents(events: AgentEvent[]): LedgerAgent[] {
     agent.ended = when;
     agent.outcome = event.outcome ?? null;
     agent.result = event.result ?? null;
+    if (event.uncommitted) {
+      agent.uncommitted = true;
+    } else {
+      delete agent.uncommitted;
+    }
     if (event.by === 'auto-finish') {
       agent.autoFinished = true;
     } else {

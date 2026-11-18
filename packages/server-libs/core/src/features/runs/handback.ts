@@ -104,6 +104,7 @@ export function handbackRun(
       outcome,
       result,
       findings: input.findings,
+      noCommit: input.noCommit,
       sid,
       prefer: input.prefer,
     },

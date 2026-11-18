@@ -59,6 +59,8 @@ export interface LedgerAgent {
   /** an editor's build slots (kind `editor`) */
   slots?: number | null;
   result?: AgentResult | null;
+  /** an author finished done with no commit and its worktree had changes (recorded once, at the finish): it waits in Ready for your review */
+  uncommitted?: true;
   findings?: number | null;
   /** when a failed run was acknowledged (`agent ack`): the board stops counting it as failed. Set only when it was */
   acked?: Date;

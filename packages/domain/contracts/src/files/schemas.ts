@@ -88,7 +88,7 @@ export type AgentResult = Listed<InferOutput<typeof AgentResultSchema>>;
  *   {op:'branch', ..., run, branch}                       the open run's branch moved (a rename): `backlog branch` writes it with the card's
  *   {op:'card',   ..., run, card}                         a run, open or over, moved to another card (`backlog drop --into`)
  *   {op:'ack',    ..., run}                               a failed run, open or over, was acknowledged (`agent ack`): the board stops counting it as failed
- *   {op:'finish', ..., state: done|failed|stopped, outcome, result: {commit, pr, branch, card}, findings, notes}
+ *   {op:'finish', ..., state: done|failed|stopped, outcome, result: {commit, pr, branch, card}, uncommitted (a done author with no commit whose worktree had changes: read once at the finish), findings, notes}
  * A finish with `by` `auto-finish` (the SubagentStop hook, `agent auto-finish`) is replaced by the next finish of the run: the agent's own.
  * `id` is `<sid8>:<name>`. An old row may carry a `lane` tag: nothing reads it, and the row loads with it. `kind` is as stored: an old line may still say `builder` or `reviewer`, and a kind nobody knows reads as none.
  */
@@ -128,6 +128,7 @@ const AgentEventSchema = looseObject({
   outcome: lenient(string()),
   findings: lenient(number()),
   result: lenient(AgentResultSchema),
+  uncommitted: lenient(boolean()),
   n: lenient(number()),
   of: lenient(number()),
   step: lenient(string()),

@@ -3,7 +3,13 @@
  * (ADR-25); every other agent is a card of its own, on its own lane.
  */
 import { agentWorkKey, isImplicitCard, isSelfName } from '@once-upon-a-diff/terms/ids';
-import { finishedColumn, finishedSummary, landedFor, pendingReview } from '../agent-home.ts';
+import {
+  finishedColumn,
+  finishedSummary,
+  landedFor,
+  leftUncommitted,
+  pendingReview,
+} from '../agent-home.ts';
 import { readyColumn } from '@once-upon-a-diff/state/queues/backlog/ready';
 import { readyFactsFor } from './ready-facts.ts';
 import { agentKey } from '@once-upon-a-diff/state/queues/backlog/claims';
@@ -20,7 +26,7 @@ import {
 } from '@once-upon-a-diff/state/records/agents/ledger';
 import { cardOnBranch } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { laneOf } from './lanes.ts';
-import { readFinished } from '@once-upon-a-diff/adapters/stores/finished-agents';
+import { KEEP_MS, readFinished } from '@once-upon-a-diff/adapters/stores/finished-agents';
 import type { WorktreeFacts } from '@once-upon-a-diff/state/records/worktrees/worktrees';
 import type {
   BoardAgent,
@@ -244,6 +250,7 @@ export function placeAgents(
       !droppedCard(agent, items) &&
       (agent.state === 'running' ||
         !!pendingOf.get(agent) ||
+        (leftUncommitted(agent) && nowMs - (lastActivity(agent)?.getTime() ?? 0) < KEEP_MS) ||
         (agent.state === 'waiting' && !forgotten(agent, nowMs)) ||
         agent.state === 'plan' ||
         agent.state === 'fixing' ||

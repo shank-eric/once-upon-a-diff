@@ -92,6 +92,18 @@ export function pendingReview(
     : { pushed: facts.pushed === true, pr: facts.pr, branch, path: tree.path };
 }
 
+/** An author that finished done with no commit and changes left in its worktree (`agent finish` recorded it once). */
+export function leftUncommitted(
+  agent: Pick<LedgerAgent, 'state'> & Partial<Pick<LedgerAgent, 'kind' | 'result' | 'uncommitted'>>,
+): boolean {
+  return (
+    agent.uncommitted === true &&
+    agent.state === 'done' &&
+    agent.kind === 'author' &&
+    !agent.result?.commit
+  );
+}
+
 /**
  * The column of a finished agent that is not inside a card. No text is read: not the outcome, not the task, only what it
  * registered. In order:
@@ -103,6 +115,8 @@ export function pendingReview(
  *   registered, done, pending review          An author's commit on a branch that is not merged (pendingReview), with or
  *                                             without a card, story or critic: with an open PR, PR open; pushed with no PR,
  *                                             Ready to ship; not pushed, Ready for your review (pendingColumn)
+ *   registered, done, left uncommitted        Ready for your review: an author's worktree had changes and no commit when it
+ *                                             finished (recorded once at the finish, never checked live)
  *   registered, finished with a result        Done: a commit, PR, branch or card (given with --commit, --pr, --branch or
  *                                             --card, or recorded from the registered branch moving, registry.ts). A
  *                                             stopped run made nothing to point at, whatever it recorded
@@ -114,7 +128,8 @@ export function pendingReview(
  *   registered, stopped, any kind but research  Waiting: interrupted work, a decision
  */
 export function finishedColumn(
-  agent: Pick<LedgerAgent, 'name' | 'state'> & Partial<Pick<LedgerAgent, 'kind' | 'result'>>,
+  agent: Pick<LedgerAgent, 'name' | 'state'> &
+    Partial<Pick<LedgerAgent, 'kind' | 'result' | 'uncommitted'>>,
   landed = false,
   pending: PendingReview | null = null,
 ): 'done' | 'research' | 'waiting' | 'ready' | 'ship' | 'pr_open' {
@@ -130,6 +145,10 @@ export function finishedColumn(
   }
   if (pending) {
     return pendingColumn(pending);
+  }
+  // an author that finished done with changes left in its worktree and no commit: no push state, so always for your review
+  if (leftUncommitted(agent)) {
+    return 'ready';
   }
   if (agent.state !== 'stopped' && agent.result && Object.keys(agent.result).length > 0) {
     return 'done';
@@ -164,7 +183,7 @@ export function landedFor(
  */
 export function finishedSummary(
   agent: Pick<LedgerAgent, 'name' | 'state' | 'task' | 'started'> &
-    Partial<Pick<LedgerAgent, 'kind' | 'result' | 'findings'>>,
+    Partial<Pick<LedgerAgent, 'kind' | 'result' | 'findings' | 'uncommitted'>>,
   item: Pick<BacklogItem, 'title' | 'state' | 'landed_at' | 'landed_sha'> | undefined,
   pending: PendingReview | null = null,
 ): { did: string | null; why: string } {
@@ -175,7 +194,7 @@ export function finishedSummary(
 
 function whyDone(
   agent: Pick<LedgerAgent, 'name' | 'state'> &
-    Partial<Pick<LedgerAgent, 'kind' | 'result' | 'findings'>>,
+    Partial<Pick<LedgerAgent, 'kind' | 'result' | 'findings' | 'uncommitted'>>,
   landed: { sha: string | null } | null,
   pending: PendingReview | null,
 ): string {
@@ -191,6 +210,9 @@ function whyDone(
   const result = agent.result ?? {};
   if (landed && agent.kind !== 'research') {
     return landed.sha ? `landed ${shortSha(landed.sha)}` : 'landed';
+  }
+  if (leftUncommitted(agent)) {
+    return 'left uncommitted changes';
   }
   if (result.commit) {
     const committed = `committed ${shortSha(result.commit)}`;
