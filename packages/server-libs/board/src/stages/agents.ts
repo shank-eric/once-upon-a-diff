@@ -4,6 +4,8 @@
  */
 import { agentWorkKey, isImplicitCard, isSelfName } from '@once-upon-a-diff/terms/ids';
 import { finishedColumn, finishedSummary, landedFor, pendingReview } from '../agent-home.ts';
+import { readyColumn } from '@once-upon-a-diff/state/queues/backlog/ready';
+import { readyFactsFor } from './ready-facts.ts';
 import { agentKey } from '@once-upon-a-diff/state/queues/backlog/claims';
 import { agentsOnCard } from '@once-upon-a-diff/state/queues/backlog/phase';
 import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
@@ -184,9 +186,10 @@ export interface AgentFacts {
  * and its parent session, until the card's Finish clears it: in Done when it made something (a finish
  * event's commit, PR, branch or card), in Research when a research run finished
  * with no result, in Waiting when it failed, was stopped, or is an author that made nothing (finishedColumn; a done
- * agent whose registered card landed made something). An author whose commit is on a branch with no PR that is not merged
- * is in Ready for your review (pendingReview), and stays there with no timer until Finish clears it, the branch gets a
- * PR, merges, moves on or loses its worktree, or a week has passed (the time a Finish is kept). Its `summary` says what it did and why it is done. An
+ * agent whose registered card landed made something). An author whose commit is on a branch that is not merged is
+ * in Ready for your review (not pushed), Ready to ship (pushed, GitHub says no PR) or PR open (an open PR) (pendingReview,
+ * pendingColumn), and stays there with no timer until Finish clears it, the branch merges, moves on or loses its worktree,
+ * or a week has passed (the time a Finish is kept). Its `summary` says what it did and why it is done. An
  * author's card in Waiting stays `doneHours` (an hour), not `finishedWaitMinutes`. A later event brings the card back, with a fresh timer.
  */
 export function placeAgents(
@@ -219,7 +222,18 @@ export function placeAgents(
   const pendingOf = new Map(
     agents.map((agent) => [
       agent,
-      pendingReview(agent, trees, (repo, branch) => ctx.review.branchPr(repo, branch), nowMs),
+      pendingReview(
+        agent,
+        trees,
+        (repo, branch) => ctx.review.branchPr(repo, branch),
+        nowMs,
+        // the PR number an author typed at finish counts once GitHub has answered for it (asked only for a finished
+        // author's commit that passed pendingReview's other checks)
+        (repo, number) => {
+          ctx.review.kickInfo(repo, number, nowMs);
+          return ctx.review.info(repo, number);
+        },
+      ),
     ]),
   );
   const shown = agents.filter(
@@ -249,9 +263,11 @@ export function placeAgents(
       finishedIn === 'waiting' && agent.kind === 'author'
         ? Math.max(waitMs, ctx.settings.doneHours * 3600 * 1000)
         : waitMs;
-    // Ready for your review has no timer: it stays until Finish clears it, or the branch gets a PR or merges
+    // a commit waiting on you (Ready for your review, Ready to ship, PR open) has no timer: it stays until Finish clears it,
+    // the branch merges or moves on
+    const waitsOnYou = finishedIn === 'ready' || finishedIn === 'ship' || finishedIn === 'pr_open';
     const clearsAt =
-      finishedIn !== 'ready' && isFinished(agent) && active && active.getTime() + staysMs > nowMs
+      !waitsOnYou && isFinished(agent) && active && active.getTime() + staysMs > nowMs
         ? new Date(active.getTime() + staysMs)
         : null;
     const view = agentOf(agent, nowMs, clearsAt, editorOf(agent));
@@ -269,7 +285,7 @@ export function placeAgents(
       continue;
     }
     // a finished agent's own card is in its column for a while
-    if (isFinished(agent) && !clearsAt && finishedIn !== 'ready') {
+    if (isFinished(agent) && !clearsAt && !waitsOnYou) {
       continue;
     }
     // parked on your story review is Ready, not Waiting. A finished agent's column is finishedColumn's: Done when it made
@@ -283,7 +299,19 @@ export function placeAgents(
       column = 'thinking';
     }
     if (agent.review) {
-      column = 'ready';
+      // a story review is asked on committed work: pushed with no PR is Ready to ship, an open PR is PR open, else Ready
+      column = readyColumn(
+        readyFactsFor(
+          ctx.review,
+          {
+            repo: agent.repo ?? null,
+            branch: agent.result?.branch ?? agent.branch ?? null,
+            typedPr: agent.result?.pr,
+          },
+          trees,
+          nowMs,
+        ),
+      );
     }
     // a run on an implicit card that already has its agent card goes on that card, not on a card of its own. The card keeps
     // the head's column, unless the head is over and this run is still going: then it is this run's
@@ -339,7 +367,7 @@ export function placeAgents(
       listening: null,
       build: null,
       // a commit waiting on your review: Review and Build story work on its branch's worktree
-      ...(finishedIn === 'ready' && pending
+      ...((finishedIn === 'ready' || finishedIn === 'ship') && pending
         ? { review: { branch: pending.branch, path: pending.path } }
         : {}),
     };

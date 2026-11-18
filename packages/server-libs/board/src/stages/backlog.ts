@@ -10,12 +10,14 @@ import { agentKey, sameAgentView } from '@once-upon-a-diff/state/queues/backlog/
 import {
   cardPhase,
   DONE_HOURS,
+  isWorkRun,
   namedByRuns,
   runsOf,
   type CardPhase,
 } from '@once-upon-a-diff/state/queues/backlog/phase';
 import { agentLinks, startedLinks } from '@once-upon-a-diff/state/queues/backlog/backlog-links';
 import type { Worktree } from '@once-upon-a-diff/state/queues/backlog/backlog-links';
+import type { WorktreeFacts } from '@once-upon-a-diff/state/records/worktrees/worktrees';
 import { checkoutsOf } from '@once-upon-a-diff/state/records/worktrees/checkouts';
 import type { LedgerAgent } from '@once-upon-a-diff/state/records/agents/ledger';
 import type { LiveSession } from '@once-upon-a-diff/adapters/claude-sessions/live-sessions';
@@ -27,6 +29,7 @@ import type {
 } from '@once-upon-a-diff/contracts/types';
 import { AGENT_OPEN, forgotten } from './agents.ts';
 import type { BuildContext, PinnedVoice, StoryFacts, Work } from './types.ts';
+import { readyFactsFor } from './ready-facts.ts';
 import { dirOf } from './worktrees.ts';
 import { branchOfWork } from './works.ts';
 
@@ -283,6 +286,8 @@ export interface AssignFacts {
   quietViews: BoardSession[];
   pin: PinnedVoice | null;
   repoBySession: Map<string, string | null>;
+  /** what the worktree scanner has: whether a built card's branch is pushed (ready.ts) */
+  trees?: WorktreeFacts[];
 }
 
 /**
@@ -295,7 +300,7 @@ export function addBacklogCards(
   cards: BoardCard[],
   backlogItems: BacklogItem[],
   links: Map<string, BoardStartedLinks>,
-  { quietViews, pin, repoBySession }: AssignFacts,
+  { quietViews, pin, repoBySession, trees = [] }: AssignFacts,
   views: Map<string, BoardAgent[]> = new Map(),
   agents: LedgerAgent[] = [],
 ): BoardCard[] {
@@ -312,7 +317,19 @@ export function addBacklogCards(
   const phases = new Map<string, CardPhase | null>();
   for (const item of backlogItems) {
     if (item.state !== 'dropped' && namedByRuns(item, agents)) {
-      const phase = cardPhase(item, runsOf(item, agents), nowMs);
+      const runs = runsOf(item, agents);
+      // a built card's PR and push facts (row 6); the PR number its latest work run typed counts once GitHub answered for it
+      const typedPr = [...runs].reverse().find((run) => isWorkRun(run))?.result?.pr;
+      const ready =
+        item.state === 'started' && item.branch
+          ? readyFactsFor(
+              ctx.review,
+              { repo: item.repo ?? null, branch: item.branch, typedPr },
+              trees,
+              nowMs,
+            )
+          : undefined;
+      const phase = cardPhase(item, runs, nowMs, ready);
       if (phase !== undefined) {
         phases.set(item.id, phase);
       }

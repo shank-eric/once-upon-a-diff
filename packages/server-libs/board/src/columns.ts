@@ -11,7 +11,8 @@
  *   done      the PR merged, or its card landed (`once-upon backlog done`) with no PR: a local story whose work reached the
  *             default branch some other way than a merge you can see (a cherry-pick). The board drops it an hour later
  *   ship      a local story you approved for its current head: ready to ship, with no PR yet and still on this Mac (a new
- *             commit clears the approval; the board drops it after APPROVED_DAYS)
+ *             commit clears the approval; the board drops it after APPROVED_DAYS). Also, with no approval needed (set by
+ *             stages/agents.ts and cardPhase, not here): finished work on a branch that is pushed, with GitHub saying it has no PR
  *   back      something is on you: its PR story has a version you haven't opened since it was built (a rebuild, say), or
  *             an unread answer to a question you asked in the story of your own PR, or
  *             someone asked something of you on the PR after your last activity (on your own PR: changes requested, or
@@ -19,7 +20,7 @@
  *             or GitHub is waiting on your review
  *   ready     its story is built, it has no PR yet, and you haven't reviewed it, or an agent on it says `[review]` ("done" is not done until you've seen
  *             it), or (set by stages/agents.ts on an agent's own card) a finished author's commit is on a branch with no PR
- *             that is not merged. It is the Mac's side: a card with a PR, whoever wrote it and whatever story it has, is on GitHub's
+ *             that is not merged and not pushed yet (pushed with no PR is ship, ready.ts). It is the Mac's side: a card with a PR, whoever wrote it and whatever story it has, is on GitHub's
  *             (back or pr_open). A rebuild of a local story since you opened it is a chip on its card
  *   pr_open   pushed with a PR, and nothing waits on you
  *   thinking  a research agent still running with no card to sit in (set by stages/agents.ts on an agent's own card), or a busy

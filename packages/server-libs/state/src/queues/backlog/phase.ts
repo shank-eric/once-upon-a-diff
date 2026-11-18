@@ -21,6 +21,7 @@ import {
   type LedgerAgent,
 } from '../../records/agents/ledger.ts';
 import { CLAIM_GRACE_HOURS, OPEN, agentKey } from './claims.ts';
+import { UNKNOWN_READY, readyColumn, type ReadyFacts } from './ready.ts';
 import type { BacklogItem } from './types.ts';
 
 /** A started item whose work merged or landed, or whose agent finished, stays in Done this long. */
@@ -118,7 +119,7 @@ export const PHASE_ROWS = {
   '3b': 'a storyteller is running: Agent checks',
   '4': 'fixes are due (once-upon-a-diff and Larmor): the latest critic finished with findings after the latest work run: Agent checks until a fix run opens',
   '5': 'no critic has passed yet (once-upon-a-diff and Larmor): Agent checks',
-  '6': 'built, with a branch: Ready for your review (Larmor: Ready to ship)',
+  '6': 'built, with a branch: an open PR is PR open; pushed with no PR is Ready to ship; else Ready for your review (Larmor: Ready to ship)',
   '7': 'no branch: Done for the Done hour after the work ended, then off the board',
 } as const;
 
@@ -138,7 +139,8 @@ const msOf = (date: Date | null | undefined): number | null => (date ? date.getT
  *                                ended (and under STALE_MS ago: findings nobody fixed lapse): Agent checks until a fix run opens (row 1).
  *                                Elsewhere findings are the story's fix-before-push comments and hold nothing
  *   5  critic-hold repo, no pass no critic yet, or the latest failed, was stopped or died: Agent checks
- *   6  built                     Larmor (skip-review): Ready to ship. Other repos with a branch: Ready for your review
+ *   6  built                     With a branch: an open PR is PR open; pushed with no PR is Ready to ship (ready.ts); else Ready for
+ *                                your review. Larmor (skip-review): Ready to ship. Facts not known yet keep Ready for your review
  *   7  no branch                 Done for DONE_HOURS after the work ended, then null (off the board)
  *
  * A critic that finished done with no findings count (an old row) reads as a pass, as it always did; `agent finish` no
@@ -149,6 +151,7 @@ export function cardPhase(
   item: Pick<BacklogItem, 'state' | 'repo' | 'branch'>,
   runs: LedgerAgent[],
   nowMs: number,
+  ready: ReadyFacts = UNKNOWN_READY,
 ): CardPhase | null | undefined {
   const work = runs.filter(isWorkRun);
   const critics = runs.filter(isCritic);
@@ -203,7 +206,7 @@ export function cardPhase(
   }
   if (built) {
     return {
-      column: SKIPS_REVIEW.test(repoName(item.repo)) ? 'ship' : 'ready',
+      column: readyColumn(ready, SKIPS_REVIEW.test(repoName(item.repo))),
       when,
       tried: false,
       row: '6',

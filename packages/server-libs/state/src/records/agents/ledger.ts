@@ -10,8 +10,8 @@
  *
  * A finished agent with no card to sit in is a card of its own, in the column finishedColumn (board/agent-home.ts) picks
  * from its fields, for board_finished_wait_minutes (30; an author in Waiting stays board_done_hours, 1 hour) after its
- * latest event (an author whose commit is on a branch with no PR that is not merged waits in Ready for your review with
- * no timer instead). The board's Finish on that card finishes a still-waiting agent through the registry, and otherwise just
+ * latest event (an author whose commit is on a branch that is not merged waits in Ready for your review, Ready to ship or PR open
+ * with no timer instead: see pendingColumn). The board's Finish on that card finishes a still-waiting agent through the registry, and otherwise just
  * records the click (adapters/stores/finished-agents.ts).
  */
 import type { BoardBeat, BoardGate } from '@once-upon-a-diff/contracts/types';

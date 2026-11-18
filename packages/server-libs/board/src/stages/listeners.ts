@@ -109,7 +109,9 @@ export function markListening(
     if (card.story) {
       card.listening = storyListening(card.story.id, waits, listening);
     }
-    if (card.column !== 'done' && card.column !== 'ship') {
+    // an agent's own card in Ready to ship (pushed, no PR, nothing approved) keeps its Build story; a work card there
+    // is in ship because its story was approved
+    if (card.column !== 'done' && (card.column !== 'ship' || card.kind === 'agent')) {
       card.build = buildFor(card, idle);
       if (card.kind !== 'agent') {
         const review = reviewFor(card, shipped);

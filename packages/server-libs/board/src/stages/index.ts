@@ -210,6 +210,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
         quietViews,
         pin,
         repoBySession,
+        trees: settings.worktrees ? state.scanner.read().items : [],
       },
       claimed,
       agents,

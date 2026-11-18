@@ -8,6 +8,7 @@ import { git } from '@once-upon-a-diff/test-kit/git';
 import { claimAt, registerRuns, type AgentRun } from '@once-upon-a-diff/state/test/helpers';
 import { Board, noPrWatcher, type PrWatcher } from '../src/board.ts';
 import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
+import type { WorktreeScanner } from '@once-upon-a-diff/state/records/worktrees/worktrees';
 import {
   agentLinks,
   parseWorktrees,
@@ -215,6 +216,62 @@ test('the Retire-the-inbox case: a claimed, started card is one Working card wit
     done?.backlog?.started?.links?.worktrees.map((tree) => tree.name),
     ['kill-inbox'],
   );
+});
+
+test('a finished carded author on a branch with no work card: unpushed is Ready for review, pushed with no PR is Ready to ship, an open PR is PR open, unknown keeps Ready', async () => {
+  const home = tmp('links-ready-doors');
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: tmp('links-ready-sessions') });
+  const store = new BacklogStore(home);
+  const item = store.add({ title: 'Retire the inbox page?', repo: 'acme/widgets' });
+  const registry = registerRuns(home, {
+    sid: '54736864',
+    name: 'ou-kill-inbox',
+    kind: 'author',
+    card: item.id,
+    task: 'remove the inbox',
+    started: STARTED,
+  });
+  const checkout = repoWithWorktree(home);
+  claimAt(store, item.id, 'ou-kill-inbox', CLAIMED);
+  store.start(item.id, { branch: 'kill-inbox', repo: 'acme/widgets', by: 'ou-kill-inbox' });
+  registry.finish('ou-kill-inbox', {
+    outcome: 'committed on kill-inbox',
+    at: new Date('2026-10-26T19:30:00Z'),
+  });
+  const later = new Date(Date.now() + 2 * 24 * 3600 * 1000);
+  const asked: number[] = [];
+  const watcher = (answer: unknown, info: unknown = null): PrWatcher => ({
+    ...noPrWatcher,
+    branchPr: () => answer as never,
+    kickInfo: (_repo, number) => {
+      asked.push(number);
+    },
+    info: () => info as never,
+  });
+  // the scanner fills its memory on a pass (the first snapshot starts it), so the board is read again once it is idle
+  const column = async (review: PrWatcher) => {
+    const board = boardOf(home, later, review);
+    await board.snapshot();
+    await (board as unknown as { scanner: WorktreeScanner }).scanner.idle();
+    return (await backlogCard(board, item.id))?.column;
+  };
+  const open = { number: 9, state: 'open', merged_at: null };
+  // unpushed (the worktree's commits are on no remote ref)
+  assert.equal(await column(watcher(null)), 'ready', 'unpushed, GitHub says no PR');
+  assert.equal(await column(watcher(open)), 'pr_open', 'an open PR, pushed or not');
+  // pushed: a remote ref holds the branch's tip
+  git(checkout, 'update-ref', 'refs/remotes/origin/kill-inbox', 'kill-inbox');
+  assert.equal(await column(watcher(null)), 'ship', 'pushed, GitHub says no PR');
+  assert.equal(await column(watcher(undefined)), 'ready', 'pushed, GitHub not asked: unknown');
+  assert.equal(await column(watcher(open)), 'pr_open', 'pushed with an open PR');
+  const merged = await column(
+    watcher({ number: 9, state: 'merged', merged_at: '2026-10-27T00:00:00Z' }),
+  );
+  assert.ok(
+    !['ready', 'ship', 'pr_open'].includes(merged ?? ''),
+    'a merged PR is the merge paths’, not a door',
+  );
+  assert.deepEqual(asked, [], 'no typed PR number: nothing asked for');
 });
 
 test('a claimed card (no start) is out of Backlog while the run that names it runs, and back in it when the run fails', async () => {

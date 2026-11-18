@@ -43,3 +43,39 @@ test("an idle editor session is known by id, so its author's Build story is not 
   assert.equal(card.build?.blocked, null);
   assert.equal(card.build?.session, 'ed1');
 });
+
+test("a finished author's card in Ready to ship (pushed, no PR) keeps its Build story, a done card does not", () => {
+  const view = {
+    id: 'ed1',
+    status: 'idle',
+    title: 'editor',
+    focus: null,
+  } as unknown as BoardSession;
+  const make = (column: string) =>
+    ({
+      id: `a:${column}`,
+      kind: 'agent',
+      column,
+      sessions: [],
+      agents: [],
+      focus_session: 'ed1',
+      can_focus: true,
+      review: { branch: 'feat-x', path: '/tmp/wt/feat-x' },
+    }) as unknown as BoardCard;
+  const ship = make('ship');
+  const done = make('done');
+  markListening(ctx, [ship, done], {
+    waits: [],
+    parents: new Map(),
+    sessionByPid: new Map(),
+    quietViews: [],
+    busyListeners: new Set(),
+    blankViews: [],
+    editorViews: [{ lane: 'x', view }],
+    pin: null,
+    repoBySession: new Map(),
+  });
+  assert.equal(ship.build?.session, 'ed1');
+  assert.equal(ship.build?.blocked, null);
+  assert.ok(!done.build);
+});

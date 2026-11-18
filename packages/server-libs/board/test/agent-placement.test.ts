@@ -622,7 +622,7 @@ test('a landing from before the run started is an earlier run’s; one at its st
 });
 
 /** What pendingReview says of an unpushed commit on feat/x. */
-const PENDING = { pushed: false, branch: 'feat/x', path: '/wt/feat-x' };
+const PENDING = { pushed: false, pr: 'none' as const, branch: 'feat/x', path: '/wt/feat-x' };
 
 /** The tip of feat/x's worktree: the commit the author below finished with. */
 const TIP = 'c80964d9' + '0'.repeat(32);
@@ -652,11 +652,18 @@ const placeWith = (
     pr?: unknown;
     items?: BacklogItem[];
     home?: string;
+    /** GitHub's answer for a typed PR number (null: not answered yet), and the numbers asked for */
+    info?: unknown;
+    asked?: number[];
   } = {},
 ) => {
-  const { cards = [], tree = {}, items = [], home } = options;
+  const { cards = [], tree = {}, items = [], home, info = null, asked = [] } = options;
   const pr = 'pr' in options ? options.pr : null;
-  const review = { branchPr: () => pr } as unknown as PrWatcher;
+  const review = {
+    branchPr: () => pr,
+    kickInfo: (_repo: string, number: number) => asked.push(number),
+    info: () => info,
+  } as unknown as PrWatcher;
   return placeAgents({ ...ctx(), ...(home ? { home } : {}), review } as BuildContext, cards, {
     agents,
     pin: null,
@@ -676,8 +683,13 @@ test('an author’s commit on a branch with no PR, not merged, is Ready for your
   });
   assert.deepEqual(
     ownCard(committer(), { tree: { unpushed: 0, onRemote: true } }),
-    { column: 'ready', why: 'committed c80964d, no PR' },
-    'pushed with no PR is still on you',
+    { column: 'ship', why: 'committed c80964d, no PR' },
+    'pushed with no PR is Ready to ship, with no approval',
+  );
+  assert.deepEqual(
+    ownCard(committer(), { tree: { unpushed: null } }),
+    { column: 'ready', why: 'committed c80964d, not pushed' },
+    'push state not known: Ready for your review',
   );
   assert.deepEqual(
     ownCard(committer({ card: 'bl_aaaaaa333333' })),
@@ -732,9 +744,14 @@ test('an author’s merged commit is Done, as before', () => {
 test('an author’s commit whose branch has a PR follows the PR’s rules', () => {
   const open = { number: 9, state: 'open', merged_at: null };
   assert.deepEqual(ownCard(committer(), { pr: open }), {
-    column: 'done',
-    why: 'committed c80964d',
+    column: 'pr_open',
+    why: 'committed c80964d, PR open',
   });
+  assert.deepEqual(
+    ownCard(committer(), { pr: open, tree: { unpushed: 0 } }),
+    { column: 'pr_open', why: 'committed c80964d, PR open' },
+    'pushed or not',
+  );
   // with the PR's card on the board, the author's implicit card rides on it, and the card's column is the PR's
   const prCard = card({ branch: 'feat/x', pr: { number: 9, state: 'open' } as BoardCard['pr'] });
   assert.deepEqual(
@@ -802,6 +819,79 @@ test('an unpushed commit stays in Ready past the finished wait until Finish clea
   );
   markFinished(home, 'aaaaaaaa:ou-commit', NOW - 60000);
   assert.deepEqual(placeWith([old], { home }), [], 'cleared by Finish');
+});
+
+test('Ready to ship and PR open for an author’s commit hold with no timer, and Finish clears them', () => {
+  const open = { number: 9, state: 'open', merged_at: null };
+  for (const options of [{ tree: { unpushed: 0 } }, { pr: open }]) {
+    const home = tmp('placement-holds');
+    const old = committer({
+      ended: new Date(NOW - 2 * 86400000),
+      lastEvent: new Date(NOW - 2 * 86400000),
+    });
+    const [own] = placeWith([old], { home, ...options });
+    assert.notEqual(own?.column, 'ready');
+    assert.ok(own && ['ship', 'pr_open'].includes(own.column), 'two days on, still there');
+    assert.equal(own.agents[0].clears_at, null, 'no timer');
+    assert.deepEqual(placeWith([old], { home, ...options, tree: { merged: true } }), []);
+    markFinished(home, 'aaaaaaaa:ou-commit', NOW - 60000);
+    assert.deepEqual(placeWith([old], { home, ...options }), [], 'cleared by Finish');
+  }
+});
+
+test('a PR number an author typed at finish counts once GitHub answered for it: open is PR open, closed is never PR open', () => {
+  const typed = { result: { commit: 'c80964d9', branch: 'feat/x', pr: 5 } };
+  const column = (info: unknown, tree: Partial<WorktreeFacts> = {}) => {
+    const asked: number[] = [];
+    return [ownCard(committer(typed), { info, asked, tree })?.column, asked] as const;
+  };
+  assert.deepEqual(column({ state: 'open' }), ['pr_open', [5]]);
+  assert.deepEqual(column(null), ['ready', [5]], 'GitHub has not answered: a typo hides nothing');
+  assert.deepEqual(column({ state: 'closed' }), ['ready', [5]], 'closed, unpushed');
+  assert.deepEqual(column({ state: 'closed' }, { unpushed: 0 }), ['ship', [5]], 'closed, pushed');
+  assert.deepEqual(column({ state: 'merged' }), ['done', [5]], 'merged: the merge paths decide');
+  // nothing is asked for an author with no typed number, or one that is not waiting on you
+  const asked: number[] = [];
+  ownCard(committer(), { asked });
+  ownCard(committer(typed), { asked, tree: { merged: true } });
+  ownCard(committer({ state: 'stopped', ...typed }), { asked });
+  assert.deepEqual(asked, []);
+});
+
+test('an agent parked on [review] splits by push state, like the other doors', () => {
+  const parked = (options: Parameters<typeof placeWith>[1] = {}, over: Partial<LedgerAgent> = {}) =>
+    ownCard(
+      registered({
+        name: 'ou-rev',
+        state: 'waiting',
+        review: true,
+        repo: 'acme/widgets',
+        branch: 'feat/x',
+        ...over,
+      }),
+      options,
+    )?.column;
+  const open = { number: 9, state: 'open', merged_at: null };
+  assert.equal(parked(), 'ready', 'not pushed');
+  assert.equal(parked({ tree: { unpushed: 0 } }), 'ship', 'pushed, no PR');
+  assert.equal(parked({ tree: { unpushed: null } }), 'ready', 'push not known');
+  assert.equal(parked({ tree: null }), 'ready', 'no worktree fact');
+  assert.equal(
+    parked({ tree: { unpushed: 0 }, pr: undefined }),
+    'ready',
+    'GitHub has not answered',
+  );
+  assert.equal(parked({ pr: open }), 'pr_open', 'an open PR');
+  assert.equal(
+    parked({ tree: { unpushed: 0 }, info: { state: 'closed' } }, { result: { pr: 5 } }),
+    'ship',
+    'a closed PR is never PR open',
+  );
+  assert.equal(
+    parked({ info: { state: 'open' } }, { result: { pr: 5 } }),
+    'pr_open',
+    'a typed PR GitHub says is open',
+  );
 });
 
 test('an old author whose branch name is reused is not Ready: its commit must be the worktree’s tip', () => {

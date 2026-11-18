@@ -15,24 +15,34 @@ import { KEEP_MS as FINISH_KEPT_MS } from '@once-upon-a-diff/adapters/stores/fin
 import { DEFAULT_BRANCHES } from '@once-upon-a-diff/foundation/settings';
 import type { WorktreeFacts } from '@once-upon-a-diff/state/records/worktrees/worktrees';
 import type { BranchPr } from '@once-upon-a-diff/state/records/github/github-checks';
+import { readyColumn, readyFactsOf } from '@once-upon-a-diff/state/queues/backlog/ready';
+import type { PrInfo } from '@once-upon-a-diff/contracts/types';
 import { shortSha, plural } from '@once-upon-a-diff/terms/text';
 
 /**
- * A finished author's commit that waits on your review: whether its branch is on origin yet (the `why` says which), and
- * the branch and the worktree it is in (the card's Review and Build story).
+ * A finished author's commit that waits on you: whether its branch is on origin yet and whether it has a PR (the `why` says
+ * which; `pr` is `open` or GitHub's `none`, never unknown), and the branch and the worktree it is in (the card's Review and
+ * Build story). Its column is `pendingColumn`.
  */
 export interface PendingReview {
   pushed: boolean;
+  pr: 'open' | 'none';
   branch: string;
   path: string;
 }
 
+/** The column of a pending commit (ready.ts): an open PR is PR open, pushed with no PR is Ready to ship, else Ready for your review. */
+export function pendingColumn(pending: PendingReview): 'pr_open' | 'ship' | 'ready' {
+  return readyColumn({ pr: pending.pr, pushed: pending.pushed });
+}
+
 /**
- * Whether a finished author's commit waits on your review: it is done (not stopped or failed), an author's, with a
+ * Whether a finished author's commit waits on you: it is done (not stopped or failed), an author's, with a
  * commit, on a registered repo and a branch that is not a default branch, whose worktree's tip is that commit and which
- * the scanner says is neither merged nor superseded (`trees`), and GitHub said the branch has no PR (`branchPr` null).
- * Only what is already known counts: no worktree facts, a merge state or PR not known yet, is no (the agent keeps today's
- * column). A commit made in a main checkout with no linked worktree is never seen here, as the scanner lists linked
+ * the scanner says is neither merged nor superseded (`trees`), and GitHub has answered for the branch: it has no PR
+ * (`branchPr` null) or an open one (`branchPr`, or the PR number the agent typed at finish once `prInfo` has it open: a number
+ * GitHub has not answered for is ignored, and a closed or merged PR is no open PR). Only what is already known counts: no
+ * worktree facts, a merge state or PR not known yet, is no (the agent keeps today's column). A commit made in a main checkout with no linked worktree is never seen here, as the scanner lists linked
  * worktrees only. The tip must be the commit, so a later worktree on a reused branch name, or a later commit on the same
  * branch, is not this agent's to wait on. It waits at most a week after its last activity, the time a Finish is kept for
  * (finished-agents.ts), so a Finish on its card is never forgotten while the card could come back.
@@ -43,6 +53,7 @@ export function pendingReview(
   trees: WorktreeFacts[],
   branchPr: (repo: string, branch: string) => BranchPr | null | undefined,
   nowMs: number,
+  prInfo: (repo: string, number: number) => PrInfo | null = () => null,
 ): PendingReview | null {
   const repo = agent.repo ?? null;
   const branch = agent.result?.branch ?? agent.branch ?? null;
@@ -70,9 +81,15 @@ export function pendingReview(
   ) {
     return null;
   }
-  return branchPr(repo, branch) === null
-    ? { pushed: tree.unpushed === 0, branch, path: tree.path }
-    : null;
+  const typed = agent.result?.pr;
+  const facts = readyFactsOf({
+    branchPr: branchPr(repo, branch),
+    typedPr: typed ? prInfo(repo, typed) : null,
+    unpushed: tree.unpushed,
+  });
+  return facts.pr === 'unknown'
+    ? null
+    : { pushed: facts.pushed === true, pr: facts.pr, branch, path: tree.path };
 }
 
 /**
@@ -83,8 +100,9 @@ export function pendingReview(
  *   a critic                                  Done: its findings are in the story and the review file
  *   registered, done, its card landed         Done: the card it registered (--card) landed during this run (landedFor),
  *                                             though its finish named no commit (a launcher closing it after the deploy)
- *   registered, done, pending review          Ready for your review: an author's commit on a branch with no PR that is
- *                                             not merged (pendingReview), with or without a card, story or critic
+ *   registered, done, pending review          An author's commit on a branch that is not merged (pendingReview), with or
+ *                                             without a card, story or critic: with an open PR, PR open; pushed with no PR,
+ *                                             Ready to ship; not pushed, Ready for your review (pendingColumn)
  *   registered, finished with a result        Done: a commit, PR, branch or card (given with --commit, --pr, --branch or
  *                                             --card, or recorded from the registered branch moving, registry.ts). A
  *                                             stopped run made nothing to point at, whatever it recorded
@@ -99,7 +117,7 @@ export function finishedColumn(
   agent: Pick<LedgerAgent, 'name' | 'state'> & Partial<Pick<LedgerAgent, 'kind' | 'result'>>,
   landed = false,
   pending: PendingReview | null = null,
-): 'done' | 'research' | 'waiting' | 'ready' {
+): 'done' | 'research' | 'waiting' | 'ready' | 'ship' | 'pr_open' {
   if (agent.state === 'failed') {
     return 'waiting';
   }
@@ -111,7 +129,7 @@ export function finishedColumn(
     return 'done';
   }
   if (pending) {
-    return 'ready';
+    return pendingColumn(pending);
   }
   if (agent.state !== 'stopped' && agent.result && Object.keys(agent.result).length > 0) {
     return 'done';
@@ -177,7 +195,8 @@ function whyDone(
   if (result.commit) {
     const committed = `committed ${shortSha(result.commit)}`;
     if (pending) {
-      return `${committed}, ${pending.pushed ? 'no PR' : 'not pushed'}`;
+      const pushed = pending.pushed ? 'no PR' : 'not pushed';
+      return `${committed}, ${pending.pr === 'open' ? 'PR open' : pushed}`;
     }
     return committed;
   }
