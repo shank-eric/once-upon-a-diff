@@ -15,11 +15,7 @@ import { registrySource } from '@once-upon-a-diff/core/features/sessions/sources
 import { type BranchPr } from '@once-upon-a-diff/state/records/github/github-checks';
 import { AutoReview } from '@once-upon-a-diff/core/features/review/github-watcher';
 import { StoryStore } from '@once-upon-a-diff/stories/store';
-import {
-  localEntries,
-  localStories,
-  LOCAL_IDLE_DAYS,
-} from '@once-upon-a-diff/core/features/review/story-lists';
+import { localEntries, localStories } from '@once-upon-a-diff/core/features/review/story-lists';
 import { createLocalStory } from '@once-upon-a-diff/stories/local-story';
 import { forgetTips } from '@once-upon-a-diff/stories/approval';
 import { refreshLocal } from '@once-upon-a-diff/stories/local-diff';
@@ -365,9 +361,8 @@ test('an approved story whose ref git cannot resolve (the branch deleted, the ch
   assert.equal(approvedAt(), approvedHead, 'the checkout is gone');
 });
 
-test('local stories: nothing opened, read, marked or rebuilt for 3 days is done (idle), computed and never written; a hand mark or unmark wins', () => {
-  assert.equal(LOCAL_IDLE_DAYS, 3);
-  const home = tmp('local-idle');
+test('local stories: a story with no reviewed.json is not reviewed however quiet it has been; a hand mark or unmark is kept', () => {
+  const home = tmp('local-quiet-days');
   const widgets = checkoutOf('widgets', 'feat/x');
   const now = Date.parse('2026-10-28T15:00:00Z');
   builtLocal(home, 'local-quiet', widgets, 'feat/quiet', iso(now - 4 * DAY));
@@ -410,16 +405,16 @@ test('local stories: nothing opened, read, marked or rebuilt for 3 days is done 
   const byId = Object.fromEntries(
     localStories(new StoryStore({ home }), { now }).map((story) => [story.id, story]),
   );
-  assert.equal(byId['local-quiet'].reviewed_by, 'idle');
-  assert.equal(byId['local-quiet'].reviewed_at, iso(now - DAY), 'done since the cutoff passed');
+  assert.equal(byId['local-quiet'].reviewed_by, null);
+  assert.equal(byId['local-quiet'].reviewed_at, null, 'four quiet days is not reviewed');
   assert.equal(byId['local-recent'].reviewed_at, null);
   assert.equal(byId['local-opened'].reviewed_at, null);
   assert.equal(byId['local-unmarked'].reviewed_at, null);
   assert.equal(byId['local-hand'].reviewed_by, 'manual');
-  assert.equal(reviewedBy(home, 'local-quiet'), null, 'idle is worked out, not written');
-  // a day later the opened one has gone quiet too
-  const later = localStories(new StoryStore({ home }), { now: now + 2 * DAY + 1 });
-  assert.equal(later.find((story) => story.id === 'local-opened')?.reviewed_by, 'idle');
+  assert.equal(reviewedBy(home, 'local-quiet'), null);
+  // days later the opened one is still not reviewed
+  const later = localStories(new StoryStore({ home }), { now: now + 10 * DAY });
+  assert.equal(later.find((story) => story.id === 'local-opened')?.reviewed_at, null);
   assert.equal(later.find((story) => story.id === 'local-unmarked')?.reviewed_at, null);
 });
 
@@ -581,7 +576,7 @@ test('local stories: commits rewritten and pushed straight to the default branch
   assert.equal(reviewedBy(home, 'local-feature'), null, 'a branch story is the PR’s to clear');
 });
 
-test('the board: a local story rebuilt after you opened it stays in Ready, and one a check marked done (pr, delivered, idle) stays done through a rebuild', async () => {
+test('the board: a local story rebuilt after you opened it stays in Ready, and one a check marked done (pr, delivered) stays done through a rebuild', async () => {
   const home = tmp('board-home');
   const sessions = tmp('board-sessions');
   const widgets = checkoutOf('widgets', 'main');
@@ -593,10 +588,9 @@ test('the board: a local story rebuilt after you opened it stays in Ready, and o
   localStory(home, 'local-hand', widgets, 'feat/hand', {}, marked('manual'));
   localStory(home, 'local-pr', widgets, 'feat/pr', {}, marked('pr'));
   localStory(home, 'local-delivered', widgets, 'feat/delivered', {}, marked('delivered'));
-  localStory(home, 'local-idle', widgets, 'feat/idle', {}, opened);
   writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
   const { watcher, asked } = fakeWatcher();
-  const later = new Date(Date.now() + 5 * DAY); // idle by then: a rebuild is what would have brought it back
+  const later = new Date(Date.now() + 5 * DAY);
   const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
     source: sourceSaying({}),
     now: () => later,
@@ -605,14 +599,9 @@ test('the board: a local story rebuilt after you opened it stays in Ready, and o
   assert.deepEqual(
     Object.fromEntries(cards.map((found) => [found.id, [found.column, found.story?.unread]])),
     { 'branch:acme/widgets@feat/hand': ['ready', true] },
-    'a hand mark does not survive a rebuild; the three automatic ones do',
+    'a hand mark does not survive a rebuild; the two automatic ones do',
   );
-  assert.deepEqual(asked.locals.sort(), [
-    'local-delivered',
-    'local-hand',
-    'local-idle',
-    'local-pr',
-  ]);
+  assert.deepEqual(asked.locals.sort(), ['local-delivered', 'local-hand', 'local-pr']);
 });
 
 test('the board: an unread answer keeps a reviewed local story in Ready and sends a PR card to Back to you, until it is read', async () => {

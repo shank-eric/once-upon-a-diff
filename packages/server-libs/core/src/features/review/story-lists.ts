@@ -22,10 +22,8 @@ import { prUrl } from '@once-upon-a-diff/terms/github-urls';
 
 /** How long after it was built a PR story stays in the inbox. */
 const STORY_DAYS = 30;
-/** A local story nobody has opened, read, marked or rebuilt for this many days counts as done (reviewed by `idle`). */
-export const LOCAL_IDLE_DAYS = 3;
-/** What marks a local story done without you: its work is on GitHub or in the default branch, or it went quiet. */
-const AUTO_DONE: readonly ReviewedBy[] = ['pr', 'delivered', 'idle'];
+/** What marks a local story done without you: its work is on GitHub or in the default branch. */
+const AUTO_DONE: readonly ReviewedBy[] = ['pr', 'delivered'];
 const REVIEWED = 'reviewed.json';
 const MERGED = 'merged.json';
 
@@ -116,8 +114,7 @@ export const isAutoDone = (story: Pick<InboxLocalStory, 'reviewed_at' | 'reviewe
 
 /**
  * The local stories (newest first), or only a repo's (owner/name), with what the checks look at. A story left by the
- * retired turn capture is not one. A story with no reviewed.json that nothing touched for LOCAL_IDLE_DAYS comes back
- * reviewed by `idle` (worked out here, never written: a rebuild or an open moves it back).
+ * retired turn capture is not one.
  */
 export function localEntries(
   stories: StoryStore,
@@ -169,12 +166,6 @@ export function localEntries(
     if (reviewedBy === 'approved' && !approved) {
       reviewedAt = null;
       reviewedBy = null;
-    }
-    const quietSince = Date.parse(latestOf([seen, builtAt]) as string);
-    const idleAt = quietSince + LOCAL_IDLE_DAYS * 24 * 3600 * 1000;
-    if (state === null && idleAt <= now) {
-      reviewedAt = new Date(idleAt).toISOString();
-      reviewedBy = 'idle';
     }
     found.push({
       story: {

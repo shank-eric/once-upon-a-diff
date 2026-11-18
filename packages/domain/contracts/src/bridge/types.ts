@@ -50,11 +50,10 @@ export interface InboxStory {
 }
 
 /**
- * What marked a story reviewed. `approved` is Approve on a local story's page. The last three are for local stories: its branch has a PR (`pr`), its head is already in
- * the default branch (`delivered`), or nothing touched it for LOCAL_IDLE_DAYS (`idle`).
+ * What marked a story reviewed. `approved` is Approve on a local story's page. The last two are for local stories: its branch has a PR (`pr`) or its head is already in
+ * the default branch (`delivered`).
  */
-export type ReviewedBy =
-  'manual' | 'review' | 'all viewed' | 'approved' | 'pr' | 'delivered' | 'idle';
+export type ReviewedBy = 'manual' | 'review' | 'all viewed' | 'approved' | 'pr' | 'delivered';
 
 /** A Claude session waiting on the bridge's inbox. */
 export interface ListenerView {
