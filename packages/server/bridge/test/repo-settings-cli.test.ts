@@ -24,6 +24,7 @@ test('repo settings --json prints the fields for a repo, by name or owner/name',
   assert.deepEqual(JSON.parse(larmor.stdout), {
     repo: 'naveenvasou/larmor',
     skips_review: true,
+    ships_by_pr: false,
     stories: false,
     deploy: 'local',
     keep_branches: false,
@@ -32,6 +33,7 @@ test('repo settings --json prints the fields for a repo, by name or owner/name',
   assert.deepEqual(JSON.parse(widgets.stdout), {
     repo: 'acme/widgets',
     skips_review: false,
+    ships_by_pr: true,
     stories: true,
     deploy: 'pr',
     keep_branches: true,
@@ -44,12 +46,14 @@ test('repo settings on an unknown repo prints the defaults, and plain output nam
   assert.deepEqual(JSON.parse(unknown.stdout), {
     repo: 'other/thing',
     skips_review: false,
+    ships_by_pr: true,
     stories: null,
     deploy: null,
     keep_branches: false,
   });
   const text = await runCli(home, ['repo', 'settings', 'larmor']);
   assert.match(text.stdout, /Skips review: yes/);
+  assert.match(text.stdout, /Pull request text: no/);
   assert.match(text.stdout, /Stories: no/);
   assert.match(text.stdout, /Deploy: local/);
   const bare = await runCli(home, ['repo', 'settings', 'other/thing']);

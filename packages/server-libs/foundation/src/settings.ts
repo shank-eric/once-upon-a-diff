@@ -272,6 +272,10 @@ const readRepos = (value: unknown): Record<string, RepoSettings> => {
   return repos;
 };
 
+/** A repo ships by pull request unless its settings say it skips review or deploys locally: a repo with no entry is a PR repo. */
+export const shipsByPr = (settings: RepoSettings): boolean =>
+  !(settings.skips_review || settings.deploy === 'local');
+
 /**
  * One repo's settings from `readSettings(...).repos`: an owner/name entry first, then the bare name, in any case; `{}` when none.
  * A bare repo name (no owner, as `once-upon repo settings larmor` types it) also finds an owner/name entry by its name part.

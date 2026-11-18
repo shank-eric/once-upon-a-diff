@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { readSettings, repoSettings } from '../src/settings.ts';
+import { readSettings, repoSettings, shipsByPr } from '../src/settings.ts';
 
 const homeWith = (config: unknown): string => {
   const home = mkdtempSync(path.join(os.tmpdir(), 'ou-repos-'));
@@ -60,4 +60,13 @@ test('repos: a bare repo name finds an owner/name entry by its name part, in any
   assert.deepEqual(repoSettings(settings, 'acme/widgets'), { stories: false });
   assert.deepEqual(repoSettings(settings, 'other/widgets'), {});
   assert.deepEqual(repoSettings(settings, 'widget'), {});
+});
+
+test('shipsByPr: true unless the repo skips review or deploys locally (no entry is a PR repo)', () => {
+  assert.equal(shipsByPr({}), true);
+  assert.equal(shipsByPr({ deploy: 'pr' }), true);
+  assert.equal(shipsByPr({ skips_review: false }), true);
+  assert.equal(shipsByPr({ skips_review: true }), false);
+  assert.equal(shipsByPr({ deploy: 'local' }), false);
+  assert.equal(shipsByPr({ skips_review: true, deploy: 'local' }), false);
 });

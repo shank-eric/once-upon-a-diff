@@ -38,6 +38,8 @@ export interface BriefFacts {
   /** a build author's planner notes file */
   fromNotes?: string;
   fanOut?: boolean;
+  /** the repo ships by pull request: a storyteller or finisher drafts the PR text */
+  prDraft?: boolean;
   /** a story's folder, and a writer's chapter key, the story id and the keys a finisher writes itself */
   dir?: string;
   key?: string;
@@ -103,6 +105,9 @@ const heavyLine = (name: string): string =>
 
 const handbackCommand = (facts: BriefFacts, tail: string): string =>
   `fnm exec --using=24 once-upon handback ${facts.name} --sid ${facts.sid} ${tail}`;
+
+const PR_DRAFT =
+  "This repo ships by pull request: as the last step, after the final publish, draft the PR text (skills/once-upon/SKILL.md step 6) and run `once-upon pr-draft` so the story page's Create pull request button holds it; redo it after every rebuild or update. Never push or run gh pr create.";
 
 const STUCK =
   'Stuck or capped: the same command with --state waiting --outcome "<question, or capped; notes hold the rest>".';
@@ -178,6 +183,7 @@ export function renderBrief(facts: BriefFacts): string {
         task,
         note,
         beatLine(facts),
+        facts.prDraft && !facts.fanOut ? PR_DRAFT : null,
         facts.fanOut
           ? `Publish the skeleton without --agent and park for the editor (SKILL.md step 3d): ${handbackCommand(facts, '--state plan --outcome "fanout <story id>: skeleton up, <N> chapters to write, <D> keys=k1,k2,..."')}. Otherwise publish with --agent ${name} and, when the story is parked for review, finish with: ${handbackCommand(facts, '--state review --outcome "<story id>"')}`
           : `Publish with --agent ${name}. When the story is parked for review, finish with: ${handbackCommand(facts, '--state review --outcome "<story id>"')}`,
@@ -213,6 +219,7 @@ export function renderBrief(facts: BriefFacts): string {
         `Keys to write yourself: ${facts.failed || 'none'}.`,
         task,
         beatLine(facts),
+        facts.prDraft ? PR_DRAFT : null,
         `Publish with --agent ${name}; end your report with the line saying the story's questions are yours. When it is parked for review, finish with: ${handbackCommand(facts, '--state review --outcome "<story id>"')}`,
         STUCK,
       );

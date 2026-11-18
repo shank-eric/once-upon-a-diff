@@ -257,6 +257,19 @@ test('the storyteller brief carries Fan-out: yes only when asked', async () => {
   assert.match(fan.prompt, /^Fan-out: yes$/m);
 });
 
+test('a storyteller brief names pr-draft for a PR repo and not for one whose settings skip review', async () => {
+  const ctx = world();
+  const pr = await ctx.dispatch({ role: 'storyteller', check: undefined });
+  assert.match(pr.prompt, /once-upon pr-draft/);
+  finishRun(ctx.home, 'story-feat-x', { sid: SID });
+  writeFileSync(
+    path.join(ctx.home, 'config.json'),
+    JSON.stringify({ repos: { 'acme/widgets': { skips_review: true } } }),
+  );
+  const skip = await ctx.dispatch({ role: 'storyteller', check: undefined });
+  assert.doesNotMatch(skip.prompt, /pr-draft/);
+});
+
 test('<home>/editor/brief-extra.md is appended to every brief and swaps the Agent call to general-purpose', async () => {
   const ctx = world();
   const plain = await ctx.dispatch({ role: 'helper', check: undefined, task: 'x' });

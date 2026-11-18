@@ -191,6 +191,25 @@ test('a fan-out storyteller parks at the skeleton in state plan with a fanout ou
   assert.match(plain, /--state review --outcome "<story id>"/);
 });
 
+test('a storyteller or finisher brief names pr-draft only when the repo ships by PR; a fan-out skeleton never does', () => {
+  for (const shape of ['storyteller', 'finisher'] as const) {
+    assert.match(
+      renderBrief(facts({ shape, name: 'story-x', prDraft: true })),
+      /once-upon pr-draft/,
+    );
+    assert.doesNotMatch(renderBrief(facts({ shape, name: 'story-x', prDraft: false })), /pr-draft/);
+    assert.doesNotMatch(renderBrief(facts({ shape, name: 'story-x' })), /pr-draft/);
+  }
+  const skeleton = renderBrief(
+    facts({ shape: 'storyteller', name: 'story-x', fanOut: true, prDraft: true }),
+  );
+  assert.doesNotMatch(skeleton, /pr-draft/);
+  assert.doesNotMatch(
+    renderBrief(facts({ shape: 'author', name: 'a', prDraft: true })),
+    /pr-draft/,
+  );
+});
+
 test('rules for a general-purpose launch come before the extra text, labelled', () => {
   const text = renderBrief(
     facts({ rules: 'Never `git stash`.', extra: 'Forward results.', name: 'feat-x' }),

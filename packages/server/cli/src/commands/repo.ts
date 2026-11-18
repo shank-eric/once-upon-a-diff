@@ -4,7 +4,7 @@
  * file only (ADR-15). With no REPO it is the repo of the current checkout.
  */
 import { repoOfCheckout } from '@once-upon-a-diff/foundation/repos';
-import { readSettings, repoSettings } from '@once-upon-a-diff/foundation/settings';
+import { readSettings, repoSettings, shipsByPr } from '@once-upon-a-diff/foundation/settings';
 import { out } from '../output.ts';
 import type { Config } from '@once-upon-a-diff/foundation/settings';
 import type { CliOpts, Command } from '../types.ts';
@@ -33,6 +33,7 @@ function repo(home: string, _cfg: Config, opts: CliOpts) {
       JSON.stringify({
         repo: name,
         skips_review: !!found.skips_review,
+        ships_by_pr: shipsByPr(found),
         stories: found.stories ?? null,
         deploy: found.deploy ?? null,
         keep_branches: !!found.keep_branches,
@@ -43,6 +44,7 @@ function repo(home: string, _cfg: Config, opts: CliOpts) {
     [
       `Repo: ${name}`,
       `Skips review: ${yesNo(found.skips_review ?? false, 'no')} (finished work is ${found.skips_review ? 'Ready to ship' : 'Ready for your review'})`,
+      `Pull request text: ${yesNo(shipsByPr(found), 'no')} (a story carries a PR title and body)`,
       `Stories: ${yesNo(found.stories, 'not set (the repo profile decides)')}`,
       `Deploy: ${found.deploy ?? 'not set (the repo profile decides)'}${found.deploy === 'pr' ? ' (ship through a pull request, no deploy command)' : ''}`,
       `Keeps branches: ${yesNo(found.keep_branches ?? false, 'no')}`,

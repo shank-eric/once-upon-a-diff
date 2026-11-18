@@ -10,6 +10,7 @@ import { claimWorktreeProblem } from '@once-upon-a-diff/state/queues/backlog/cla
 import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { liveClaim } from '@once-upon-a-diff/state/queues/backlog/claims';
 import { runIsOpen } from '@once-upon-a-diff/state/records/agents/events';
+import { readSettings, repoSettings, shipsByPr } from '@once-upon-a-diff/foundation/settings';
 import path from 'node:path';
 import { LAUNCH, agentCall, renderBrief, type Shape } from './briefs.ts';
 import { defaultBranch, flat, mainCheckout, workPaths } from './checkout.ts';
@@ -210,6 +211,7 @@ export async function dispatchRun(
     findingsFrom: text(input.findingsFrom) ?? undefined,
     fromNotes: text(input.fromNotes) ?? undefined,
     fanOut: !!input.fanOut,
+    prDraft: shipsByPr(repoSettings(readSettings(home), item.repo)),
     dir: text(input.dir) ?? undefined,
     key: text(input.key) ?? undefined,
     story: text(input.story) ?? undefined,

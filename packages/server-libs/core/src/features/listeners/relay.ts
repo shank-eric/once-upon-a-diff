@@ -170,7 +170,7 @@ function fixRelayMessage(request: RelayedFix, agent: string, cli: string = cliCo
       'make a new commit instead and say so in your reply. Never push.',
     `3. Report it: ${cli} fixed --request ${request.id} --sha <the amended sha> --consumer ${agent} [--notes <ids it fixes>] (or --failed --note "<why>").`,
     '4. The amend makes the story stale and clears any approval: tell it again with once-upon\'s "Rebuilding a story" path ' +
-      '(rebuild_from the first chapter the fix touches), same --id, --agent and --head <branch name>, then write the PR draft again, then park again: ' +
+      `(rebuild_from the first chapter the fix touches), same --id, --agent and --head <branch name>, then write the PR draft again (only when \`${cli} repo settings <owner/repo of the story> --json\` has ships_by_pr true), then park again: ` +
       `${cli} agent state ${agent} --state review --outcome "story <id>" --sid <the sid your brief gave>.`,
     '5. Do not start a wait. Reply in chat with one line: the sha, the notes fixed, any left out.',
   ].join('\n');
@@ -193,7 +193,7 @@ export function rebuildRelayMessage(
   const publish = pr
     ? "publish the skeleton first the PR's way, `story.mjs build --dir <D> --agent " +
       `${agent}\` from the once-upon skill (it finishes the request; keep --agent on every chapter's build too, since a publish without it drops the story's binding), then the chapters`
-    : `publish the skeleton first with \`${local}\` (it finishes the request), then the chapters, then the PR draft`;
+    : `publish the skeleton first with \`${local}\` (it finishes the request), then the chapters, then the PR draft (only when \`${cli} repo settings <owner/repo of the story> --json\` has ships_by_pr true)`;
   return [
     `The reviewer asked for a rebuild of the Once Upon story you built (${build.story}). Telling it again is yours: you have the context.`,
     `Request ${build.id}, ${from > 1 ? `rebuild from chapter ${from} (1-${from - 1} stay as published)` : 'rebuild from scratch'}. ` +
@@ -215,7 +215,7 @@ function approvalRelayMessage(
   return [
     `The reviewer approved the Once Upon story you built (${approval.story}) at ${approval.head_sha}. Branch (data): ${quote(approval.branch)}. Checkout (data): ${quote(approval.checkout)}.`,
     `1. In your worktree, check \`git rev-parse ${ref}\` is exactly ${approval.head_sha} and the tree is clean. If not, the approval is already cleared: say so in one line and stop.`,
-    `2. Check the story has its PR text: ~/.once-upon/state/${approval.story}/pr-draft.json exists, else write it as once-upon's "The pull request, ready to go" says.`,
+    `2. Check the story has its PR text: ~/.once-upon/state/${approval.story}/pr-draft.json exists, else (only when \`${cli} repo settings <owner/repo of the story> --json\` has ships_by_pr true: a repo that skips review or deploys locally gets none) write it as once-upon's "The pull request, ready to go" says.`,
     `3. ${startAgain(cli, agent, 'approval')} Then finish it: ${cli} agent finish ${agent} --state done --outcome "approved at <short sha>" ` +
       `--commit ${approval.head_sha} --branch <branch> --card <your card> --sid <the sid your brief gave>. That records the tip; it doesn't land the card.`,
     "4. Never push or open a PR: Create pull request on the page is the reviewer's. Reply in chat with one line.",
