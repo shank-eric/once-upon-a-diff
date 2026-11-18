@@ -904,6 +904,7 @@
               "url": "https://github.com/acme/widgets/pull/15",
               "viewer_at": null
             },
+            "pr_unconfirmed": true,
             "repo": "acme/widgets",
             "sessions": [],
             "since": null,

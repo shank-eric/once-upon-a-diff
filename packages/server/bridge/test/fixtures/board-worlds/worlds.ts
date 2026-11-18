@@ -386,7 +386,12 @@ function fakeWatcher(
     kickBranch: (repo: string, branch: string, checkout: string) =>
       asked.push(`kickBranch ${repo}@${branch} ${checkout}`),
     info: (_repo: string, number: number) => infos.find((info) => info.number === number) || null,
+    // an answer a world gave counts as just in (never old); no answer is "never"
+    infoAt: (_repo: string, number: number) =>
+      infos.some((info) => info.number === number) ? Infinity : null,
     branchPr: (repo: string, branch: string) => branchPrs[`${repo}@${branch}`],
+    branchAt: (repo: string, branch: string) =>
+      `${repo}@${branch}` in branchPrs ? Infinity : null,
     kickLocal: (list: { story: { id: string } }[]) =>
       asked.push(`kickLocal ${list.map((entry) => entry.story.id).join(',')}`),
     kickRequested: () => asked.push('kickRequested'),

@@ -101,6 +101,8 @@ export interface BoardCard {
   /** when the card entered its column, as far as the bridge knows */
   since: string | null;
   pr: PrInfo | null;
+  /** set only when true: GitHub has not answered about this PR (so `pr` is a stub) or not within the last 15 minutes, so `pr` may be out of date */
+  pr_unconfirmed?: true;
   /** the built story, when there is one (a PR story, else a local story of the branch: no url, its page link is asked for): reviewed, and `unread` when it was built after you last opened or reviewed it */
   story: {
     id: string;

@@ -96,7 +96,7 @@ function fake(): Fake {
 }
 
 /** A home with one local story on BRANCH (approved, or not), a checkout, and a Board over a fresh AutoReview on that home. */
-function world(home: string, hub: Fake, { approved = true } = {}) {
+function world(home: string, hub: Fake, { approved = true, check = noPr as PrCheck } = {}) {
   const checkout = tmp('github-answers-checkout');
   git(checkout, 'init', '-q', '-b', BRANCH);
   git(checkout, 'remote', 'add', 'origin', `git@github.com:${REPO}.git`);
@@ -129,11 +129,15 @@ function world(home: string, hub: Fake, { approved = true } = {}) {
   }
   const stories = new StoryStore({ home });
   const requested: RequestedCheck = async () => [];
-  const review = new AutoReview(stories, noPr, 1000, hub.check, requested, home);
+  const review = new AutoReview(stories, check, 1000, hub.check, requested, home);
   let now = START;
   const board = new Board(home, stories, review, new Builds(home), { now: () => new Date(now) });
   return {
     review,
+    /** moves the board's clock on */
+    later(millis: number) {
+      now += millis;
+    },
     async cards(): Promise<BoardCard[]> {
       now += 5000;
       return (await board.snapshot()).lanes.flatMap((lane) => lane.cards);
@@ -397,7 +401,8 @@ test('the newest ask fails: an older ask’s merged answer covers only its own h
   releases[1]('fail');
   await review.idle();
   assert.deepEqual(review.branchPr(REPO, BRANCH), MERGED);
-  review.kickBranch(REPO, BRANCH, '/nowhere', START + 20, [OTHER]);
+  // the failed ask waits out its backoff (2 s on this 1 s cache) before another goes out
+  review.kickBranch(REPO, BRANCH, '/nowhere', START + 2500, [OTHER]);
   assert.equal(seen.length, 3, 'the answer never covered OTHER, so it is asked again');
 });
 
@@ -428,4 +433,245 @@ test('the newest ask fails first: an older ask’s merged answer landing later c
   assert.deepEqual(review.branchPr(REPO, BRANCH), MERGED);
   review.kickBranch(REPO, BRANCH, '/nowhere', START + 20, [OTHER]);
   assert.equal(seen.length, 3, 'the answer never covered OTHER, so it is asked again');
+});
+
+const MIN = 60000;
+
+/** A PR check that counts its asks and answers, or fails with `error` while it is set. */
+function prCheck() {
+  const state = { asked: 0, error: null as string | null, check: null as unknown as PrCheck };
+  state.check = async (_repo, number) => {
+    state.asked += 1;
+    if (state.error) {
+      throw new Error(state.error);
+    }
+    return { merged: false, why: null, info: prInfo(number) };
+  };
+  return state;
+}
+
+/** The minutes (from START) at which the watcher actually asks, when it is kicked every minute for `until` minutes. */
+async function askMinutes(
+  until: number,
+  kick: (review: AutoReview, now: number) => void,
+  state: { asked: number },
+  review: AutoReview,
+): Promise<number[]> {
+  const minutes: number[] = [];
+  for (let minute = 0; minute <= until; minute++) {
+    const before = state.asked;
+    kick(review, START + minute * MIN);
+    await review.idle();
+    if (state.asked > before) {
+      minutes.push(minute);
+    }
+  }
+  return minutes;
+}
+
+test('an answer keeps its age across a restart, a failed ask, a ping and a later answer', async () => {
+  const home = tmp('github-answers-home');
+  const hub = fake();
+  const prs = prCheck();
+  const first = new AutoReview(
+    new StoryStore({ home }),
+    prs.check,
+    1000,
+    hub.check,
+    async () => [],
+    home,
+  );
+  assert.equal(first.infoAt(REPO, 3092), null, 'never answered');
+  assert.equal(first.branchAt(REPO, BRANCH), null);
+  first.kickInfo(REPO, 3092, START);
+  first.kickBranch(REPO, BRANCH, '/nowhere', START);
+  await first.idle();
+  assert.equal(first.infoAt(REPO, 3092), START);
+  assert.equal(first.branchAt(REPO, BRANCH), START);
+  // a restart: the answer's own age, not "never" and not "now"
+  const slow = fake();
+  slow.hold = never() as Promise<void>;
+  const second = new AutoReview(
+    new StoryStore({ home }),
+    prs.check,
+    1000,
+    slow.check,
+    async () => [],
+    home,
+  );
+  assert.equal(second.infoAt(REPO, 3092), START);
+  assert.equal(second.branchAt(REPO, BRANCH), START);
+  // an ask in flight and a ping do not move it
+  second.kickBranch(REPO, BRANCH, '/nowhere', START + 9000);
+  assert.equal(second.branchAt(REPO, BRANCH), START);
+  second.refresh({ repo: REPO, branch: BRANCH }, START + 10000);
+  assert.equal(second.branchAt(REPO, BRANCH), START);
+  // a failed ask keeps it
+  const third = new AutoReview(
+    new StoryStore({ home }),
+    prs.check,
+    1000,
+    hub.check,
+    async () => [],
+    home,
+  );
+  hub.fail = true;
+  prs.error = 'gh: HTTP 502';
+  third.kickBranch(REPO, BRANCH, '/nowhere', START + 20000);
+  third.kickInfo(REPO, 3092, START + 20000);
+  await third.idle();
+  assert.equal(third.infoAt(REPO, 3092), START);
+  assert.equal(third.branchAt(REPO, BRANCH), START);
+  // a later answer moves it
+  hub.fail = false;
+  prs.error = null;
+  third.kickBranch(REPO, BRANCH, '/nowhere', START + 10 * MIN);
+  third.kickInfo(REPO, 3092, START + 10 * MIN);
+  await third.idle();
+  assert.equal(third.infoAt(REPO, 3092), START + 10 * MIN);
+  assert.equal(third.branchAt(REPO, BRANCH), START + 10 * MIN);
+});
+
+test('a PR that keeps failing is asked again after 6, then 12, then 24 minutes, not every 3', async () => {
+  const prs = prCheck();
+  prs.error = 'gh: HTTP 502';
+  const review = new AutoReview(
+    new StoryStore({ home: tmp('github-answers-home') }),
+    prs.check,
+    3 * MIN,
+  );
+  const minutes = await askMinutes(70, (one, now) => one.kickInfo(REPO, 3092, now), prs, review);
+  assert.deepEqual(
+    minutes,
+    [0, 6, 18, 42, 72].filter((minute) => minute <= 70),
+  );
+  assert.equal(review.infoAt(REPO, 3092), null);
+});
+
+test('a PR GitHub says does not exist is asked once, until a ping names it', async () => {
+  const prs = prCheck();
+  prs.error =
+    'gh: Could not resolve to a PullRequest with the number of 3092. (repository.pullRequest)';
+  const review = new AutoReview(
+    new StoryStore({ home: tmp('github-answers-home') }),
+    prs.check,
+    3 * MIN,
+  );
+  const minutes = await askMinutes(60, (one, now) => one.kickInfo(REPO, 3092, now), prs, review);
+  assert.deepEqual(minutes, [0]);
+  review.refresh({ repo: REPO, number: 3092 }, START + 61 * MIN);
+  review.kickInfo(REPO, 3092, START + 61 * MIN);
+  await review.idle();
+  assert.equal(prs.asked, 2, 'a ping about it asks again');
+});
+
+test('a success after failures puts the gap back to the cache time', async () => {
+  const prs = prCheck();
+  prs.error = 'gh: HTTP 502';
+  const review = new AutoReview(
+    new StoryStore({ home: tmp('github-answers-home') }),
+    prs.check,
+    3 * MIN,
+  );
+  const kick = (minute: number) => review.kickInfo(REPO, 3092, START + minute * MIN);
+  kick(0);
+  await review.idle();
+  prs.error = null;
+  kick(5);
+  await review.idle();
+  assert.equal(prs.asked, 1, 'still inside the 6 minutes');
+  kick(6);
+  await review.idle();
+  assert.equal(prs.asked, 2);
+  kick(8);
+  await review.idle();
+  assert.equal(prs.asked, 2);
+  kick(9);
+  await review.idle();
+  assert.equal(prs.asked, 3, 'back to the 3 minute window');
+});
+
+test('a branch that keeps failing backs off the same way, and a missing repo is asked once', async () => {
+  const hub = fake();
+  hub.fail = true;
+  const review = new AutoReview(
+    new StoryStore({ home: tmp('github-answers-home') }),
+    noPr,
+    3 * MIN,
+    hub.check,
+  );
+  const kick = (one: AutoReview, now: number) => one.kickBranch(REPO, BRANCH, '/nowhere', now);
+  assert.deepEqual(await askMinutes(30, kick, hub, review), [0, 6, 18]);
+  const gone = fake();
+  gone.check = async () => {
+    gone.asked += 1;
+    throw new Error('gh: Could not resolve to a Repository with the name Acme/Widgets.');
+  };
+  const other = new AutoReview(
+    new StoryStore({ home: tmp('github-answers-home') }),
+    noPr,
+    3 * MIN,
+    gone.check,
+  );
+  assert.deepEqual(await askMinutes(60, kick, gone, other), [0]);
+  other.refresh({ repo: REPO, branch: BRANCH }, START + 61 * MIN);
+  kick(other, START + 61 * MIN);
+  await other.idle();
+  assert.equal(gone.asked, 2);
+});
+
+test('a PR card says unconfirmed until GitHub answers about it, and again once the answer is 15 minutes old', async () => {
+  const home = tmp('github-answers-home');
+  const hub = fake();
+  const prs = prCheck();
+  prs.error = 'gh: HTTP 502';
+  const sim = world(home, hub, { check: prs.check });
+  await sim.cards();
+  await sim.review.idle();
+  const stub = (await sim.cards())[0];
+  assert.equal(stub.pr?.number, 3092);
+  assert.equal(stub.pr_unconfirmed, true, 'a stub PR: GitHub never answered');
+  assert.equal(stub.column, 'pr_open');
+  // it answers: not flagged
+  prs.error = null;
+  sim.later(10 * MIN);
+  await sim.cards();
+  await sim.review.idle();
+  assert.equal((await sim.cards())[0].pr_unconfirmed, undefined);
+  // 14 minutes on, asks keep failing: still inside the window
+  prs.error = 'gh: HTTP 502';
+  sim.later(14 * MIN);
+  await sim.cards();
+  await sim.review.idle();
+  assert.equal((await sim.cards())[0].pr_unconfirmed, undefined);
+  // past 15 minutes since the answer: flagged
+  sim.later(2 * MIN);
+  assert.equal((await sim.cards())[0].pr_unconfirmed, true);
+  // an answer clears it
+  prs.error = null;
+  sim.later(30 * MIN);
+  await sim.cards();
+  await sim.review.idle();
+  assert.equal((await sim.cards())[0].pr_unconfirmed, undefined);
+});
+
+test('a loaded answer is judged by its own age', async () => {
+  const home = tmp('github-answers-home');
+  const old = START - 20 * MIN;
+  writeGithubAnswers(home, {
+    branches: { [KEY]: { at: old, pr: OPEN } },
+    prs: { [`${REPO.toLowerCase()}#3092`]: { at: old, info: prInfo() } },
+    requested: null,
+  });
+  const prs = prCheck();
+  prs.error = 'gh: HTTP 502';
+  const sim = world(home, fake(), { check: prs.check });
+  const [card] = await sim.cards();
+  assert.equal(card.pr?.title, 'PR 3092', 'the loaded answer is shown');
+  assert.equal(card.pr_unconfirmed, true, 'twenty minutes old, and nothing newer');
+  prs.error = null;
+  sim.later(10 * MIN);
+  await sim.cards();
+  await sim.review.idle();
+  assert.equal((await sim.cards())[0].pr_unconfirmed, undefined);
 });

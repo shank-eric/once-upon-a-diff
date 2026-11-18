@@ -70,7 +70,10 @@ export function fakeWatcher(
       asked.checkouts.push(checkout);
     },
     info: (_repo, number) => infos.find((info) => info.number === number) || null,
+    // an answer a test gave counts as just in (never old); no answer is "never"
+    infoAt: (_repo, number) => (infos.some((info) => info.number === number) ? Infinity : null),
     branchPr: (repo, branch) => branchPrs[`${repo}@${branch}`],
+    branchAt: (repo, branch) => (`${repo}@${branch}` in branchPrs ? Infinity : null),
     kickLocal: (list) => asked.locals.push(...list.map((entry) => entry.story.id)),
     kickRequested: () => undefined,
     requested: () => requested,

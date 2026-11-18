@@ -127,8 +127,8 @@ export function columnOf(input: ColumnInput): BoardColumn {
   // an answer to a question you asked, unread: back to you on the GitHub side for your own PR, in Ready while there is
   // no PR. On someone else's PR the answer is a chip on the card, not a reason to leave PR open (you asked about their
   // code while reviewing it; the ball is theirs unless GitHub requests you or its story has a new version)
-  // a stub PR (before GitHub says who wrote it) has author null: treat it as yours until it fills in
-  if (story?.answered && (!pr || pr.mine || pr.author === null)) {
+  // a stub PR (before GitHub says who wrote it) is not known to be yours: it stays in PR open, marked unconfirmed, until it fills in
+  if (story?.answered && (!pr || pr.mine)) {
     return pr ? 'back' : 'ready';
   }
   // a story you have marked reviewed takes the card out of Ready even while the agent's [review] line stands

@@ -190,6 +190,10 @@ export function Card(props: { card: BoardCard; now: number; api: Api }) {
   const prLink = pr && html`<a href=${pr.url} target="_blank" rel="noopener">PR #${pr.number}</a>`;
   const merged = pr?.state === 'merged' && time ? `merged ${ago(card.since, now)}` : '';
   const chips = pr ? prChips(pr) : [];
+  if (pr && card.pr_unconfirmed) {
+    // GitHub has not answered lately (or yet): the PR's facts may be out of date
+    chips.push({ text: 'unconfirmed', mark: 'plain' });
+  }
   if (card.story?.approved_at && card.column === 'ship') {
     chips.push({ text: 'Approved, ready to ship', mark: 'ok' });
   }

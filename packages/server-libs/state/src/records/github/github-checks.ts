@@ -50,6 +50,15 @@ interface Page {
   errors?: { message: string }[];
 }
 
+/**
+ * True when GitHub said the PR or repo does not exist (gh's first stderr line, or the check's own "no such" when the
+ * answer has no pull request or repository). Auth, network, timeout, rate limit and 5xx are not: they may pass.
+ */
+export function isGone(error: unknown): boolean {
+  const text = error instanceof Error ? error.message : String(error);
+  return /^no such (PR|repo)$|Could not resolve to a (PullRequest|Repository)/.test(text);
+}
+
 /** The real check: `gh api graphql`, as the signed-in gh user. */
 export const ghPrCheck: PrCheck = async (repo, number) => {
   const [owner, name] = repo.split('/');

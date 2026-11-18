@@ -14,7 +14,11 @@ export interface PrWatcher {
   kickRequested(now: number): void;
   requested(): { repo: string; number: number }[];
   info(repo: string, number: number): PrInfo | null;
+  /** When GitHub last answered about the PR (this run or the kept file), null when it never has. */
+  infoAt(repo: string, number: number): number | null;
   branchPr(repo: string, branch: string): BranchPr | null | undefined;
+  /** When GitHub last answered about the branch's PR, null when it never has. */
+  branchAt(repo: string, branch: string): number | null;
 }
 
 /** A watcher that knows nothing (the CLI's one-off count, which has no cache to read). */
@@ -26,5 +30,7 @@ export const noPrWatcher: PrWatcher = {
   kickRequested: () => undefined,
   requested: () => [],
   info: () => null,
+  infoAt: () => null,
   branchPr: () => undefined,
+  branchAt: () => null,
 };

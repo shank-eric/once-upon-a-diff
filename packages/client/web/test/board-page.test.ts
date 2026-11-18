@@ -338,6 +338,44 @@ test('the header says what is on the board: the summary, the usage meters and th
   assert.match($('[data-board-filter]')?.textContent as string, /Repo: All/);
 });
 
+test('a PR card GitHub has not answered lately carries an "unconfirmed" chip; one it has answered does not', async () => {
+  const pr = {
+    number: 7,
+    url: 'https://github.com/acme/widgets/pull/7',
+    title: 'Add the thing',
+    state: 'open',
+    draft: false,
+    branch: 'feat/x',
+    author: 'octocat',
+    mine: true,
+    review_requested: false,
+    approvals: 0,
+    required: null,
+    review: null,
+    checks: null,
+    merge: null,
+    merged_at: null,
+    unresolved: 0,
+    viewer_at: null,
+    others_at: null,
+  } as const;
+  const chipsOf = (id: string) =>
+    [...document.querySelectorAll(`[data-card="${id}"] .ou-ui-chip`)].map((one) => one.textContent);
+  try {
+    answer = () =>
+      withCards(
+        card({ id: 'pr-old', column: 'pr_open', pr, pr_unconfirmed: true }),
+        card({ id: 'pr-new', column: 'pr_open', pr }),
+      );
+    await pollNow();
+    assert.ok(chipsOf('pr-old').includes('unconfirmed'));
+    assert.ok(!chipsOf('pr-new').includes('unconfirmed'));
+  } finally {
+    answer = () => board();
+    await pollNow();
+  }
+});
+
 test('Research shows only with a card in it, sits right after Waiting, and is not counted as on you', async () => {
   const headings = () =>
     all('.ou-board-groups .ou-board-col').map((one) => one.getAttribute('aria-label'));

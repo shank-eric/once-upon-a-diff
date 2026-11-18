@@ -115,6 +115,9 @@ function aheadFor(
   return found ? ctx.lookups.aheadFor(found, branch) : null;
 }
 
+/** How old GitHub's last answer about a PR can be before its card says so (5 x the watcher's 3 minute cache). */
+export const UNCONFIRMED_MS = 15 * 60 * 1000;
+
 /** A card for a work, or null when there is nothing left to show on it (a PR closed, or merged long ago, with no session). */
 function workCard(ctx: BuildContext, facts: CardFacts, work: Work): BoardCard | null {
   const { nowMs } = ctx;
@@ -184,6 +187,11 @@ function workCard(ctx: BuildContext, facts: CardFacts, work: Work): BoardCard | 
   }
   const sessions = work.sessions.map((view) => view.card);
   const repo = work.repo;
+  // GitHub never answered about this PR, or hasn't lately (a loaded answer is judged by its own age): what the card shows is old
+  const answeredAt =
+    pr?.state === 'open' && repo && work.number ? ctx.review.infoAt(repo, work.number) : undefined;
+  const unconfirmed =
+    answeredAt !== undefined && (answeredAt === null || nowMs - answeredAt > UNCONFIRMED_MS);
   const lane = canonicalRepo(repo) ?? NO_PARENT;
   return {
     id: work.key,
@@ -196,6 +204,7 @@ function workCard(ctx: BuildContext, facts: CardFacts, work: Work): BoardCard | 
     detail: null,
     since: null,
     pr,
+    ...(unconfirmed ? { pr_unconfirmed: true as const } : {}),
     ahead:
       pr?.state === 'open' && (work.branch ?? pr.branch) && work.repo
         ? aheadFor(ctx, facts.localCheckouts, work.repo, (work.branch ?? pr.branch) as string)

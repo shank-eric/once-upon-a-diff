@@ -56,8 +56,8 @@ test("someone else's PR with a built story stays in PR open despite an unread an
   );
   // your own PR keeps the rule: an unread answer is back to you
   assert.equal(columnOf({ ...none, pr: { ...theirs, mine: true }, story }), 'back');
-  // a stub PR (GitHub has not said who wrote it yet): author null, mine false, treated as yours
-  assert.equal(columnOf({ ...none, pr: { ...theirs, author: null }, story }), 'back', 'stub');
+  // a stub PR (GitHub has not said who wrote it yet): author null, mine false, not yours until GitHub says so
+  assert.equal(columnOf({ ...none, pr: { ...theirs, author: null }, story }), 'pr_open', 'stub');
 });
 
 test('the board: a card per branch or PR with its sessions and agents, columns to merge, lanes by repo', async () => {
