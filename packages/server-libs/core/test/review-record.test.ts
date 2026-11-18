@@ -74,6 +74,27 @@ test('a mark, then an approval, then a lapse keeps both parts; a lapsed approval
   assert.equal(storyHasState(lapsedOnly.stories, 's1'), false);
 });
 
+test('a lapse note is stored with the lapse, and a re-approval or an undo leaves none', () => {
+  const { stories } = home({});
+  const lapse = {
+    at: WHEN,
+    tip: 'c'.repeat(40),
+    changes: [{ kind: 'dropped' as const, sha: 'a'.repeat(40), subject: 'one' }],
+  };
+  updateReviewRecord(stories, 's1', (record) => {
+    record.approval = approval;
+  });
+  assert.equal(clearApproval(stories, 's1', { lapsed: true, lapse }), true);
+  assert.deepEqual(readReviewRecord(stories, 's1')?.approval, { ...approval, lapsed: true, lapse });
+  assert.equal(clearApproval(stories, 's1'), true);
+  assert.equal(readReviewRecord(stories, 's1')?.approval, undefined);
+  updateReviewRecord(stories, 's1', (record) => {
+    record.approval = approval;
+  });
+  assert.equal(clearApproval(stories, 's1', { lapsed: true, lapse: null }), true);
+  assert.deepEqual(readReviewRecord(stories, 's1')?.approval, { ...approval, lapsed: true });
+});
+
 test('a legacy file written after review.json exists (an old bridge) is not lost by the next write', () => {
   const { stories } = home({ 'review.json': { approval } });
   writeJson(path.join(stories.home, 'state', 's1', 'reviewed.json'), {

@@ -5,11 +5,13 @@
  *     an unmark by hand, which is a decision too: the checks leave the story alone), and the commit it applied to
  *     (`head_oid`, kept by the writers that know it: a local story's marks, not a PR story's);
  *   - `approval`: Approve on a local story, with the head it names (`head_oid`), the time it was first given and the
- *     lapse and carry bookkeeping (approval.ts says what counts).
+ *     lapse (with what changed on the branch, when it could be compared) and carry bookkeeping (approval.ts says what
+ *     counts).
  * This module and core's `review/review-record.ts` (the writer) are the only code that knows the file's name and the
  * story key it lives under. It replaced reviewed.json and approved.json: a story folder that still has them reads as
  * the record they make (recordFromLegacy), and the first write to it saves review.json and empties them.
  */
+import type { LocalLapse, LocalLapseChange } from '@once-upon-a-diff/contracts/types';
 import type { StoryStateReader } from './types.ts';
 
 /** The story's own state file for its review record. */
@@ -38,6 +40,8 @@ export interface Approval {
   base_oid: string | null;
   /** the branch moved on and the background check let go of this approval: it counts for nothing, but a fixer's commit on the card may still carry it */
   lapsed?: boolean;
+  /** with `lapsed`: the commits that changed, when they could be compared (never stored with no changes) */
+  lapse?: LocalLapse;
   /** a fixer's commit (or its rebase, `via`) carried the approval to `head_oid` from `from`, the commit it was first given for (`at` stays the first approval's time, so APPROVED_DAYS counts from it) */
   carried?: { from: string; at: string; run: string; via?: 'rebase' };
 }
@@ -71,6 +75,38 @@ function readMark(raw: unknown): ReviewMark | undefined {
   return mark;
 }
 
+const CHANGE_KINDS: readonly string[] = ['added', 'dropped', 'edited', 'reordered'];
+const MAX_LAPSE_CHANGES = 30;
+
+/** A stored lapse note, or undefined when it is malformed or names no change. */
+function readLapse(raw: unknown): LocalLapse | undefined {
+  if (!isObject(raw) || typeof raw.at !== 'string' || typeof raw.tip !== 'string') {
+    return undefined;
+  }
+  const changes: LocalLapseChange[] = [];
+  for (const item of Array.isArray(raw.changes) ? raw.changes.slice(0, MAX_LAPSE_CHANGES) : []) {
+    if (
+      isObject(item) &&
+      typeof item.kind === 'string' &&
+      CHANGE_KINDS.includes(item.kind) &&
+      typeof item.sha === 'string' &&
+      typeof item.subject === 'string'
+    ) {
+      changes.push({
+        kind: item.kind as LocalLapseChange['kind'],
+        sha: item.sha,
+        subject: item.subject,
+        ...(typeof item.was === 'string' && { was: item.was }),
+      });
+    }
+  }
+  if (!changes.length) {
+    return undefined;
+  }
+  const more = typeof raw.more === 'number' && raw.more > 0 ? Math.floor(raw.more) : 0;
+  return { at: raw.at, tip: raw.tip, changes, ...(more && { more }) };
+}
+
 function readApprovalFacet(raw: unknown): Approval | undefined {
   if (
     !isObject(raw) ||
@@ -87,6 +123,10 @@ function readApprovalFacet(raw: unknown): Approval | undefined {
   };
   if (raw.lapsed === true) {
     approval.lapsed = true;
+    const lapse = readLapse(raw.lapse);
+    if (lapse) {
+      approval.lapse = lapse;
+    }
   }
   const carried = raw.carried;
   if (

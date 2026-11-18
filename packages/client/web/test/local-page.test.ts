@@ -416,6 +416,27 @@ test('the moved-branch notice and the range show in the header', async () => {
   assert.equal((line.firstChild as unknown as { data: string }).data, 'acme/widgets · ');
 });
 
+test('a lapsed approval says what changed, and nothing shows without a lapse note', async () => {
+  await open();
+  assert.equal(all('.ou-local-lapsed').length, 0);
+  app!.unmount();
+  const lapse = {
+    at: '2026-11-01T10:00:00.000Z',
+    tip: 'd'.repeat(40),
+    changes: [
+      { kind: 'edited', sha: 'd'.repeat(40), subject: 'add two', was: 'e'.repeat(40) },
+      { kind: 'dropped', sha: 'f'.repeat(40), subject: 'old one' },
+    ],
+    more: 3,
+  };
+  await open({ lapse });
+  const text = one('.ou-local-lapsed').textContent!;
+  assert.match(text, /Approval lapsed/);
+  assert.match(text, /ddddddddd edited \(was eeeeeeeee\): add two/);
+  assert.match(text, /fffffffff dropped: old one/);
+  assert.match(text, /and 3 more/);
+});
+
 test('after the story is read again the page keeps its files’ nodes, and does not redraw under a note being written', async () => {
   await open();
   const before = section('a.ts');

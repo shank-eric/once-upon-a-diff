@@ -3,7 +3,7 @@
  * files, and for a local story the diff and the
  * bridge's state (viewed files, notes).
  */
-import { approvalAtTip } from './approval.ts';
+import { approvalAtTip, readApproval } from './approval.ts';
 import path from 'node:path';
 import { pathSha } from './diff.ts';
 import { readPrefs } from '@once-upon-a-diff/foundation/settings';
@@ -166,6 +166,11 @@ export function storyData(store: StoryStateReader, id: string, dir: string): Sto
       moved: movedSince(local),
       storyless: isStoryless(dir),
     };
+    // why an approval lapsed, while the story has none that counts
+    const lapsed = data.local.approved ? null : readApproval(store, id);
+    if (lapsed?.lapsed && lapsed.lapse) {
+      data.local.lapse = lapsed.lapse;
+    }
   }
   return data;
 }

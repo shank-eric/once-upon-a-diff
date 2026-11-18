@@ -46,7 +46,7 @@ import { updateReviewRecord } from './review-record.ts';
 const SHA_RE = /^[0-9a-f]{7,40}$/i;
 
 /** The refs the story's base may now be called by: the `base` it was told over when that is a ref (not a sha), origin's default branch, local main or master. */
-function baseRefs(repo: string, told: string | undefined): string[] {
+export function baseRefs(repo: string, told: string | undefined): string[] {
   const remote = defaultBranchOf(repo);
   return [
     ...(told && !SHA_RE.test(told) ? [told] : []),
@@ -56,9 +56,24 @@ function baseRefs(repo: string, told: string | undefined): string[] {
   ];
 }
 
-const patchIdOr = (repo: string, sha: string): string | null => {
+/** Patch ids already computed, by repo and sha (a commit never changes): carry and the lapse note ask for the same ones. Failures and empty patches are not kept. */
+const patchIds = new Map<string, string>();
+
+export const patchIdOr = (repo: string, sha: string): string | null => {
+  const key = `${repo}\0${sha}`;
+  const known = patchIds.get(key);
+  if (known !== undefined) {
+    return known;
+  }
   try {
-    return patchId(repo, sha);
+    const id = patchId(repo, sha);
+    if (id !== null) {
+      if (patchIds.size >= 1000) {
+        patchIds.clear();
+      }
+      patchIds.set(key, id);
+    }
+    return id;
   } catch {
     return null;
   }
@@ -150,7 +165,7 @@ function moveApproval(
   const dir = stories.dirOf(id);
   // the story follows its checkout, so its head moves to the commit now rather than on the next page poll
   const meta = dir ? refreshLocal(dir, readMeta(dir) as LocalMeta) : null;
-  const { lapsed: _lapsed, ...kept } = approval;
+  const { lapsed: _lapsed, lapse: _lapse, ...kept } = approval;
   updateReviewRecord(stories, id, (record) => {
     record.approval = {
       ...kept,

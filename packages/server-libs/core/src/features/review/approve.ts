@@ -13,6 +13,7 @@ import { readApproval } from '@once-upon-a-diff/stories/approval';
 import type { Inbox } from '@once-upon-a-diff/state/queues/requests/inbox';
 import type { StoryRef } from '@once-upon-a-diff/stories/types';
 import type { StoryStore } from '@once-upon-a-diff/stories/store';
+import type { LocalLapse } from '@once-upon-a-diff/contracts/types';
 /** What the event tells a listener about the story. */
 export interface ApproveInput {
   id: string;
@@ -71,20 +72,20 @@ export function approveStory(stories: StoryStore, inbox: Inbox, input: ApproveIn
 /**
  * Clears the approval (the story is in Ready again unless it has a mark). False when there was none. `lapsed` is for the
  * background check, when the branch moved: the approval stays in the record, marked `lapsed`, so a fixer's commit on the card
- * can still carry it (carry-approval.ts); an explicit clear (`--undo`, Approve off) deletes it, so it is never carried. The
+ * can still carry it (carry-approval.ts), with `lapse`, what changed on the branch (lapse-changes.ts), when it was worked out; an explicit clear (`--undo`, Approve off) deletes it, so it is never carried. The
  * story's mark is not touched either way.
  */
 export function clearApproval(
   stories: StoryStore,
   id: string,
-  { lapsed = false }: { lapsed?: boolean } = {},
+  { lapsed = false, lapse }: { lapsed?: boolean; lapse?: LocalLapse | null } = {},
 ): boolean {
   return updateReviewRecord(stories, id, (record) => {
     if (!record.approval) {
       return false;
     }
     if (lapsed) {
-      record.approval = { ...record.approval, lapsed: true };
+      record.approval = { ...record.approval, lapsed: true, ...(lapse && { lapse }) };
     } else {
       delete record.approval;
     }

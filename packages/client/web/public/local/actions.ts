@@ -395,7 +395,10 @@ export async function toggleApprove(approve: boolean) {
       params: PARAMS,
       body: { approved: approve, head_sha: storyOf().local.head_oid },
     });
-    patchLocal({ approved: answer.approved });
+    // an approval that counts again drops the note of the one that lapsed
+    patchLocal(
+      answer.approved ? { approved: answer.approved, lapse: undefined } : { approved: null },
+    );
   } catch (err) {
     patchShip({ approveFailure: (err as Error).message });
   }

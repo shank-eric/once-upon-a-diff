@@ -88,6 +88,27 @@ test('Approve sends the head the page shows, then shows when and where, with Una
   assert.ok(one('.ou-local-approve'));
 });
 
+test('approving again drops the note of the lapsed approval at once', async () => {
+  await open();
+  const lapse = {
+    at: approved.at,
+    tip: 'c'.repeat(40),
+    changes: [{ kind: 'added', sha: 'c'.repeat(40), subject: 'extra' }],
+  };
+  store.set({
+    story: {
+      ...(store.get().story as { local: object }),
+      local: { ...(store.get().story as { local: object }).local, lapse },
+    } as never,
+  });
+  await settle();
+  assert.ok(one('.ou-local-lapsed'));
+  reply('POST approve', { approved });
+  one('.ou-local-approve')!.click();
+  await settle();
+  assert.equal(one('.ou-local-lapsed'), null);
+});
+
 test('an Approve the bridge refuses says why beside the button, and the next try clears it', async () => {
   await open();
   reply('POST approve', refuse('the branch moved'));

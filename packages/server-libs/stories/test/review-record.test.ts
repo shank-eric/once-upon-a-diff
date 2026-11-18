@@ -154,3 +154,40 @@ test('the 7-day window reads the approval in review.json, and a carried approval
   assert.equal(approvalOf(stories, 's1', head, when + 8 * day), null);
   assert.equal(approvalOf(stories, 's1', 'e'.repeat(40), when + day), null);
 });
+
+test('a lapse note round-trips with its lapsed approval, and a malformed or empty one is dropped while the approval stays', () => {
+  const lapse = {
+    at: WHEN,
+    tip: 'c'.repeat(40),
+    changes: [{ kind: 'edited', sha: 'c'.repeat(40), subject: 'add two', was: 'a'.repeat(40) }],
+    more: 2,
+  };
+  const lapsed = { ...approval, lapsed: true };
+  assert.deepEqual(
+    readReviewRecord(store({ [REVIEW_FILE]: { approval: { ...lapsed, lapse } } }), 's1'),
+    {
+      approval: { ...lapsed, lapse },
+    },
+  );
+  const bad = [
+    { ...lapse, tip: 7 },
+    { ...lapse, changes: [] },
+    { ...lapse, changes: [{ kind: 'moved', sha: 'x', subject: 'y' }] },
+    'nope',
+  ];
+  for (const one of bad) {
+    assert.deepEqual(
+      readReviewRecord(store({ [REVIEW_FILE]: { approval: { ...lapsed, lapse: one } } }), 's1'),
+      {
+        approval: lapsed,
+      },
+    );
+  }
+  // a note on an approval that has not lapsed is not read
+  assert.deepEqual(
+    readReviewRecord(store({ [REVIEW_FILE]: { approval: { ...approval, lapse } } }), 's1'),
+    {
+      approval,
+    },
+  );
+});

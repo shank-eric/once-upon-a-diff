@@ -62,6 +62,34 @@ function Moved(props: { local: LocalStory }) {
   </div>`;
 }
 
+/** What the lapse note says each kind of change did to a commit. */
+const LAPSE_KINDS = {
+  added: 'added',
+  dropped: 'dropped',
+  edited: 'edited',
+  reordered: 'moved',
+} as const;
+
+/**
+ * Shown while an approval has lapsed because the branch changed after Approve: which commits were added, dropped, edited or
+ * moved, so a click on Approve again is a decision about those. A commit whose message and patch both changed reads as one
+ * dropped and one added.
+ */
+function Lapsed(props: { local: LocalStory }) {
+  const { lapse } = props.local;
+  if (!lapse) {
+    return null;
+  }
+  const lines = lapse.changes.map(
+    (change) =>
+      html`<li><code>${change.sha.slice(0, 9)}</code> ${LAPSE_KINDS[change.kind]}${change.was ? html` (was <code>${change.was.slice(0, 9)}</code>)` : ''}: ${change.subject}</li>`,
+  );
+  return html`<div class="ou-local-lapsed" role="status">
+    <strong>Approval lapsed: the branch changed after you approved it.</strong> It is now at <code>${lapse.tip.slice(0, 9)}</code>.
+    <ul>${lines}${lapse.more ? html`<li>and ${lapse.more} more</li>` : ''}</ul>
+  </div>`;
+}
+
 const WS_TITLE =
   "Draw the diff with git diff -w, like GitHub's Hide whitespace. Remembered for every local story.";
 
@@ -109,6 +137,7 @@ export function Top(props: { state: LocalState }) {
       <h1>${story.title}</h1>
       <div class="ou-local-muted"><${Range} local=${local} /> · <${Size} local=${local} /></div>
       <${Moved} local=${local} />
+      <${Lapsed} local=${local} />
     </div>
     <div class="ou-local-view" role="group" aria-label="Diff view"><button type="button" data-diff-view="unified" aria-pressed=${String(!split)} onClick=${view('unified')}>Unified</button><button type="button" data-diff-view="split" aria-pressed=${String(split)} onClick=${view('split')}>Split</button></div>
     <${WhitespaceToggle} hide=${local.hide_whitespace} />

@@ -206,11 +206,30 @@ export interface LocalStory {
   approved: { at: string; head_oid: string } | null;
   /** a story pinned to a branch (not HEAD) whose branch or base has moved since it was told: the current commit of each ref that did, else null; null when nothing moved */
   moved: LocalMoved | null;
+  /** what changed on the branch after it was approved, when the approval lapsed and the commits could be compared; absent otherwise */
+  lapse?: LocalLapse;
   /**
    * a storyless review (a by-folder story: no story was told, the diff by folder). It has no Approve: seeing the diff and
    * clicking Create pull request is the approval
    */
   storyless: boolean;
+}
+
+/** One commit the branch gained, lost or changed since the approval (`was`: the approved commit, for an edited or reordered one). */
+export interface LocalLapseChange {
+  kind: 'added' | 'dropped' | 'edited' | 'reordered';
+  /** the current commit (the approved one for a dropped commit) */
+  sha: string;
+  subject: string;
+  was?: string;
+}
+
+/** Why a lapsed approval lapsed: the commits that differ between the approved ones and the branch at `tip`, at most 30, and how many more there were. */
+export interface LocalLapse {
+  at: string;
+  tip: string;
+  changes: LocalLapseChange[];
+  more?: number;
 }
 
 /** Where a pinned local story's refs point now, for the ones that moved since it was told (the others are null). */
