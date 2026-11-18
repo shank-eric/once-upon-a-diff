@@ -35,17 +35,29 @@ const cardOf = (home: string, name: string) =>
     .filter((one) => one.op === 'start' && one.name === name)
     .map((one) => one.card);
 
-test('a start with no card mints an ic_ card on its one start row and writes nothing to backlog.jsonl', async () => {
+/** The rows of backlog.jsonl, as written. */
+const rowsOf = (home: string): Array<Record<string, unknown>> => {
+  const file = path.join(home, 'backlog.jsonl');
+  return existsSync(file)
+    ? readFileSync(file, 'utf8')
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line))
+    : [];
+};
+
+test('a start with no card mints an ic_ card, stores it as one add row (source agent) and puts its id on the run row', async () => {
   const home = tmp('implicit-mint');
   const first = await start(home, 'look-it-up', '--kind', 'research', '--task', 'look it up');
   assert.match(first.card, IMPLICIT);
   assert.deepEqual(cardOf(home, 'look-it-up'), [first.card]);
-  assert.equal(
-    existsSync(path.join(home, 'backlog.jsonl')),
-    false,
-    'the card has no row of its own',
-  );
-  // the same for a helper and an author, each its own card
+  const [row, ...rest] = rowsOf(home);
+  assert.equal(rest.length, 0);
+  assert.equal(row.op, 'add');
+  assert.equal(row.id, first.card);
+  assert.equal(row.source, 'agent');
+  assert.equal(row.title, 'look it up');
+  // the same for a helper and an author, each its own card; the author's carries its branch
   const helper = await start(home, 'a-helper', '--kind', 'helper', '--task', 'help');
   const author = await start(
     home,
@@ -59,7 +71,49 @@ test('a start with no card mints an ic_ card on its one start row and writes not
   );
   assert.notEqual(helper.card, first.card);
   assert.notEqual(author.card, helper.card);
-  assert.equal(existsSync(path.join(home, 'backlog.jsonl')), false);
+  const stored = new BacklogStore(home).items();
+  assert.deepEqual(
+    stored.map((item) => [item.id, item.source]),
+    [first.card, helper.card, author.card].map((id) => [id, 'agent']),
+  );
+  assert.equal(stored[2].branch, 'adhoc');
+  assert.equal(new BacklogStore(home).listed().length, 0, 'nothing lists a card an agent made');
+});
+
+test('a refused start leaves one idle agent card, and no branch stamp on a card the start did not make', async () => {
+  const home = tmp('implicit-refused');
+  const card = (await backlog(home, 'add', 'A card', '--repo', 'acme/widgets')).stdout.split(
+    ' ',
+  )[0];
+  assert.equal((await backlog(home, 'claim', card, '--agent', 'ou-first')).code, 0);
+  assert.equal(
+    (await agent(home, 'start', 'ou-first', '--role', 'author', '--card', card, '--task', 'one'))
+      .code,
+    0,
+  );
+  const second = await agent(
+    home,
+    'start',
+    'ou-second',
+    '--role',
+    'author',
+    '--card',
+    card,
+    '--task',
+    'two',
+    '--sid',
+    'bbbbbbb2',
+  );
+  assert.notEqual(second.code, 0);
+  assert.deepEqual(
+    rowsOf(home).map((row) => row.op),
+    ['add', 'claim'],
+    'the card was not stamped or linked by the refused start',
+  );
+  // an author with no card and no branch is refused before anything is stored
+  const none = await agent(home, 'start', 'ou-none', '--role', 'author', '--task', 'three');
+  assert.notEqual(none.code, 0);
+  assert.equal(rowsOf(home).length, 2);
 });
 
 test('a restart of the same name goes on its implicit card, and --new-card mints another', async () => {
@@ -236,8 +290,11 @@ test('backlog adopt writes one add with the same id and the runs now name a real
     '--task',
     'build the thing with more detail',
   );
-  const before = existsSync(path.join(home, 'backlog.jsonl'));
-  assert.equal(before, false);
+  assert.deepEqual(
+    rowsOf(home).map((row) => [row.op, row.source]),
+    [['add', 'agent']],
+    'the start stored the card, hidden from the lists',
+  );
   const adopted = await backlog(home, 'adopt', author.card);
   assert.equal(adopted.code, 0, adopted.stderr);
   const events = readFileSync(path.join(home, 'backlog.jsonl'), 'utf8')
@@ -246,15 +303,16 @@ test('backlog adopt writes one add with the same id and the runs now name a real
     .map((line) => JSON.parse(line));
   assert.deepEqual(
     events.map((event) => event.op),
-    ['add', 'start', 'claim'],
-    'the add, the start a card with a branch gets, and the claim its runs need for a fix round',
+    ['add', 'link', 'start', 'claim'],
+    'the stored add (no second one), the link that lists it, the start a card with a branch gets, and the claim its runs need for a fix round',
   );
   assert.equal(events[0].id, author.card);
   assert.equal(events[0].title, 'build the thing with more detail');
   assert.equal(events[0].repo, 'acme/widgets');
   assert.equal(events[0].branch, 'adhoc-x');
-  assert.equal(events[1].branch, 'adhoc-x');
-  assert.equal(events[2].agent, 'ou-adhoc');
+  assert.equal(events[1].source, 'backlog');
+  assert.equal(events[2].branch, 'adhoc-x');
+  assert.equal(events[3].agent, 'ou-adhoc');
   const [item] = new BacklogStore(home).items();
   assert.equal(item.id, author.card);
   assert.equal(item.state, 'started', 'work under way: no Assign');
@@ -310,8 +368,8 @@ test('an implicit card with no branch is adopted as one open card: one add, no s
   const events = readFileSync(path.join(home, 'backlog.jsonl'), 'utf8').trim().split('\n');
   assert.deepEqual(
     events.map((line) => JSON.parse(line).op),
-    ['add'],
-    'one add: no start, and no claim (a claim with no branch would sit in Working with nobody on it)',
+    ['add', 'link', 'edit'],
+    'the stored add, the link that lists it and the title typed: no start, and no claim (a claim with no branch would sit in Working with nobody on it)',
   );
   const [item] = new BacklogStore(home).items();
   assert.equal(item.title, 'Look at the thing');

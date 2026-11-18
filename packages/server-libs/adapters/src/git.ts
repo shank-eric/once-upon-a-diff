@@ -176,6 +176,38 @@ export function branchName(repo: string): string | null {
 }
 
 /**
+ * A checkout's HEAD commit and its branch (null when HEAD is detached): what an author's finish reads to say what it made. Null when
+ * git cannot say (not a checkout, gone, or slower than `timeoutMs`): the caller then goes on with what it was told.
+ */
+export function worktreeFacts(
+  dir: string,
+  timeoutMs = 3000,
+): { head: string; branch: string | null } | null {
+  try {
+    const head = runGit(dir, ['rev-parse', '--verify', '--quiet', 'HEAD^{commit}'], {
+      quiet: true,
+      timeoutMs,
+    }).trim();
+    if (!head) {
+      return null;
+    }
+    let branch: string | null = null;
+    try {
+      branch =
+        runGit(dir, ['symbolic-ref', '--quiet', '--short', 'HEAD'], {
+          quiet: true,
+          timeoutMs,
+        }).trim() || null;
+    } catch {
+      // detached
+    }
+    return { head, branch };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * The diff between two commits, as `git diff base head` prints it (renames found, no colour, no external diff tools).
  * `ignoreWhitespace` adds -w (--ignore-all-space), GitHub's "Hide whitespace": a file whose only changes are whitespace drops out.
  */

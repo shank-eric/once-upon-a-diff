@@ -19,6 +19,7 @@ import { agentEventsIn } from './events-file.ts';
 import { appendLine } from '@once-upon-a-diff/adapters/stores/fs/lines';
 import { withLock } from '@once-upon-a-diff/adapters/stores/fs/lock';
 import { checkWrite } from '@once-upon-a-diff/foundation/shared-files';
+import { DEFAULT_BRANCHES } from '@once-upon-a-diff/foundation/settings';
 import { END_STATES, OPEN_STATES } from '@once-upon-a-diff/contracts/files/agent-states';
 import { readAgentEvent } from '@once-upon-a-diff/contracts/files/schemas';
 import { strictAgentEvent } from '@once-upon-a-diff/contracts/files/strict';
@@ -36,6 +37,12 @@ import {
   type AgentEvent,
 } from './events.ts';
 import { implicitCards } from './implicit.ts';
+import {
+  commitOf,
+  defaultBranchOf,
+  isAncestor,
+  worktreeFacts,
+} from '@once-upon-a-diff/adapters/git';
 import { branchTip, madeOnBranch, uncommittedWorktree } from './made.ts';
 import { agentsFile } from './read.ts';
 import { clean, count, optional } from '@once-upon-a-diff/foundation/input';
@@ -76,6 +83,8 @@ export interface StartInput extends Target {
   card?: string | null;
   /** with a card checked (ADR-25): no card named and none to carry over mints an implicit card, unless this says not to (ADR-27) */
   newCard?: boolean;
+  /** the id of the card the caller already stored for the run this start would mint (ADR-29); used in place of a fresh `ic_` id */
+  mintedCard?: string | null;
   /** what the run does on a card (`--role`): checked at start, and kept on the start row (a fixer's finish can carry an approval) */
   role?: AgentRole | null;
   /** the name of the earlier run of this session that this one retries: once this run is done, a failed one of that name is off the board */
@@ -114,6 +123,8 @@ export interface FinishInput extends Target {
   notes?: string | null;
   /** told --no-commit (a planner or capped author): there is no commit to wait for, so the worktree is not read */
   noCommit?: boolean;
+  /** called with the run and its result just before the finish row is written: where the caller writes what the result taught the card (its branch), so no board built between the two writes sees the card without it */
+  beforeFinish?: (agent: LedgerAgent, result: AgentResult) => void;
 }
 
 /**
@@ -138,7 +149,24 @@ export interface CardFacts {
   branch: string | null;
   /** whether an agent has claimed it */
   claimed: boolean;
+  /** the checkout the card's work is in, when a link says (ADR-29): where a finish reads git */
+  worktree?: string | null;
 }
+
+/**
+ * Whether a start with no card to carry over makes one (ADR-27, ADR-29): a critic, a storyteller and an editor work on cards that
+ * exist, a fixer too, and a standing agent is no work. The one rule: the registry mints by it, and the caller that stores the card first asks it.
+ */
+export const mintsCard = (run: {
+  cardId: string | null;
+  standing: boolean;
+  kind: string;
+  role?: string | null;
+}): boolean =>
+  !run.cardId &&
+  !run.standing &&
+  !['critic', 'storyteller', 'editor'].includes(run.kind) &&
+  !['critic', 'fixer', 'storyteller'].includes(run.role ?? '');
 export type CardLookup = (id: string) => CardFacts | null;
 
 /**
@@ -365,6 +393,44 @@ export class AgentRegistry {
     return card ? { id, closed: null, repo: card.repo, branch: card.branch, claimed: true } : null;
   }
 
+  /**
+   * The card a start names or carries over, and whether it makes one: a restart of the same sid:name (a fix round) stays on the
+   * earlier run's card, as the kind does, while that card is open.
+   */
+  private cardFor(
+    input: StartInput,
+    earlier: LedgerAgent | undefined,
+    kind: string,
+  ): { cardId: string | null; standing: boolean; mints: boolean } {
+    let cardId = optional(input.card, 'the card', BACKLOG_ID_RE);
+    if (
+      !cardId &&
+      !input.newCard &&
+      earlier?.card &&
+      (!this.cards || this.cardFacts(earlier.card)?.closed === null)
+    ) {
+      cardId = earlier.card;
+    }
+    const standing = input.standing ?? earlier?.standing === true;
+    return { cardId, standing, mints: mintsCard({ cardId, standing, kind, role: input.role }) };
+  }
+
+  /**
+   * Whether `start(input)` would make a card for this run (and so the caller stores it first). False for an input the start
+   * would refuse: nothing is made for it.
+   */
+  wouldMint(input: StartInput): boolean {
+    try {
+      const name = optional(input.name, 'the name', AGENT_NAME_RE);
+      const sid = optional(input.sid, 'the session id', SID_RE);
+      const earlier = this.agents().find((one) => one.sid === sid && one.name === name);
+      const kind = canonicalKind(input.kind ?? earlier?.kind);
+      return !!this.cards && !!name && !!sid && !!kind && this.cardFor(input, earlier, kind).mints;
+    } catch {
+      return false;
+    }
+  }
+
   /** Registers a run. The checks and the append are one step under the log's lock: two starts at once see each other (one open author per card). */
   start(
     input: StartInput,
@@ -411,25 +477,9 @@ export class AgentRegistry {
       throw new Error('--replaces names an earlier run: it cannot be this run');
     }
     const cwd = clean(input.cwd, 'the cwd', 500) || null;
-    // a restart of the same sid:name (a fix round) stays on the earlier run's card, as the kind does, while that card is open
-    let cardId = optional(input.card, 'the card', BACKLOG_ID_RE);
-    if (
-      !cardId &&
-      !input.newCard &&
-      earlier?.card &&
-      (!this.cards || this.cardFacts(earlier.card)?.closed === null)
-    ) {
-      cardId = earlier.card;
-    }
-    const standing = input.standing ?? earlier?.standing === true;
-    // work that did not start in the backlog is its own card (ADR-27): the id goes on this start row and nowhere else. A critic,
-    // a fixer or a storyteller works on a card that already exists, so it never mints one
-    const mints =
-      !!this.cards &&
-      !cardId &&
-      !standing &&
-      !['critic', 'storyteller', 'editor'].includes(kind) &&
-      !['critic', 'fixer', 'storyteller'].includes(input.role ?? '');
+    const { cardId: carried, standing, mints: wouldMint } = this.cardFor(input, earlier, kind);
+    let cardId = carried;
+    const mints = !!this.cards && wouldMint;
     if (mints && kind === 'author' && !branch) {
       throw new Error(
         'an author with no card needs --branch (the branch its work is on, which names its card) or --card ID',
@@ -439,7 +489,7 @@ export class AgentRegistry {
       throw new Error('a fixer works on a card: pass --card ID');
     }
     if (mints) {
-      cardId = newImplicitCardId();
+      cardId = optional(input.mintedCard, 'the minted card', BACKLOG_ID_RE) ?? newImplicitCardId();
     }
     if (this.cards && kind === 'critic' && !cardId) {
       throw new Error(
@@ -788,9 +838,47 @@ export class AgentRegistry {
     if (card) {
       result.card = card;
     }
+    // git is the truth for what an author made (ADR-29): its worktree's HEAD and branch, when the card's worktree (else the run's
+    // checkout) is a checkout on a branch. A typed commit that is HEAD or behind it stands; one that is not is replaced, with a
+    // warning. Anything git cannot say (no checkout, gone, detached, slow), and every run that is not an author finishing done,
+    // goes on with what was typed, as before
+    if (state === 'done' && agent.kind === 'author' && !input.noCommit) {
+      const dir = (agent.card && this.cardFacts(agent.card)?.worktree) || agent.cwd;
+      const facts = dir ? worktreeFacts(dir) : null;
+      if (
+        dir &&
+        facts?.branch &&
+        !DEFAULT_BRANCHES.has(facts.branch) &&
+        (!agent.branch || facts.branch === agent.branch)
+      ) {
+        const typed = result.commit;
+        if (typed && !isAncestor(dir, typed, facts.head)) {
+          warn?.(
+            `once-upon: --commit ${typed} is not in ${dir}'s history (HEAD ${facts.head}): recorded ${facts.head}`,
+          );
+        }
+        // nothing typed: HEAD counts as made when it moved past the run's start tip and is not the default branch's own tip (a
+        // branch with nothing over main: its HEAD is the commit it was cut from, which a null start tip must not mistake for work)
+        const baseTip = [defaultBranchOf(dir), 'main', 'master']
+          .map((name) => (name ? commitOf(dir, `refs/heads/${name}`) : null))
+          .find(Boolean);
+        const untouched = facts.head === agent.tip || facts.head === baseTip;
+        if (typed ? !isAncestor(dir, typed, facts.head) : !untouched) {
+          result.commit = facts.head;
+        }
+        if (result.commit && result.branch !== facts.branch) {
+          result.branch = facts.branch;
+        }
+      }
+    }
     // none given: what an author's registered branch gained since the run started. A run that failed or was stopped made
     // nothing to point at, and a helper, critic or researcher never takes an author's commit
-    if (!Object.keys(result).length && state === 'done' && agent.kind === 'author') {
+    if (
+      !Object.keys(result).length &&
+      state === 'done' &&
+      agent.kind === 'author' &&
+      !input.noCommit
+    ) {
       Object.assign(result, madeOnBranch(agent));
     }
     // an author done with no commit and changes left in its worktree: recorded once, here (a planner made none to hold)
@@ -810,6 +898,7 @@ export class AgentRegistry {
         );
       }
     }
+    input.beforeFinish?.(agent, result);
     return this.append({
       ...this.base('finish', name, agent.sid, input),
       run: agent.run ?? undefined,

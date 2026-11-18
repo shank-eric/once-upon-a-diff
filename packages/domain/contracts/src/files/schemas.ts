@@ -29,8 +29,6 @@ import {
   optional,
   picklist,
   pipe,
-  regex,
-  safeParse,
   string,
   transform,
   unknown,
@@ -38,7 +36,6 @@ import {
   type GenericSchema,
   type InferOutput,
 } from 'valibot';
-import { AGENT_NAME_RE, BACKLOG_ID_RE, SESSION_RE, SID_RE } from '@once-upon-a-diff/terms/patterns';
 import type { ChapterRef, LocalNote } from '../story/types.ts';
 import { AGENT_KINDS, AGENT_ROLES, KIND_ALIASES } from './agent-kinds.ts';
 
@@ -47,9 +44,8 @@ type Listed<T> = T extends unknown
   ? { [K in keyof T as string extends K ? never : number extends K ? never : K]: T[K] }
   : never;
 
-/** A field no reader depends on: absent, null, or of the wrong type reads as absent (null stays null). */
-const lenient = <S extends GenericSchema>(schema: S) =>
-  optional(fallback(nullable(schema), undefined));
+import { lenient, reader } from './readers.ts';
+
 /** Like `lenient`, but null reads as absent too, for a field whose type never allowed null. */
 const absent = <S extends GenericSchema>(schema: S) => optional(fallback(schema, undefined));
 const isObject = (value: unknown): boolean =>
@@ -58,14 +54,6 @@ const isoTime = pipe(
   string(),
   check((text) => !Number.isNaN(Date.parse(text))),
 );
-
-/** The value the schema accepts, or null. */
-const reader =
-  <S extends GenericSchema>(schema: S) =>
-  (value: unknown): InferOutput<S> | null => {
-    const result = safeParse(schema, value);
-    return result.success ? result.output : null;
-  };
 
 // ---- agents.jsonl: the registry's events (state/src/records/agents) ----
 
@@ -137,70 +125,9 @@ const AgentEventSchema = looseObject({
 export type AgentEvent = Listed<InferOutput<typeof AgentEventSchema>>;
 export const readAgentEvent = reader(AgentEventSchema);
 
-// ---- backlog.jsonl: the Backlog column's events (state/src/queues/backlog) ----
+// ---- backlog.jsonl: the Backlog column's events (state/src/queues/backlog); the schema is backlog-events.ts ----
 
-const id = pipe(string(), regex(BACKLOG_ID_RE));
-/** What every event has: who (`cli` when absent) and when (stamped by the writer). */
-const stamped = { id, at: lenient(string()), by: lenient(string()) };
-
-/**
- *   {op:'add',   id, title, note, repo, branch, by, at}
- *   {op:'start', id, branch, repo, by, at}     work began on that branch
- *   {op:'assign', id, session, branch, by, at} an Assign typed the item into a session
- *   {op:'done',  id, sha?, by, at}             the work landed
- *   {op:'drop' | 'reopen', id, by, at}
- *   {op:'move',  id, before | edge, by, at}    `before` is another item's id; `edge` is 'top' or 'bottom'
- *   {op:'edit',  id, title?, note?, repo?, by, at}
- *   {op:'claim', id, agent, sid?, session?, worktree?, by, at}   an agent (named as it registered) owns the card; `session` is the
- *                                              claimer's full session id (the editor's) and `worktree` the checkout path, when given
- *   {op:'hold' | 'someday' | 'skip_critic', id, on, by, at}
- * What each means, and how they fold into items, is state/src/queues/backlog/backlog.ts.
- */
-const BacklogEventSchema = variant('op', [
-  looseObject({
-    op: literal('add'),
-    ...stamped,
-    title: string(),
-    note: lenient(string()),
-    repo: lenient(string()),
-    branch: lenient(string()),
-  }),
-  looseObject({ op: literal('start'), ...stamped, branch: string(), repo: lenient(string()) }),
-  looseObject({
-    op: literal('assign'),
-    ...stamped,
-    session: pipe(string(), regex(SESSION_RE)),
-    branch: lenient(string()),
-  }),
-  looseObject({ op: literal('done'), ...stamped, sha: lenient(string()) }),
-  looseObject({
-    op: literal('claim'),
-    ...stamped,
-    agent: pipe(string(), regex(AGENT_NAME_RE)),
-    sid: lenient(pipe(string(), regex(SID_RE))),
-    session: lenient(pipe(string(), regex(SESSION_RE))),
-    worktree: lenient(string()),
-  }),
-  looseObject({ op: literal('hold'), ...stamped, on: lenient(boolean()) }),
-  looseObject({ op: literal('someday'), ...stamped, on: lenient(boolean()) }),
-  looseObject({ op: literal('skip_critic'), ...stamped, on: lenient(boolean()) }),
-  looseObject({ op: literal('drop'), ...stamped }),
-  looseObject({ op: literal('reopen'), ...stamped }),
-  looseObject({
-    op: literal('move'),
-    ...stamped,
-    before: lenient(string()),
-    edge: lenient(picklist(['top', 'bottom'])),
-  }),
-  looseObject({
-    op: literal('edit'),
-    ...stamped,
-    title: lenient(string()),
-    note: lenient(string()),
-    repo: lenient(string()),
-  }),
-]);
-export const readBacklogEvent = reader(BacklogEventSchema);
+export { CARD_SOURCES, readBacklogEvent } from './backlog-events.ts';
 
 // ---- inbox.jsonl: questions, answers, notes and the like (state/src/queues/requests/inbox.ts) ----
 

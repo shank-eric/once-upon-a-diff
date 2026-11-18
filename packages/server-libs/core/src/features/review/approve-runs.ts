@@ -82,7 +82,7 @@ function finishParkedStorytellers(
   );
   const onStory = (repo: string | null, branch: string | null) =>
     branch === story.branch && (story.repo ? sameRepo(repo, story.repo) : !repo);
-  const items = backlog.items();
+  const items = backlog.listed();
   const known = new Set(items.map((item) => item.id));
   const cards = new Set(
     items

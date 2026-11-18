@@ -153,3 +153,23 @@ test('a finished run says it already finished', async () => {
   handbackRun(ctx.home, 'feat-x', {});
   assert.throws(() => handbackRun(ctx.home, 'feat-x', {}), /already finished/);
 });
+
+test('handback runs the finish stamp: a branchless card takes the branch the run made', async () => {
+  const ctx = world();
+  const bare = ctx.store.add({ title: 'No branch', repo: 'acme/widgets' });
+  ctx.store.claim(bare.id, { agent: 'bare-run', sid: SID });
+  const tree = ctx.fixture.add('feat-bare');
+  ctx.fixture.commit(tree, 'one');
+  await startRun(ctx.home, {
+    name: 'bare-run',
+    role: 'author',
+    card: bare.id,
+    task: 'do it',
+    cwd: tree,
+    sid: SID,
+  });
+  const stored = () => new BacklogStore(ctx.home).items().find((one) => one.id === bare.id);
+  assert.equal(stored()?.branch, null);
+  handbackRun(ctx.home, 'bare-run', {});
+  assert.equal(stored()?.branch, 'feat-bare');
+});

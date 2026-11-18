@@ -12,7 +12,7 @@ export function warnTypedRepo(home: string, typed: string | null, cwd: string): 
     return;
   }
   const note = typedRepoNote(home, typed, {
-    cardRepos: new BacklogStore(home).items().map((item) => item.repo),
+    cardRepos: new BacklogStore(home).listed().map((item) => item.repo),
     origin: repoOfCheckout(cwd),
   });
   if (note) {

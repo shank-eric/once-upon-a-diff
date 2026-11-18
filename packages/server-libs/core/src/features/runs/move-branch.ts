@@ -22,7 +22,7 @@ export function moveBranch(
   who?: string | null,
 ): BranchMove {
   const store = new BacklogStore(home);
-  const item = store.items().find((one) => one.id === card);
+  const item = store.listed().find((one) => one.id === card);
   if (!item) {
     throw new Error(`no backlog item ${card}`);
   }

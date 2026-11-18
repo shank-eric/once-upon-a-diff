@@ -9,6 +9,9 @@ import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
 import { noteListener } from '@once-upon-a-diff/state/records/listeners/history';
 import { spawn, execFileSync } from 'node:child_process';
 import {
+  appendFileSync,
+  existsSync,
+  readFileSync,
   mkdirSync,
   mkdtempSync,
   rmSync,
@@ -403,11 +406,15 @@ function fakeWatcher(
 const results: Record<string, unknown> = {};
 /** commits whose sha shows in a golden: made at run time, so normalized like the pids */
 const shasSeen: string[] = [];
+// every world's board, for the stored-card gate below (storedCardsChangeNothing)
+const worldBoards: { name: string; board: any; home: string }[] = [];
+
 async function record(
   name: string,
   board: any,
   extras: Record<string, () => Promise<unknown>> = {},
 ) {
+  worldBoards.push({ name, board, home: board.home });
   const out: Record<string, unknown> = { board: await board.snapshot() };
   for (const [key, fn] of Object.entries(extras)) {
     try {
@@ -2052,6 +2059,73 @@ for (const [name, value] of Object.entries(results)) {
   // Disk usage depends on the filesystem's block size.
   text = text.replace(/"size_kb": \d+/g, '"size_kb": "<kb>"');
   snapshots[name] = text + '\n';
+}
+
+/**
+ * The gate for ADR-29's branch A: cards a run or a writer stored (one of each source) change no board. For every world, the
+ * board is built, then stored cards are appended to its backlog.jsonl (an `agent` card for each `ic_` id a run names, which is
+ * what an `agent start` now writes, plus a `session`, a `pr` and a `story` card on a branch the world uses, one started, and an
+ * orphan nothing names), and built again. The two builds are returned, by world name, for the test to compare.
+ */
+export async function storedCardsChangeNothing(): Promise<
+  Record<string, { before: string; after: string }>
+> {
+  const out: Record<string, { before: string; after: string }> = {};
+  const at = NOW.toISOString();
+  for (const { name, board, home } of worldBoards) {
+    const before = JSON.stringify(await board.rebuild());
+    const agentsText = existsSync(path.join(home, 'agents.jsonl'))
+      ? readFileSync(path.join(home, 'agents.jsonl'), 'utf8').split('\n')
+      : [];
+    const named = [
+      ...new Set(agentsText.flatMap((line) => line.match(/ic_[a-z0-9]{6,24}/g) ?? [])),
+    ];
+    const rows = [
+      ...named.map((id) => ({
+        op: 'add',
+        id,
+        title: `stored ${id}`,
+        repo: 'acme/widgets',
+        source: 'agent',
+      })),
+      {
+        op: 'add',
+        id: 'bl_storedsess01',
+        title: 'a session card',
+        repo: 'acme/widgets',
+        branch: 'feat/x',
+        source: 'session',
+        session: 'stored-session-1',
+      },
+      {
+        op: 'add',
+        id: 'bl_storedpr0001',
+        title: 'a PR card',
+        repo: 'acme/widgets',
+        branch: 'feat/y',
+        source: 'pr',
+        pr: 7,
+      },
+      { op: 'start', id: 'bl_storedpr0001', branch: 'feat/y', repo: 'acme/widgets' },
+      {
+        op: 'add',
+        id: 'bl_storedstory1',
+        title: 'a story card',
+        repo: 'acme/widgets',
+        branch: 'feat/z',
+        source: 'story',
+        story: 'acme-widgets-8',
+      },
+      { op: 'link', id: 'bl_storedstory1', worktree: '/nowhere/stored', pr: 8 },
+      { op: 'add', id: 'bl_storedorphan', title: 'an orphan', source: 'agent' },
+    ].map((row) => ({ ...row, by: 'stored-card-gate', at }));
+    appendFileSync(
+      path.join(home, 'backlog.jsonl'),
+      rows.map((row) => JSON.stringify(row)).join('\n') + '\n',
+    );
+    out[name] = { before, after: JSON.stringify(await board.rebuild()) };
+  }
+  return out;
 }
 
 export function finish() {

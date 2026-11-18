@@ -54,7 +54,7 @@ export function compactLogs(
 
   const cards = new Map(
     new BacklogStore(home)
-      .items()
+      .listed()
       .map(
         (item) =>
           [item.id, item.state === 'dropped' || item.landed_at ? 'closed' : 'open'] as const,

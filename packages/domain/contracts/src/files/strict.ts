@@ -18,6 +18,7 @@ import {
   literal,
   looseObject,
   minLength,
+  minValue,
   nullable,
   number,
   optional,
@@ -41,7 +42,7 @@ import {
 } from '@once-upon-a-diff/terms/patterns';
 import { RUN_ID_RE, agentId, prKey } from '@once-upon-a-diff/terms/ids';
 import { SHA_RE } from '@once-upon-a-diff/terms/text';
-import { AGENT_KINDS } from './schemas.ts';
+import { AGENT_KINDS, CARD_SOURCES } from './schemas.ts';
 import { END_STATES, OPEN_STATES } from './agent-states.ts';
 
 const problemsOf = (schema: GenericSchema, value: unknown): string[] => {
@@ -66,6 +67,7 @@ const branch = matches(CARD_BRANCH_RE, 'a branch name');
 const sha = matches(SHA_RE, 'a commit id');
 const story = matches(STORY_ID_RE, 'a story id');
 const text = string();
+const absolute = matches(/^\/.+/, 'an absolute path');
 const filled = pipe(string(), minLength(1, 'is empty'));
 
 // ---- agents.jsonl ----
@@ -153,15 +155,31 @@ const StrictBacklogEvent = variant('op', [
     note: maybe(text),
     repo: maybe(repo),
     branch: maybe(branch),
+    source: maybe(picklist(CARD_SOURCES)),
+    worktree: maybe(absolute),
+    pr: maybe(pipe(number(), integer(), minValue(1))),
+    story: maybe(story),
+    session: maybe(matches(SESSION_RE, 'a session id')),
   }),
   looseObject({ op: literal('start'), ...stamped, branch, repo: maybe(repo) }),
+  looseObject({
+    op: literal('link'),
+    ...stamped,
+    repo: maybe(repo),
+    branch: maybe(branch),
+    worktree: maybe(absolute),
+    pr: maybe(pipe(number(), integer(), minValue(1))),
+    story: maybe(story),
+    session: maybe(matches(SESSION_RE, 'a session id')),
+    source: maybe(literal('backlog')),
+  }),
   looseObject({
     op: literal('assign'),
     ...stamped,
     session: matches(SESSION_RE, 'a session id'),
     branch: maybe(branch),
   }),
-  looseObject({ op: literal('done'), ...stamped, sha: maybe(sha) }),
+  looseObject({ op: literal('done'), ...stamped, sha: maybe(sha), merged_at: maybe(time) }),
   looseObject({
     op: literal('claim'),
     ...stamped,

@@ -103,7 +103,7 @@ export async function dispatchRun(
     throw new Error('--plan and --from-notes are for --role author');
   }
   const store = new BacklogStore(home);
-  const item = store.items().find((one) => one.id === input.card);
+  const item = store.listed().find((one) => one.id === input.card);
   if (!item) {
     throw new Error(`no backlog item ${input.card}`);
   }
@@ -226,6 +226,10 @@ export async function dispatchRun(
       worktree: role === 'fixer' ? worktree : null,
       by: text(input.by) ?? name,
     });
+    if (role === 'fixer') {
+      // the worktree verified above is where the card's work is (ADR-29)
+      store.link(item.id, { worktree, by: text(input.by) ?? name });
+    }
   }
   let started;
   try {

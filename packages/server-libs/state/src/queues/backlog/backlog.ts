@@ -6,9 +6,12 @@
  *
  * The format of each event is the contracts package's (contracts/src/files/schemas.ts); this lists them for the fold:
  *
- *   {op:'add',   id, title, note, repo, branch, by, at}
+ *   {op:'add',   id, title, note, repo, branch, source?, worktree?, pr?, story?, session?, by, at}   `source` (ADR-29): what made the card, `backlog` when absent
  *   {op:'start', id, branch, repo, by, at}     work began on that branch
- *   {op:'done',  id, sha?, by, at}             the work landed (a local deploy, or the bridge seeing the card's PR merge: land-merged.ts); an open item can land too
+ *   {op:'link',  id, repo?, branch?, worktree?, pr?, story?, session?, source?, by, at}   a fact learned about the card, written once onto it. Sets only the
+ *                                              fields it carries, on a card that is not dropped or landed; never touches the state, `started_at`, `landed_*`,
+ *                                              the claim or `someday`. `source` only as `backlog`: `backlog adopt` lists a card an agent made
+ *   {op:'done',  id, sha?, merged_at?, by, at} the work landed (`merged_at`: when its PR merged, so `landed_at` is that time; a local deploy, or the bridge seeing the card's PR merge: land-merged.ts); an open item can land too
  *   {op:'drop',  id, by, at}
  *   {op:'reopen', id, by, at}                  a dropped item is open again (a new `start` after a drop is still ignored)
  *   {op:'move',  id, before | edge, by, at}   `before` is another item's id; `edge` is 'top' or 'bottom'
@@ -40,9 +43,10 @@ import {
   CARD_BRANCH_RE,
   SESSION_RE,
   SID_RE,
+  STORY_ID_RE,
 } from '@once-upon-a-diff/terms/patterns';
 import { canonicalRepo } from '@once-upon-a-diff/terms/ids';
-import { readBacklogEvent } from '@once-upon-a-diff/contracts/files/schemas';
+import { CARD_SOURCES, readBacklogEvent } from '@once-upon-a-diff/contracts/files/schemas';
 import { strictBacklogEvent } from '@once-upon-a-diff/contracts/files/strict';
 import { checkWrite } from '@once-upon-a-diff/foundation/shared-files';
 import { BACKLOG_NOTE_MAX, SHA_RE } from '@once-upon-a-diff/terms/text';
@@ -55,11 +59,11 @@ import { OPEN, liveClaim, sameAgentView } from './claims.ts';
 import { DONE_HOURS, workAgent, type CardPhase } from './phase.ts';
 import { REPO_RE, sameRepo } from '@once-upon-a-diff/foundation/repos';
 import { newId } from '@once-upon-a-diff/foundation/ids';
-import { clean, optional } from '@once-upon-a-diff/foundation/input';
+import { clean, count, optional } from '@once-upon-a-diff/foundation/input';
 import type { BoardAgent, BoardCard, BoardStartedLinks } from '@once-upon-a-diff/contracts/types';
 import type { LedgerAgent } from '../../records/agents/ledger.ts';
 import type { CardLookup } from '../../records/agents/registry.ts';
-import type { BacklogItem } from './types.ts';
+import type { BacklogItem, CardSource } from './types.ts';
 
 export const STARTED_GRACE_HOURS = 24;
 export { DONE_HOURS };
@@ -95,12 +99,45 @@ export interface AddInput {
   repo?: string | null;
   branch?: string | null;
   by?: string | null;
+  /** what made the card (ADR-29); `backlog` when left out */
+  source?: CardSource;
+  worktree?: string | null;
+  pr?: number | null;
+  story?: string | null;
+  session?: string | null;
 }
+
+/** The facts a `link` writes onto a card (ADR-29): the ones it carries are set, the rest stay. */
+export interface LinkInput {
+  repo?: string | null;
+  branch?: string | null;
+  worktree?: string | null;
+  pr?: number | null;
+  story?: string | null;
+  session?: string | null;
+  /** only `backlog`: lists a card an agent made (`backlog adopt`) */
+  source?: 'backlog';
+  by?: string | null;
+}
+
+/**
+ * Whether the Backlog column, the lists and the checks that decide what a card IS see it: a card someone added (or an agent's,
+ * once adopted). The cards the first fact about some work made (`source` agent, session, pr, story) are stored and found by id,
+ * and shown by nothing until the board reads them (ADR-29).
+ */
+export const isListed = (item: Pick<BacklogItem, 'source'>): boolean =>
+  (item.source ?? 'backlog') === 'backlog';
 
 /** Where the items live. Swap the implementation to move them. */
 export interface BacklogStorage {
   items(): BacklogItem[];
+  listed(): BacklogItem[];
   add(input: AddInput): BacklogItem;
+  link(id: string, input: LinkInput): BacklogItem;
+  adopt(
+    id: string,
+    input?: { title?: string | null; note?: string | null; by?: string | null },
+  ): BacklogItem;
   start(
     id: string,
     input: { branch: string; repo?: string | null; by?: string | null },
@@ -158,6 +195,11 @@ export function foldBacklogEvents(events: BacklogEvent[]): BacklogItem[] {
         added_by: who,
         added_at: when,
         state: 'open',
+        source: event.source ?? 'backlog',
+        worktree: event.worktree || null,
+        pr: event.pr || null,
+        story: event.story || null,
+        session: event.session || null,
         started_at: null,
         started_by: null,
         dropped_at: null,
@@ -190,13 +232,24 @@ export function foldBacklogEvents(events: BacklogEvent[]): BacklogItem[] {
       event.op === 'done'
     ) {
       // (an open item an agent works on is started by what the board finds, so it can land with no `start`)
-      found.landed_at = when;
+      found.landed_at = event.merged_at || when;
       found.landed_sha = event.sha || null;
       // the claim ends when the card lands, whatever its agent is doing. A later claim is recorded, but holds nothing
       // until a `start` reopens the work (liveClaim ignores a landed card)
       found.claim = null;
       found.someday = false;
+    } else if (found && found.state !== 'dropped' && !found.landed_at && event.op === 'link') {
+      // a fact learned about the work: only the fields the event carries are set, nothing else about the card moves
+      found.repo = event.repo || found.repo;
+      found.branch = event.branch || found.branch;
+      found.worktree = event.worktree || found.worktree;
+      found.pr = event.pr || found.pr;
+      found.story = event.story || found.story;
+      found.session = event.session || found.session;
+      found.source = event.source ?? found.source;
     } else if (found && found.state !== 'dropped' && event.op === 'claim') {
+      // (the claim's checkout is the card's until a `link` says another)
+      found.worktree ??= event.worktree || null;
       found.claim = {
         agent: event.agent,
         sid: event.sid ?? null,
@@ -259,6 +312,35 @@ export function foldBacklogEvents(events: BacklogEvent[]): BacklogItem[] {
   return order.map((id) => items.get(id) as BacklogItem);
 }
 
+const cardSource = (value: string): CardSource => {
+  if (!(CARD_SOURCES as readonly string[]).includes(value)) {
+    throw new Error(`the source must be one of ${CARD_SOURCES.join(', ')}`);
+  }
+  return value as CardSource;
+};
+
+/** The checked worktree, PR, story and session of an add or a link: only the ones given (a null or empty one is left out). */
+function cardFacts(input: {
+  worktree?: string | null;
+  pr?: number | null;
+  story?: string | null;
+  session?: string | null;
+}): { worktree?: string; pr?: number; story?: string; session?: string } {
+  const worktree = clean(input.worktree, 'the worktree', 500);
+  if (worktree && !path.isAbsolute(worktree)) {
+    throw new Error('the worktree must be an absolute path');
+  }
+  const pr = count(input.pr, 'the PR number');
+  const story = optional(input.story, 'the story', STORY_ID_RE);
+  const session = optional(input.session, 'the session', SESSION_RE);
+  return {
+    ...(worktree ? { worktree } : {}),
+    ...(pr ? { pr } : {}),
+    ...(story ? { story } : {}),
+    ...(session ? { session } : {}),
+  };
+}
+
 /** The items in <home>/backlog.jsonl. */
 export class BacklogStore implements BacklogStorage {
   declare file: string;
@@ -269,6 +351,11 @@ export class BacklogStore implements BacklogStorage {
 
   items(): BacklogItem[] {
     return foldBacklogEvents(backlogEventsIn(this.file));
+  }
+
+  /** The listed items (isListed): what the board and the lists show. `items()` is every stored card, for finding one by its id. */
+  listed(): BacklogItem[] {
+    return this.items().filter(isListed);
   }
 
   private append(event: Record<string, unknown>): void {
@@ -307,8 +394,59 @@ export class BacklogStore implements BacklogStorage {
       repo: optional(input.repo, 'the repo', REPO_RE),
       branch: optional(input.branch, 'the branch', CARD_BRANCH_RE),
       by: clean(input.by, 'the name', BY_MAX) || 'cli',
+      ...cardFacts(input),
+      ...(input.source && input.source !== 'backlog' ? { source: cardSource(input.source) } : {}),
     });
     return this.find(id);
+  }
+
+  /**
+   * Writes facts learned about a card onto it (ADR-29), only the ones that differ from what it has (nothing is appended when
+   * none does). A card that is dropped or landed takes none: the item comes back as it was.
+   */
+  link(id: string, input: LinkInput): BacklogItem {
+    const item = this.find(id);
+    if (item.state === 'dropped' || item.landed_at) {
+      return item;
+    }
+    const facts = cardFacts(input);
+    const repo = optional(input.repo, 'the repo', REPO_RE);
+    const branch = optional(input.branch, 'the branch', CARD_BRANCH_RE);
+    const changes: Record<string, unknown> = {
+      ...(repo && repo !== item.repo ? { repo } : {}),
+      ...(branch && branch !== item.branch ? { branch } : {}),
+      ...(facts.worktree && facts.worktree !== item.worktree ? { worktree: facts.worktree } : {}),
+      ...(facts.pr && facts.pr !== item.pr ? { pr: facts.pr } : {}),
+      ...(facts.story && facts.story !== item.story ? { story: facts.story } : {}),
+      ...(facts.session && facts.session !== item.session ? { session: facts.session } : {}),
+      ...(input.source === 'backlog' && !isListed(item) ? { source: 'backlog' } : {}),
+    };
+    if (Object.keys(changes).length) {
+      this.append({ op: 'link', id, ...changes, by: clean(input.by, 'the name', BY_MAX) || 'cli' });
+    }
+    return this.find(id);
+  }
+
+  /**
+   * Lists a stored card an agent made (`backlog adopt`): its source becomes `backlog`, with the title and note typed when given.
+   * One step under the file's lock.
+   */
+  adopt(
+    id: string,
+    input: { title?: string | null; note?: string | null; by?: string | null } = {},
+  ): BacklogItem {
+    return withLock(this.file, () => {
+      const item = this.find(id);
+      if (isListed(item)) {
+        throw new Error(`${id} is already a card`);
+      }
+      this.link(id, { source: 'backlog', by: input.by });
+      const changes = {
+        ...(input.title ? { title: input.title } : {}),
+        ...(input.note ? { note: input.note } : {}),
+      };
+      return Object.keys(changes).length ? this.edit(id, changes, input.by) : this.find(id);
+    });
   }
 
   start(
@@ -519,7 +657,9 @@ export const cardLookup =
           closed,
           repo: item.repo,
           branch: item.branch,
-          claimed: !!item.claim,
+          // a card an agent or a session made has no claim row: its first run's session holds it, as an implicit card's does
+          claimed: !!item.claim || !isListed(item),
+          worktree: item.worktree,
         }
       : null;
   };

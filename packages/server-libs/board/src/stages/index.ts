@@ -138,7 +138,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
   const cards = buildCards(ctx, cardFacts, works, sessionCards);
 
   // the Backlog's items: a card shows the agents whose runs name it, so those agents have no card of their own
-  const backlogItems = state.backlog.items();
+  const backlogItems = state.backlog.listed();
   // an agent whose run names a card that exists is that card's (phase.ts); a claim finds no agent
   const held = carriedKeys(backlogItems, agents);
   // the editors, and which agent each controls: by the session an agent was launched from (editors.ts)

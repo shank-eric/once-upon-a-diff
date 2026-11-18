@@ -213,7 +213,7 @@ export class Board {
   /** Why a repo typed in a card's Edit looks wrong, or null. It only warns: the edit is saved either way (ADR-25's flip refuses). */
   typedRepoNote(repo: string): string | null {
     return typedRepoNote(this.home, repo, {
-      cardRepos: this.backlog.items().map((item) => item.repo),
+      cardRepos: this.backlog.listed().map((item) => item.repo),
     });
   }
 

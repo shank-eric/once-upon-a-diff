@@ -145,7 +145,7 @@ export function carryApproval(
     return null;
   }
   // an implicit card (ADR-27) has no backlog row: the run's own repo and branch are the card's
-  const found = new BacklogStore(home).items().find((one) => one.id === run.card);
+  const found = new BacklogStore(home).listed().find((one) => one.id === run.card);
   const item = found ?? { repo: run.repo, branch: run.branch, state: 'started' };
   if (!item.branch || !item.repo || item.state === 'dropped') {
     return null;

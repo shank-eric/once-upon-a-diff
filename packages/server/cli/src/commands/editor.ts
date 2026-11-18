@@ -80,7 +80,7 @@ function editor(home: string, _cfg: Config, opts: CliOpts) {
       }
       throw new Error(`no editor registered${who}: once-upon editor start --slots N`);
     }
-    const used = slotsInUse(found, registry.agents(), new BacklogStore(home).items(), Date.now());
+    const used = slotsInUse(found, registry.agents(), new BacklogStore(home).listed(), Date.now());
     if (opts.json) {
       return out(
         JSON.stringify(

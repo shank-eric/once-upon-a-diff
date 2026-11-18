@@ -12,6 +12,7 @@ import type { AgentResult } from '@once-upon-a-diff/state/records/agents/agent-t
 import type { LedgerAgent } from '@once-upon-a-diff/state/records/agents/ledger';
 import { isImplicitCard } from '@once-upon-a-diff/terms/ids';
 import { defaultBranch } from './checkout.ts';
+import { teachCard } from './finish-run.ts';
 import { runRegistry, type Mirror } from './registry.ts';
 
 export interface HandbackInput {
@@ -105,6 +106,7 @@ export function handbackRun(
       result,
       findings: input.findings,
       noCommit: input.noCommit,
+      beforeFinish: teachCard(home, name),
       sid,
       prefer: input.prefer,
     },

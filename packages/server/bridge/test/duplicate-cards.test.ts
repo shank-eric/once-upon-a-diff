@@ -113,8 +113,11 @@ test('work first, then card: backlog add on the branch adopts the open implicit 
     .filter((row) => row.op === 'add');
   assert.equal(adds.length, 1, 'one card in backlog.jsonl');
   assert.equal(adds[0].id, implicitId, 'under the implicit id, as adopt writes it');
-  assert.equal(adds[0].title, 'Fix the widget');
-  assert.equal(adds[0].note, 'The note');
+  // (the card was stored by the start, ADR-29: the add is that one, and the typed title and note are an edit after the link that lists it)
+  const [listed] = new BacklogStore(home).listed();
+  assert.equal(listed.id, implicitId);
+  assert.equal(listed.title, 'Fix the widget');
+  assert.equal(listed.note, 'The note');
   const found = mine(await cardsOf(home), implicitId);
   assert.equal(found.length, 1, 'one card on the board');
   assert.equal((await cardsOf(home)).filter((card) => card.kind === 'agent').length, 0);
@@ -155,7 +158,7 @@ test('a card added on a default branch is a plain add, even with an author open 
   assert.ok(added.startsWith('bl_'), 'no adopting of the implicit card on main');
   assert.equal(mine(await cardsOf(home), added).length, 1);
   assert.ok(
-    !new BacklogStore(home).items().some((one) => one.id === main),
+    !new BacklogStore(home).listed().some((one) => one.id === main),
     'the implicit card was not adopted',
   );
 });
@@ -238,7 +241,7 @@ test('backlog drop refuses an implicit card with an open run, and takes one whos
   const refused = await backlog(home, 'drop', live.card);
   assert.notEqual(refused.code, 0);
   assert.match(refused.stderr, /--into/);
-  assert.equal(new BacklogStore(home).items().length, 0, 'not adopted, not dropped');
+  assert.equal(new BacklogStore(home).listed().length, 0, 'not adopted, not dropped');
   assert.equal((await agent(home, 'finish', 'a-scout')).code, 0);
   const done = await backlog(home, 'drop', live.card);
   assert.equal(done.code, 0, done.stderr);
@@ -349,7 +352,7 @@ test('backlog drop --into refuses itself, an unknown card, a dropped or landed o
     helper.card,
   );
   assert.equal(
-    new BacklogStore(home).items().some((one) => one.id === helper.card),
+    new BacklogStore(home).listed().some((one) => one.id === helper.card),
     false,
   );
 });
@@ -361,7 +364,7 @@ test('an implicit card dropped into another moves its runs and is not adopted', 
   const moved = await backlog(home, 'drop', implicitId, '--into', target);
   assert.equal(moved.code, 0, moved.stderr);
   assert.equal(
-    new BacklogStore(home).items().some((one) => one.id === implicitId),
+    new BacklogStore(home).listed().some((one) => one.id === implicitId),
     false,
   );
   const found = mine(await cardsOf(home), target);

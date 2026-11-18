@@ -91,7 +91,7 @@ export class MergeLander {
     let wrote = 0;
     let asks = 0;
     const runs = this.agents();
-    for (const item of this.store.items().filter((one) => landable(one, runs))) {
+    for (const item of this.store.listed().filter((one) => landable(one, runs))) {
       const key = `${repoKey(item.repo)}@${item.branch}`;
       const nowMs = this.now();
       if (asks >= MAX_ASKS || nowMs - (this.asked.get(key) ?? -Infinity) < WINDOW_MS) {

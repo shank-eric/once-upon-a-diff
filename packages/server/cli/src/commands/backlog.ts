@@ -78,9 +78,9 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
   const store = new BacklogStore(home);
   const who = text(opts.by);
   // the implicit cards (ADR-27) are the registry's runs: they are in no backlog file until adopted
-  const implicit = () => implicitItems(new AgentRegistry(home).agents(), store.items());
+  const implicit = () => implicitItems(new AgentRegistry(home).agents(), store.listed());
   const found = () => {
-    const item = store.items().find((one) => one.id === words[0]);
+    const item = store.listed().find((one) => one.id === words[0]);
     if (!item) {
       if (implicit().some((one) => one.id === words[0])) {
         throw new Error(
@@ -93,7 +93,7 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
   };
   // an implicit card written into the backlog under its own id, as `adopt` and `drop` need it
   const adoptCard = (id: string | undefined, title: string | null, note?: string | null) => {
-    if (store.items().some((one) => one.id === id)) {
+    if (store.listed().some((one) => one.id === id)) {
       throw new Error(`${id} is already a card`);
     }
     const card = implicitCards(new AgentRegistry(home).agents()).find((one) => one.id === id);
@@ -102,14 +102,17 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
         `no such card ${id ?? ''}: only an implicit card (ic_...) can be adopted`.trim(),
       );
     }
-    const adopted = store.add({
-      id: card.id,
-      title: title ?? card.title,
-      note: note ?? (card.task && card.task !== card.title ? card.task : null),
-      repo: card.repo,
-      branch: card.branch,
-      by: who ?? card.agent,
-    });
+    // an agent's card the start already stored (ADR-29) is listed, not added a second time
+    const adopted = store.items().some((one) => one.id === card.id)
+      ? store.adopt(card.id, { title, note, by: who ?? card.agent })
+      : store.add({
+          id: card.id,
+          title: title ?? card.title,
+          note: note ?? (card.task && card.task !== card.title ? card.task : null),
+          repo: card.repo,
+          branch: card.branch,
+          by: who ?? card.agent,
+        });
     return { card, adopted };
   };
   // a card with a branch is started on it, as `claim --branch` does, so it reads as work done or under way: no Assign while its
@@ -148,7 +151,7 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
       branch && !DEFAULT_BRANCHES.has(branch)
         ? implicitCards(new AgentRegistry(home).agents()).find(
             (one) =>
-              !store.items().some((item) => item.id === one.id) &&
+              !store.listed().some((item) => item.id === one.id) &&
               one.runs.some(runIsOpen) &&
               (repo ? sameRepo(one.repo, repo) : !one.repo) &&
               one.runs.some((run) => (run.result?.branch ?? run.branch) === branch),
@@ -177,7 +180,7 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
           : 'No implicit cards.',
       );
     }
-    const all = store.items().filter((item) => opts.all || reported(item) === 'open');
+    const all = store.listed().filter((item) => opts.all || reported(item) === 'open');
     // the Someday section is collapsed: out of the main list, and printed (expanded) only by --someday
     // (--all is everything, someday cards marked in place)
     const later = all.filter((item) => item.someday);
@@ -341,7 +344,7 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
     const found = landItems(
       repo,
       repoOfCheckout(repo),
-      store.items(),
+      store.listed(),
       recordedTips(registry.events()),
       { from, to: upto, picked: words },
       registry.agents(),

@@ -370,7 +370,7 @@ export async function doctor(
     );
   }
   // every run is a run of one card, and says nothing the card does not (ADR-25)
-  const items = new BacklogStore(home).items();
+  const items = new BacklogStore(home).listed();
   const problems = [
     ...cardRunProblems(items, readAgents(home).agents, Date.now()),
     ...cardBranchProblems(items, Date.now()),

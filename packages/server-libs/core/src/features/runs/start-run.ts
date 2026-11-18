@@ -3,11 +3,14 @@
  * a later dispatch can call it with no CLI types. It owns everything that decides whether a start is allowed and what it is
  * stamped with: the role table, the flags a card refuses, the PR's head branch, the card's stamp, and the typed-repo warning.
  *
- * Write order: the run first, then the card. The registry refuses a start before it writes, so a refused start leaves the
- * card as it was. The two files have two locks and no lock spans both: if the stamp fails after the run is written, the
- * error says so and names `once-upon backlog branch`, which is idempotent and repairs it.
+ * Write order: a card this start makes (a run with no card is its own, ADR-27 and ADR-29) is stored first, then the run, then
+ * what the run teaches an existing card. The registry refuses a start before it writes, so a refused start leaves an existing
+ * card as it was, and a made one idle and hidden (nothing lists a card an agent made until it is adopted). The two files have two
+ * locks and no lock spans both: if the stamp fails after the run is written, the error says so and names
+ * `once-upon backlog branch`, which is idempotent and repairs it.
  */
-import { repoOfCheckout, typedRepoNote } from '@once-upon-a-diff/foundation/repos';
+import { REPO_RE, repoOfCheckout, typedRepoNote } from '@once-upon-a-diff/foundation/repos';
+import { BACKLOG_NOTE_MAX } from '@once-upon-a-diff/terms/text';
 import { prHeadBranch } from '@once-upon-a-diff/foundation/gh';
 import { canonicalKind, runIsOpen } from '@once-upon-a-diff/state/records/agents/events';
 import type { AgentKind } from '@once-upon-a-diff/state/records/agents/agent-types';
@@ -17,7 +20,12 @@ import {
   type AgentRegistry,
 } from '@once-upon-a-diff/state/records/agents/registry';
 import { BacklogStore, cardLookup } from '@once-upon-a-diff/state/queues/backlog/backlog';
-import { newRunId } from '@once-upon-a-diff/foundation/ids';
+import { newImplicitCardId, newRunId } from '@once-upon-a-diff/foundation/ids';
+import { ensureCard } from '@once-upon-a-diff/state/queues/backlog/ensure';
+import { implicitTitle } from '@once-upon-a-diff/state/records/agents/implicit';
+import { SESSION_RE } from '@once-upon-a-diff/terms/patterns';
+import { isAbsolute } from 'node:path';
+import { worktreeFacts } from '@once-upon-a-diff/adapters/git';
 import { SELF_PREFIX, isSelfName } from '@once-upon-a-diff/terms/ids';
 import { trustedLiveSids } from './live-sids.ts';
 import { roleKind, selfProblem } from './roles.ts';
@@ -71,6 +79,13 @@ export interface StartedRun {
 }
 
 const text = (value: unknown): string | null => (typeof value === 'string' && value ? value : null);
+
+/**
+ * The checkout a run works in, when it is a checkout of the branch the run is on: that is the card's worktree. A dispatched
+ * author starts in the main checkout (it makes its worktree after), so a folder on another branch is not the work's.
+ */
+const worktreeOn = (cwd: string, branch: string | null): string | null =>
+  branch && isAbsolute(cwd) && worktreeFacts(cwd)?.branch === branch ? cwd : null;
 
 export async function startRun(
   home: string,
@@ -136,7 +151,7 @@ export async function startRun(
   // another session is theirs, and the registry's one-author check says the rest. The claim comes before the start, so a
   // start the registry then refuses leaves a claim, which the next claim of the card replaces
   if (input.self && role === 'author' && card) {
-    const item = store.items().find((one) => one.id === card);
+    const item = store.listed().find((one) => one.id === card);
     if (item && item.state !== 'dropped' && !item.landed_at) {
       const held = item.claim;
       const own = held && (held.sid ?? held.session?.slice(0, 8)) === sid;
@@ -208,39 +223,71 @@ export async function startRun(
   const typedRepo = text(input.repo);
   if (typedRepo && !(card && lookup(card)?.repo)) {
     const note = typedRepoNote(home, typedRepo, {
-      cardRepos: store.items().map((item) => item.repo),
+      cardRepos: store.listed().map((item) => item.repo),
       origin: repoOfCheckout(input.cwd),
     });
     if (note) {
       warn(`once-upon: ${note}`);
     }
   }
-  const started = registry.start(
-    {
-      name,
-      sid,
-      session: input.session,
-      kind: (kind ?? undefined) as AgentKind | undefined,
-      standing: input.standing,
-      task: input.task,
-      model: text(input.model),
-      effort: text(input.effort),
-      // the checkout the agent works in names the repo unless --repo says otherwise; a run on a card takes the card's
-      repo: text(input.repo) ?? (card ? null : repoOfCheckout(input.cwd)),
+  const startInput = {
+    name,
+    sid,
+    session: input.session,
+    kind: (kind ?? undefined) as AgentKind | undefined,
+    standing: input.standing,
+    task: input.task,
+    model: text(input.model),
+    effort: text(input.effort),
+    // the checkout the agent works in names the repo unless --repo says otherwise; a run on a card takes the card's
+    repo: text(input.repo) ?? (card ? null : repoOfCheckout(input.cwd)),
+    branch,
+    pr,
+    cwd: input.cwd,
+    card,
+    newCard: !!input.newCard,
+    replaces: text(input.replaces),
+    role: role as NonNullable<Parameters<AgentRegistry['start']>[0]['role']> | null,
+    lane: text(input.lane),
+    notes: text(input.notes),
+    by: text(input.by),
+  };
+  // a run with no card makes its own (the registry mints its id): the card is stored first, with that id, so the run row and the
+  // card agree. An author with no branch is refused by the registry, so nothing is stored for it
+  let minted: string | null = null;
+  if (registry.wouldMint(startInput) && !(kind === 'author' && !branch)) {
+    minted = newImplicitCardId();
+    const task = input.task.trim();
+    const title = implicitTitle(task) || name;
+    const repo = startInput.repo;
+    ensureCard(store, {
+      id: minted,
+      source: 'agent',
+      title,
+      note: task && task !== title ? task.slice(0, BACKLOG_NOTE_MAX) : null,
+      repo: repo && REPO_RE.test(repo) ? repo : null,
       branch,
-      pr,
-      cwd: input.cwd,
-      card,
-      newCard: !!input.newCard,
-      replaces: text(input.replaces),
-      role: role as NonNullable<Parameters<AgentRegistry['start']>[0]['role']> | null,
-      lane: text(input.lane),
-      notes: text(input.notes),
+      worktree: worktreeOn(input.cwd, branch),
+      session: input.session && SESSION_RE.test(input.session) ? input.session : null,
+      by: name.slice(0, 40),
+    });
+  }
+  const started = registry.start({ ...startInput, mintedCard: minted }, warn);
+  // what the run teaches its card: the checkout an author or fixer works in, and a branch or repo the card lacked (a card
+  // an agent made is not started by it: only a backlog card is, `store.start`)
+  const onCard = started.card ? store.items().find((one) => one.id === started.card) : undefined;
+  if (onCard && !onCard.landed_at && onCard.state !== 'dropped' && onCard.source !== 'backlog') {
+    store.link(onCard.id, {
+      branch: stamp?.branch ?? (onCard.branch ? null : branch),
+      repo: onCard.repo ? null : (stamp?.repo ?? startInput.repo),
+      worktree:
+        ['author', 'fixer'].includes(role ?? '') || (kind === 'author' && !role)
+          ? worktreeOn(input.cwd, onCard.branch ?? stamp?.branch ?? branch)
+          : null,
       by: text(input.by),
-    },
-    warn,
-  );
-  if (card && stamp) {
+    });
+  }
+  if (card && stamp && (!onCard || onCard.source === 'backlog')) {
     try {
       store.start(card, { ...stamp, by: text(input.by) });
     } catch (err) {
