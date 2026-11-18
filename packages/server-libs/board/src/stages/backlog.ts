@@ -90,8 +90,9 @@ export function keepWorkWorking(items: BacklogItem[], cards: BoardCard[]): void 
  * landing it is taken off the board, which the approval's APPROVED_DAYS never undoes, unless a session or an unfinished
  * agent is still on it, or one that ended after the landing within DONE_HOURS (then it stays, without the story). A forgotten
  * agent (silent past STALE_MS) is not unfinished. It changes `cards`. The story must be the card's own: one told before the
- * card started or after it landed (or approved after) is another piece of work on the branch. A card with a PR follows its
- * PR, and a session card has no story.
+ * card started or after it landed (or approved after) is another piece of work on the branch; a card's own runs count as its
+ * start too, so a story told after the card's first run began is its own even where `started_at` was stamped later (an adopted
+ * card). A card with a PR follows its PR, and a session card has no story.
  */
 export function markLandedWorks(
   items: BacklogItem[],
@@ -113,11 +114,13 @@ export function markLandedWorks(
     const landedMs = Date.parse(item.landed_at);
     const builtMs = Date.parse(stories.get(card.story.id)?.built_at ?? '');
     const approvedMs = Date.parse(card.story.approved_at ?? '');
-    if (
-      builtMs > landedMs ||
-      approvedMs > landedMs ||
-      builtMs < Date.parse(item.started_at ?? '')
-    ) {
+    // when the card's work began: its start, or its first run when that was earlier (an adopted card is started late)
+    const starts = [
+      Date.parse(item.started_at ?? ''),
+      ...runsOf(item, agents).map((run) => run.started?.getTime() ?? NaN),
+    ].filter((time) => !Number.isNaN(time));
+    const beganMs = starts.length ? Math.min(...starts) : NaN;
+    if (builtMs > landedMs || approvedMs > landedMs || builtMs < beganMs) {
       continue;
     }
     if (nowMs - landedMs <= doneMs) {

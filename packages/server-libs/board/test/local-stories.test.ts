@@ -689,3 +689,128 @@ test('the board: a PR card whose branch has a local story shows how many commits
   assert.ok(!cards['pr:acme/widgets#7'].ahead, 'nothing ahead: no badge');
   assert.deepEqual([...new Set(looked)].sort(), [`${widgets}@feat/level`, `${widgets}@feat/pr`]);
 });
+
+test('a landed card whose branch has a local story and a finished author run is Done, not Ready for your review', async () => {
+  const home = tmp('board-landed-story');
+  const checkout = checkoutOf('widgets', 'feat/landed');
+  const store = new BacklogStore(home);
+  const item = store.add({ title: 'Landed', repo: 'acme/widgets' });
+  store.start(item.id, { branch: 'feat/landed' });
+  const minutesFrom = (minutes: number) => new Date(NOW.getTime() + minutes * 60000);
+  const registered = new AgentRegistry(home);
+  registered.start({
+    name: 'build-x',
+    sid: 'abcdef01',
+    kind: 'author',
+    card: item.id,
+    task: 't',
+    at: minutesFrom(-40),
+  });
+  registered.finish('build-x', { sid: 'abcdef01', state: 'done', at: minutesFrom(-30) });
+  builtLocal(home, 'local-landed', checkout, 'feat/landed', minutesFrom(-20).toISOString(), {
+    head_oid: 'a'.repeat(40),
+  });
+  store.done(item.id, { sha: 'abc1234', by: 'test' });
+  const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
+    source: registrySource,
+    now: () => minutesFrom(1),
+  });
+  const cards = (await board.snapshot()).lanes.flatMap((lane) => lane.cards);
+  const mine = cards.filter(
+    (card) => card.backlog?.id === item.id || card.story?.id === 'local-landed',
+  );
+  assert.deepEqual(
+    mine.map((card) => card.column),
+    ['done'],
+  );
+});
+
+/**
+ * A card started and landed now (`backlog done`), with a finished author run and a local story told at `storyAt` (minutes from
+ * the landing); the board reads it `boardAt` minutes after the landing. `pr` opens a PR on the branch. Returns its cards.
+ */
+async function landedBoard(opts: {
+  storyAt: number;
+  runAt?: number;
+  boardAt: number;
+  pr?: boolean;
+}) {
+  const home = tmp('board-landed-case');
+  const checkout = checkoutOf('widgets', 'feat/landed');
+  const store = new BacklogStore(home);
+  const item = store.add({ title: 'Landed', repo: 'acme/widgets' });
+  store.start(item.id, { branch: 'feat/landed' });
+  store.done(item.id, { sha: 'abc1234', by: 'test' });
+  const base = Date.now();
+  const minutesFrom = (minutes: number) => new Date(base + minutes * 60000);
+  const runAt = opts.runAt ?? -40;
+  const registered = new AgentRegistry(home);
+  registered.start({
+    name: 'build-x',
+    sid: 'abcdef01',
+    kind: 'author',
+    card: item.id,
+    task: 't',
+    at: minutesFrom(runAt),
+  });
+  registered.finish('build-x', { sid: 'abcdef01', state: 'done', at: minutesFrom(runAt + 10) });
+  builtLocal(
+    home,
+    'local-landed',
+    checkout,
+    'feat/landed',
+    minutesFrom(opts.storyAt).toISOString(),
+    {
+      head_oid: 'a'.repeat(40),
+    },
+  );
+  if (opts.pr) {
+    prStory(home, 'acme-widgets-9', 'acme/widgets', 9, 'feat/landed');
+  }
+  const { watcher } = fakeWatcher(opts.pr ? [prInfo(9, { branch: 'feat/landed' })] : []);
+  const board = new Board(
+    home,
+    new StoryStore({ home }),
+    opts.pr ? watcher : noPrWatcher,
+    new Builds(home),
+    {
+      source: registrySource,
+      now: () => minutesFrom(opts.boardAt),
+    },
+  );
+  const cards = (await board.snapshot()).lanes.flatMap((lane) => lane.cards);
+  return cards.filter(
+    (card) =>
+      card.backlog?.id === item.id ||
+      card.story?.id === 'local-landed' ||
+      card.from_backlog?.some((one) => one.id === item.id),
+  );
+}
+
+test('a story told after the landing is not the landed card’s: it stays in Ready for your review', async () => {
+  const mine = await landedBoard({ storyAt: 10, boardAt: 11 });
+  assert.deepEqual(
+    mine.map((card) => card.column),
+    ['ready'],
+  );
+});
+
+test('a landed card with a story that predates it leaves the board an hour after the landing', async () => {
+  assert.deepEqual(
+    (await landedBoard({ storyAt: -20, boardAt: 30 })).map((card) => card.column),
+    ['done'],
+  );
+  assert.deepEqual(
+    (await landedBoard({ storyAt: -20, boardAt: 180 })).map((card) => card.column),
+    [],
+  );
+});
+
+test('a landed card riding a PR follows its PR: it is not Done while the PR is open', async () => {
+  const mine = await landedBoard({ storyAt: -20, boardAt: 11, pr: true });
+  assert.ok(mine.length > 0);
+  assert.ok(
+    mine.every((card) => card.column !== 'done'),
+    mine.map((card) => card.column).join(),
+  );
+});

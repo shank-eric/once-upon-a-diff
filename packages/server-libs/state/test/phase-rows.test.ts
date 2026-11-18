@@ -178,3 +178,24 @@ test('a work run parked on your story review is Ready, a question is Waiting', (
   assert.equal(cardPhase(plain, [run({ state: 'waiting', review: true })], NOW)?.column, 'ready');
   assert.equal(cardPhase(plain, [run({ state: 'waiting' })], NOW)?.column, 'waiting');
 });
+
+test('a landed card (backlog done) is Done, not Ready for your review, whatever its finished runs say', () => {
+  const landed = { ...plain, landed_at: minutes(10).toISOString() };
+  const author = run({ state: 'done', ended: minutes(30) });
+  const storyteller = run({
+    kind: 'storyteller',
+    name: 'story-x',
+    state: 'done',
+    ended: minutes(20),
+  });
+  // the same card not yet landed is Ready for your review (row 6)
+  assert.equal(cardPhase(plain, [author, passed, storyteller], NOW)?.row, '6');
+  for (const repo of [plain.repo, 'larmor']) {
+    const phase = cardPhase({ ...landed, repo }, [author, passed, storyteller], NOW);
+    assert.deepEqual([phase?.column, phase?.row, phase?.when], ['done', '7', NOW - 10 * 60000]);
+  }
+  // an open storyteller or a critic with findings does not hold it either; past its Done hour it is off the board
+  const holdingStory = run({ kind: 'storyteller', name: 'story-y', lastEvent: minutes(1) });
+  assert.equal(cardPhase(landed, [author, holdingStory], NOW)?.column, 'done');
+  assert.equal(cardPhase({ ...landed, landed_at: minutes(90).toISOString() }, [author], NOW), null);
+});

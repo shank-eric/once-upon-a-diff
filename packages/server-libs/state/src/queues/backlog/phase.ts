@@ -114,7 +114,7 @@ export const PHASE_ROWS = {
   '4': 'fixes are due: the latest critic finished with findings after the latest work run: Agent checks until a fix run opens',
   '5': 'built, and no critic has passed (none yet, or the latest failed, stopped or died), with no skip recorded: Waiting for your call (skip the critic or start one)',
   '6': 'built, with a branch: an open PR is PR open; pushed with no PR is Ready to ship; else Ready for your review (a repo whose settings say skips_review: Ready to ship)',
-  '7': 'landed, or no branch: Done for the Done hour after the work ended, then off the board',
+  '7': 'no branch, or landed (`backlog done`): Done for the Done hour after the work ended or landed, then off the board',
 } as const;
 
 export type PhaseRow = keyof typeof PHASE_ROWS;
@@ -137,7 +137,9 @@ const msOf = (date: Date | null | undefined): number | null => (date ? date.getT
  *   6  built                     With a branch: an open PR is PR open; pushed with no PR is Ready to ship (ready.ts); else Ready for
  *                                your review. A repo whose settings say skips_review (`skipsReview`): Ready to ship. Facts not known
  *                                yet keep Ready for your review
- *   7  landed, or no branch      Done for DONE_HOURS after the work ended, then null (off the board)
+ *   7  no branch, or landed      Done for DONE_HOURS after the work ended (a landed card: after it landed), then null (off the board).
+ *                                A landed card (`backlog done`) leaves the review columns whatever its runs or story say, so it is
+ *                                read right after row 1 (an open work run), before the critic and storyteller holds and the built rows
  *
  * A critic that finished done with no findings count (an old row) reads as a pass, as it always did; `agent finish` no
  * longer takes a carded critic's done without one. Null when the card is past its Done hour, or has nothing to say (no
@@ -171,6 +173,12 @@ export function cardPhase(
       row: '1',
     };
   }
+  const landedMs = item.landed_at ? Date.parse(item.landed_at) : NaN;
+  if (!Number.isNaN(landedMs)) {
+    return nowMs - landedMs > DONE_HOURS * 3600 * 1000
+      ? null
+      : { column: 'done', when: landedMs, tried: false, row: '7' };
+  }
   if (critics.some(alive)) {
     return { column: 'checks', when: null, tried: false, row: '2' };
   }
@@ -184,8 +192,8 @@ export function cardPhase(
   if (runs.some((run) => isStoryteller(run) && run.state === 'running' && alive(run))) {
     return { column: 'checks', when: null, tried: false, row: '3b' };
   }
-  const built = item.state === 'started' && !!item.branch && !item.landed_at;
-  if (!latestWork && !built && !item.landed_at) {
+  const built = item.state === 'started' && !!item.branch;
+  if (!latestWork && !built) {
     return undefined;
   }
   const when = msOf(latestWork?.ended);
