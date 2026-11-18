@@ -3,10 +3,21 @@
  * can both write without a lock. agents.jsonl and backlog.jsonl are built on it; what the lines mean, and how they fold,
  * is each store's service's.
  */
-import { closeSync, existsSync, openSync, readFileSync, readSync, statSync } from 'node:fs';
+import {
+  closeSync,
+  existsSync,
+  linkSync,
+  openSync,
+  readFileSync,
+  readSync,
+  renameSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
 import { ensureDir } from './files.ts';
 import { appendLine } from './lines.ts';
+import { withLock } from './lock.ts';
 
 /** The log's text, or '' when there is no file yet. */
 export function readLogText(file: string): string {
@@ -64,4 +75,69 @@ export function readLogFrom(file: string, from: number): Buffer {
   } finally {
     closeSync(handle);
   }
+}
+
+/** Where the old log is kept: `<file>.<yyyymmdd>.bak`, or `.<yyyymmdd>-2.bak` and on when that day's is already there. */
+function backupName(file: string, now: Date): string {
+  const day = [now.getFullYear(), now.getMonth() + 1, now.getDate()]
+    .map((part) => String(part).padStart(2, '0'))
+    .join('');
+  let name = `${file}.${day}.bak`;
+  for (let copy = 2; existsSync(name); copy++) {
+    name = `${file}.${day}-${copy}.bak`;
+  }
+  return name;
+}
+
+/**
+ * Replaces a log with a rewrite of it, and keeps the old one. Under the file's lock it hands `rewrite` the log's whole lines
+ * (a last line with no newline yet is carried over as it is), writes what `rewrite` returns beside the log, copies on any bytes
+ * appended while it worked, links the old file as `<file>.<yyyymmdd>.bak` and renames the new one over it. Appends take no lock
+ * (the file is append-only), so one that lands after the last size check goes into the old inode: after the rename the old
+ * file is read again from what was copied and the rest is appended to the new log, until nothing new arrives (the old log is
+ * kept all the same). A reader that tails the log sees a different file and starts over. `rewrite` returning null leaves the
+ * log alone. `beforeSwap` runs just before the last size check (tests append there; a caller that keeps offsets into the log
+ * moves them there), `beforeRename` between the link and the rename (a test's append that lands in the old file).
+ */
+export function replaceLog(
+  file: string,
+  rewrite: (whole: string) => string | null,
+  {
+    now = new Date(),
+    beforeSwap,
+    beforeRename,
+  }: { now?: Date; beforeSwap?: () => void; beforeRename?: () => void } = {},
+): { before: number; after: number; kept: string } | null {
+  return withLock(file, () => {
+    if (!existsSync(file)) {
+      return null;
+    }
+    const old = readFileSync(file);
+    const cut = old.lastIndexOf(0x0a) + 1;
+    const next = rewrite(old.subarray(0, cut).toString('utf8'));
+    if (next === null) {
+      return null;
+    }
+    const fresh = `${file}.new-${process.pid}`;
+    writeFileSync(fresh, Buffer.concat([Buffer.from(next, 'utf8'), old.subarray(cut)]), {
+      mode: 0o600,
+    });
+    beforeSwap?.();
+    const grown = readLogFrom(file, old.length);
+    if (grown.length) {
+      writeFileSync(fresh, grown, { flag: 'a' });
+    }
+    const kept = backupName(file, now);
+    linkSync(file, kept);
+    beforeRename?.();
+    renameSync(fresh, file);
+    // an unlocked append that landed after the read above (or whose writer opened the old path just before the rename) went
+    // into the old inode, which `kept` now names: carry it over until nothing new arrives
+    let copied = old.length + grown.length;
+    for (let tail = readLogFrom(kept, copied); tail.length; tail = readLogFrom(kept, copied)) {
+      writeFileSync(file, tail, { flag: 'a' });
+      copied += tail.length;
+    }
+    return { before: copied, after: statSync(file).size, kept };
+  });
 }

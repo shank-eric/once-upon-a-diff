@@ -219,7 +219,8 @@ const objectOf = <T>() => custom<T>(isObject);
 
 /**
  * One line of inbox.jsonl: `type`, `id`, `at` and, for a story's, `story`. A type nobody reads (the `position`,
- * `build_request` and `build_done` lines older versions logged) is skipped, as the readers always ignored it.
+ * `build_request` and `build_done` lines older versions logged) is skipped, as the readers always ignored it. A `read`
+ * is still taken (`wait --type read`, and the lines already in a file) but nothing writes one: a chapter read is in state/<key>/read.json.
  *   question       asked in the panel's Ask box or by voice
  *   answer         `once-upon answer`, to a question
  *   note           a fix-before-push note added, updated or deleted

@@ -9,7 +9,6 @@ import {
   changesSince,
   liveRange,
 } from '@once-upon-a-diff/core/features/review/freshness';
-import { newId } from '@once-upon-a-diff/foundation/ids';
 import {
   readReads,
   noteRead,
@@ -42,7 +41,6 @@ async function headOf(body: ReadBody, now: StoryMeta): Promise<string | null> {
 
 async function noteChapterRead(
   app: App,
-  story: ServedStory,
   key: string,
   data: StoryData,
   now: StoryMeta,
@@ -54,19 +52,6 @@ async function noteChapterRead(
     throw new HttpError(404, 'no chapter with that key');
   }
   const head = await headOf(body, now);
-  // the line is checked before the read is noted: a refusal is then a read that was never noted, not one noted and not logged
-  const entry = {
-    type: 'read' as const,
-    id: newId('rd'),
-    ...story.ref,
-    chapter: chapterKey as string,
-    step: body.step,
-    title: chapter.title,
-    head_sha: head,
-    story_head: now.head_oid || head,
-    reason: body.reason as string,
-  };
-  app.inbox.check(entry);
   const record = noteRead(app.home, key, chapterKey as string, {
     head_sha: head,
     story_head: now.head_oid || head,
@@ -75,14 +60,6 @@ async function noteChapterRead(
     title: chapter.title,
     step: body.step,
     seconds: body.seconds ?? null,
-  });
-  app.inbox.append({
-    ...entry,
-    step: record.step,
-    title: record.title,
-    head_sha: record.head_sha,
-    story_head: record.story_head,
-    reason: record.reason,
   });
   return { chapter: chapterKey, ...record };
 }
@@ -96,7 +73,7 @@ async function reads({ app, req, body: raw, send }: Call, story: ServedStory) {
   const data = app.stories.load(story.id) as StoryData;
   const now = story.meta.kind === 'local' ? readMeta(story.dir) : story.meta; // load() follows a local story's branch
   if (req.method === 'POST') {
-    return send(200, await noteChapterRead(app, story, key, data, now, parseBody('readNote', raw)));
+    return send(200, await noteChapterRead(app, key, data, now, parseBody('readNote', raw)));
   }
   const readsByChapter = readReads(app.home, key);
   // what changed after they read each chapter: one compare per commit they read at (gh, cached; or git for a local story)

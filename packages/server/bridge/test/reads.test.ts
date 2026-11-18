@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmp, githubStory, startBridge, writeJson, localRepo } from './helpers.ts';
 import {
@@ -13,7 +13,6 @@ import {
   type Reads,
   type Since,
 } from '@once-upon-a-diff/stories/reads';
-import type { ReadEntry } from '@once-upon-a-diff/state/queues/requests/inbox';
 import type { Chapter, StoryData } from '@once-upon-a-diff/contracts/types';
 import { chapterKeyOf } from '@once-upon-a-diff/terms/chapters';
 import { clearFreshness } from '@once-upon-a-diff/core/features/review/freshness';
@@ -37,11 +36,11 @@ process.env.ONCE_UPON_GH = path.join(
 const SHA_A = 'a'.repeat(40);
 const SHA_B = 'b'.repeat(40);
 const SHA_C = 'c'.repeat(40);
-const inbox = (home: string) =>
-  readFileSync(path.join(home, 'inbox.jsonl'), 'utf8')
-    .trim()
-    .split('\n')
-    .map(JSON.parse as (line: string) => ReadEntry); // these tests' lines are reads
+/** inbox.jsonl as text: nothing writes it for a read, so the file may not exist. */
+const inboxText = (home: string) => {
+  const file = path.join(home, 'inbox.jsonl');
+  return existsSync(file) ? readFileSync(file, 'utf8') : '';
+};
 
 test('a chapter keeps its key when a chapter goes in front of it', () => {
   assert.equal(chapterKeyOf({ title: 'Chapter 2: Finish' }), 'finish');
@@ -172,13 +171,13 @@ test('the bridge records a read with the PR head, and lists them', async () => {
     );
     assert.deepEqual(Object.keys(saved), ['start', 'finish'], 'kept per PR, like drafts.json');
     assert.deepEqual(
-      inbox(home)
-        .filter((e) => e.type === 'read')
-        .map((e) => [e.chapter, e.head_sha]),
-      [
-        ['start', SHA_B],
-        ['finish', SHA_C],
-      ],
+      Object.values(saved).map((one) => (one as ReadRecord).head_sha),
+      [SHA_B, SHA_C],
+      'the reads are in read.json',
+    );
+    assert.ok(
+      !inboxText(home).includes('"type":"read"'),
+      'a read is not logged to the inbox (state/<key>/read.json holds it, as position.json does)',
     );
     const list = (await bridge.call<ReadsBody>('GET', '/api/stories/acme-widgets-7/read')).body;
     assert.deepEqual(Object.keys(list.reads), ['start', 'finish']);

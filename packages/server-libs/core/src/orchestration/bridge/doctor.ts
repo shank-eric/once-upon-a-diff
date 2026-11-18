@@ -1,7 +1,8 @@
 /**
  * `once-upon doctor`: is everything connected? The Node it runs on, the config and token, the
  * bridge, a Claude session listening, and the extension. Each check prints
- * PASS, WARN or FAIL with what it found and, when it isn't passing, the fix.
+ * PASS, WARN or FAIL with what it found and, when it isn't passing, the fix. It writes nothing, except with `fix`
+ * (`--fix`), which compacts the logs that only grow and keeps the old ones (compact-logs.ts).
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import os from 'node:os';
@@ -37,6 +38,7 @@ import { StoryStore } from '@once-upon-a-diff/stories/store';
 import { readIndex } from '@once-upon-a-diff/stories/placement';
 import { readMeta, stateKeyOf } from '@once-upon-a-diff/stories/meta';
 import { seenCheckoutRepos } from '@once-upon-a-diff/foundation/repos';
+import { bigLogs, compactLogs, DEFAULT_KEEP_DAYS } from './compact-logs.ts';
 import { stateKeyForPr } from '@once-upon-a-diff/terms/ids';
 import {
   inboxStoryProblems,
@@ -117,6 +119,8 @@ export async function doctor(
     gitVersion = gitVersionText(),
     pumaDevLink = path.join(os.homedir(), '.puma-dev', 'once-upon'),
     proxyListeners = openListeners,
+    fix = false,
+    keepDays = DEFAULT_KEEP_DAYS,
   }: {
     port?: number | string;
     wait?: number;
@@ -128,6 +132,9 @@ export async function doctor(
     /** puma-dev's link to the bridge, and the addresses a port listens on past this machine: for tests */
     pumaDevLink?: string;
     proxyListeners?: (port: number) => string[];
+    /** compact the logs (`--fix`), keeping the old ones; runs over `keepDays` days old go. Without it doctor writes nothing */
+    fix?: boolean;
+    keepDays?: number;
   } = {},
 ): Promise<boolean> {
   const port = Number(portOpt || cfg.port);
@@ -430,6 +437,27 @@ export async function doctor(
       'Unvouched repos',
       `no checkout, build or story names ${firstFive(repos.unvouched)}`,
     );
+  }
+  // the logs only grow: a plain doctor says when one is big, `--fix` rewrites them smaller and keeps the old ones
+  if (fix) {
+    const done = compactLogs(home, { keepDays });
+    add(
+      'PASS',
+      'Logs',
+      done.length
+        ? done.join('; ')
+        : `nothing in agents.jsonl or inbox.jsonl to drop (runs older than ${keepDays} days)`,
+    );
+  } else {
+    const big = bigLogs(home);
+    if (big.length) {
+      add(
+        'WARN',
+        'Logs',
+        `${big.join(', ')}`,
+        'Run: once-upon doctor --fix (the old logs are kept beside the new ones)',
+      );
+    }
   }
   for (const result of results) {
     out(`${result.level.padEnd(4)}  ${result.name}: ${result.detail}`);

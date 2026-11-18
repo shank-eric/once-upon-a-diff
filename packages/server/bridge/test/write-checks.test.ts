@@ -595,8 +595,8 @@ test('no live flow is refused: the inbox, fixes and builds lines come from the r
   const lines = rows('inbox.jsonl');
   assert.deepEqual(
     [...new Set(lines.map((line) => line.type))].sort(),
-    ['answer', 'approved', 'comment', 'fix', 'note', 'question', 'read', 'review_comment'],
-    'every type the readers take was written by its own writer',
+    ['answer', 'approved', 'comment', 'fix', 'note', 'question', 'review_comment'],
+    'every type the readers take was written by its own writer (but `read` and `position`, which nothing writes now)',
   );
   for (const line of lines) {
     assert.deepEqual(strictInboxEntry(line), [], JSON.stringify(line));

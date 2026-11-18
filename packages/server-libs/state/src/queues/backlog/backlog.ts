@@ -45,11 +45,9 @@ import { strictBacklogEvent } from '@once-upon-a-diff/contracts/files/strict';
 import { checkWrite } from '@once-upon-a-diff/foundation/shared-files';
 import { BACKLOG_NOTE_MAX, SHA_RE } from '@once-upon-a-diff/terms/text';
 import { jsonLines } from '@once-upon-a-diff/adapters/stores/fs/jsonl';
+import { tailLog } from '@once-upon-a-diff/adapters/stores/fs/tail-log';
 import { withLock } from '@once-upon-a-diff/adapters/stores/fs/lock';
-import {
-  appendBacklogEvent,
-  readBacklogFile,
-} from '@once-upon-a-diff/adapters/stores/backlog-file';
+import { appendBacklogEvent } from '@once-upon-a-diff/adapters/stores/backlog-file';
 import path from 'node:path';
 import { OPEN, liveClaim, sameAgentView } from './claims.ts';
 import { DONE_HOURS, workAgent, type CardPhase } from './phase.ts';
@@ -121,17 +119,26 @@ export interface BacklogStorage {
   edit(id: string, input: EditInput, who?: string | null): BacklogItem;
 }
 
+type BacklogEvent = NonNullable<ReturnType<typeof readBacklogEvent>>;
+
+/** The events in a file's text, in order. Lines that aren't events are skipped. */
+const parseBacklogEvents = (text: string): BacklogEvent[] =>
+  jsonLines(text).flatMap((value) => readBacklogEvent(value) ?? []);
+
+/** The events in backlog.jsonl, read once and then only as far as the file has grown (`tailLog`). The fold reads them and never changes one. */
+export const backlogEventsIn = tailLog(parseBacklogEvents);
+
 /** The items in a file's text: the events folded by id, oldest first. Lines that aren't events are skipped. */
-export function foldBacklog(text: string): BacklogItem[] {
+export const foldBacklog = (text: string): BacklogItem[] =>
+  foldBacklogEvents(parseBacklogEvents(text));
+
+/** The items the events fold to, by id, oldest first. */
+export function foldBacklogEvents(events: BacklogEvent[]): BacklogItem[] {
   const items = new Map<string, BacklogItem>();
   // what each item was added with, which a reopen goes back to (a start overwrote the branch and the repo)
   const added = new Map<string, { branch: string | null; repo: string | null }>();
   const order: string[] = [];
-  for (const value of jsonLines(text)) {
-    const event = readBacklogEvent(value);
-    if (!event) {
-      continue;
-    }
+  for (const event of events) {
     const id = event.id;
     const when = event.at ?? '';
     const who = event.by ?? 'cli';
@@ -254,7 +261,7 @@ export class BacklogStore implements BacklogStorage {
   }
 
   items(): BacklogItem[] {
-    return foldBacklog(readBacklogFile(this.file));
+    return foldBacklogEvents(backlogEventsIn(this.file));
   }
 
   private append(event: Record<string, unknown>): void {

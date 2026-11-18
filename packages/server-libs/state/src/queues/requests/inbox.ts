@@ -8,7 +8,7 @@
  *   {"type":"question","id":"q_…","story":"octo-org-web-app-42","step":2,"chapter":"Chapter 2: …","chapter_key":"loader","file":"…","text":"…","url":"…"}
  *   {"type":"answer","id":"a_…","question":"q_…","story":"…","text":"markdown","by":"<the consumer that answered>"}
  *   {"type":"note","story":"…","note":{"id":"n_…","path":"…","side":"R","line":12,"body":"…"}}
- *   {"type":"read","story":"…","chapter":"<chapter key>","step":2,"title":"Chapter 2: …","head_sha":"…","story_head":"…","reason":"time|viewed|inferred"}
+ *   {"type":"read",…}  (older versions logged a chapter read; it is in state/<key>/read.json now, and a line already here is still read)
  *   {"type":"approved","story":"…","branch":"…","checkout":"…","base":"…","head_sha":"…"}  (Approve on a local story's page)
  *   {"type":"fix","action":"sent|fixed|failed","story":"…","request":"f_…","notes":["n_…"],"sha":"…"}  (the requests themselves are in fixes.json)
  *
@@ -16,7 +16,9 @@
  * so `once-upon inbox --unread` and `once-upon wait` only hand over what a
  * reader hasn't seen. A later MCP server or hook reads the same file the same way.
  */
-import { existsSync, openSync, readSync, closeSync, statSync } from 'node:fs';
+import { tailLog } from '@once-upon-a-diff/adapters/stores/fs/tail-log';
+import { withLock } from '@once-upon-a-diff/adapters/stores/fs/lock';
+import { existsSync, readdirSync, openSync, readSync, closeSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { newId } from '@once-upon-a-diff/foundation/ids';
 import { sameRepo } from '@once-upon-a-diff/foundation/repos';
@@ -56,6 +58,30 @@ export interface QuestionWithAnswers {
   channel: 'voice' | null;
   answers: { id: string; at: string; text: string; by: string | null; refs?: ChapterRef[] }[];
 }
+
+/** The entries in a file's text, in order. A line that isn't JSON, or isn't an entry, is skipped. */
+function parseInboxEntries(text: string): InboxEntry[] {
+  const entries: InboxEntry[] = [];
+  for (const line of text.split('\n')) {
+    if (!line.trim()) {
+      continue;
+    }
+    let value: unknown;
+    try {
+      value = JSON.parse(line);
+    } catch {
+      continue; // a bad line
+    }
+    const entry = readInboxEntry(value);
+    if (entry) {
+      entries.push(entry);
+    }
+  }
+  return entries;
+}
+
+/** The entries in inbox.jsonl, tailed (`tailLog`). A caller never changes one. */
+export const inboxEntriesIn = tailLog(parseInboxEntries);
 
 export class Inbox {
   declare home: string;
@@ -130,27 +156,15 @@ export class Inbox {
     }
     const text = buf.toString('utf8');
     const end = text.lastIndexOf('\n') + 1; // leave a half-written last line for next time
-    const entries: InboxEntry[] = [];
-    for (const line of text.slice(0, end).split('\n')) {
-      if (!line.trim()) {
-        continue;
-      }
-      let value: unknown;
-      try {
-        value = JSON.parse(line);
-      } catch {
-        continue; // a bad line
-      }
-      const entry = readInboxEntry(value);
-      if (entry) {
-        entries.push(entry);
-      }
-    }
-    return { entries, offset: offset + Buffer.byteLength(text.slice(0, end)) };
+    return {
+      entries: parseInboxEntries(text.slice(0, end)),
+      offset: offset + Buffer.byteLength(text.slice(0, end)),
+    };
   }
 
+  /** Every entry, oldest first: read once and then only as far as the file has grown, so a pulse parses what was appended. */
   all(): InboxEntry[] {
-    return this.readFrom(0).entries;
+    return inboxEntriesIn(this.file);
   }
 
   /** Questions for a story, oldest first, each with its answers. */
@@ -204,13 +218,38 @@ export class Inbox {
       JSON.stringify({ offset, at: new Date().toISOString() }),
     );
   }
-  /** What `consumer` hasn't read yet. `advance` moves its cursor past it. */
-  unread(consumer: string | null | undefined, { advance = false } = {}): InboxEntry[] {
-    const { entries, offset } = this.readFrom(this.getCursor(consumer));
-    if (advance) {
-      this.setCursor(consumer, offset);
+  /** Moves every consumer's cursor to where `remap` puts its offset: after the file was rewritten (doctor --fix). */
+  moveCursors(remap: (offset: number) => number): void {
+    const dir = path.join(this.home, 'cursors');
+    let names: string[];
+    try {
+      names = readdirSync(dir).filter((name) => name.endsWith('.json'));
+    } catch {
+      return; // no cursors yet
     }
-    return entries;
+    for (const name of names) {
+      const file = path.join(dir, name);
+      const cursor = readJson<{ offset?: number; at?: string }>(file, {});
+      if (typeof cursor?.offset === 'number' && cursor.offset > 0) {
+        writeFileAtomic(file, JSON.stringify({ ...cursor, offset: remap(cursor.offset) }));
+      }
+    }
+  }
+
+  /**
+   * What `consumer` hasn't read yet. `advance` moves its cursor past it, under the inbox's lock: `doctor --fix` moves the
+   * cursors and swaps the file under that lock, and a read-and-advance across the two would leave an offset into the old file
+   * (past the new end, it reads as a truncation and hands over the whole inbox). Appends take no lock.
+   */
+  unread(consumer: string | null | undefined, { advance = false } = {}): InboxEntry[] {
+    const read = () => {
+      const { entries, offset } = this.readFrom(this.getCursor(consumer));
+      if (advance) {
+        this.setCursor(consumer, offset);
+      }
+      return entries;
+    };
+    return advance ? withLock(this.file, read) : read();
   }
 }
 

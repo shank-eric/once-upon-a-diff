@@ -56,6 +56,9 @@ There are two quick ways to check.
 - when the extension last talked to the bridge (the bridge notes it)
 - live listeners
 - the status line: a WARN when Claude Code sessions are live and none has written `~/.once-upon/statusline/<session id>.json` in the last 6 hours, so the board shows no context or usage (the fix is the setup step below)
+- the logs: a WARN when `agents.jsonl` is over 1 MB or `inbox.jsonl` or `backlog.jsonl` over 500 KB, naming `once-upon doctor --fix`
+
+`once-upon doctor --fix [--keep-days N]` is the one doctor that writes. The logs only grow, so it rewrites `agents.jsonl` and `inbox.jsonl` smaller and keeps each old file beside the new one as `<file>.<yyyymmdd>.bak` (delete it by hand when you are sure). In `agents.jsonl` a run that ended more than N days ago (14 by default) on a card that is done, dropped or unknown goes with all its lines (a failed run stays until `agent ack` acknowledges it), and every run that stays keeps only its last beat. In `inbox.jsonl` the chapter reads and positions older versions logged go, and every listener's cursor moves with the file, so none re-reads an old question. `backlog.jsonl` is not rewritten.
 
 It exits 1 when something fails.
 
