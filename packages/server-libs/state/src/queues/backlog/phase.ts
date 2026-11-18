@@ -12,7 +12,7 @@
 import type { BoardColumn } from '@once-upon-a-diff/contracts/types';
 import { isImplicitCard, sameRepo } from '@once-upon-a-diff/terms/ids';
 import { repoName } from '@once-upon-a-diff/terms/text';
-import { STALE_MS, runIsOpen } from '../../records/agents/events.ts';
+import { STALE_MS, runIsOpen, staleAfterMs } from '../../records/agents/events.ts';
 import { implicitCards } from '../../records/agents/implicit.ts';
 import {
   isCritic,
@@ -134,7 +134,7 @@ const msOf = (date: Date | null | undefined): number | null => (date ? date.getT
  *                                Working. A fix round is the card's run, so it is Working here whether or not it was told `fixing`
  *   2  a critic is open          critic-hold repos only (once-upon-a-diff and Larmor): Agent checks (an open critic with no sign of life for STALE_MS is dead and holds nothing)
  *   3  the latest work run       failed or stopped: back in Backlog, tried
- *   3b a storyteller is open     running with a sign of life in STALE_MS: Agent checks, in every repo (a failed build is read first; a waiting one, with a question, holds nothing)
+ *   3b a storyteller is open     running with a sign of life in the last hour: Agent checks, in every repo (a failed build is read first; a waiting one, with a question, holds nothing)
  *   4  fixes are due             critic-hold repos only: the latest critic finished with findings above 0, after the latest work run
  *                                ended (and under STALE_MS ago: findings nobody fixed lapse): Agent checks until a fix run opens (row 1).
  *                                Elsewhere findings are the story's fix-before-push comments and hold nothing
@@ -159,7 +159,7 @@ export function cardPhase(
   const isOpen = (run: LedgerAgent) => OPEN.includes(run.state);
   const lastSign = (run: LedgerAgent) =>
     (run.lastEvent ?? run.started ?? new Date(nowMs)).getTime();
-  const alive = (run: LedgerAgent) => isOpen(run) && nowMs - lastSign(run) <= STALE_MS;
+  const alive = (run: LedgerAgent) => isOpen(run) && nowMs - lastSign(run) <= staleAfterMs(run);
   const working = [...work].reverse().find(isOpen);
   if (working) {
     const when = msOf(working.ended);

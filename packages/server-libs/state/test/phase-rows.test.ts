@@ -69,3 +69,24 @@ test('every branch of cardPhase names its row', () => {
   }
   assert.equal(Object.keys(PHASE_ROWS).length, 8);
 });
+
+test('a storyteller silent for 61 minutes holds nothing, one silent for 59 minutes still holds Agent checks; other runs keep the 24 hour cutoff', () => {
+  const done = run({ state: 'done', ended: minutes(300) });
+  const storyteller = (silent: number) =>
+    run({
+      kind: 'storyteller',
+      name: 'story-x',
+      started: minutes(300),
+      lastEvent: minutes(silent),
+    });
+  assert.equal(cardPhase(plain, [done, storyteller(59)], NOW)?.row, '3b');
+  assert.equal(cardPhase(plain, [done, storyteller(61)], NOW)?.row, '6');
+  // a critic silent 61 minutes is not dead yet (the 24 hour cutoff is only for a storyteller to leave)
+  const critic = run({
+    kind: 'critic',
+    name: 'review',
+    started: minutes(300),
+    lastEvent: minutes(61),
+  });
+  assert.equal(cardPhase(holding, [done, critic], NOW)?.row, '2');
+});

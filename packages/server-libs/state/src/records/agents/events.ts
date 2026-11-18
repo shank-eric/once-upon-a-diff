@@ -43,6 +43,13 @@ export function canonicalKind(raw: unknown): AgentKind | null {
 /** A run with no event this long is taken to be dead: it holds no build slot, and an unnamed beat does not land on it. */
 export const STALE_MS = 24 * 3600 * 1000;
 
+/** A storyteller with no event this long is dead (the sweep never closes it): it is not working and holds no gate. */
+export const STORYTELLER_STALE_MS = 3600 * 1000;
+
+/** How long a run may stay silent before the board reads it as dead: an hour for a storyteller, STALE_MS for the rest. */
+export const staleAfterMs = (agent: { kind?: string | null }): number =>
+  agent.kind === 'storyteller' ? STORYTELLER_STALE_MS : STALE_MS;
+
 /** The events in a file's text, in order. Lines that aren't events are skipped. */
 export function parseAgentEvents(text: string): AgentEvent[] {
   return jsonLines(text).flatMap((value) => readAgentEvent(value) ?? []);

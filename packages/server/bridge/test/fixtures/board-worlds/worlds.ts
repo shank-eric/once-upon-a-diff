@@ -1351,7 +1351,7 @@ async function record(
     kind: 'storyteller',
     task: 'tell the story',
     card: 'bl_ccccc06',
-    at: et(13, 41),
+    at: et(14, 30),
   });
   const { watcher } = fakeWatcher([], {});
   const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {

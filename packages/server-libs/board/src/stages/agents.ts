@@ -10,7 +10,7 @@ import { agentKey } from '@once-upon-a-diff/state/queues/backlog/claims';
 import { agentsOnCard } from '@once-upon-a-diff/state/queues/backlog/phase';
 import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
 import { isEndState } from '@once-upon-a-diff/contracts/files/agent-states';
-import { STALE_MS } from '@once-upon-a-diff/state/records/agents/events';
+import { STALE_MS, staleAfterMs } from '@once-upon-a-diff/state/records/agents/events';
 import {
   gateOf,
   isAcked,
@@ -88,7 +88,7 @@ function agentOf(
   const open = agent.state === 'running' || agent.state === 'plan' || agent.state === 'fixing';
   // its last sign of life is its latest event, a beat included
   const began = lastActivity(agent);
-  const stale = open && !!began && now - began.getTime() > STALE_MS;
+  const stale = open && !!began && now - began.getTime() > staleAfterMs(agent);
   return {
     key: agentKey(agent),
     sid: agent.sid,
@@ -105,7 +105,7 @@ function agentOf(
     outcome: agent.outcome,
     stale,
     beat: agent.beat ?? null,
-    // a storyteller that went quiet for STALE_MS is dead and holds nothing (the sweep never closes it)
+    // a storyteller that went quiet for an hour is dead and holds nothing (the sweep never closes it)
     gate: stale && isStoryteller(agent) ? null : gateOf(agent),
     notes: agent.notes ?? null,
     clears_at: clearsAt?.toISOString() ?? null,

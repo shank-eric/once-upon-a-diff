@@ -264,8 +264,9 @@ test('a card whose branch has a local story: an open storyteller holds it in Age
     };
     // open and alive: the story is being told
     assert.equal(await columnAt(0), 'checks', name);
-    // silent for over 24 hours: a dead storyteller holds nothing
-    assert.equal(await columnAt(24 * 60), 'ready', `${name}: dead`);
+    // silent for over an hour: a dead storyteller holds nothing (it started 30 minutes before the first check)
+    assert.equal(await columnAt(29), 'checks', `${name}: alive`);
+    assert.equal(await columnAt(31), 'ready', `${name}: dead`);
     // finished: the story is up and not approved
     registered.finish('tell-x', { sid: 'abcdef01', state: 'done', at: later(-5) });
     assert.equal(await columnAt(0), 'ready', name);

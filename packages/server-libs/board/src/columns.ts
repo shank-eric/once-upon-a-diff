@@ -103,7 +103,7 @@ export function columnOf(input: ColumnInput): BoardColumn {
   if (
     building ||
     sessions.some((session) => session.status === 'working' && !session.thinking) ||
-    // a storyteller silent for STALE_MS is dead: it is not working, and holds no gate (stages/agents.ts)
+    // a storyteller silent for an hour is dead: it is not working, and holds no gate (stages/agents.ts)
     agents.some(
       (agent) => agent.state === 'running' && !(agent.kind === 'storyteller' && agent.stale),
     )

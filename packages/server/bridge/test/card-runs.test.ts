@@ -378,13 +378,13 @@ test('G. cardPhase: every row of the table', () => {
         card,
         kind,
         task: 't',
-        at: stamp(end === 'quiet' ? -2000 : 7),
+        at: stamp(end === 'quiet' ? -2000 : 80),
       });
       if (end === 'done') {
-        registry.finish(name, { sid: SID, state: 'done', at: stamp(9) });
+        registry.finish(name, { sid: SID, state: 'done', at: stamp(85) });
       }
       if (end === 'waiting') {
-        registry.state(name, { sid: SID, state: 'waiting', at: stamp(9) });
+        registry.state(name, { sid: SID, state: 'waiting', at: stamp(85) });
       }
     })?.column;
   for (const repo of [ONCE, OTHER, LARMOR]) {

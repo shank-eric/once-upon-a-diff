@@ -1021,3 +1021,46 @@ test('an acked failed run on a backlog card is no line on it, and its chip reads
   assert.equal(chip(false), 'failed');
   assert.equal(chip(true), 'stopped');
 });
+
+test('a storyteller silent for 61 minutes leaves Working and holds no gate, one silent for 59 minutes stays', () => {
+  const ago = (minutes: number) => new Date(NOW - minutes * 60000);
+  const author = registered({
+    name: 'ou-author',
+    card: 'ic_cccccccccccc',
+    state: 'done',
+    started: ago(300),
+    ended: ago(10),
+    lastEvent: ago(10),
+    result: { commit: 'abc1234' },
+  });
+  const storyteller = (silent: number) =>
+    agent({
+      name: 'story-x',
+      kind: 'storyteller',
+      card: 'ic_cccccccccccc',
+      state: 'running',
+      started: ago(300),
+      lastEvent: ago(silent),
+    });
+  const live = place([author, storyteller(59)], []);
+  assert.equal(live.length, 1);
+  assert.equal(live[0].agents.find((one) => one.name === 'story-x')!.stale, false);
+  assert.equal(live[0].agents.find((one) => one.name === 'story-x')!.gate?.kind, 'story');
+  assert.equal(live[0].column, 'checks');
+  const dead = place([author, storyteller(61)], []);
+  assert.equal(dead.length, 1);
+  assert.equal(dead[0].agents.find((one) => one.name === 'story-x')!.stale, true);
+  assert.equal(dead[0].agents.find((one) => one.name === 'story-x')!.gate, null);
+  assert.equal(dead[0].column, 'done');
+  // an author silent as long is not stale: only a storyteller has the hour cutoff
+  const author61 = agent({
+    name: 'ou-quiet',
+    kind: 'author',
+    card: 'ic_dddddddddddd',
+    state: 'running',
+    started: ago(300),
+    lastEvent: ago(61),
+  });
+  assert.equal(place([author61], [])[0].column, 'working');
+  assert.equal(place([author61], [])[0].agents[0].stale, false);
+});
