@@ -16,7 +16,8 @@
  *   main/master) to the tip, all made since the run started, are the approved commits (those between the approval's
  *   `base_oid` and its `head_oid`) one for one, in order: the same `git patch-id --stable` for each, or, when a conflict
  *   was resolved and a patch-id differs, the same number of commits with the same subjects. A rebase that drops, adds or
- *   rewords a commit carries nothing.
+ *   rewords a commit carries nothing. A branch stacked on another unlanded branch has its own commits at the top of the
+ *   tip, whatever lies under them: the approved count of commits below the tip counts as the new base too.
  * An undone approval is gone, so there is nothing to carry. A story pinned to the commits it was told over
  * (`--head <branch>`) keeps its head, so `carried.from` is the first approved commit: `approvalOf` counts the approval
  * for the story at that head too.
@@ -28,11 +29,12 @@ import {
   isAncestor,
   mergeBase,
   patchId,
+  revParse,
 } from '@once-upon-a-diff/adapters/git';
 import { sameRepo } from '@once-upon-a-diff/foundation/repos';
 import { StoryStore } from '@once-upon-a-diff/stories/store';
 import { readMeta } from '@once-upon-a-diff/stories/meta';
-import { refreshLocal } from '@once-upon-a-diff/stories/local-diff';
+import { movedSince, refreshLocal } from '@once-upon-a-diff/stories/local-diff';
 import { approvalFresh, readApproval } from '@once-upon-a-diff/stories/approval';
 import type { LocalMeta } from '@once-upon-a-diff/stories/types';
 import type { LocalCommit } from '@once-upon-a-diff/contracts/types';
@@ -64,23 +66,35 @@ const patchIdOr = (repo: string, sha: string): string | null => {
 
 /**
  * Where the branch's own commits now start when `tip` is a rebase of the commits approved (`approved` newest first, from
- * the approval's base to its head), made since `since`; null when it is not.
+ * the approval's base to its head), made since `since`; null when it is not. A fixer's own rebase that conflicted may keep
+ * the subjects with other patches; `patchesOnly` refuses that, for a caller that needs the same code.
  */
-function rebasedOnto(
+export function rebasedOnto(
   repo: string,
   tip: string,
   approved: LocalCommit[],
   told: string | undefined,
   since: number,
+  patchesOnly = false,
 ): string | null {
-  const refs = new Set(baseRefs(repo, told));
-  for (const ref of refs) {
-    let base: string;
+  // the story's base ref and main/master first; then wherever the branch's own commits sit, so a branch stacked on
+  // another unlanded branch (its merge-base with main is that branch's commits further down) carries too
+  const bases: string[] = [];
+  for (const ref of new Set(baseRefs(repo, told))) {
     try {
-      base = mergeBase(repo, ref, tip);
+      bases.push(mergeBase(repo, ref, tip));
     } catch {
-      continue;
+      // the ref is not here
     }
+  }
+  if (approved.length) {
+    try {
+      bases.push(revParse(repo, `${tip}~${approved.length}`));
+    } catch {
+      // fewer commits than were approved
+    }
+  }
+  for (const base of new Set(bases)) {
     const made = commitLog(repo, [`${base}..${tip}`]);
     if (
       !made.length ||
@@ -93,11 +107,31 @@ function rebasedOnto(
       const was = patchIdOr(repo, approved[place].sha);
       return was !== null && was === patchIdOr(repo, one.sha);
     });
-    if (samePatches || made.every((one, place) => one.subject === approved[place].subject)) {
+    if (
+      samePatches ||
+      (!patchesOnly && made.every((one, place) => one.subject === approved[place].subject))
+    ) {
       return base;
     }
   }
   return null;
+}
+
+/**
+ * What Approve on the page may record for a story pinned to a branch (`--head <branch>`) whose branch has moved since it
+ * was told: null when the branch has not moved (approve the story's head as it is); the new tip and its base when the tip
+ * is the story's commits rebased (the same patches, so the chapters still describe it); 'stale' when it moved any other way,
+ * where an approval at the story's head would lapse at once against the tip and one at the tip would approve code the
+ * story never told.
+ */
+export function approvableTip(meta: LocalMeta): { tip: string; base: string } | 'stale' | null {
+  const tip = movedSince(meta)?.head_oid;
+  if (!tip) {
+    return null;
+  }
+  const approved = commitLog(meta.repo_path, [`${meta.base_oid}..${meta.head_oid}`]);
+  const base = rebasedOnto(meta.repo_path, tip, approved, meta.base, 0, true);
+  return base ? { tip, base } : 'stale';
 }
 
 /** Carries the approval of the finished fixer run's story to its commit; returns where from and to, and `via: 'rebase'` for a rebase, or null when nothing carried. */

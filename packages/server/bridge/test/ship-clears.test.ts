@@ -336,6 +336,28 @@ test('a fixer’s rebase of the approved commit onto a moved main carries the ap
   assert.ok(localEntries(store, { now: Date.now() })[0].story.approved_at, 'still Ready to ship');
 });
 
+test('a fixer’s rebase onto another unlanded branch (a stack above main) carries the approval too', async () => {
+  const { id, card, store, cli, startRun, head, repo, edit } = rebaseWorld();
+  assert.equal((await cli('approve', id)).code, 0);
+  const first = head();
+  // another branch, not landed in main, with a commit of its own
+  git(repo, 'checkout', '-q', '-b', 'other', 'main');
+  edit('b.txt', 'other\n', 'other work');
+  git(repo, 'checkout', '-q', 'feature');
+  await nextSecond();
+  assert.equal((await startRun('rebase-it', 'fixer')).code, 0);
+  git(repo, 'rebase', 'other');
+  const second = head();
+  assert.notEqual(first, second);
+  const done = await cli(...finishArgs('rebase-it', second, card));
+  assert.equal(done.code, 0, done.stderr);
+  assert.match(done.stdout, /approval carried .*rebase/, done.stderr);
+  const carried = readApproval(store, id);
+  assert.equal(carried?.head_oid, second);
+  assert.equal(carried?.base_oid, git(repo, 'rev-parse', 'other'));
+  assert.equal(carried?.carried?.from, first);
+});
+
 test('a fixer’s rebase with a conflict resolved in the commit carries the approval too', async () => {
   const { id, card, store, cli, startRun, moveMain, head, repo } = rebaseWorld();
   assert.equal((await cli('approve', id)).code, 0);

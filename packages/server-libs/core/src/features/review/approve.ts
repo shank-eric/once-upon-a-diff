@@ -22,6 +22,8 @@ export interface ApproveInput {
   base: string | null;
   headOid: string;
   baseOid: string | null;
+  /** the story's own head when `headOid` is its branch's tip after a rebase of the story's commits: the approval is recorded as carried from it */
+  rebasedFrom?: string;
 }
 
 /**
@@ -52,6 +54,14 @@ export function approveStory(stories: StoryStore, inbox: Inbox, input: ApproveIn
       at: new Date().toISOString(),
       head_oid: input.headOid,
       base_oid: input.baseOid,
+      ...(input.rebasedFrom && {
+        carried: {
+          from: input.rebasedFrom,
+          at: new Date().toISOString(),
+          run: '',
+          via: 'rebase' as const,
+        },
+      }),
     };
   });
   inbox.append(entry);

@@ -11,6 +11,7 @@ import { parseBody } from '../validate.ts';
 import { unwrittenCount } from '@once-upon-a-diff/stories/skeleton';
 import { approvalAtTip } from '@once-upon-a-diff/stories/approval';
 import { approveStory, clearApproval } from '@once-upon-a-diff/core/features/review/approve';
+import { approvableTip } from '@once-upon-a-diff/core/features/review/carry-approval';
 import { finishStoryRuns } from '@once-upon-a-diff/core/features/review/approve-runs';
 import { storyRepo } from '@once-upon-a-diff/stories/meta';
 import type { LocalStory, StoryData } from '@once-upon-a-diff/contracts/types';
@@ -92,17 +93,27 @@ function approve({ app, body: raw, send }: Call, story: ServedStory) {
       'the branch has moved since this page showed it: reload before approving',
     );
   }
+  // a story pinned to a branch that has moved: a rebase of its commits is approved at the tip, any other move is refused
+  const moved = approvableTip(meta);
+  if (moved === 'stale') {
+    throw new HttpError(
+      409,
+      'the branch has moved on since this story was told: rebuild the story before approving',
+    );
+  }
+  const approvedOid = moved?.tip ?? headOid;
   const added = approveStory(app.stories, app.inbox, {
     id: story.id,
     ref: story.ref,
     branch: meta.branch || null,
     checkout: meta.repo_path || null,
     base: meta.base || null,
-    headOid,
-    baseOid: meta.base_oid || null,
+    headOid: approvedOid,
+    baseOid: moved?.base ?? (meta.base_oid || null),
+    ...(moved && { rebasedFrom: headOid }),
   });
   if (added) {
-    finishStoryRuns(app.home, { repo: storyRepo(meta), branch: meta.branch || null }, headOid);
+    finishStoryRuns(app.home, { repo: storyRepo(meta), branch: meta.branch || null }, approvedOid);
   }
   app.board.refresh(); // its card moves to Ready to ship on the page's next poll
   return send(200, answer());

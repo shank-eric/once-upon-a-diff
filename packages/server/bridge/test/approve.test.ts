@@ -63,6 +63,12 @@ async function setup(options: { checkBranch?: BranchCheck; head?: string } = {})
   return { home, repo, id, bridge, head, post, events, store: new StoryStore({ home }) };
 }
 
+/** A story told over the `feature` branch (pinned to its two commits), with the base commit it was told from. */
+async function setupMoved() {
+  const world = await setup({ head: 'feature' });
+  return { ...world, base: git(world.repo, 'rev-parse', 'HEAD~2') };
+}
+
 const commit = (repo: string, name: string) => {
   writeFileSync(path.join(repo, name), `${name}\n`);
   git(repo, 'add', '.');
@@ -311,6 +317,74 @@ test('a story told over a branch the branch has left: the page and the board bot
     assert.equal(await page(), null, 'the page');
     forgetTips();
     assert.equal(localEntries(store)[0].story.approved_at, null, 'the board');
+  } finally {
+    await bridge.close();
+  }
+});
+
+test('approving a story whose branch was rebased since it was told records the tip, so it does not lapse', async () => {
+  const { id, bridge, head, post, repo, store, base } = await setupMoved();
+  try {
+    const told = head();
+    // a rebase onto another unlanded branch: the same patches over a new base
+    git(repo, 'branch', 'other', base);
+    git(repo, 'checkout', '-q', 'other');
+    commit(repo, 'other.txt');
+    git(repo, 'checkout', '-q', 'feature');
+    git(repo, 'rebase', 'other');
+    const tip = head();
+    assert.notEqual(tip, told);
+    const url = `/api/stories/${id}/approve`;
+    const approved = await post(pageKey(TOKEN, id), url, { head_sha: told });
+    assert.equal(approved.status, 200, approved.text);
+    assert.equal(approved.body.approved?.head_oid, tip);
+    assert.equal(readReviewRecord(store, id)?.approval?.carried?.from, told);
+    await new Promise((resolve) => setTimeout(resolve, 2100)); // where the branch is stays known 2 s
+    forgetTips();
+    assert.ok(localEntries(store)[0].story.approved_at, 'still approved against the tip');
+    const page = (
+      await bridge.call<StoryData>('GET', `/api/stories/${id}`, undefined, {
+        Authorization: `Bearer ${pageKey(TOKEN, id)}`,
+      })
+    ).body.local?.approved;
+    assert.equal(page?.head_oid, tip, 'the page agrees');
+  } finally {
+    await bridge.close();
+  }
+});
+
+test('approving a story whose branch moved by anything but a rebase is refused as stale', async () => {
+  const { id, bridge, head, post, repo, store, events } = await setupMoved();
+  try {
+    const told = head();
+    commit(repo, 'three.txt');
+    const refused = await post(pageKey(TOKEN, id), `/api/stories/${id}/approve`, {
+      head_sha: told,
+    });
+    assert.equal(refused.status, 409, refused.text);
+    assert.match(refused.body.error || '', /rebuild the story/);
+    assert.equal(readReviewRecord(store, id)?.approval, undefined);
+    assert.equal(events().length, 0);
+  } finally {
+    await bridge.close();
+  }
+});
+
+test('approving a story whose branch was amended with the same subject but other content is refused as stale', async () => {
+  const { id, bridge, head, post, repo, store, events } = await setupMoved();
+  try {
+    const told = head();
+    writeFileSync(path.join(repo, 'secret.txt'), 'secret\n');
+    git(repo, 'add', '.');
+    git(repo, 'commit', '-q', '--amend', '--no-edit');
+    assert.notEqual(head(), told);
+    const refused = await post(pageKey(TOKEN, id), `/api/stories/${id}/approve`, {
+      head_sha: told,
+    });
+    assert.equal(refused.status, 409, refused.text);
+    assert.match(refused.body.error || '', /rebuild the story/);
+    assert.equal(readReviewRecord(store, id)?.approval, undefined);
+    assert.equal(events().length, 0);
   } finally {
     await bridge.close();
   }
