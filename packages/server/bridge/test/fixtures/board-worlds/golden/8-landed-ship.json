@@ -40,7 +40,7 @@
               "approved_at": "2026-10-26T15:00:00Z",
               "id": "story-a",
               "kind": "local",
-              "reviewed": false,
+              "reviewed": true,
               "unread": false,
               "unread_answers": 0,
               "url": null
@@ -76,7 +76,7 @@
               "approved_at": "2026-10-26T15:00:00Z",
               "id": "story-c",
               "kind": "local",
-              "reviewed": false,
+              "reviewed": true,
               "unread": false,
               "unread_answers": 0,
               "url": null

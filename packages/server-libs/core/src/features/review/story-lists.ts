@@ -1,12 +1,13 @@
 /**
  * The built PR stories the review inbox lists: every GitHub story the bridge can find
  * (`story.mjs build` puts them in the checkout's .once-upon/ folder), built in the last STORY_DAYS days. The inbox's
- * Open goes to the PR's changes page, where the panel opens. Reviewed (`once-upon reviewed`, Approve) is the story's own state file,
- * <home>/state/<story id>/reviewed.json: {at, by}, where `by` is manual, review or all viewed (github-watcher.ts),
- * and an unmark by hand leaves {at: null, by: manual}, so the file's presence means the reviewer has decided.
+ * Open goes to the PR's changes page, where the panel opens. Reviewed (`once-upon reviewed`, Approve) is the `mark` in the story's
+ * review record, <home>/state/<story id>/review.json (stories/src/review-record.ts): {at, by}, where `by` is manual, review
+ * or all viewed (github-watcher.ts), and an unmark by hand leaves {at: null, by: manual}, so a record with a mark means the
+ * reviewer has decided.
  *
  * Local stories (`once-upon local`: a branch's story before any PR) are listed beside them (localStories), built in the
- * same days and kept the same way (reviewed.json, position.json, reads). A story an earlier version made for a turn of the
+ * same days and kept the same way (review.json, position.json, reads). A story an earlier version made for a turn of the
  * retired turn capture (its meta names a `turn`) is left out.
  */
 import path from 'node:path';
@@ -15,7 +16,14 @@ import { readMeta, storyRepo, stateKeyOf } from '@once-upon-a-diff/stories/meta'
 import { readReads } from '@once-upon-a-diff/stories/reads';
 import { unwrittenCount } from '@once-upon-a-diff/stories/skeleton';
 import { isStoryless } from '@once-upon-a-diff/stories/local-story';
-import { approvalAtTip, readApproval, type Approval } from '@once-upon-a-diff/stories/approval';
+import { approvalAtTip, type Approval } from '@once-upon-a-diff/stories/approval';
+import {
+  isDecided,
+  markOf,
+  readReviewRecord,
+  type MarkBy,
+} from '@once-upon-a-diff/stories/review-record';
+import { updateReviewRecord } from './review-record.ts';
 import type { StoryStore } from '@once-upon-a-diff/stories/store';
 import type { InboxLocalStory, InboxStory, ReviewedBy } from '@once-upon-a-diff/contracts/types';
 import { prUrl } from '@once-upon-a-diff/terms/github-urls';
@@ -24,7 +32,6 @@ import { prUrl } from '@once-upon-a-diff/terms/github-urls';
 const STORY_DAYS = 30;
 /** What marks a local story done without you: its work is on GitHub or in the default branch. */
 const AUTO_DONE: readonly ReviewedBy[] = ['pr', 'delivered'];
-const REVIEWED = 'reviewed.json';
 const MERGED = 'merged.json';
 
 /** The latest of some ISO times, or null when there are none. */
@@ -62,11 +69,7 @@ export function prStories(
       continue;
     }
     const unwritten = unwrittenCount(story.dir);
-    const state = stories.readState<{ at?: string | null; by?: ReviewedBy } | null>(
-      story.id,
-      REVIEWED,
-      null,
-    );
+    const state = readReviewRecord(stories, story.id)?.mark;
     const reads = readReads(stories.home, stateKeyOf(story.id, readMeta(story.dir)));
     const position = stories.readState<{ at?: string } | null>(story.id, 'position.json', null);
     const seen = latestOf([
@@ -84,7 +87,7 @@ export function prStories(
       built_at: new Date(built).toISOString(),
       seen_at: seen,
       reviewed_at: state?.at || null,
-      reviewed_by: state?.at ? state.by || 'manual' : null,
+      reviewed_by: state?.at ? state.by : null,
       ...(unwritten && { unwritten }),
     });
   }
@@ -102,9 +105,9 @@ export interface LocalEntry {
   head_oid: string | null;
   /** meta.json's `head`: the ref the story follows (HEAD or a branch), for finding where it is now */
   head_ref: string | null;
-  /** the raw approved.json (null once it has lapsed), which the background check lets go of when the head has moved on */
+  /** the record's approval (null once it has lapsed), which the background check lets go of when the head has moved on */
   approval: Approval | null;
-  /** a reviewed.json exists (marked or unmarked by hand, or by a check): the checks leave the story alone */
+  /** the story is decided (marked or unmarked by hand or by a check, or approved): the checks leave the story alone */
   marked: boolean;
 }
 
@@ -143,30 +146,21 @@ export function localEntries(
     if (repo && !sameRepo(owner || repoName, repo)) {
       continue;
     }
-    const state = stories.readState<{ at?: string | null; by?: ReviewedBy } | null>(
-      story.id,
-      REVIEWED,
-      null,
-    );
+    const record = readReviewRecord(stories, story.id);
     const reads = readReads(stories.home, stateKeyOf(story.id, meta));
     const position = stories.readState<{ at?: string } | null>(story.id, 'position.json', null);
     const builtAt = new Date(built).toISOString();
     const unwritten = unwrittenCount(story.dir);
+    const approved = approvalAtTip(stories, story.id, { ...meta, repo_path: story.repo_path }, now);
+    // an approval that counts is shown as the `approved` mark; it goes with the approval (a new commit, or a week), so the
+    // story is back in Ready at once instead of when the background check next lapses it
+    const shown = markOf(record, approved);
     const seen = latestOf([
-      state?.at,
+      record?.mark?.at,
+      approved?.at,
       position?.at,
       ...Object.values(reads).map((read) => read.at),
     ]);
-    const current = readApproval(stories, story.id);
-    const approved = approvalAtTip(stories, story.id, { ...meta, repo_path: story.repo_path }, now);
-    let reviewedAt = state?.at || null;
-    let reviewedBy: ReviewedBy | null = state?.at ? state.by || 'manual' : null;
-    // the mark Approve wrote goes with the approval (a new commit, or a week), so the story is back in Ready at once
-    // instead of when the background check next clears the files
-    if (reviewedBy === 'approved' && !approved) {
-      reviewedAt = null;
-      reviewedBy = null;
-    }
     found.push({
       story: {
         id: story.id,
@@ -176,8 +170,8 @@ export function localEntries(
         branch: story.branch,
         built_at: builtAt,
         seen_at: seen,
-        reviewed_at: reviewedAt,
-        reviewed_by: reviewedBy,
+        reviewed_at: shown?.at ?? null,
+        reviewed_by: shown?.by ?? null,
         approved_at: approved?.at ?? null,
         approved_head: approved?.head_oid ?? null,
         ...(unwritten && { unwritten }),
@@ -187,8 +181,8 @@ export function localEntries(
       base_oid: typeof meta.base_oid === 'string' ? meta.base_oid : null,
       head_oid: typeof meta.head_oid === 'string' ? meta.head_oid : null,
       head_ref: typeof meta.head === 'string' ? meta.head : null,
-      approval: current?.lapsed ? null : current,
-      marked: state !== null,
+      approval: record?.approval?.lapsed ? null : (record?.approval ?? null),
+      marked: isDecided(record),
     });
   }
   return found.sort(
@@ -262,23 +256,27 @@ export function mergedStories(
   return found;
 }
 
-/** Whether the story has a reviewed.json at all (marked or unmarked by hand, or by the auto-check). */
+/** Whether the reviewer or a check has decided about the story (marked or unmarked by hand or by the auto-check, or approved). */
 export function storyHasState(stories: StoryStore, id: string): boolean {
-  return stories.readState(id, REVIEWED, null) !== null;
+  return isDecided(readReviewRecord(stories, id));
 }
 
-/** Marks a PR story reviewed (the default) or not. An unmark is kept, so the auto-check leaves the story alone. */
+/**
+ * Marks a story reviewed (the default) or not. An unmark is kept, so the auto-check leaves the story alone. `headOid` is the
+ * commit a local story was at (null for a PR story, which has no cheap head). The story's approval is left as it is.
+ */
 export function markStoryReviewed(
   stories: StoryStore,
   id: string,
   reviewed = true,
-  reason: ReviewedBy = 'manual',
+  reason: MarkBy = 'manual',
+  headOid: string | null = null,
 ): void {
-  stories.writeState(
-    id,
-    REVIEWED,
-    reviewed ? { at: new Date().toISOString(), by: reason } : { at: null, by: 'manual' },
-  );
+  updateReviewRecord(stories, id, (record) => {
+    record.mark = reviewed
+      ? { at: new Date().toISOString(), by: reason, head_oid: headOid }
+      : { at: null, by: 'manual', head_oid: headOid };
+  });
 }
 
 /** Remembers the PR has merged (or was closed and its branch deleted), which drops its story from the inbox. */

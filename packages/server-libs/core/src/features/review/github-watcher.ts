@@ -15,8 +15,8 @@
  * both read it, and it is applied to every listed story for that PR. The same answer carries what the agent board shows
  * about a PR (PrInfo: approvals, merge state, checks, the latest comments by you and by others), and a second small
  * query finds the PR for a branch. The board asks for both in the background as well and reads whatever is kept. A
- * story whose reviewed.json exists (marked by hand, or unmarked by hand) is never auto-marked, so a
- * manual unmark sticks. The reason is kept in reviewed.json as `by`.
+ * story whose review record has a mark (marked by hand, or unmarked by hand) or an approval is never auto-marked, so a
+ * manual unmark sticks. The reason is kept in review.json's mark as `by`.
  *
  * This file is the scheduler: when to ask and what to do with the answers. The asking is in github-checks.ts (with
  * pr-info.ts and merge-rules.ts for what the board shows) and default-branch.ts.
@@ -31,7 +31,9 @@ import {
 import { FULL_SHA_RE } from '@once-upon-a-diff/terms/patterns';
 import { runGitAsync } from '@once-upon-a-diff/adapters/git';
 import { readApproval } from '@once-upon-a-diff/stories/approval';
+import type { MarkBy } from '@once-upon-a-diff/stories/review-record';
 import { clearApproval } from './approve.ts';
+import { updateReviewRecord } from './review-record.ts';
 import { inDefaultBranch } from './default-branch.ts';
 import {
   ghBranchCheck,
@@ -425,7 +427,7 @@ export class AutoReview {
   /**
    * Marks the local stories done that are: the branch has a PR on GitHub, open or merged (`pr`), or the story's head is
    * already in the default branch (`delivered`). Asked a few minutes apart per story, never waits, and leaves a story
-   * with a reviewed.json (marked or unmarked by hand) as it is. The default branch is the checkout's last fetch of
+   * with a mark or an unmark in its review record as it is. The default branch is the checkout's last fetch of
    * origin, which the bridge never refreshes, so `delivered` can lag a fetch. A squash merge shows as a merged PR.
    */
   kickLocal(list: LocalEntry[], now: number): void {
@@ -467,7 +469,7 @@ export class AutoReview {
             continue;
           }
         } else if (found) {
-          this.markLocal(story.id, 'pr');
+          this.markLocal(story.id, 'pr', entry.head_oid);
           continue;
         }
       }
@@ -541,23 +543,27 @@ export class AutoReview {
 
   /**
    * A local story whose head is in the default branch is done. One approved at that head has shipped, so its approval
-   * ends too (approved.json cleared, which takes it out of Ready to ship) and its mark becomes `delivered`, or `pr` when a
+   * ends too (the approval cleared, which takes it out of Ready to ship) and its mark becomes `delivered`, or `pr` when a
    * merged PR is what showed it (a squash merge).
    */
-  private markDelivered(id: string, head: string, why: ReviewedBy = 'delivered'): void {
-    const approval = readApproval(this.stories, id);
-    if (approval && approval.head_oid === head) {
-      this.stories.writeState(id, 'approved.json', null);
-      markStoryReviewed(this.stories, id, true, why);
-      return;
+  private markDelivered(id: string, head: string, why: MarkBy = 'delivered'): void {
+    const shipped = updateReviewRecord(this.stories, id, (record) => {
+      if (record.approval?.head_oid !== head) {
+        return false;
+      }
+      delete record.approval;
+      record.mark = { at: new Date().toISOString(), by: why, head_oid: head };
+      return true;
+    });
+    if (!shipped) {
+      this.markLocal(id, why, head);
     }
-    this.markLocal(id, why);
   }
 
   /** Writes a local story's done mark unless a hand mark or unmark got there first. */
-  private markLocal(id: string, why: ReviewedBy): void {
+  private markLocal(id: string, why: MarkBy, head: string | null): void {
     if (!storyHasState(this.stories, id)) {
-      markStoryReviewed(this.stories, id, true, why);
+      markStoryReviewed(this.stories, id, true, why, head);
     }
   }
 

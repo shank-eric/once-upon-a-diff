@@ -18,6 +18,7 @@ import { Inbox } from '@once-upon-a-diff/state/queues/requests/inbox';
 import { AutoReview } from '@once-upon-a-diff/core/features/review/github-watcher';
 import type { BranchCheck } from '@once-upon-a-diff/state/records/github/github-checks';
 import { APPROVED_DAYS, approvalOf, forgetTips } from '@once-upon-a-diff/stories/approval';
+import { REVIEW_FILE, readReviewRecord } from '@once-upon-a-diff/stories/review-record';
 import { localEntries, localStories } from '@once-upon-a-diff/core/features/review/story-lists';
 import { columnOf } from '@once-upon-a-diff/board/columns';
 import { boardKey, pageKey, viewKey } from '@once-upon-a-diff/state/records/page-links/page-key';
@@ -113,8 +114,16 @@ test('Approve records the head, marks the story reviewed, tells a listener once,
     const first = await post(pageKey(TOKEN, id), url, { head_sha: head() });
     assert.equal(first.status, 200, first.text);
     assert.equal(first.body.approved?.head_oid, head());
-    const state = store.readState<{ by: string; at: string } | null>(id, 'reviewed.json', null);
-    assert.equal(state?.by, 'approved');
+    const record = readReviewRecord(store, id);
+    assert.equal(record?.approval?.head_oid, head());
+    assert.equal(record?.mark, undefined, 'the approval is the whole record: no mark of its own');
+    assert.equal(
+      localStories(store)[0].reviewed_by,
+      'approved',
+      'shown as reviewed by the approval',
+    );
+    assert.equal(store.readState(id, 'approved.json', null), null);
+    assert.equal(store.readState(id, 'reviewed.json', null), null);
     assert.equal(events().length, 1);
     assert.equal(events()[0].head_sha, head());
     assert.equal(events()[0].branch, 'feature');
@@ -147,22 +156,33 @@ test('Unapprove takes back the mark approving wrote, but not one made by hand', 
     const off = await post(pageKey(TOKEN, id), url, { approved: false });
     assert.equal(off.body.approved, null);
     assert.equal(
-      store.readState(id, 'reviewed.json', null),
+      store.readState(id, REVIEW_FILE, null),
       null,
-      'no mark left, so the background checks can still call it done',
+      'no record left, so the background checks can still call it done',
     );
     assert.equal(localStories(store)[0].reviewed_at, null, 'back in Ready');
     assert.equal(approvalOf(store, id, head()), null);
 
     // marked reviewed by hand first: approving keeps that mark, and so does unapproving
-    store.writeState(id, 'reviewed.json', { at: '2026-10-28T12:00:00.000Z', by: 'manual' });
+    store.writeState(id, REVIEW_FILE, { mark: { at: '2026-10-28T12:00:00.000Z', by: 'manual' } });
     await post(pageKey(TOKEN, id), url, { head_sha: head() });
-    assert.equal(store.readState<{ by: string } | null>(id, 'reviewed.json', null)?.by, 'manual');
-    await post(pageKey(TOKEN, id), url, { approved: false });
+    assert.equal(readReviewRecord(store, id)?.mark?.by, 'manual');
     assert.equal(
-      store.readState<{ at: string } | null>(id, 'reviewed.json', null)?.at,
-      '2026-10-28T12:00:00.000Z',
+      localStories(store)[0].reviewed_by,
+      'manual',
+      'the hand mark shows, not `approved`',
     );
+    await post(pageKey(TOKEN, id), url, { approved: false });
+    assert.equal(readReviewRecord(store, id)?.mark?.at, '2026-10-28T12:00:00.000Z');
+
+    // marked by hand while approved: the mark survives the undo too
+    await post(pageKey(TOKEN, id), url, { head_sha: head() });
+    store.writeState(id, REVIEW_FILE, {
+      ...readReviewRecord(store, id),
+      mark: { at: '2026-10-29T12:00:00.000Z', by: 'manual' },
+    });
+    await post(pageKey(TOKEN, id), url, { approved: false });
+    assert.equal(readReviewRecord(store, id)?.mark?.at, '2026-10-29T12:00:00.000Z');
   } finally {
     await bridge.close();
   }
@@ -213,7 +233,7 @@ test('an approval counts only for its head and for APPROVED_DAYS, and the backgr
     review.kickLocal(localEntries(store, { now }), now + 1000);
     await review.idle();
     assert.equal(
-      store.readState<{ lapsed?: boolean } | null>(id, 'approved.json', null)?.lapsed,
+      readReviewRecord(store, id)?.approval?.lapsed,
       true,
       'lapsed: it counts for nothing, and only a fixer’s commit on the card can carry it',
     );
@@ -328,35 +348,34 @@ test('once-upon approve approves at the current head, tells a story listener onl
 
     const undone = await runCli(home, ['approve', id, '--undo']);
     assert.match(undone.stdout, /approval cleared/);
-    assert.equal(store.readState(id, 'approved.json', null), null);
+    assert.equal(readReviewRecord(store, id)?.approval, undefined);
     assert.notEqual((await runCli(home, ['approve', 'nope'])).code, 0);
   } finally {
     await bridge.close();
   }
 });
 
-test('approve --undo writes no reviewed.json, and says so when there was no approval to clear', async () => {
+test('approve --undo writes no review.json, and says so when there was no approval to clear', async () => {
   const { home, id, bridge, store } = await setup();
   try {
     writeJson(path.join(home, 'config.json'), { port: 1, token: TOKEN });
     const undone = await runCli(home, ['approve', id, '--undo']);
     assert.equal(undone.code, 0, undone.stderr);
     assert.match(undone.stdout, /has no approval to clear/);
-    assert.equal(store.readState(id, 'reviewed.json', null), null);
+    assert.equal(store.readState(id, REVIEW_FILE, null), null);
 
     // the background check ended the approval of a shipped story and marked it `pr`: --undo leaves that mark alone
-    store.writeState(id, 'reviewed.json', { at: new Date().toISOString(), by: 'pr' });
+    store.writeState(id, REVIEW_FILE, { mark: { at: new Date().toISOString(), by: 'pr' } });
     const again = await runCli(home, ['approve', id, '--undo']);
     assert.match(again.stdout, /has no approval to clear/);
-    assert.equal(store.readState<{ by: string } | null>(id, 'reviewed.json', null)?.by, 'pr');
+    assert.equal(readReviewRecord(store, id)?.mark?.by, 'pr');
 
-    // an approval that is there is cleared, with the mark approving wrote, and nothing is written in its place
-    store.writeState(id, 'reviewed.json', null);
+    // an approval that is there is cleared, and nothing is written in its place
+    store.writeState(id, REVIEW_FILE, null);
     assert.equal((await runCli(home, ['approve', id])).code, 0);
-    assert.equal(store.readState<{ by: string } | null>(id, 'reviewed.json', null)?.by, 'approved');
+    assert.equal(localStories(store)[0].reviewed_by, 'approved');
     assert.match((await runCli(home, ['approve', id, '--undo'])).stdout, /approval cleared/);
-    assert.equal(store.readState(id, 'approved.json', null), null);
-    assert.equal(store.readState(id, 'reviewed.json', null), null);
+    assert.equal(readReviewRecord(store, id), null);
   } finally {
     await bridge.close();
   }
@@ -394,7 +413,7 @@ test('a squash-merged PR ships an approved story, which the default branch never
     await run(async () => ({ number: 7001, state: 'open', merged_at: null }));
     assert.equal(approvalOf(store, id, head())?.head_oid, head(), 'an open PR leaves it');
     await run(squashed(head));
-    assert.equal(store.readState(id, 'approved.json', null), null, 'cleared');
+    assert.equal(readReviewRecord(store, id)?.approval, undefined, 'cleared');
     const after = localStories(store, { now })[0];
     assert.equal(after.approved_at, null);
     assert.equal(after.reviewed_by, 'pr');
@@ -424,7 +443,7 @@ test('a PR squash-merged after GitHub added a commit ships the approved story: i
     await review.idle();
     review.kickLocal(localEntries(store, { now }), now + 1);
     await review.idle();
-    assert.equal(store.readState(id, 'approved.json', null), null, 'cleared');
+    assert.equal(readReviewRecord(store, id)?.approval, undefined, 'cleared');
   } finally {
     await bridge.close();
   }
@@ -449,10 +468,10 @@ test('approve --undo on a squash-merged story does not strand it in Ready: the P
     await review.idle();
     assert.equal(localStories(store, { now })[0].reviewed_by, 'pr');
     // an unmark by hand before approving comes back with the unapprove
-    store.writeState(id, 'reviewed.json', { at: null, by: 'manual' });
+    store.writeState(id, REVIEW_FILE, { mark: { at: null, by: 'manual' } });
     await post(pageKey(TOKEN, id), `/api/stories/${id}/approve`, { head_sha: head() });
     await post(pageKey(TOKEN, id), `/api/stories/${id}/approve`, { approved: false });
-    assert.deepEqual(store.readState(id, 'reviewed.json', null), { at: null, by: 'manual' });
+    assert.deepEqual(readReviewRecord(store, id)?.mark, { at: null, by: 'manual' });
   } finally {
     await bridge.close();
   }
@@ -507,7 +526,7 @@ test('a merged PR is taken for an approved story by its head alone, so a deleted
     await review.idle();
     review.kickLocal(localEntries(store, { now }), now + 1);
     await review.idle();
-    assert.equal(store.readState(id, 'approved.json', null), null);
+    assert.equal(readReviewRecord(store, id)?.approval, undefined);
     assert.equal(localStories(store, { now })[0].reviewed_by, 'pr');
   } finally {
     await bridge.close();

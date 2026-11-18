@@ -7,6 +7,7 @@ import { CLAUDE_DIR } from '@once-upon-a-diff/test-kit/env';
 import { setVoiceWaits } from '@once-upon-a-diff/adapters/larmor';
 import { fakeLarmorIn } from '@once-upon-a-diff/test-kit/fake-larmor';
 import { StoryStore } from '@once-upon-a-diff/stories/store';
+import { readReviewRecord } from '@once-upon-a-diff/stories/review-record';
 
 export const NOW = new Date('2026-10-26T19:00:00Z');
 
@@ -190,11 +191,7 @@ export function localStory(
 }
 
 export const reviewedBy = (home: string, id: string) =>
-  new StoryStore({ home }).readState<{ at: string | null; by: string } | null>(
-    id,
-    'reviewed.json',
-    null,
-  )?.by ?? null;
+  readReviewRecord(new StoryStore({ home }), id)?.mark?.by ?? null;
 
 /** A fake it2 that lists no tabs, so statuses fall back to the registry's. */
 export function fakeIt2(): string {

@@ -1,10 +1,13 @@
 /*
  * `once-upon reviewed ID [--undo]`: mark a local story reviewed (or unmark it) from a session, for when you have said
- * "approved". It writes the story's reviewed.json in-process, the same file the board card's Mark
- * reviewed writes, so nothing goes over HTTP. A PR story is marked by reviewing it on GitHub.
+ * "approved". It writes the `mark` in the story's review.json in-process, the same one the board
+ * card's Mark reviewed writes, so nothing goes over HTTP. A PR story is marked by reviewing it on GitHub.
  */
 import { StoryStore } from '@once-upon-a-diff/stories/store';
-import { localStory, markStoryReviewed } from '@once-upon-a-diff/core/features/review/story-lists';
+import {
+  localEntries,
+  markStoryReviewed,
+} from '@once-upon-a-diff/core/features/review/story-lists';
 import { out } from '../output.ts';
 import type { Config } from '@once-upon-a-diff/foundation/settings';
 import type { CliOpts, Command } from '../types.ts';
@@ -18,13 +21,13 @@ function reviewed(home: string, cfg: Config, opts: CliOpts) {
     throw new Error(USAGE);
   }
   const stories = new StoryStore({ home });
-  const story = localStory(stories, id);
-  if (!story) {
+  const entry = localEntries(stories).find((one) => one.story.id === id);
+  if (!entry) {
     throw new Error(`no local story ${id} (once-upon list shows them)`);
   }
   const undo = !!opts.undo;
-  markStoryReviewed(stories, id, !undo);
-  return out(`${id} ${undo ? 'marked not reviewed' : 'marked reviewed'}: ${story.title}`);
+  markStoryReviewed(stories, id, !undo, 'manual', entry.head_oid);
+  return out(`${id} ${undo ? 'marked not reviewed' : 'marked reviewed'}: ${entry.story.title}`);
 }
 
 export const reviewedCommands: Command[] = [

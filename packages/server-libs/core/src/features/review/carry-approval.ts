@@ -33,13 +33,13 @@ import { sameRepo } from '@once-upon-a-diff/foundation/repos';
 import { StoryStore } from '@once-upon-a-diff/stories/store';
 import { readMeta } from '@once-upon-a-diff/stories/meta';
 import { refreshLocal } from '@once-upon-a-diff/stories/local-diff';
-import { APPROVAL_FILE, approvalFresh, readApproval } from '@once-upon-a-diff/stories/approval';
-import type { Approval } from '@once-upon-a-diff/stories/approval';
+import { approvalFresh, readApproval } from '@once-upon-a-diff/stories/approval';
 import type { LocalMeta } from '@once-upon-a-diff/stories/types';
 import type { LocalCommit } from '@once-upon-a-diff/contracts/types';
 import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import type { LedgerAgent } from '@once-upon-a-diff/state/records/agents/ledger';
-import { localEntries, markStoryReviewed } from './story-lists.ts';
+import { localEntries } from './story-lists.ts';
+import { updateReviewRecord } from './review-record.ts';
 
 const SHA_RE = /^[0-9a-f]{7,40}$/i;
 
@@ -153,21 +153,18 @@ export function carryApproval(
   // the story follows its checkout, so its head moves to the commit now rather than on the next page poll
   const meta = dir ? refreshLocal(dir, readMeta(dir) as LocalMeta) : null;
   const { lapsed: _lapsed, ...kept } = approval;
-  stories.writeState(id, APPROVAL_FILE, {
-    ...kept,
-    head_oid: tip,
-    base_oid: rebasedBase ?? meta?.base_oid ?? approval.base_oid,
-    carried: {
-      from: approval.carried?.from ?? approval.head_oid,
-      at: new Date(now).toISOString(),
-      run: run.run ?? '',
-      ...(rebasedBase && { via: 'rebase' as const }),
-    },
-  } satisfies Approval);
-  // the lapse took the mark approving wrote: it comes back with the approval
-  const mark = stories.readState<{ at?: string | null } | null>(id, 'reviewed.json', null);
-  if (approval.marked && !mark?.at) {
-    markStoryReviewed(stories, id, true, 'approved');
-  }
+  updateReviewRecord(stories, id, (record) => {
+    record.approval = {
+      ...kept,
+      head_oid: tip,
+      base_oid: rebasedBase ?? meta?.base_oid ?? approval.base_oid,
+      carried: {
+        from: approval.carried?.from ?? approval.head_oid,
+        at: new Date(now).toISOString(),
+        run: run.run ?? '',
+        ...(rebasedBase && { via: 'rebase' as const }),
+      },
+    };
+  });
   return { from: approval.head_oid, to: tip, ...(rebasedBase && { via: 'rebase' as const }) };
 }

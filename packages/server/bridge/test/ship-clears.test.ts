@@ -6,6 +6,7 @@ import { claimAt, git, localRepo, runCli, tmp, writeJson } from './helpers.ts';
 import { createLocalStory } from '@once-upon-a-diff/stories/local-story';
 import { StoryStore } from '@once-upon-a-diff/stories/store';
 import { approvalOf, forgetTips, readApproval } from '@once-upon-a-diff/stories/approval';
+import { REVIEW_FILE, readReviewRecord } from '@once-upon-a-diff/stories/review-record';
 import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
 import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { AutoReview } from '@once-upon-a-diff/core/features/review/github-watcher';
@@ -444,17 +445,18 @@ async function lapsedThenMarked() {
   review.kickLocal(localEntries(setup.store, { now }), now);
   await review.idle();
   assert.equal(readApproval(setup.store, setup.id)?.lapsed, true);
-  assert.equal(setup.store.readState(setup.id, 'reviewed.json', null), null);
+  assert.equal(readReviewRecord(setup.store, setup.id)?.mark, undefined);
   assert.equal((await setup.cli('reviewed', setup.id)).code, 0);
   return setup;
 }
 const marked = (setup: ReturnType<typeof world>) =>
-  !!setup.store.readState<{ at?: string } | null>(setup.id, 'reviewed.json', null)?.at;
+  !!readReviewRecord(setup.store, setup.id)?.mark?.at;
 
-test('re-approving after a lapse takes no mark bookkeeping from the lapsed approval', async () => {
+test('a hand mark made after a lapse survives re-approving and undoing', async () => {
   const setup = await lapsedThenMarked();
   assert.equal((await setup.cli('approve', setup.id)).code, 0);
-  assert.equal(readApproval(setup.store, setup.id)?.marked, false, 'the mark was already there');
+  assert.equal(readApproval(setup.store, setup.id)?.lapsed, undefined, 'a fresh approval');
+  assert.equal(marked(setup), true, 'your hand mark stays under it');
   assert.equal((await setup.cli('approve', setup.id, '--undo')).code, 0);
   assert.equal(marked(setup), true, 'your hand mark stays');
 });
@@ -482,16 +484,20 @@ test('a lapsed approval (the watcher saw the new tip first) is carried; an undon
   assert.equal(lapsed?.head_oid, first);
   assert.equal(approvalOf(store, id, first), null, 'a lapsed approval counts for nothing');
   assert.equal(localEntries(store, { now })[0].story.approved_at, null);
-  assert.equal(store.readState(id, 'reviewed.json', null), null, 'the mark went with it');
+  assert.equal(
+    localEntries(store, { now })[0].story.reviewed_at,
+    null,
+    'the approved mark went with it',
+  );
 
   const fixed = await cli(...finishArgs('fix-it', second, card));
   assert.match(fixed.stdout, /approval carried/);
   assert.equal(readApproval(store, id)?.lapsed, undefined);
   assert.equal(approvalOf(store, id, second)?.head_oid, second);
   assert.equal(
-    store.readState<{ by: string } | null>(id, 'reviewed.json', null)?.by,
+    localEntries(store, { now })[0].story.reviewed_by,
     'approved',
-    'the mark approving wrote is back',
+    'the approved mark is back with the approval',
   );
 
   // undone, then the branch moves and a fixer finishes: nothing to carry
@@ -515,7 +521,7 @@ test('a lapsed approval (the watcher saw the new tip first) is carried; an undon
   // an approval older than the window is not carried
   assert.equal((await cli('approve', id)).code, 0);
   const old = readApproval(store, id);
-  store.writeState(id, 'approved.json', { ...old, at: '2020-01-01T00:00:00.000Z' });
+  store.writeState(id, REVIEW_FILE, { approval: { ...old, at: '2020-01-01T00:00:00.000Z' } });
   assert.equal((await startRun('fix-three', 'fixer')).code, 0);
   const fourth = commit('four.txt');
   const expired = await cli(

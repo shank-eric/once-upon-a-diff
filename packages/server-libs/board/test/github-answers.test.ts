@@ -180,7 +180,7 @@ test('a loaded answer is display only: no done mark from it, until this run’s 
     prs: {},
     requested: null,
   });
-  const reviewed = path.join(home, 'state', 'local-dot-prop', 'reviewed.json');
+  const reviewed = path.join(home, 'state', 'local-dot-prop', 'review.json');
   const hub = fake();
   let release = () => {};
   hub.hold = new Promise<void>((resolve) => (release = resolve));
@@ -202,7 +202,7 @@ test('a loaded answer is display only: no done mark from it, until this run’s 
   await sim.cards();
   await sim.review.idle();
   await sim.cards();
-  assert.equal(JSON.parse(readFileSync(reviewed, 'utf8')).by, 'pr');
+  assert.equal(JSON.parse(readFileSync(reviewed, 'utf8')).mark.by, 'pr');
 });
 
 test('a missing, broken, other-version or expired file reads as empty; one good entry among bad ones is kept', () => {
