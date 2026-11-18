@@ -61,6 +61,15 @@ test('readyColumn: an open PR is PR open, pushed with no PR is Ready to ship, an
   assert.equal(readyColumn({ pr: 'open', pushed: true }, true), 'pr_open');
 });
 
+test('readyColumn: a branch that moved past what was reviewed is Working, only where it would be Ready', () => {
+  assert.equal(readyColumn({ pr: 'none', pushed: false, working: true }), 'working');
+  assert.equal(readyColumn({ pr: 'unknown', pushed: null, working: true }), 'working');
+  assert.equal(readyColumn({ pr: 'none', pushed: false, working: false }), 'ready');
+  assert.equal(readyColumn({ pr: 'none', pushed: true, working: true }), 'ship');
+  assert.equal(readyColumn({ pr: 'none', pushed: false, working: true }, true), 'ship');
+  assert.equal(readyColumn({ pr: 'open', pushed: false, working: true }), 'pr_open');
+});
+
 const NOW = Date.parse('2026-11-18T15:00:00Z');
 const finished: LedgerAgent = {
   sid: 'aaaaaaaa',
@@ -95,6 +104,8 @@ test('cardPhase row 6 takes the facts: unknown is today’s column', () => {
   assert.equal(column({ pr: 'none', pushed: true })?.column, 'ship');
   assert.equal(column({ pr: 'open', pushed: false })?.column, 'pr_open');
   assert.equal(column({ pr: 'open', pushed: false })?.row, '6');
+  assert.equal(column({ pr: 'none', pushed: false, working: true })?.column, 'working');
+  assert.equal(column({ pr: 'none', pushed: false, working: true })?.row, '6');
   assert.equal(column(undefined, true)?.column, 'ship', 'a skip-review repo');
   assert.equal(
     column({ pr: 'open', pushed: true }, true)?.column,

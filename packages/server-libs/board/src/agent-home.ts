@@ -29,11 +29,24 @@ export interface PendingReview {
   pr: 'open' | 'none';
   branch: string;
   path: string;
+  /** the branch has moved past the commit (a new commit or an amend), and no other run's card carries the tip */
+  working: boolean;
 }
 
-/** The column of a pending commit (ready.ts): an open PR is PR open, pushed with no PR is Ready to ship, else Ready for your review. */
-export function pendingColumn(pending: PendingReview): 'pr_open' | 'ship' | 'ready' {
-  return readyColumn({ pr: pending.pr, pushed: pending.pushed });
+/**
+ * The column of a pending commit (ready.ts): an open PR is PR open, pushed with no PR is Ready to ship, else Ready for your
+ * review, or Working when its branch has moved past the commit.
+ */
+export function pendingColumn(pending: PendingReview): 'pr_open' | 'ship' | 'ready' | 'working' {
+  return readyColumn({ pr: pending.pr, pushed: pending.pushed, working: pending.working });
+}
+
+/** What pendingReview asks of the board to tell a branch that moved past the author's commit from one that did not. */
+export interface MovedLookup {
+  /** the Lookups.movedPast answer for the worktree's tip (null: not known yet) */
+  past: (tree: WorktreeFacts, commit: string, tip: string) => boolean | null;
+  /** whether another run's own commit is that tip, so its card carries it (this one is then not the card to go Working) */
+  carried: (repo: string, branch: string, tip: string) => boolean;
 }
 
 /**
@@ -46,6 +59,10 @@ export function pendingColumn(pending: PendingReview): 'pr_open' | 'ship' | 'rea
  * worktrees only. The tip must be the commit, so a later worktree on a reused branch name, or a later commit on the same
  * branch, is not this agent's to wait on. It waits at most a week after its last activity, the time a Finish is kept for
  * (finished-agents.ts), so a Finish on its card is never forgotten while the card could come back.
+ *
+ * With `moved`, a branch whose tip is a later commit (or an amend) of the author's, and not another run's finished work, keeps
+ * the card, as `working`: someone is still changing it. Without it, or while the lookup has no answer, a moved branch is not
+ * this agent's to wait on, as before.
  */
 export function pendingReview(
   agent: Pick<LedgerAgent, 'state' | 'ended' | 'started'> &
@@ -54,6 +71,7 @@ export function pendingReview(
   branchPr: (repo: string, branch: string) => BranchPr | null | undefined,
   nowMs: number,
   prInfo: (repo: string, number: number) => PrInfo | null = () => null,
+  moved?: MovedLookup,
 ): PendingReview | null {
   const repo = agent.repo ?? null;
   const branch = agent.result?.branch ?? agent.branch ?? null;
@@ -72,13 +90,22 @@ export function pendingReview(
     return null;
   }
   const tree = trees.find((one) => !!one.repo && sameRepo(one.repo, repo) && one.branch === branch);
+  const tip = tree?.head?.toLowerCase() ?? '';
   if (
     !tree ||
-    !tree.head?.toLowerCase().startsWith(commit) ||
+    !tip ||
     tree.defaultBranch === branch ||
     tree.merged !== false ||
     tree.superseded !== false
   ) {
+    return null;
+  }
+  const working =
+    !tip.startsWith(commit) &&
+    !!moved &&
+    !moved.carried(repo, branch, tip) &&
+    moved.past(tree, commit, tip) === true;
+  if (!tip.startsWith(commit) && !working) {
     return null;
   }
   const typed = agent.result?.pr;
@@ -89,7 +116,7 @@ export function pendingReview(
   });
   return facts.pr === 'unknown'
     ? null
-    : { pushed: facts.pushed === true, pr: facts.pr, branch, path: tree.path };
+    : { pushed: facts.pushed === true, pr: facts.pr, branch, path: tree.path, working };
 }
 
 /** An author that finished done with no commit and changes left in its worktree (`agent finish` recorded it once). */
@@ -114,7 +141,8 @@ export function leftUncommitted(
  *                                             though its finish named no commit (a launcher closing it after the deploy)
  *   registered, done, pending review          An author's commit on a branch that is not merged (pendingReview), with or
  *                                             without a card, story or critic: with an open PR, PR open; pushed with no PR,
- *                                             Ready to ship; not pushed, Ready for your review (pendingColumn)
+ *                                             Ready to ship; not pushed, Ready for your review, or Working when its
+ *                                             branch moved past the commit (pendingColumn)
  *   registered, done, left uncommitted        Ready for your review: an author's worktree had changes and no commit when it
  *                                             finished (recorded once at the finish, never checked live)
  *   registered, finished with a result        Done: a commit, PR, branch or card (given with --commit, --pr, --branch or
@@ -131,7 +159,7 @@ export function finishedColumn(
     Partial<Pick<LedgerAgent, 'kind' | 'result' | 'uncommitted'>>,
   landed = false,
   pending: PendingReview | null = null,
-): 'done' | 'research' | 'error' | 'ready' | 'ship' | 'pr_open' {
+): 'done' | 'research' | 'error' | 'ready' | 'working' | 'ship' | 'pr_open' {
   if (agent.state === 'failed') {
     return 'error';
   }
@@ -215,8 +243,11 @@ function whyDone(
   if (result.commit) {
     const committed = `committed ${shortSha(result.commit)}`;
     if (pending) {
-      const pushed = pending.pushed ? 'no PR' : 'not pushed';
-      return `${committed}, ${pending.pr === 'open' ? 'PR open' : pushed}`;
+      let state = pending.pushed ? 'no PR' : 'not pushed';
+      if (pending.working) {
+        state = 'branch moved on';
+      }
+      return `${committed}, ${pending.pr === 'open' ? 'PR open' : state}`;
     }
     return committed;
   }

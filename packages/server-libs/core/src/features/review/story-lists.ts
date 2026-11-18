@@ -103,6 +103,8 @@ export interface LocalEntry {
   repo_path: string | null;
   base_oid: string | null;
   head_oid: string | null;
+  /** the commit the chapters were told over (meta.json's `told_head_oid`): what you were to review, which `head_oid` follows away from */
+  told_head_oid: string | null;
   /** meta.json's `head`: the ref the story follows (HEAD or a branch), for finding where it is now */
   head_ref: string | null;
   /** the record's approval (null once it has lapsed), which the background check lets go of when the head has moved on */
@@ -180,6 +182,7 @@ export function localEntries(
       repo_path: story.repo_path,
       base_oid: typeof meta.base_oid === 'string' ? meta.base_oid : null,
       head_oid: typeof meta.head_oid === 'string' ? meta.head_oid : null,
+      told_head_oid: typeof meta.told_head_oid === 'string' ? meta.told_head_oid : null,
       head_ref: typeof meta.head === 'string' ? meta.head : null,
       approval: record?.approval?.lapsed ? null : (record?.approval ?? null),
       marked: isDecided(record),

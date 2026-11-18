@@ -2,6 +2,7 @@
  * The background agents on the board: which are shown, and where each goes. An agent whose run names a card is on that card
  * (ADR-25); every other agent is a card of its own, on its own lane.
  */
+import { sameRepo } from '@once-upon-a-diff/foundation/repos';
 import { agentWorkKey, isImplicitCard, isSelfName } from '@once-upon-a-diff/terms/ids';
 import {
   finishedColumn,
@@ -194,8 +195,9 @@ export interface AgentFacts {
  * with no result, in Error when it failed, in Done when it was stopped or is an author that made nothing (finishedColumn; a done
  * agent whose registered card landed made something). An author whose commit is on a branch that is not merged is
  * in Ready for your review (not pushed), Ready to ship (pushed, GitHub says no PR) or PR open (an open PR) (pendingReview,
- * pendingColumn), and stays there with no timer until Finish clears it, the branch merges, moves on or loses its worktree,
- * or a week has passed (the time a Finish is kept). Its `summary` says what it did and why it is done. An
+ * pendingColumn; Working instead of Ready when its branch has since moved past the commit with a later commit or an amend,
+ * unless another run's finished commit is the tip), and stays there with no timer until Finish clears it, the branch merges,
+ * moves on or loses its worktree, or a week has passed (the time a Finish is kept). Its `summary` says what it did and why it is done. An
  * author's card in Error, or in Done with no result, stays `doneHours` (an hour), not `finishedWaitMinutes`. A later event brings the card back, with a fresh timer.
  */
 export function placeAgents(
@@ -239,6 +241,20 @@ export function placeAgents(
           ctx.review.kickInfo(repo, number, nowMs);
           return ctx.review.info(repo, number);
         },
+        {
+          past: (tree, commit, tip) =>
+            ctx.lookups.movedPast(tree.path, commit, tip, tree.defaultBranch),
+          carried: (repo, branch, tip) =>
+            agents.some(
+              (other) =>
+                other.kind === 'author' &&
+                !!other.repo &&
+                sameRepo(other.repo, repo) &&
+                (other.result?.branch ?? other.branch) === branch &&
+                (other.result?.commit?.length ?? 0) >= 7 &&
+                tip.startsWith(other.result?.commit?.toLowerCase() ?? ''),
+            ),
+        },
       ),
     ]),
   );
@@ -273,7 +289,11 @@ export function placeAgents(
         : waitMs;
     // a commit waiting on you (Ready for your review, Ready to ship, PR open) has no timer: it stays until Finish clears it,
     // the branch merges or moves on
-    const waitsOnYou = finishedIn === 'ready' || finishedIn === 'ship' || finishedIn === 'pr_open';
+    const waitsOnYou =
+      finishedIn === 'ready' ||
+      finishedIn === 'working' ||
+      finishedIn === 'ship' ||
+      finishedIn === 'pr_open';
     const clearsAt =
       !waitsOnYou && isFinished(agent) && active && active.getTime() + staysMs > nowMs
         ? new Date(active.getTime() + staysMs)
@@ -318,6 +338,7 @@ export function placeAgents(
           },
           trees,
           nowMs,
+          { commit: agent.result?.commit, movedPast: ctx.lookups.movedPast },
         ),
       );
     }

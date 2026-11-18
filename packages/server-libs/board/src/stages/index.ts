@@ -61,6 +61,7 @@ import { voiceLines } from '@once-upon-a-diff/adapters/larmor';
 import { placeSessions, readLive, readSessionFacts, type SeenSession } from './sessions.ts';
 import { blankStrip, voiceOf } from './strips.ts';
 import type { BuildContext, StoryFacts } from './types.ts';
+import { movedCards } from './moved.ts';
 import { collectWorks } from './works.ts';
 import { worktreeSection } from './worktrees.ts';
 
@@ -174,8 +175,17 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
   );
   markLandedWorks(backlogItems, cards, nowMs, byStory, agents);
 
-  // the columns, now that every card has its sessions and agents
-  placeCards(cards, byStory);
+  // the columns, now that every card has its sessions and agents; a Ready card whose branch moved past its story is Working
+  placeCards(
+    cards,
+    byStory,
+    movedCards(
+      cards,
+      collected.toldHeads,
+      settings.worktrees ? state.scanner.read().items : [],
+      ctx.lookups.movedPast,
+    ),
+  );
 
   const { listening, sessionViews } = markListening(ctx, cards, {
     waits,

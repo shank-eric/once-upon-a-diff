@@ -66,6 +66,17 @@ export interface Lookups {
   ): Promise<{ at: number | null } | null>;
   /** a PR card's commits ahead of origin, as the checkout of a local story of its branch has them */
   aheadFor(found: { story: string; checkout: string }, branch: string): BoardCard['ahead'];
+  /**
+   * Whether the branch's tip `tip`, in the worktree `checkout`, has moved past `told`, the commit a story or an author's work
+   * was reviewed at: a new commit on top, or an amend (not a pure rebase). Null until the background look answers, or when git
+   * cannot say; a null changes nothing on the card.
+   */
+  movedPast(
+    checkout: string,
+    told: string,
+    tip: string,
+    defaultBranch: string | null,
+  ): boolean | null;
 }
 
 /** What every stage may read: the clock, the settings, the stores and the GitHub watcher. */

@@ -29,6 +29,7 @@ const ctx = () =>
     now: new Date(NOW),
     nowMs: NOW,
     settings: { finishedWaitMinutes: 30, doneHours: 4 },
+    lookups: { movedPast: () => null },
   }) as unknown as BuildContext;
 
 /** A work card (or a session card, with `kind`), as far as placement reads it. */
@@ -622,7 +623,13 @@ test('a landing from before the run started is an earlier run’s; one at its st
 });
 
 /** What pendingReview says of an unpushed commit on feat/x. */
-const PENDING = { pushed: false, pr: 'none' as const, branch: 'feat/x', path: '/wt/feat-x' };
+const PENDING = {
+  pushed: false,
+  pr: 'none' as const,
+  branch: 'feat/x',
+  path: '/wt/feat-x',
+  working: false,
+};
 
 /** The tip of feat/x's worktree: the commit the author below finished with. */
 const TIP = 'c80964d9' + '0'.repeat(32);
@@ -655,6 +662,9 @@ const placeWith = (
     /** GitHub's answer for a typed PR number (null: not answered yet), and the numbers asked for */
     info?: unknown;
     asked?: number[];
+    /** what the board's movedPast lookup answers (null: not known yet, the default); the tip pairs asked are pushed to `looks` */
+    moved?: boolean | null;
+    looks?: string[][];
   } = {},
 ) => {
   const { cards = [], tree = {}, items = [], home, info = null, asked = [] } = options;
@@ -664,12 +674,22 @@ const placeWith = (
     kickInfo: (_repo: string, number: number) => asked.push(number),
     info: () => info,
   } as unknown as PrWatcher;
-  return placeAgents({ ...ctx(), ...(home ? { home } : {}), review } as BuildContext, cards, {
-    agents,
-    pin: null,
-    items,
-    trees: tree ? [{ ...facts('/wt/feat-x'), head: TIP, unpushed: 1, ...tree }] : [],
-  });
+  const lookups = {
+    movedPast: (_checkout: string, told: string, tip: string) => {
+      options.looks?.push([told, tip]);
+      return options.moved ?? null;
+    },
+  };
+  return placeAgents(
+    { ...ctx(), ...(home ? { home } : {}), review, lookups } as unknown as BuildContext,
+    cards,
+    {
+      agents,
+      pin: null,
+      items,
+      trees: tree ? [{ ...facts('/wt/feat-x'), head: TIP, unpushed: 1, ...tree }] : [],
+    },
+  );
 };
 const ownCard = (agent: LedgerAgent, options: Parameters<typeof placeWith>[1] = {}) => {
   const [own] = placeWith([agent], options);
@@ -916,6 +936,67 @@ test('an old author whose branch name is reused is not Ready: its commit must be
       ['ou-later', 'ready'],
     ],
   );
+});
+
+test('a finished author whose branch moved past its commit is Working until another run’s finished work carries the tip', () => {
+  const tip = 'f'.repeat(40);
+  const looks: string[][] = [];
+  assert.deepEqual(ownCard(committer(), { tree: { head: tip }, moved: true, looks }), {
+    column: 'working',
+    why: 'committed c80964d, branch moved on',
+  });
+  assert.deepEqual(looks, [['c80964d9', tip]], 'asked with the commit and the tip');
+  // no answer yet, or an answer of no: not this agent’s to wait on, as before
+  assert.equal(ownCard(committer(), { tree: { head: tip }, moved: null })?.column, 'done');
+  assert.equal(ownCard(committer(), { tree: { head: tip }, moved: false })?.column, 'done');
+  // the tip is the commit: nothing is asked
+  const untouched: string[][] = [];
+  assert.equal(ownCard(committer(), { moved: true, looks: untouched })?.column, 'ready');
+  assert.deepEqual(untouched, []);
+  // another author's finished commit is the tip: its card carries it, and this one is Done (not Working for good)
+  const rework = committer({
+    name: 'ou-rework',
+    result: { commit: tip.slice(0, 8), branch: 'feat/x' },
+  });
+  const asked: string[][] = [];
+  assert.deepEqual(
+    placeWith([committer(), rework], { tree: { head: tip }, moved: true, looks: asked }).map(
+      (one) => [one.title, one.column],
+    ),
+    [
+      ['ou-commit', 'done'],
+      ['ou-rework', 'ready'],
+    ],
+  );
+  assert.deepEqual(asked, [], 'a carried tip is not looked up');
+  // with no timer: a Working card of this kind is kept until Finish, as Ready is
+  const week = placeWith(
+    [committer({ ended: new Date(NOW - 3 * 3600000), lastEvent: new Date(NOW - 3 * 3600000) })],
+    { tree: { head: tip }, moved: true },
+  );
+  assert.equal(week[0]?.column, 'working');
+  assert.equal(week[0]?.agents[0].clears_at ?? null, null);
+});
+
+test('a [review] agent whose branch moved past its commit is Working, and a no-PR open one still PR open', () => {
+  const tip = 'f'.repeat(40);
+  const open = { number: 9, state: 'open', merged_at: null };
+  const parkedOn = (options: Parameters<typeof placeWith>[1]) =>
+    placeWith(
+      [
+        committer({
+          state: 'waiting',
+          review: true,
+          ended: new Date(NOW - 60000),
+          lastEvent: new Date(NOW - 60000),
+        }),
+      ],
+      options,
+    )[0]?.column;
+  assert.equal(parkedOn({ tree: { head: tip }, moved: true }), 'working');
+  assert.equal(parkedOn({ tree: { head: tip }, moved: null }), 'ready');
+  assert.equal(parkedOn({ tree: { head: tip, unpushed: 0 }, moved: true }), 'ship');
+  assert.equal(parkedOn({ tree: { head: tip }, moved: true, pr: open }), 'pr_open');
 });
 
 test('a pending author stops waiting after the week Finish is kept for, so a purged Finish never brings it back', () => {

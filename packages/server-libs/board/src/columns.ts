@@ -33,6 +33,10 @@
  *   error     a session whose tab says error
  *   idle      nothing is happening and there is no PR: a session at its prompt (a lane along the bottom of the page)
  *
+ * A card that would be in ready, but whose branch has moved past the commit its story was told over (a new commit or an
+ * amend, not a pure rebase: stages/moved.ts) is in working instead: someone is still changing what you were to review. The
+ * story's told commit is back in step after a retell, which puts the card back in ready.
+ *
  * A card in Back to you clears when you mark its story reviewed, open it (the panel records where you stopped and what
  * you read), submit your review on GitHub, or the auto-review rules fire.
  */
@@ -72,6 +76,8 @@ export interface ColumnInput {
   } | null;
   /** a session is building, rebuilding or fixing for it */
   building?: boolean;
+  /** the branch has moved past the commit the story was told over (stages/moved.ts): a card that would be Ready is Working */
+  moved?: boolean;
 }
 
 /** When you last acted on the PR (ms): on GitHub, or by marking its story reviewed by hand. null when there is no sign. */
@@ -91,7 +97,8 @@ export function isBackToYou(input: Pick<ColumnInput, 'pr' | 'story'>): boolean {
 }
 
 export function columnOf(input: ColumnInput): BoardColumn {
-  const { sessions, agents, pr, story, building } = input;
+  const { sessions, agents, pr, story, building, moved } = input;
+  const ready = moved ? 'working' : 'ready';
   if (
     sessions.some((session) => session.status === 'waiting') ||
     agents.some((agent) => agent.state === 'waiting' && !agent.review)
@@ -130,24 +137,24 @@ export function columnOf(input: ColumnInput): BoardColumn {
   // code while reviewing it; the ball is theirs unless GitHub requests you or its story has a new version)
   // a stub PR (before GitHub says who wrote it) is not known to be yours: it stays in PR open, marked unconfirmed, until it fills in
   if (story?.answered && (!pr || pr.mine)) {
-    return pr ? 'back' : 'ready';
+    return pr ? 'back' : ready;
   }
   // a story you have marked reviewed takes the card out of Ready even while the agent's [review] line stands
   if (!pr && !story?.reviewed && agents.some((agent) => agent.review)) {
-    return 'ready';
+    return ready;
   }
   // Ready for your review is the Mac's side: a story whose work has no PR. Once a PR exists (even with a local story
   // of its branch, or a PR story you haven't opened), the card follows the PR's rules on the GitHub side
   if (story?.unread) {
     if (!pr) {
-      return 'ready';
+      return ready;
     }
     if (!story.local) {
       return 'back';
     }
   }
   if (story && !story.reviewed && !pr) {
-    return 'ready';
+    return ready;
   }
   if (pr) {
     return isBackToYou(input) || pr.review_requested ? 'back' : 'pr_open';

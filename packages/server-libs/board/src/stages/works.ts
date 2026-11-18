@@ -35,6 +35,8 @@ export interface CollectedWorks {
   localStoryList: InboxLocalStory[];
   /** the newest local story's checkout for each repo and branch, for a PR card's commits-ahead count */
   localCheckouts: Map<string, { story: string; checkout: string }>;
+  /** each local story's told head (the commit its chapters were told over), for a Ready card whose branch moves past it */
+  toldHeads: Map<string, string>;
 }
 
 /**
@@ -235,5 +237,10 @@ export function collectWorks(ctx: BuildContext): CollectedWorks {
     ]),
   );
   linkBranchWorks(works, review, localCheckouts, headsOf, nowMs);
-  return { works, stories, localStoryList, localCheckouts };
+  const toldHeads = new Map(
+    localEntryList.flatMap((entry) =>
+      entry.told_head_oid ? [[entry.story.id, entry.told_head_oid] as const] : [],
+    ),
+  );
+  return { works, stories, localStoryList, localCheckouts, toldHeads };
 }

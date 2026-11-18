@@ -1,0 +1,445 @@
+{
+  "board": {
+    "at": "2026-10-26T19:00:00.000Z",
+    "blank": [],
+    "editors": [],
+    "helpers": [],
+    "lanes": [
+      {
+        "cards": [
+          {
+            "agents": [],
+            "ahead": null,
+            "branch": "feat-a",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "working",
+            "detail": "branch moved past its story",
+            "focus_session": null,
+            "id": "branch:acme/widgets@feat-a",
+            "kind": "work",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/widgets",
+            "sessions": [],
+            "since": null,
+            "story": {
+              "approved_at": null,
+              "id": "story-feat-a",
+              "kind": "local",
+              "reviewed": false,
+              "unread": false,
+              "unread_answers": 0,
+              "url": null
+            },
+            "title": "Story of story-feat-a",
+            "worktrees": [
+              {
+                "attention": null,
+                "branch": "feat-a",
+                "deletes_branch": false,
+                "ignored": [],
+                "in_use": [],
+                "keep": [
+                  "made less than an hour ago",
+                  "3 unpushed"
+                ],
+                "lane": "acme/widgets",
+                "last_commit_at": "2026-10-26T18:00:00.000Z",
+                "locked": false,
+                "main": "<WORK>/moved-repo-49/widgets",
+                "modified": 0,
+                "name": "feat-a",
+                "path": "<WORK>/moved-repo-49/widgets-worktrees/feat-a",
+                "pr": {
+                  "number": null,
+                  "state": "none"
+                },
+                "removable": false,
+                "repo": "acme/widgets",
+                "size_kb": "<kb>",
+                "stale": false,
+                "state": "clean",
+                "unpushed": 3,
+                "untracked": 0,
+                "verdict": "new"
+              }
+            ]
+          },
+          {
+            "agents": [],
+            "ahead": null,
+            "branch": "feat-b",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "ready",
+            "detail": null,
+            "focus_session": null,
+            "id": "branch:acme/widgets@feat-b",
+            "kind": "work",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/widgets",
+            "sessions": [],
+            "since": "2026-10-26T13:12:00.000Z",
+            "story": {
+              "approved_at": null,
+              "id": "story-feat-b",
+              "kind": "local",
+              "reviewed": false,
+              "unread": false,
+              "unread_answers": 0,
+              "url": null
+            },
+            "title": "Story of story-feat-b",
+            "worktrees": [
+              {
+                "attention": null,
+                "branch": "feat-b",
+                "deletes_branch": false,
+                "ignored": [],
+                "in_use": [],
+                "keep": [
+                  "made less than an hour ago",
+                  "2 unpushed"
+                ],
+                "lane": "acme/widgets",
+                "last_commit_at": "2026-10-26T18:00:00.000Z",
+                "locked": false,
+                "main": "<WORK>/moved-repo-49/widgets",
+                "modified": 0,
+                "name": "feat-b",
+                "path": "<WORK>/moved-repo-49/widgets-worktrees/feat-b",
+                "pr": {
+                  "number": null,
+                  "state": "none"
+                },
+                "removable": false,
+                "repo": "acme/widgets",
+                "size_kb": "<kb>",
+                "stale": false,
+                "state": "clean",
+                "unpushed": 2,
+                "untracked": 0,
+                "verdict": "new"
+              }
+            ]
+          },
+          {
+            "agents": [],
+            "ahead": null,
+            "branch": "feat-c",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "ready",
+            "detail": null,
+            "focus_session": null,
+            "id": "branch:acme/widgets@feat-c",
+            "kind": "work",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/widgets",
+            "sessions": [],
+            "since": "2026-10-26T13:12:00.000Z",
+            "story": {
+              "approved_at": null,
+              "id": "story-feat-c",
+              "kind": "local",
+              "reviewed": false,
+              "unread": false,
+              "unread_answers": 0,
+              "url": null
+            },
+            "title": "Story of story-feat-c",
+            "worktrees": [
+              {
+                "attention": null,
+                "branch": "feat-c",
+                "deletes_branch": false,
+                "ignored": [],
+                "in_use": [],
+                "keep": [
+                  "made less than an hour ago",
+                  "3 unpushed"
+                ],
+                "lane": "acme/widgets",
+                "last_commit_at": "2026-10-20T12:00:00.000Z",
+                "locked": false,
+                "main": "<WORK>/moved-repo-49/widgets",
+                "modified": 0,
+                "name": "feat-c",
+                "path": "<WORK>/moved-repo-49/widgets-worktrees/feat-c",
+                "pr": {
+                  "number": null,
+                  "state": "none"
+                },
+                "removable": false,
+                "repo": "acme/widgets",
+                "size_kb": "<kb>",
+                "stale": false,
+                "state": "clean",
+                "unpushed": 3,
+                "untracked": 0,
+                "verdict": "new"
+              }
+            ]
+          },
+          {
+            "agents": [],
+            "ahead": null,
+            "branch": "feat-f",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "working",
+            "detail": "branch moved past its story",
+            "focus_session": null,
+            "id": "branch:acme/widgets@feat-f",
+            "kind": "work",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/widgets",
+            "sessions": [],
+            "since": null,
+            "story": {
+              "approved_at": null,
+              "id": "story-feat-f",
+              "kind": "local",
+              "reviewed": false,
+              "unread": false,
+              "unread_answers": 0,
+              "url": null
+            },
+            "title": "Story of story-feat-f",
+            "worktrees": [
+              {
+                "attention": null,
+                "branch": "feat-f",
+                "deletes_branch": false,
+                "ignored": [],
+                "in_use": [],
+                "keep": [
+                  "made less than an hour ago",
+                  "2 unpushed"
+                ],
+                "lane": "acme/widgets",
+                "last_commit_at": "2026-10-26T18:00:00.000Z",
+                "locked": false,
+                "main": "<WORK>/moved-repo-49/widgets",
+                "modified": 0,
+                "name": "feat-f",
+                "path": "<WORK>/moved-repo-49/widgets-worktrees/feat-f",
+                "pr": {
+                  "number": null,
+                  "state": "none"
+                },
+                "removable": false,
+                "repo": "acme/widgets",
+                "size_kb": "<kb>",
+                "stale": false,
+                "state": "clean",
+                "unpushed": 2,
+                "untracked": 0,
+                "verdict": "new"
+              }
+            ]
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": "2026-10-26T14:30:00.000Z",
+                "gate": null,
+                "key": "dddddddd:moved-by-hand",
+                "kind": "author",
+                "model": "sonnet",
+                "name": "moved-by-hand",
+                "notes": null,
+                "outcome": "built",
+                "review": false,
+                "sid": "dddddddd",
+                "stale": false,
+                "started_at": "2026-10-26T14:00:00.000Z",
+                "state": "done",
+                "status": "done",
+                "summary": {
+                  "did": "build moved-by-hand",
+                  "why": "committed <SHA:4>, branch moved on"
+                },
+                "task": "build moved-by-hand"
+              }
+            ],
+            "branch": null,
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "working",
+            "detail": "built",
+            "focus_session": null,
+            "id": "agent:dddddddd:moved-by-hand",
+            "kind": "agent",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": null,
+            "sessions": [],
+            "since": "2026-10-26T14:30:00.000Z",
+            "story": null,
+            "title": "moved-by-hand"
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": "2026-10-26T16:30:00.000Z",
+                "gate": null,
+                "key": "dddddddd:moved-second",
+                "kind": "author",
+                "model": "sonnet",
+                "name": "moved-second",
+                "notes": null,
+                "outcome": "built",
+                "review": false,
+                "sid": "dddddddd",
+                "stale": false,
+                "started_at": "2026-10-26T16:00:00.000Z",
+                "state": "done",
+                "status": "done",
+                "summary": {
+                  "did": "build moved-second",
+                  "why": "committed <SHA:12>, not pushed"
+                },
+                "task": "build moved-second"
+              }
+            ],
+            "branch": null,
+            "build": {
+              "blocked": "its session has ended",
+              "prompt": "Build the Once Upon story of the unpushed commits on branch feat-e in `<WORK>/moved-repo-49/widgets-worktrees/feat-e`",
+              "session": null
+            },
+            "building": null,
+            "can_focus": false,
+            "column": "ready",
+            "detail": "built",
+            "focus_session": null,
+            "id": "agent:dddddddd:moved-second",
+            "kind": "agent",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": null,
+            "review": {
+              "branch": "feat-e",
+              "path": "<WORK>/moved-repo-49/widgets-worktrees/feat-e"
+            },
+            "sessions": [],
+            "since": "2026-10-26T16:30:00.000Z",
+            "story": null,
+            "title": "moved-second"
+          }
+        ],
+        "key": "acme/widgets",
+        "name": "widgets"
+      }
+    ],
+    "listeners": [],
+    "phone": null,
+    "status_source": "registry",
+    "usage": null,
+    "voice": null,
+    "voice_paused": false,
+    "voice_start": null,
+    "warning": null,
+    "worktrees": {
+      "at": "2026-10-26T19:00:00.000Z",
+      "items": [
+        {
+          "attention": null,
+          "branch": "feat-d",
+          "deletes_branch": false,
+          "ignored": [],
+          "in_use": [],
+          "keep": [
+            "made less than an hour ago",
+            "3 unpushed"
+          ],
+          "lane": "acme/widgets",
+          "lane_label": "widgets",
+          "last_commit_at": "2026-10-26T18:00:00.000Z",
+          "locked": false,
+          "main": "<WORK>/moved-repo-49/widgets",
+          "modified": 0,
+          "name": "feat-d",
+          "path": "<WORK>/moved-repo-49/widgets-worktrees/feat-d",
+          "pr": {
+            "number": null,
+            "state": "none"
+          },
+          "removable": false,
+          "repo": "acme/widgets",
+          "size_kb": "<kb>",
+          "stale": false,
+          "state": "clean",
+          "unpushed": 3,
+          "untracked": 0,
+          "verdict": "new"
+        },
+        {
+          "attention": null,
+          "branch": "feat-e",
+          "deletes_branch": false,
+          "ignored": [],
+          "in_use": [],
+          "keep": [
+            "made less than an hour ago",
+            "3 unpushed"
+          ],
+          "lane": "acme/widgets",
+          "lane_label": "widgets",
+          "last_commit_at": "2026-10-26T18:00:00.000Z",
+          "locked": false,
+          "main": "<WORK>/moved-repo-49/widgets",
+          "modified": 0,
+          "name": "feat-e",
+          "path": "<WORK>/moved-repo-49/widgets-worktrees/feat-e",
+          "pr": {
+            "number": null,
+            "state": "none"
+          },
+          "removable": false,
+          "repo": "acme/widgets",
+          "size_kb": "<kb>",
+          "stale": false,
+          "state": "clean",
+          "unpushed": 3,
+          "untracked": 0,
+          "verdict": "new"
+        }
+      ],
+      "on_cards": 4,
+      "prunable": [],
+      "removable": 0,
+      "scanning": false,
+      "size_kb": "<kb>",
+      "total": 6
+    }
+  }
+}

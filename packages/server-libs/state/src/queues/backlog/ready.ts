@@ -3,7 +3,9 @@
  * GitHub says no PR) or PR open. One pure rule behind the board's three doors: a finished author's own card
  * (board/src/agent-home.ts), an agent parked on `[review]` (stages/agents.ts) and a built backlog card (`cardPhase` row 6).
  * The facts come from GitHub's answer for the branch and the worktree scanner, both already in memory: not asked yet reads as
- * unknown, which keeps each door's column from before.
+ * unknown, which keeps each door's column from before. A card that would be Ready for your review while its branch has moved
+ * past the commit that was reviewed (a new commit or an amend, board/src/board.ts movedPast) is Working instead: someone is
+ * still changing what you were to review.
  */
 import type { PrInfo } from '@once-upon-a-diff/contracts/types';
 import type { BranchPr } from '../../records/github/github-checks.ts';
@@ -12,6 +14,8 @@ import type { BranchPr } from '../../records/github/github-checks.ts';
 export interface ReadyFacts {
   pr: 'open' | 'none' | 'unknown';
   pushed: boolean | null;
+  /** the branch's tip has moved past the reviewed commit; absent when not known or not asked */
+  working?: boolean;
 }
 
 export const UNKNOWN_READY: ReadyFacts = { pr: 'unknown', pushed: null };
@@ -41,11 +45,18 @@ export function readyFactsOf(input: {
 
 /**
  * The column: an open PR is PR open; a repo that skips review is Ready to ship; pushed with GitHub saying no PR is Ready to
- * ship, with or without an approval; anything else (unpushed, or not known) is Ready for your review.
+ * ship, with or without an approval; anything else (unpushed, or not known) is Ready for your review, or Working when
+ * the branch has moved past what was reviewed (`working`).
  */
-export function readyColumn(facts: ReadyFacts, skipsReview = false): 'pr_open' | 'ship' | 'ready' {
+export function readyColumn(
+  facts: ReadyFacts,
+  skipsReview = false,
+): 'pr_open' | 'ship' | 'ready' | 'working' {
   if (facts.pr === 'open') {
     return 'pr_open';
   }
-  return skipsReview || (facts.pr === 'none' && facts.pushed === true) ? 'ship' : 'ready';
+  if (skipsReview || (facts.pr === 'none' && facts.pushed === true)) {
+    return 'ship';
+  }
+  return facts.working ? 'working' : 'ready';
 }

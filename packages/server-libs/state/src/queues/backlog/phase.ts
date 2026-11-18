@@ -113,7 +113,7 @@ export const PHASE_ROWS = {
   '3b': 'a storyteller is running: Agent checks',
   '4': 'fixes are due: the latest critic finished with findings after the latest work run: Agent checks until a fix run opens',
   '5': 'built, and no critic has passed (none yet, or the latest failed, stopped or died), with no skip recorded: Waiting for your call (skip the critic or start one)',
-  '6': 'built, with a branch: an open PR is PR open; pushed with no PR is Ready to ship; else Ready for your review (a repo whose settings say skips_review: Ready to ship)',
+  '6': 'built, with a branch: an open PR is PR open; pushed with no PR is Ready to ship; else Ready for your review, or Working when the board sees the branch moved past the commit its run finished at (a repo whose settings say skips_review: Ready to ship)',
   '7': 'no branch, or landed (`backlog done`): Done for the Done hour after the work ended or landed, then off the board',
 } as const;
 

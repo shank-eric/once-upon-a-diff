@@ -269,7 +269,7 @@ function focusOf(sessions: BoardSession[]): { focus_session: string | null; can_
 }
 
 /** Sets a session or work card's column, detail and `since`, once its agents are on it. */
-function placeCard(card: BoardCard, byStory: Map<string, StoryFacts>): void {
+function placeCard(card: BoardCard, byStory: Map<string, StoryFacts>, moved: boolean): void {
   const built = card.story ? byStory.get(card.story.id) : undefined;
   // an auto-mark carries the time the bridge noticed, so only a mark by hand counts as your activity
   const manual =
@@ -290,6 +290,7 @@ function placeCard(card: BoardCard, byStory: Map<string, StoryFacts>): void {
         }
       : null,
     building: !!card.building,
+    moved,
   });
   const asking = card.sessions.find((session) => session.status === 'waiting');
   const waitingAgent = card.agents.find((agent) => agent.state === 'waiting' && !agent.review);
@@ -321,7 +322,9 @@ function placeCard(card: BoardCard, byStory: Map<string, StoryFacts>): void {
       break;
     }
     case 'working':
-      card.detail = card.building ? BUILDING_TEXT[card.building.kind] : busy?.detail || null;
+      card.detail = card.building
+        ? BUILDING_TEXT[card.building.kind]
+        : busy?.detail || (moved ? MOVED_TEXT : null);
       card.since = earliest([
         card.building?.since,
         ...card.sessions.filter((one) => one.status === 'working').map((one) => one.since),
@@ -367,11 +370,21 @@ export function buildCards(
   return cards;
 }
 
-/** Sets each session or work card's column, detail and `since`, once its agents are on it. */
-export function placeCards(cards: BoardCard[], byStory: Map<string, StoryFacts>): void {
+/** What a card says when it is Working only because its branch moved past its story (stages/moved.ts). */
+const MOVED_TEXT = 'branch moved past its story';
+
+/**
+ * Sets each session or work card's column, detail and `since`, once its agents are on it. `moved` holds the cards whose branch
+ * moved past their story's told commit (stages/moved.ts).
+ */
+export function placeCards(
+  cards: BoardCard[],
+  byStory: Map<string, StoryFacts>,
+  moved: Set<BoardCard> = new Set(),
+): void {
   for (const card of cards) {
     if (card.kind !== 'agent') {
-      placeCard(card, byStory);
+      placeCard(card, byStory, moved.has(card));
     }
   }
 }

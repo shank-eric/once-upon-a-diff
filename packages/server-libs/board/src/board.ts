@@ -12,7 +12,12 @@ import {
   repoOfCheckoutAsync,
   typedRepoNote,
 } from '@once-upon-a-diff/foundation/repos';
-import { branchNameAsync, isAncestorAsync, runGitAsync } from '@once-upon-a-diff/adapters/git';
+import {
+  branchMovedPastAsync,
+  branchNameAsync,
+  isAncestorAsync,
+  runGitAsync,
+} from '@once-upon-a-diff/adapters/git';
 import { aheadOf } from '@once-upon-a-diff/stories/pull-request';
 import { lastActivity } from '@once-upon-a-diff/state/records/agents/ledger';
 import { dropRunsProblem } from '@once-upon-a-diff/state/queues/backlog/phase';
@@ -80,6 +85,8 @@ const CACHE_MS = 2000;
 const BRANCH_CACHE_MS = 10000;
 /** How often a branch's commits-ahead count is looked at again (git ls-remote each time). */
 const AHEAD_MS = 60000;
+/** how many moved-past looks run at once: a first build over many Ready cards asks the rest on later polls */
+const MOVED_AT_ONCE = 4;
 /** A snapshot waits this long for a session's repo to be looked up, then goes on without it (what was last known, or none). */
 const REPO_WAIT_MS = 500;
 
@@ -102,6 +109,8 @@ export class Board {
   private building: Promise<BoardData> | null = null;
   /** commits ahead of origin per checkout and branch, looked up in the background (kickAhead) */
   private aheads = new Map<string, { at: number; count: number | null }>();
+  /** whether a tip moved past a commit, by the pair of shas (immutable, so an answer is never stale); a null is asked again after AHEAD_MS */
+  private moves = new Map<string, { at: number; moved: boolean | null; asking: boolean }>();
   /** Bumped when what a build read is out of date, so a build that started before it does not fill the cache. */
   private generation = 0;
   private blank = new BlankSessions();
@@ -127,6 +136,8 @@ export class Board {
     repoOf?: (cwd: string) => Promise<string | null>;
     typeLine?: typeof typeLine;
     aheadOf?: typeof aheadOf;
+    /** how a branch is found to have moved past a commit (tests answer without git) */
+    movedPast?: typeof branchMovedPastAsync;
     /** runs the worktree scan's git and du (tests count calls or hold one up) */
     worktreeRun?: Runner;
     /** how a started card's merged PR is found; with none, nothing is asked and nothing lands (createBridge passes the real one) */
@@ -140,6 +151,8 @@ export class Board {
     worktreesOf: (cwd, now) => this.worktreesOf(cwd, now),
     mergedLocally: (trees, branch, now) => this.mergedLocally(trees, branch, now),
     aheadFor: (found, branch) => this.aheadFor(found, branch),
+    movedPast: (checkout, told, tip, defaultBranch) =>
+      this.movedPast(checkout, told, tip, defaultBranch),
   };
 
   /** `options` are for tests: their own status source, clock, repo lookup and tab typing. */
@@ -154,6 +167,7 @@ export class Board {
       repoOf?: (cwd: string) => Promise<string | null>;
       typeLine?: typeof typeLine;
       aheadOf?: typeof aheadOf;
+      movedPast?: typeof branchMovedPastAsync;
       worktreeRun?: Runner;
       checkMerged?: MergedCheck;
     } = {},
@@ -345,6 +359,41 @@ export class Board {
     }
     const count = kept?.count;
     return count ? { count, story: found.story } : null;
+  }
+
+  /**
+   * Whether a tip has moved past the commit a story or an author's work was reviewed at (Lookups.movedPast). The look runs in
+   * the background (a few at a time, the rest on a later poll), so the board build never waits on git; an answer of true drops
+   * the kept snapshot.
+   */
+  private movedPast(
+    checkout: string,
+    told: string,
+    tip: string,
+    defaultBranch: string | null,
+  ): boolean | null {
+    const key = `${told}\0${tip}`;
+    const kept = this.moves.get(key);
+    const now = Date.now();
+    if (kept && (kept.asking || kept.moved !== null || now - kept.at < AHEAD_MS)) {
+      return kept.moved;
+    }
+    if ([...this.moves.values()].filter((one) => one.asking).length >= MOVED_AT_ONCE) {
+      return kept?.moved ?? null;
+    }
+    this.moves.set(key, { at: now, moved: null, asking: true });
+    // the local default branch first: origin's may lag it (never pushed, not fetched), and a patch measured from there would
+    // span unrelated commits of the default branch and read a pure rebase as moved
+    const bases = defaultBranch ? [defaultBranch, `origin/${defaultBranch}`] : [];
+    (this.options.movedPast || branchMovedPastAsync)(checkout, told, tip, bases)
+      .then((moved) => {
+        this.moves.set(key, { at: Date.now(), moved, asking: false });
+        if (moved) {
+          this.invalidate();
+        }
+      })
+      .catch(() => this.moves.set(key, { at: Date.now(), moved: null, asking: false }));
+    return null;
   }
 
   /** A checkout's current branch (null when detached or not a repo), kept a few seconds. */

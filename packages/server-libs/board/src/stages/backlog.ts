@@ -323,7 +323,8 @@ export function addBacklogCards(
     if (item.state !== 'dropped' && namedByRuns(item, agents)) {
       const runs = runsOf(item, agents);
       // a built card's PR and push facts (row 6); the PR number its latest work run typed counts once GitHub answered for it
-      const typedPr = [...runs].reverse().find((run) => isWorkRun(run))?.result?.pr;
+      const latestWork = [...runs].reverse().find((run) => isWorkRun(run));
+      const typedPr = latestWork?.result?.pr;
       const ready =
         item.state === 'started' && item.branch
           ? readyFactsFor(
@@ -331,6 +332,7 @@ export function addBacklogCards(
               { repo: item.repo ?? null, branch: item.branch, typedPr },
               trees,
               nowMs,
+              { commit: latestWork?.result?.commit, movedPast: ctx.lookups.movedPast },
             )
           : undefined;
       const phase = cardPhase(

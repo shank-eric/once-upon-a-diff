@@ -91,6 +91,7 @@ const { Board, noPrWatcher } = await src('board', 'board.ts');
 const { StoryStore } = await src('stories', 'store.ts');
 const { Builds } = await src('state', 'queues/requests/builds.ts');
 const { seenCheckout, repoOfCheckoutAsync } = await src('foundation', 'repos.ts');
+const { branchMovedPastAsync } = await src('adapters', 'git.ts');
 // the repo of a folder, already answered: the board waits only 500 ms for a lookup and falls back to what it knew
 // (the real async lookup, with git run in-process so its answer, and the board's last-known repo, are there at once)
 const gitNow = (repo: string, args: string[]) => {
@@ -2025,6 +2026,122 @@ async function record(
     repoOf,
   });
   await record('12-failed-run-acked', board);
+}
+
+// ---- 15. a Ready card whose branch moved past its story goes back to Working: a story told at X with the branch tip a later commit
+// (a), the same tip (b), a rebase of X onto a moved main with every patch unchanged (c) and an amend of X (f); a finished author's
+// commit C with a later commit D on its branch (d), and the same with another run's finished work at D, which carries the tip (e).
+// No run is open on any of them. The real git answers (movedPast, awaited as the scan is), so the patch-id compare is exercised.
+{
+  const home = tmp('home');
+  const sessions = tmp('sessions');
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
+  const et = (hour: number, minute: number) => new Date(Date.UTC(2026, 9, 26, hour + 4, minute));
+  const at = '2026-10-26T18:00:00Z';
+  const parent = tmp('moved-repo');
+  const checkout = path.join(parent, 'widgets');
+  mkdirSync(checkout);
+  git(checkout, 'init', '-q', '-b', 'main');
+  git(checkout, 'remote', 'add', 'origin', 'git@github.com:acme/widgets.git');
+  writeFileSync(path.join(checkout, 'a.txt'), 'a\n');
+  git(checkout, 'add', '.');
+  gitAt(checkout, at, 'commit', '-q', '-m', 'base');
+  const trees = path.join(parent, 'widgets-worktrees');
+  mkdirSync(trees);
+  const tipOf = (dir: string) => git(dir, 'rev-parse', 'HEAD');
+  const commitIn = (dir: string, file: string, message: string) => {
+    writeFileSync(path.join(dir, file), `${message}\n`);
+    git(dir, 'add', '.');
+    gitAt(dir, at, 'commit', '-q', '-m', message);
+    return tipOf(dir);
+  };
+  const branch = (name: string) => {
+    const dir = path.join(trees, name);
+    git(checkout, 'worktree', 'add', '-q', dir, '-b', name);
+    return dir;
+  };
+  const heads: Record<string, string> = {};
+  // each branch has its own commit X, which its story is told over
+  const dirs: Record<string, string> = {};
+  for (const name of ['feat-a', 'feat-b', 'feat-c', 'feat-d', 'feat-e', 'feat-f']) {
+    dirs[name] = branch(name);
+    heads[name] = commitIn(dirs[name], `${name}.txt`, `work ${name}`);
+  }
+  // main moves on, so c is rebased onto a moved base
+  commitIn(checkout, 'b.txt', 'main moves');
+  // a: a later commit; c: the same commit rebased; f: the commit amended with another change
+  const tips: Record<string, string> = {};
+  tips['feat-a'] = commitIn(dirs['feat-a'], 'more.txt', 'second commit');
+  tips['feat-b'] = heads['feat-b'];
+  git(dirs['feat-c'], 'rebase', '-q', 'main');
+  tips['feat-c'] = tipOf(dirs['feat-c']);
+  writeFileSync(path.join(dirs['feat-f'], 'extra.txt'), 'extra\n');
+  git(dirs['feat-f'], 'add', '.');
+  gitAt(dirs['feat-f'], at, 'commit', '-q', '--amend', '-m', 'work feat-f amended');
+  tips['feat-f'] = tipOf(dirs['feat-f']);
+  // d and e: an author finished at C (their heads), then a later commit D
+  tips['feat-d'] = commitIn(dirs['feat-d'], 'later.txt', 'by hand');
+  tips['feat-e'] = commitIn(dirs['feat-e'], 'later.txt', 'by another run');
+  shasSeen.push(...Object.values(heads), ...Object.values(tips));
+  seenCheckout(home, 'acme/widgets', checkout);
+  for (const name of ['feat-a', 'feat-b', 'feat-c', 'feat-f']) {
+    localStory(home, `story-${name}`, checkout, name, {
+      head_oid: tips[name],
+      told_head_oid: heads[name],
+      told_base_oid: null,
+    });
+  }
+  const authors = new AgentRegistry(home);
+  const author = (name: string, branch: string, commit: string, hour: number) => {
+    authors.start({
+      sid: 'dddddddd',
+      name,
+      kind: 'author',
+      task: `build ${name}`,
+      repo: 'acme/widgets',
+      branch,
+      cwd: dirs[branch],
+      model: 'sonnet',
+      effort: 'low',
+      at: et(hour, 0),
+    });
+    authors.finish(name, {
+      outcome: 'built',
+      result: { commit, branch },
+      at: et(hour, 30),
+    });
+  };
+  author('moved-by-hand', 'feat-d', heads['feat-d'], 10);
+  author('moved-first', 'feat-e', heads['feat-e'], 11);
+  author('moved-second', 'feat-e', tips['feat-e'], 12);
+  const none = Object.fromEntries(
+    ['feat-a', 'feat-b', 'feat-c', 'feat-d', 'feat-e', 'feat-f'].map((name) => [
+      `acme/widgets@${name}`,
+      null,
+    ]),
+  );
+  const { watcher } = fakeWatcher([], none);
+  const looks: Promise<unknown>[] = [];
+  const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
+    source: sourceSaying({}),
+    now: () => NOW,
+    repoOf,
+    movedPast: (...args: Parameters<typeof branchMovedPastAsync>) => {
+      const look = branchMovedPastAsync(...args);
+      looks.push(look);
+      return look;
+    },
+  });
+  await board.snapshot();
+  await (board as any).scanner.idle();
+  (board as any).invalidate();
+  // the first build with the scan asks git, a few looks at a time; each next build asks the rest, and the answers are in the one after
+  for (let round = 0; round < 3; round++) {
+    await board.snapshot();
+    await Promise.all(looks);
+    (board as any).invalidate();
+  }
+  await record('15-ready-moved', board);
 }
 
 // ---- normalize paths and pids

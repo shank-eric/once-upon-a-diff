@@ -337,6 +337,72 @@ export async function isAncestorAsync(
 }
 
 /**
+ * The patch-id (`git patch-id --stable`) of what a tip changes against the first of `bases` it shares history with: the diff
+ * from their merge-base to the tip. Equal for a tip and a copy of it rebased onto a moved base, whatever the shas. Null when
+ * no base resolves, the diff is empty (landed in its base) or git fails.
+ */
+export async function branchPatchIdAsync(
+  repo: string,
+  tip: string,
+  bases: string[],
+  timeout?: number,
+): Promise<string | null> {
+  for (const base of bases) {
+    const found = await runGitAsync(repo, ['merge-base', '--end-of-options', base, tip], {
+      timeout,
+    });
+    const fork = found.stdout.trim();
+    if (found.code !== 0 || !fork) {
+      continue;
+    }
+    const diff = await runGitAsync(
+      repo,
+      ['diff', '--no-color', '--no-ext-diff', '--end-of-options', fork, tip],
+      { timeout },
+    );
+    if (diff.code !== 0 || !diff.stdout.trim()) {
+      return null;
+    }
+    return new Promise((resolve) => {
+      const child = execFile(
+        'git',
+        ['-C', repo, 'patch-id', '--stable'],
+        { timeout, maxBuffer: 1024 * 1024 },
+        (err, stdout) => resolve(err ? null : stdout.trim().split(/\s+/)[0] || null),
+      );
+      child.stdin?.end(diff.stdout);
+    });
+  }
+  return null;
+}
+
+/**
+ * Whether a branch has moved past `told`: its tip `tip` is a commit on top of it, or the branch's own change (against
+ * `bases`, the default branch's refs, the local one first so a lagging origin one cannot widen the diff) is not the one `told` made, as after an amend. The same change on a moved base (a
+ * pure rebase) has not moved, and neither has the same tip. This is the meaning of `localFreshness`'s "new commit, an amend, a
+ * rebase that changed a patch" without its diff compare. Null when git cannot say.
+ */
+export async function branchMovedPastAsync(
+  repo: string,
+  told: string,
+  tip: string,
+  bases: string[],
+  timeout?: number,
+): Promise<boolean | null> {
+  if (told === tip) {
+    return false;
+  }
+  if (await isAncestorAsync(repo, told, tip, timeout)) {
+    return true;
+  }
+  const [was, now] = await Promise.all([
+    branchPatchIdAsync(repo, told, bases, timeout),
+    branchPatchIdAsync(repo, tip, bases, timeout),
+  ]);
+  return was && now ? was !== now : null;
+}
+
+/**
  * origin's copy of a branch, asked of origin itself (no fetch): its sha, or null when origin has no such branch. `ok` is
  * false, with git's first line of complaint, when origin can't be reached.
  */
