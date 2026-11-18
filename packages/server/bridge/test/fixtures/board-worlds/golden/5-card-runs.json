@@ -620,7 +620,7 @@
     ],
     "listeners": [],
     "phone": null,
-    "status_source": "iterm",
+    "status_source": "registry",
     "usage": null,
     "voice": null,
     "voice_paused": false,

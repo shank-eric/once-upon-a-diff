@@ -776,12 +776,12 @@ test('the Blank strip: sessions with no prompt yet are chips by place, not cards
     ]),
     [
       // a tab known for b-one and g-one only; a-two comes first by title
-      ['gadgets', [['Tab title', true]]],
+      ['gadgets', [['g-one', true]]],
       [
         'widgets',
         [
           ['a-two', false],
-          ['Tab title', true],
+          ['b-one', true],
         ],
       ],
     ],
@@ -836,7 +836,7 @@ test('the Blank check reads transcripts from board_projects_dir', () => {
   assert.equal(readSettings(home).board.projectsDir, '/x/projects');
 });
 
-test('a session card is titled by its tab, else the title in its transcript, else the registry’s name', async () => {
+test('a session card is titled by the title in its transcript, else the registry’s name', async () => {
   const home = tmp('board-home');
   const sessions = tmp('board-sessions');
   const [tabbed, untabbed, untitled] = [liveChild(), liveChild(), liveChild()];
@@ -864,7 +864,7 @@ test('a session card is titled by its tab, else the title in its transcript, els
   });
   const cards = (await board.snapshot()).lanes.flatMap((lane) => lane.cards);
   const title = (pid: number) => cards.find((found) => found.id === fullId(pid))?.title;
-  assert.equal(title(tabbed.pid), 'Tab title');
+  assert.equal(title(tabbed.pid), 'Transcript title');
   assert.equal(title(untabbed.pid), 'Transcript title');
   assert.equal(title(untitled.pid), 'untitled');
   // when it went quiet comes from the registry, which the tab's status can't move: Done or Idle on the page

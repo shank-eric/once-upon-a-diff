@@ -54,14 +54,9 @@ function world(config: Record<string, unknown> = {}) {
   });
   const clock = { now: NOW };
   const source: StatusSource = {
-    name: 'iterm',
+    name: 'registry',
     statuses: async (live) =>
-      new Map(
-        live.map((one) => [
-          one.session,
-          { status: 'working', detail: null, tasks: null, title: null },
-        ]),
-      ),
+      new Map(live.map((one) => [one.session, { status: 'working', detail: null, tab: true }])),
   };
   const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
     source,

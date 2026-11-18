@@ -43,7 +43,6 @@ test('a card typed shank-eric/larmor is in the naveenvasou/larmor lane, one lane
   const home = tmp('alias-lane');
   writeJson(path.join(home, 'config.json'), {
     board_sessions_dir: tmp('alias-lane-sessions'),
-    board_status_source: 'registry',
   });
   const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
     source: registrySource,

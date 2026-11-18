@@ -57,8 +57,6 @@ export function readHookStatuses(home: string, sessions: LiveSession[]): Map<str
       status: file.state,
       detail:
         typeof file.detail === 'string' && file.detail ? file.detail.slice(0, DETAIL_MAX) : null,
-      tasks: null,
-      title: null,
     });
   }
   return found;

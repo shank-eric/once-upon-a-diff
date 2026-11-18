@@ -1,20 +1,16 @@
 /*
- * Where the board gets a Claude Code session's status. Claude Code's own registry only says busy or idle, so a status
- * source can say more: it gets the live sessions (with their ttys) and answers with a status and detail for the ones it
- * knows, and the board uses the registry's busy/idle for the rest. Two are built in: `registry`, the default, which adds
- * the status hook's Waiting and Done (adapters/claude-sessions/hook-status.ts, from `extras/hooks/board-status.sh`) in any
- * terminal, and `iterm` (adapters/iterm.ts), the iTerm2 tab's own status, which `board_status_source: "iterm"` asks for.
- * With it2 found, the default registry source also asks iTerm about the sessions the hook has not written for, so a
- * Mac with no hook installed loses nothing (the hook wins where it wrote; the tab still gives titles and task counts).
- * pickSource chooses between them from the settings. Typing into a tab and raising it need iTerm whatever the source.
+ * Where the board gets a Claude Code session's status: Claude Code's own registry (busy or idle) plus the status hook's
+ * Waiting and Done (adapters/claude-sessions/hook-status.ts, from `extras/hooks/board-status.sh`), in any terminal. Nothing
+ * asks the terminal: iTerm is used only to know which sessions have a tab (so Open in iTerm and typing can reach them),
+ * which adds `tab` to what the hook source says and never changes a status. A source gets the live sessions (with their
+ * ttys) and answers for the ones it knows; the board uses the registry's busy/idle for the rest.
  */
-import { findIt2, itermSource } from '@once-upon-a-diff/adapters/iterm';
+import { findIt2, itermTabs } from '@once-upon-a-diff/adapters/iterm';
 import {
-  hasHookFile,
   hookFileCount,
   readHookStatuses,
 } from '@once-upon-a-diff/adapters/claude-sessions/hook-status';
-import type { SourceStatus, StatusSource } from '@once-upon-a-diff/adapters/status-source';
+import type { StatusSource } from '@once-upon-a-diff/adapters/status-source';
 
 /** Claude Code's busy/idle alone: it adds nothing to what the board already has (what tests that want no status use). */
 export const registrySource: StatusSource = {
@@ -31,67 +27,51 @@ export function hookSource(home: string): StatusSource {
 }
 
 /**
- * The hook source, with iTerm's tab status for what the hook has not written: a session with no status file gets its tab's
- * status as it is; one with a file gets the hook's Waiting or Done, or the registry's busy or idle when the file says
- * working, and in both the tab's title and task count, and `tab`.
+ * The hook source, with `tab` on the sessions an iTerm tab holds: a session with a tab and no hook status gets the
+ * registry's busy or idle as it is, so the entry says only that it has a tab.
  */
-function hookWithIterm(home: string, it2: string): StatusSource {
+function hookWithTabs(home: string, it2: string): StatusSource {
   const hook = hookSource(home);
-  const tabs = itermSource(it2);
   return {
     name: 'registry',
     async statuses(sessions) {
       const [hooked, tabbed] = await Promise.all([
         hook.statuses(sessions),
-        tabs.statuses(sessions),
+        itermTabs(it2, sessions),
       ]);
-      const found = new Map<string, SourceStatus>();
+      const found = new Map(hooked);
       for (const live of sessions) {
-        const said = hooked.get(live.session);
-        const tab = tabbed.get(live.session);
-        if (said) {
-          found.set(live.session, {
-            ...said,
-            tasks: tab?.tasks ?? null,
-            title: tab?.title ?? null,
-            tab: tab?.tab,
-          });
-        } else if (tab && hasHookFile(home, live.session)) {
-          found.set(live.session, {
-            ...tab,
-            status: live.status === 'busy' ? 'working' : 'idle',
-            detail: null,
-          });
-        } else if (tab) {
-          found.set(live.session, tab);
+        if (!tabbed.has(live.session)) {
+          continue;
         }
+        const said = hooked.get(live.session);
+        found.set(
+          live.session,
+          said
+            ? { ...said, tab: true }
+            : {
+                status: live.status === 'busy' ? 'working' : 'idle',
+                detail: null,
+                tab: true,
+              },
+        );
       }
       return found;
     },
   };
 }
 
-const noHook = (fallback: boolean) =>
-  `no status hook has written a file yet, so Waiting and Done ${fallback ? "come from iTerm's tab status only" : 'need it'}: wire extras/hooks/board-status.sh (README, "Board status hook")`;
+const NO_HOOK =
+  'no status hook has written a file yet, so Waiting and Done need it: wire extras/hooks/board-status.sh (README, "Board status hook")';
 
-/** The source the settings ask for: iterm only when asked for and the it2 CLI is there, else the registry with the hook. */
+/** The status source: the registry with the hook, and the iTerm tabs when the it2 CLI is found. */
 export function pickSource(
-  wanted: 'iterm' | 'registry' | null,
   it2Path: string | null,
   home: string,
 ): { source: StatusSource; warning: string | null } {
-  const it2 = wanted === 'iterm' ? findIt2(it2Path) : null;
-  if (it2) {
-    return { source: itermSource(it2), warning: null };
-  }
-  const missing =
-    wanted === 'iterm'
-      ? 'the it2 CLI was not found, so status is Claude Code busy or idle only, plus the status hook'
-      : null;
-  const tabs = wanted === null ? findIt2(it2Path) : null;
-  const notice = hookFileCount(home) === 0 ? noHook(tabs !== null) : null;
+  const it2 = findIt2(it2Path);
   return {
-    source: tabs ? hookWithIterm(home, tabs) : hookSource(home),
-    warning: [missing, notice].filter(Boolean).join('; ') || null,
+    source: it2 ? hookWithTabs(home, it2) : hookSource(home),
+    warning: hookFileCount(home) === 0 ? NO_HOOK : null,
   };
 }

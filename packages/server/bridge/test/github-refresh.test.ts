@@ -285,7 +285,7 @@ test('Board.rebuild never answers with a build that started before it', async ()
   let release = () => {};
   let held: Promise<void> | null = new Promise<void>((resolve) => (release = resolve));
   const source: StatusSource = {
-    name: 'iterm',
+    name: 'registry',
     statuses: async () => {
       await held;
       return new Map();

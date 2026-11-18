@@ -344,12 +344,12 @@ function localStory(
 const sourceSaying = (
   says: Record<string, { status: 'waiting' | 'working' | 'done'; detail: string | null }>,
 ) => ({
-  name: 'iterm' as const,
+  name: 'registry' as const,
   statuses: async (sessions: { session: string }[]) =>
     new Map(
       sessions.flatMap((session) => {
         const found = says[session.session.slice(0, 8)];
-        return found ? [[session.session, { ...found, title: 'Tab title' }] as const] : [];
+        return found ? [[session.session, { ...found, tab: true }] as const] : [];
       }),
     ),
 });
@@ -979,7 +979,6 @@ async function record(
     board_sessions_dir: sessions,
     board_larmor_dir: larmor,
     board_it2_path: it2,
-    board_status_source: 'iterm',
   });
   // the board waits for voice_ctl only so long on its first build: have the answer in before the world is built, however loaded the machine is
   for (let tries = 0; tries < 100 && !(await voiceState(larmor)); tries += 1) {

@@ -10,7 +10,7 @@ import type { BoardCard, BoardListening, BoardWorktree } from './card-types.ts';
 export interface BoardData {
   at: string;
   /** which source gave the sessions' status */
-  status_source: 'iterm' | 'registry';
+  status_source: 'registry';
   /** something the page should say, such as the terminal's CLI not answering */
   warning: string | null;
   /** the voice session when voice mode is on and board_larmor_dir names the Larmor checkout; it is not on a card */

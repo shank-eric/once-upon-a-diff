@@ -67,8 +67,8 @@ export interface BoardSession {
   detail: string | null;
   /** when it entered this status, as far as the bridge knows */
   since: string | null;
-  /** where the status came from: the terminal's own tab status or Claude Code's registry */
-  source: 'iterm' | 'registry';
+  /** where the status came from: Claude Code's registry, with the status hook's Waiting and Done */
+  source: 'registry';
   /** its iTerm tab is known, so `POST /api/board/focus` can bring it to the front */
   focus: boolean;
   /** how full its context window is (%), when its status line says (board/statusline.ts) */

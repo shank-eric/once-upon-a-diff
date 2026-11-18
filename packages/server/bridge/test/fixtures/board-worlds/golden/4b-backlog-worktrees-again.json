@@ -298,14 +298,14 @@
                 "id": "<PID:18>-aaaa-bbbb-cccc-dddddddddddd",
                 "rested_at": "2026-10-26T18:50:00.000Z",
                 "since": "2026-10-26T18:50:00.000Z",
-                "source": "iterm",
+                "source": "registry",
                 "status": "done",
-                "title": "Tab title"
+                "title": "idle-widgets"
               }
             ],
             "since": "2026-10-26T18:50:00.000Z",
             "story": null,
-            "title": "Tab title"
+            "title": "idle-widgets"
           },
           {
             "agents": [
@@ -625,7 +625,7 @@
     ],
     "listeners": [],
     "phone": null,
-    "status_source": "iterm",
+    "status_source": "registry",
     "usage": null,
     "voice": null,
     "voice_paused": false,

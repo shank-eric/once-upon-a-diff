@@ -169,8 +169,7 @@ if (rels.length < 2) {
 }
 const half = Math.ceil(rels.length / 2);
 const home = tmp('ext-home');
-// the board's header says where it reads each session's status from, which is iTerm when this machine has it: pin the other
-writeJson(path.join(home, 'config.json'), { board_status_source: 'registry' });
+writeJson(path.join(home, 'config.json'), {});
 const buildRequests = () =>
   existsSync(path.join(home, 'builds.json'))
     ? Object.values(

@@ -25,7 +25,7 @@ import {
   requestStop,
   stopRequested,
 } from '@once-upon-a-diff/core/features/listeners/auto-stop';
-import { focusTab, itermSource, typeLine } from '@once-upon-a-diff/adapters/iterm';
+import { focusTab, itermTabs, typeLine } from '@once-upon-a-diff/adapters/iterm';
 import { StoryStore } from '@once-upon-a-diff/stories/store';
 import {
   type BoardCard,
@@ -132,40 +132,23 @@ test('valid JSON that is not the expected shape (null, a number, an object for a
     statusAt: null,
     startedAt: null,
   });
-  const it2With = (list: string, status: string) => {
+  const it2With = (list: string) => {
     const file = path.join(tmp('board-bad-it2'), 'it2');
-    writeFileSync(
-      file,
-      `#!/bin/sh\nif [ "$2" = list ]; then\n  echo '${list}'\nelse\n  echo '${status}'\nfi\n`,
-    );
+    writeFileSync(file, `#!/bin/sh\necho '${list}'\n`);
     chmodSync(file, 0o755);
     return file;
   };
   const sessions = [live('ttys042', 's-one')];
   for (const list of ['null', '{"id":"TAB-1"}', '7']) {
-    assert.equal((await itermSource(it2With(list, '{}')).statuses(sessions)).size, 0, list);
-    assert.equal(typeof (await focusTab(it2With(list, '{}'), 'ttys042', async () => {})), 'string');
+    assert.equal((await itermTabs(it2With(list), sessions)).size, 0, list);
+    assert.equal(typeof (await focusTab(it2With(list), 'ttys042', async () => {})), 'string');
   }
   const mixed = '[null,{"id":"TAB-1","name":"Real","tty":"ttys042"}]';
-  assert.equal((await itermSource(it2With(mixed, 'null')).statuses(sessions)).size, 0);
-  assert.equal(
-    (await itermSource(it2With(mixed, '{"status":"working"}')).statuses(sessions)).get('s-one')
-      ?.status,
-    'working',
-    'the null entry is skipped, the real tab is read',
+  assert.deepEqual(
+    [...(await itermTabs(it2With(mixed), sessions))],
+    ['s-one'],
+    'the null entry is skipped, the real tab is found',
   );
-  // the count is the status's own `background_tasks`: a whole number from 0, else unknown, whatever the detail says
-  const tasksOf = async (status: string) =>
-    (await itermSource(it2With(mixed, status)).statuses(sessions)).get('s-one')?.tasks;
-  assert.equal(await tasksOf('{"status":"working","detail":"zzz","background_tasks":2}'), 2);
-  assert.equal(await tasksOf('{"status":"working","background_tasks":0}'), 0);
-  assert.equal(
-    await tasksOf('{"status":"working","detail":"3 background tasks running"}'),
-    null,
-    'a detail line is not a count',
-  );
-  assert.equal(await tasksOf('{"status":"working","background_tasks":-1}'), null);
-  assert.equal(await tasksOf('{"status":"working","background_tasks":"2"}'), null);
 });
 
 test('focusing a session: the tab is found by tty on the server, selected, and iTerm raised', async () => {
@@ -476,7 +459,7 @@ test('listeners on the board: a story’s listener marks its card, repos get a l
   // Start listening offers an idle session in that repo whose tab is known
   assert.deepEqual(
     gadgetsRow.candidates.map((candidate) => [candidate.id, candidate.title, candidate.status]),
-    [[fullId(inGadgets.pid), 'Tab title', 'done']],
+    [[fullId(inGadgets.pid), 'gadgets-one', 'done']],
   );
   assert.deepEqual(
     widgets.candidates.map((candidate) => candidate.id).sort(),
@@ -493,7 +476,6 @@ test('a session that listens is in the Listeners lane alone, busy or not, and is
   type Case = {
     registry?: Record<string, unknown>;
     beat?: Record<string, unknown>;
-    tasks?: number;
     status?: 'working' | 'waiting';
     agents?: AgentRun[];
   };
@@ -520,9 +502,7 @@ test('a session that listens is in the Listeners lane alone, busy or not, and is
       source: sourceSaying({
         [sid]: {
           status: variant.status ?? ('working' as const),
-          // the wording is nobody's business: the count is what iTerm's `background_tasks` says
           detail: 'zzz reworded status line',
-          tasks: variant.tasks ?? 1,
         },
       }),
       now: () => NOW,
@@ -538,7 +518,7 @@ test('a session that listens is in the Listeners lane alone, busy or not, and is
   assert.equal(mine(quiet.cards).length, 0, 'no card');
   assert.equal(quiet.data.listeners[0].repo, 'acme/widgets');
   assert.equal(quiet.data.listeners[0].active?.session, fullId(tree.parent));
-  assert.equal(quiet.data.listeners[0].active?.title, 'Tab title');
+  assert.equal(quiet.data.listeners[0].active?.title, 'listener-one');
   assert.equal(quiet.data.listeners[0].active?.busy, false, 'not busy');
   // it picked up a request (the wait handed it over): still only in the lane, which says it is busy
   const handling = await world({ beat: { state: 'handling' } });
@@ -550,11 +530,7 @@ test('a session that listens is in the Listeners lane alone, busy or not, and is
   assert.equal(mine(busy.cards).length, 0, 'a turn is running: no card');
   assert.equal(busy.data.listeners[0].active?.session, fullId(tree.parent), 'still in the lane');
   assert.equal(busy.data.listeners[0].active?.busy, true);
-  // a background task besides its wait: no card, busy in the lane
-  const tasks = await world({ tasks: 2 });
-  assert.equal(mine(tasks.cards).length, 0, 'another task: no card');
-  assert.equal(tasks.data.listeners[0].active?.busy, true);
-  // real other work stays a card: a running subagent, a tab waiting on you
+  // real other work stays a card: a running subagent, a session waiting on you
   const withAgent = await world({
     agents: [{ sid, name: 'helper', started: etAt(14, 50) }],
   });
@@ -567,7 +543,7 @@ test('a session that listens is in the Listeners lane alone, busy or not, and is
     registry(sessions, tree.parent, { cwd: checkout, name: 'plain' }, tree.procStart);
     writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
     const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
-      source: sourceSaying({ [sid]: { status: 'working', detail: 'zzz', tasks: 1 } }),
+      source: sourceSaying({ [sid]: { status: 'working', detail: 'zzz' } }),
       now: () => NOW,
     });
     return (await board.snapshot()).lanes.flatMap((lane) => lane.cards);
@@ -592,7 +568,6 @@ test('the panel’s Start listening: idle sessions in the repo (no voice session
   writeJson(path.join(home, 'config.json'), {
     board_sessions_dir: sessions,
     board_it2_path: fakeIt2(),
-    board_status_source: 'iterm',
   });
   prStory(home, 'acme-widgets-7', 'acme/widgets', 7);
   const typed: string[] = [];
@@ -724,7 +699,6 @@ test('Start listening and Assign leave out the voice session and a session that 
     board_sessions_dir: sessions,
     board_larmor_dir: fakeLarmor(voiceDir),
     board_it2_path: fakeIt2(),
-    board_status_source: 'iterm',
   });
   writeJson(path.join(home, 'listeners', 'repo-acme-widgets.json'), {
     consumer: 'repo-acme-widgets',
@@ -796,7 +770,6 @@ test('a local story whose checkout has no origin finds sessions in that checkout
   writeJson(path.join(home, 'config.json'), {
     board_sessions_dir: sessions,
     board_it2_path: fakeIt2(),
-    board_status_source: 'iterm',
   });
   const typed: string[] = [];
   const done = { status: 'done' as const, detail: null };
@@ -835,7 +808,6 @@ test('a local story whose checkout has no origin finds sessions in that checkout
   writeJson(path.join(home, 'config.json'), {
     board_sessions_dir: sessions,
     board_it2_path: fakeIt2(),
-    board_status_source: 'registry',
   });
   typed.length = 0;
   await make().type('listen', fullId(inBare.pid), null, 'local-bare');
@@ -869,7 +841,6 @@ test('Build story types the clicked card’s own request, though two cards build
   writeJson(path.join(home, 'config.json'), {
     board_sessions_dir: sessions,
     board_it2_path: fakeIt2(),
-    board_status_source: 'iterm',
   });
   const id = fullId(launcher.pid);
   const request = (branch: string) =>

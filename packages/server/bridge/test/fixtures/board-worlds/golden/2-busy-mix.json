@@ -90,7 +90,7 @@
             "can_focus": true,
             "id": "<PID:7>-aaaa-bbbb-cccc-dddddddddddd",
             "since": "2026-10-26T18:50:00.000Z",
-            "title": "Tab title"
+            "title": "blank-one"
           }
         ]
       }
@@ -381,15 +381,15 @@
                 "id": "<PID:4>-aaaa-bbbb-cccc-dddddddddddd",
                 "rested_at": "2026-10-26T18:50:00.000Z",
                 "since": "2026-10-26T18:50:00.000Z",
-                "source": "iterm",
+                "source": "registry",
                 "status": "working",
                 "thinking": true,
-                "title": "Tab title"
+                "title": "loose-one"
               }
             ],
             "since": "2026-10-26T18:50:00.000Z",
             "story": null,
-            "title": "Tab title"
+            "title": "loose-one"
           },
           {
             "agents": [],
@@ -417,14 +417,14 @@
                 "id": "<PID:8>-aaaa-bbbb-cccc-dddddddddddd",
                 "rested_at": "2026-10-26T18:59:55.000Z",
                 "since": "2026-10-26T18:59:55.000Z",
-                "source": "iterm",
+                "source": "registry",
                 "status": "done",
-                "title": "Tab title"
+                "title": "Fixing the flaky spec"
               }
             ],
             "since": "2026-10-26T18:59:55.000Z",
             "story": null,
-            "title": "Tab title"
+            "title": "Fixing the flaky spec"
           },
           {
             "agents": [
@@ -461,7 +461,7 @@
             "kind": "agent",
             "lane": "no-repo-09",
             "listening": null,
-            "parent": "Tab title",
+            "parent": "loose-one",
             "pr": null,
             "repo": null,
             "sessions": [],
@@ -536,14 +536,14 @@
                 "id": "<PID:6>-aaaa-bbbb-cccc-dddddddddddd",
                 "rested_at": "2026-10-26T18:50:00.000Z",
                 "since": "2026-10-26T18:50:00.000Z",
-                "source": "iterm",
+                "source": "registry",
                 "status": "done",
-                "title": "Tab title"
+                "title": "stale-two"
               }
             ],
             "since": "2026-10-26T18:50:00.000Z",
             "story": null,
-            "title": "Tab title"
+            "title": "stale-two"
           },
           {
             "agents": [
@@ -1268,9 +1268,9 @@
                 "id": "<PID:2>-aaaa-bbbb-cccc-dddddddddddd",
                 "rested_at": "2026-10-26T18:50:00.000Z",
                 "since": "2026-10-26T18:50:00.000Z",
-                "source": "iterm",
+                "source": "registry",
                 "status": "waiting",
-                "title": "Tab title"
+                "title": "branch-one"
               }
             ],
             "since": "2026-10-26T18:50:00.000Z",
@@ -1742,7 +1742,7 @@
     ],
     "listeners": [],
     "phone": null,
-    "status_source": "iterm",
+    "status_source": "registry",
     "usage": {
       "at": "2026-10-26T18:59:30.000Z",
       "five_hour": {
@@ -1774,7 +1774,7 @@
       "id": "<PID:6>-aaaa-bbbb-cccc-dddddddddddd",
       "since": "2026-10-26T18:50:00.000Z",
       "status": "done",
-      "title": "Tab title"
+      "title": "stale-two"
     }
   ],
   "storyListen": {
@@ -1785,7 +1785,7 @@
         "id": "<PID:6>-aaaa-bbbb-cccc-dddddddddddd",
         "since": "2026-10-26T18:50:00.000Z",
         "status": "done",
-        "title": "Tab title"
+        "title": "stale-two"
       }
     ],
     "storyLine": "/once-upon-listen --story local-y --keep",

@@ -147,10 +147,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
     agents,
     items: backlogItems,
     live,
-    canFocus: (session) =>
-      picked.source.name === 'iterm'
-        ? read.known.has(session)
-        : read.known.get(session)?.tab === true,
+    canFocus: (session) => read.known.get(session)?.tab === true,
     nowMs,
   });
   const claimed = claimViews(backlogItems, agents, nowMs, editing.editorOf);

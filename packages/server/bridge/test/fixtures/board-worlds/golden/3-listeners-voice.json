@@ -66,14 +66,14 @@
                 "id": "<PID:14>-aaaa-bbbb-cccc-dddddddddddd",
                 "rested_at": "2026-10-26T18:50:00.000Z",
                 "since": "2026-10-26T18:50:00.000Z",
-                "source": "iterm",
+                "source": "registry",
                 "status": "done",
-                "title": "Tab title"
+                "title": "idle-two"
               }
             ],
             "since": "2026-10-26T18:50:00.000Z",
             "story": null,
-            "title": "Tab title"
+            "title": "idle-two"
           }
         ],
         "key": "acme/gadgets",
@@ -107,14 +107,14 @@
                 "id": "<PID:12>-aaaa-bbbb-cccc-dddddddddddd",
                 "rested_at": "2026-10-26T18:50:00.000Z",
                 "since": "2026-10-26T18:50:00.000Z",
-                "source": "iterm",
+                "source": "registry",
                 "status": "done",
-                "title": "Tab title"
+                "title": "plain-one"
               }
             ],
             "since": "2026-10-26T18:50:00.000Z",
             "story": null,
-            "title": "Tab title"
+            "title": "plain-one"
           },
           {
             "agents": [],
@@ -142,14 +142,14 @@
                 "id": "<PID:13>-aaaa-bbbb-cccc-dddddddddddd",
                 "rested_at": "2026-10-26T18:50:00.000Z",
                 "since": "2026-10-26T18:50:00.000Z",
-                "source": "iterm",
+                "source": "registry",
                 "status": "done",
-                "title": "Tab title"
+                "title": "idle-one"
               }
             ],
             "since": "2026-10-26T18:50:00.000Z",
             "story": null,
-            "title": "Tab title"
+            "title": "idle-one"
           },
           {
             "agents": [],
@@ -168,7 +168,7 @@
               "can_focus": true,
               "consumer": "story-acme-widgets-7",
               "session": "<PID:12>-aaaa-bbbb-cccc-dddddddddddd",
-              "title": "Tab title"
+              "title": "plain-one"
             },
             "parent": null,
             "pr": {
@@ -504,7 +504,7 @@
             "kind": "agent",
             "lane": "acme/widgets",
             "listening": null,
-            "parent": "Tab title",
+            "parent": "plain-one",
             "pr": null,
             "repo": null,
             "sessions": [],
@@ -534,7 +534,7 @@
             "id": "<PID:13>-aaaa-bbbb-cccc-dddddddddddd",
             "since": "2026-10-26T18:50:00.000Z",
             "status": "done",
-            "title": "Tab title"
+            "title": "idle-one"
           }
         ],
         "last_seen": "2026-10-26T19:00:00.000Z",
@@ -545,7 +545,7 @@
       "bridge": true,
       "on": false
     },
-    "status_source": "iterm",
+    "status_source": "registry",
     "usage": null,
     "voice": {
       "agents": {
@@ -602,22 +602,22 @@
         {
           "id": "<PID:12>-aaaa-bbbb-cccc-dddddddddddd",
           "idle": true,
-          "name": "Tab title"
+          "name": "plain-one"
         },
         {
           "id": "<PID:13>-aaaa-bbbb-cccc-dddddddddddd",
           "idle": true,
-          "name": "Tab title"
+          "name": "idle-one"
         },
         {
           "id": "<PID:14>-aaaa-bbbb-cccc-dddddddddddd",
           "idle": true,
-          "name": "Tab title"
+          "name": "idle-two"
         },
         {
           "id": "<PID:15>-aaaa-bbbb-cccc-dddddddddddd",
           "idle": false,
-          "name": "Tab title"
+          "name": "busy-one"
         }
       ],
       "last": null
@@ -639,7 +639,7 @@
       "id": "<PID:14>-aaaa-bbbb-cccc-dddddddddddd",
       "since": "2026-10-26T18:50:00.000Z",
       "status": "done",
-      "title": "Tab title"
+      "title": "idle-two"
     }
   ],
   "listenWidgets": [
@@ -647,7 +647,7 @@
       "id": "<PID:13>-aaaa-bbbb-cccc-dddddddddddd",
       "since": "2026-10-26T18:50:00.000Z",
       "status": "done",
-      "title": "Tab title"
+      "title": "idle-one"
     }
   ],
   "storyListen": {
@@ -658,7 +658,7 @@
         "id": "<PID:13>-aaaa-bbbb-cccc-dddddddddddd",
         "since": "2026-10-26T18:50:00.000Z",
         "status": "done",
-        "title": "Tab title"
+        "title": "idle-one"
       }
     ],
     "storyLine": "/once-upon-listen --story local-w --keep",

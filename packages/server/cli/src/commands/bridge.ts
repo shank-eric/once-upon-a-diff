@@ -4,6 +4,7 @@
  */
 
 import path from 'node:path';
+import { statusHookStep } from '@once-upon-a-diff/core/features/sessions/status-hook-setup';
 import { statusLineStep } from '@once-upon-a-diff/core/features/sessions/status-line-setup';
 import { newToken, saveToken, tokenFile } from '@once-upon-a-diff/foundation/settings';
 
@@ -46,6 +47,10 @@ export const bridgeCommands: Command[] = [
         'Paste both into the extension: chrome://extensions → Once Upon a Diff → Details → Extension options.',
       );
       out(`Then run: ${path.relative(process.cwd(), process.argv[1]) || 'once-upon'} serve`);
+      out('');
+      for (const line of statusHookStep(home)) {
+        out(line);
+      }
       out('');
       for (const line of statusLineStep(home)) {
         out(line);

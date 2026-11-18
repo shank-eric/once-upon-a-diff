@@ -43,8 +43,6 @@ test('a live session with a fresh waiting file is Waiting, with the hook’s det
   assert.deepEqual(found.get(LIVE), {
     status: 'waiting',
     detail: 'Ship it?',
-    tasks: null,
-    title: null,
   });
 });
 

@@ -110,11 +110,10 @@ export function adoptHandlers(
 
 /**
  * The sessions whose listener is theirs to show: the board shows them in the Listeners lane and nowhere else, and the
- * answer says which of them are busy (a turn running, a request being handled, or tasks besides the wait), which the
- * lane marks. The wait is a background task, so the terminal calls a session working while it waits; that is not work,
- * and a listener that is answering a question is still the listener. A session counts when it has a live wait (waiting or
- * handling a request it was handed) and nothing that is plainly other work: no running, waiting, plan or fixing ledger
- * agent, and the tab is not waiting on you or in error. Those make it an ordinary card.
+ * answer says which of them are busy (a turn running or a request being handled), which the lane marks. A listener that
+ * is answering a question is still the listener. A session counts when it has a live wait (waiting or handling a request
+ * it was handed) and nothing that is plainly other work: no running, waiting, plan or fixing ledger agent, and the
+ * session is not waiting on you or in error. Those make it an ordinary card.
  */
 export function listeningOnly(
   live: LiveSession[],
@@ -148,14 +147,9 @@ export function listeningOnly(
     if (status === 'waiting' || status === 'error') {
       continue;
     }
-    // "1 background task running" is the wait itself; more tasks than waits is something besides listening
-    const tasks = known.get(session.session)?.tasks ?? null;
-    const waiting = mine.filter((wait) => wait.state === 'waiting').length;
     quiet.set(
       session.session,
-      session.status === 'busy' ||
-        mine.some((wait) => wait.state === 'handling') ||
-        (tasks !== null && tasks > waiting),
+      session.status === 'busy' || mine.some((wait) => wait.state === 'handling'),
     );
   }
   return quiet;

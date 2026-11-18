@@ -9,19 +9,14 @@ import { pause, procStartOf } from '@once-upon-a-diff/state/test/board-fixtures'
 
 /** A source that says what it's told, keyed by session id prefix. */
 export const sourceSaying = (
-  says: Record<
-    string,
-    { status: 'waiting' | 'working' | 'done'; detail: string | null; tasks?: number | null }
-  >,
+  says: Record<string, { status: 'waiting' | 'working' | 'done'; detail: string | null }>,
 ): StatusSource => ({
-  name: 'iterm',
+  name: 'registry',
   statuses: async (sessions) =>
     new Map(
       sessions.flatMap((session) => {
         const found = says[session.session.slice(0, 8)];
-        return found
-          ? [[session.session, { tasks: null, ...found, title: 'Tab title' }] as const]
-          : [];
+        return found ? [[session.session, { ...found, tab: true }] as const] : [];
       }),
     ),
 });

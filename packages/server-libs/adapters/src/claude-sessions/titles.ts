@@ -1,9 +1,7 @@
 /**
  * Session titles: Claude Code writes a session's title into its transcript as an `ai-title` line (`{"type": "ai-title",
  * "aiTitle": "…"}`), again and again as the session goes, but it does not change it, so the board prefers fresher signs
- * (a rename, then your latest prompt; see titleIn). The ai-title is what iTerm's tab shows,
- * so the board titles a card by it when the tab's name says nothing (a generic or cut-short name) or there is no tab,
- * before the registry's derived name ("sideprojects-73"). A session that has only had messages from other sessions has
+ * (a rename, then your latest prompt; see titleIn). The board titles a card by it before the registry's derived name ("sideprojects-73"). A session that has only had messages from other sessions has
  * none, and keeps the registry's name.
  *
  * It stays cheap: only the transcript's tail is read, a little first and more only when that has none; the answer is

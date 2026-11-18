@@ -510,7 +510,6 @@ test('lanes are keyed by owner/name: two repos of one name are two lanes, a lone
   const home = tmp('backlog-lane-keys');
   writeJson(path.join(home, 'config.json'), {
     board_sessions_dir: tmp('backlog-lane-keys-sessions'),
-    board_status_source: 'registry',
   });
   const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
     source: registrySource,
@@ -546,7 +545,6 @@ test('a lane tag moves nothing: the agent keeps its own lane, and the backlog ca
   });
   writeJson(path.join(home, 'config.json'), {
     board_sessions_dir: tmp('backlog-lane-tag-sessions'),
-    board_status_source: 'registry',
   });
   const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
     source: registrySource,
@@ -568,7 +566,6 @@ test('the board snapshot has the Backlog column’s cards, and a CLI-added item 
   const home = tmp('backlog-board');
   writeJson(path.join(home, 'config.json'), {
     board_sessions_dir: tmp('backlog-board-sessions'),
-    board_status_source: 'registry',
   });
   const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
     source: registrySource,
@@ -614,7 +611,6 @@ test('the board key adds and drops; a story’s keys reach nothing of the backlo
   const home = tmp('backlog-bridge');
   writeJson(path.join(home, 'config.json'), {
     board_sessions_dir: tmp('backlog-bridge-sessions'),
-    board_status_source: 'registry',
   });
   const bridge = await startBridge({ home });
   open.push(bridge);
@@ -801,7 +797,6 @@ test('edit changes an open card in place: the CLI, the board key and the board a
   const home = tmp('backlog-edit');
   writeJson(path.join(home, 'config.json'), {
     board_sessions_dir: tmp('backlog-edit-sessions'),
-    board_status_source: 'registry',
   });
   const added = await runCli(home, ['backlog', 'add', 'Old title', '--note', 'old note']);
   const id = /^(bl_[a-z0-9]+) added/.exec(added.stdout)?.[1] as string;
@@ -1265,7 +1260,6 @@ test('POST /api/board/backlog/someday moves a card in and out of the Someday sec
   const home = tmp('backlog-someday-route');
   writeJson(path.join(home, 'config.json'), {
     board_sessions_dir: tmp('backlog-someday-sessions'),
-    board_status_source: 'registry',
   });
   const id = /^(bl_[a-z0-9]+) added/.exec(
     (await runCli(home, ['backlog', 'add', 'Later', '--repo', 'acme/widgets'])).stdout,
@@ -1338,7 +1332,6 @@ test('a 5,000-character note goes in through a file or stdin, with a short argv,
   const home = tmp('backlog-long-note');
   writeJson(path.join(home, 'config.json'), {
     board_sessions_dir: tmp('backlog-long-note-sessions'),
-    board_status_source: 'registry',
   });
   const long = (mark: string) => `${mark} ${'word '.repeat(1000)}`.slice(0, 5000).trim();
   const noteOf = async (id: string) =>
@@ -1390,7 +1383,6 @@ test('a long card is added with --title-file or --title -, a CRLF note reads as 
   const home = tmp('backlog-title-file');
   writeJson(path.join(home, 'config.json'), {
     board_sessions_dir: tmp('backlog-title-file-sessions'),
-    board_status_source: 'registry',
   });
   const dir = tmp('backlog-title-file-files');
   const show = async (id: string) =>

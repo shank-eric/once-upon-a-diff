@@ -53,7 +53,7 @@ test('a build that throws leaves what the board remembers (sessions seen, the li
     },
   };
   const source: StatusSource = {
-    name: 'iterm',
+    name: 'registry',
     statuses: async () => new Map(),
   };
   let clock = NOW;
@@ -94,7 +94,6 @@ test('GET /api/board/listen-sessions?story=: a story with no repo or checkout fa
   writeJson(path.join(home, 'config.json'), {
     board_sessions_dir: sessions,
     board_it2_path: it2,
-    board_status_source: 'iterm',
   });
   // a local story whose meta names no checkout, so it has no repo and no folder to find sessions in
   writeJson(path.join(home, 'local-nowhere', 'meta.json'), {

@@ -48,7 +48,6 @@ async function boardBridge() {
   registry(sessions, process.pid, { status: 'busy' }, procStartOf(process.pid));
   writeJson(path.join(home, 'config.json'), {
     board_sessions_dir: sessions,
-    board_status_source: 'registry',
   });
   const bridge = await startBridge({ home });
   open.push(bridge);
@@ -279,7 +278,6 @@ test('POST /api/board/focus takes the board key, a live session id and nothing e
   writeJson(path.join(home, 'config.json'), {
     board_sessions_dir: sessions,
     board_it2_path: it2,
-    board_status_source: 'iterm',
   });
   const bridge = await startBridge({ home });
   open.push(bridge);
@@ -296,7 +294,6 @@ test('POST /api/board/focus takes the board key, a live session id and nothing e
   // and with iTerm turned off in the settings there is nothing to do
   writeJson(path.join(home, 'config.json'), {
     board_sessions_dir: sessions,
-    board_status_source: 'registry',
   });
   assert.equal((await post(key, { session: fullId(process.pid) })).status, 409);
 });
@@ -654,7 +651,6 @@ test('POST /api/board/type and /stop-listening: the board key, a live idle sessi
   writeJson(path.join(home, 'config.json'), {
     board_sessions_dir: sessions,
     board_it2_path: it2,
-    board_status_source: 'iterm',
   });
   const bridge = await startBridge({ home });
   open.push(bridge);
@@ -791,7 +787,6 @@ test('a story’s own listen routes: the local page’s full key and the token r
   writeJson(path.join(home, 'config.json'), {
     board_sessions_dir: sessions,
     board_it2_path: fakeIt2(),
-    board_status_source: 'iterm',
   });
   const widgets = checkoutOf('widgets', 'feat/x');
   const bare = tmp('board-no-remote');
@@ -890,7 +885,6 @@ test('GET /api/board/listen-sessions: the board key or the token, a repo or a st
   writeJson(path.join(home, 'config.json'), {
     board_sessions_dir: sessions,
     board_it2_path: fakeIt2(),
-    board_status_source: 'iterm',
   });
   prStory(home, 'acme-widgets-7', 'acme/widgets', 7);
   const bridge = await startBridge({ home });

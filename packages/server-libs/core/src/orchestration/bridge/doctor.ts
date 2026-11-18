@@ -328,7 +328,7 @@ export async function doctor(
     'Status hook',
     hookFiles
       ? `${hookFiles} status file${hookFiles === 1 ? '' : 's'} in ${path.join(home, 'status')}`
-      : `no status file in ${path.join(home, 'status')}: the board shows Waiting and Done only from iTerm's tab status, if it2 is found`,
+      : `no status file in ${path.join(home, 'status')}: the board shows no Waiting or Done, only Claude Code's busy or idle`,
     hookFiles
       ? null
       : 'Wire extras/hooks/board-status.sh into Claude Code hooks (README, "Board status hook"); the file appears on the next prompt',

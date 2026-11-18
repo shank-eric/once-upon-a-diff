@@ -319,10 +319,7 @@ const DEFAULT_HOSTS = ['once-upon.test', 'once-upon.fidev.net'];
  *                           (default ["once-upon.test", "once-upon.fidev.net"])
  *   public_host             the allowed name the extension's Open board button opens the board on, over https (default: the first
  *                           allowed host; "" or "none" prints the 127.0.0.1 address)
- *   board_status_source     "registry" or "iterm": where the agent board reads each session's status (default: registry,
- *                           Claude Code's own busy/idle plus the status hook's Waiting and Done; "iterm" is the tab's own
- *                           status, when the it2 CLI is found). Typing into tabs and raising them use it2 either way
- *   board_it2_path          the it2 CLI's path when it isn't on PATH or in iTerm2's app folder
+ *   board_it2_path          the it2 CLI's path when it isn't on PATH or in iTerm2's app folder (typing into tabs and raising them)
  *   board_sessions_dir      Claude Code's live-session registry (default $CLAUDE_CONFIG_DIR/sessions or ~/.claude/sessions)
  *   board_projects_dir      Claude Code's transcripts, for telling a session with no prompt yet (default $CLAUDE_CONFIG_DIR/projects or ~/.claude/projects)
  *   board_ledger_file       a Markdown file the agent registry appends a line to for each agent event, a log for people and
@@ -403,10 +400,6 @@ export function readSettings(home = homeDir()) {
       wantedHost !== 'none' &&
       publicHost === wantedHost,
     board: {
-      statusSource:
-        cfg.board_status_source === 'iterm' || cfg.board_status_source === 'registry'
-          ? (cfg.board_status_source as 'iterm' | 'registry')
-          : null,
       it2Path:
         typeof cfg.board_it2_path === 'string' && cfg.board_it2_path
           ? expand(cfg.board_it2_path)
