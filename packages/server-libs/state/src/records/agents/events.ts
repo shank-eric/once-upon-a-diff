@@ -43,6 +43,12 @@ export function canonicalKind(raw: unknown): AgentKind | null {
 /** A run with no event this long is taken to be dead: it holds no build slot, and an unnamed beat does not land on it. */
 export const STALE_MS = 24 * 3600 * 1000;
 
+/**
+ * A work run (running or fixing) whose own subagent transcript, and every event of its own, has been silent this long is dead
+ * (board/stages/dead-runs.ts). Only a run whose transcript is found is judged by it: with none, STALE_MS stands.
+ */
+export const QUIET_MS = 30 * 60 * 1000;
+
 /** A storyteller with no event this long is dead (the sweep never closes it): it is not working and holds no gate. */
 export const STORYTELLER_STALE_MS = 3600 * 1000;
 

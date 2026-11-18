@@ -8,26 +8,14 @@
  * Anything else is a quiet no-op: a run is never guessed.
  */
 import path from 'node:path';
-import { readSubagentMeta } from '@once-upon-a-diff/adapters/subagent-meta';
-import { AGENT_NAME_RE, SID_RE } from '@once-upon-a-diff/terms/patterns';
+import { readSubagentMeta, runNameOf } from '@once-upon-a-diff/adapters/subagent-meta';
+import { SID_RE } from '@once-upon-a-diff/terms/patterns';
 import { runRegistry } from './registry.ts';
-
-/** The house form of an Agent description: `<name>: <task>`. */
-const DESCRIPTION_NAME = /^([a-z0-9][a-z0-9-]*):/;
 
 /** The launching session's id from a subagent transcript's path, or null when it is not laid out as Claude Code does. */
 function sessionOf(transcript: string): string | null {
   const folder = path.dirname(transcript);
   return path.basename(folder) === 'subagents' ? path.basename(path.dirname(folder)) : null;
-}
-
-/** The run name a subagent's meta file gives: the tool's `name`, else the description's `name:` prefix. */
-function nameOf(transcript: string): string | null {
-  const meta = readSubagentMeta(transcript);
-  if (meta?.name && AGENT_NAME_RE.test(meta.name)) {
-    return meta.name;
-  }
-  return meta?.description?.match(DESCRIPTION_NAME)?.[1] ?? null;
 }
 
 /**
@@ -41,7 +29,7 @@ export function autoFinishRun(
   const sid = [input.transcript ? sessionOf(input.transcript) : null, input.session]
     .map((session) => session?.slice(0, 8) ?? '')
     .find((one) => SID_RE.test(one));
-  const name = input.transcript ? nameOf(input.transcript) : null;
+  const name = input.transcript ? runNameOf(readSubagentMeta(input.transcript)) : null;
   if (!name || !sid) {
     return null;
   }

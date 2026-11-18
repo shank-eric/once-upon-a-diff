@@ -37,6 +37,7 @@ import type { BlankSessions } from '@once-upon-a-diff/adapters/claude-sessions/b
 import { listenersLane } from '@once-upon-a-diff/core/features/listeners/service';
 import { listenCandidates } from '@once-upon-a-diff/core/features/sessions/listening';
 import type { ListeningInput } from '@once-upon-a-diff/core/features/sessions/listening';
+import type { SubagentLiveness } from '@once-upon-a-diff/adapters/claude-sessions/subagent-liveness';
 import type { SessionTitles } from '@once-upon-a-diff/adapters/claude-sessions/titles';
 import type { WorktreeScanner } from '@once-upon-a-diff/state/records/worktrees/worktrees';
 import type { BoardData } from '@once-upon-a-diff/contracts/types';
@@ -69,6 +70,8 @@ export interface BoardState {
   seen: Map<string, SeenSession>;
   blank: BlankSessions;
   titles: SessionTitles;
+  /** where each open run's subagent transcript last changed (dead-runs.ts) */
+  liveness: SubagentLiveness;
   listenerSessions: Map<string, string>;
   backlog: BacklogStore;
   scanner: WorktreeScanner;
@@ -92,7 +95,7 @@ export interface BuiltBoard {
 export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<BuiltBoard> {
   const { now, nowMs, settings } = ctx;
   const unreadById = unreadAnswers(ctx.home, new Inbox(ctx.home), nowMs);
-  const read = await readLive(ctx);
+  const read = await readLive(ctx, state.liveness);
   // a standing helper is no card, no running work and no owner of a backlog card: it is held out of every stage's agents
   // and has its row only (helpers.ts)
   const standing = read.agents.filter(isStandingHelper);

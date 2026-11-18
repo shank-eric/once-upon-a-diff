@@ -117,6 +117,28 @@ function holderOf(lock: string): string {
 }
 
 /**
+ * The names of the runs holding a heavy lock now (the main lock and the browser lane), read from each `.who` as `take` writes it
+ * (`<name> (3:40 PM): <command>`). A holder shows only while its lock folder is there, its `.who` belongs to it and its pid
+ * (the `.who`'s second line) still runs. Only the holder is recorded: a run waiting for the lock has no record to read.
+ */
+export function heavyHolders(env: NodeJS.ProcessEnv = process.env): Set<string> {
+  const names = new Set<string>();
+  for (const lane of [undefined, 'browser'] as const) {
+    const lock = heavyLockPath(env, lane);
+    if (!lstatSafe(lock)?.isDirectory()) {
+      continue;
+    }
+    const who = holderFile(lock);
+    const name = /^(\S+) \(/.exec(who.split('\n')[0])?.[1];
+    const pid = Number(/^pid (\d+)$/m.exec(who)?.[1]);
+    if (name && pid > 0 && pidAlive(pid)) {
+      names.add(name);
+    }
+  }
+  return names;
+}
+
+/**
  * Whether the lock there is stale by age but its holder's process (the pid on the `.who`'s second line) still runs: a holder
  * that stalled, for instance across a Mac's sleep, and has not touched the lock yet. It is not taken from.
  */

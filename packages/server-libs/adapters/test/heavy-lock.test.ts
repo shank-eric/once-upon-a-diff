@@ -19,7 +19,7 @@ import {
 } from 'node:fs';
 import '@once-upon-a-diff/test-kit/env';
 import { tmp } from '@once-upon-a-diff/test-kit/files';
-import { runHeavy } from '../src/heavy-lock.ts';
+import { heavyHolders, runHeavy } from '../src/heavy-lock.ts';
 
 const heavyLockModule = new URL('../src/heavy-lock.ts', import.meta.url).href;
 
@@ -411,4 +411,27 @@ test('two browser-lane runs take turns, and the second names the lane while it w
     'second',
   ]);
   assert.deepEqual(readdirSync(dir).sort(), ['order.txt', 'release']);
+});
+
+test('heavyHolders names the live holder of the main lock and of the browser lane, and no one once it lets go', async () => {
+  const dir = tmp('heavy-holders');
+  const lock = path.join(dir, 'lock');
+  const env = lockEnv(lock);
+  assert.deepEqual([...heavyHolders(env)], [], 'no lock, no holder');
+  mkdirSync(lock);
+  writeFileSync(`${lock}.who`, `fix-login (3:40 PM): yarn test\npid ${process.pid}\n`);
+  mkdirSync(`${lock}-browser`);
+  writeFileSync(
+    `${lock}-browser.who`,
+    `check-ui (3:41 PM): yarn test:extension\npid ${process.pid}\n`,
+  );
+  assert.deepEqual([...heavyHolders(env)].sort(), ['check-ui', 'fix-login']);
+  writeFileSync(`${lock}.who`, `crashed (3:40 PM): yarn test\npid ${deadPid()}\n`);
+  assert.deepEqual(
+    [...heavyHolders(env)],
+    ['check-ui'],
+    'a holder whose process is gone is no holder',
+  );
+  writeFileSync(`${lock}.who`, 'first waiter\n');
+  assert.deepEqual([...heavyHolders(env)], ['check-ui'], 'a who with no pid is not believed');
 });

@@ -21,6 +21,7 @@ import { finishRun } from '@once-upon-a-diff/core/features/runs/service';
 import { markFinished } from '@once-upon-a-diff/adapters/stores/finished-agents';
 import { BlankSessions } from '@once-upon-a-diff/adapters/claude-sessions/blank-sessions';
 import { SessionTitles } from '@once-upon-a-diff/adapters/claude-sessions/titles';
+import { SubagentLiveness } from '@once-upon-a-diff/adapters/claude-sessions/subagent-liveness';
 import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import type { AddInput, EditInput, MoveTo } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
@@ -53,6 +54,7 @@ import type { BoardCard, BoardData } from '@once-upon-a-diff/contracts/types';
 import { isFinished } from './stages/agents.ts';
 import { prOfFacts } from './stages/worktrees.ts';
 import { buildBoard } from './stages/index.ts';
+import { endDeadRuns } from './stages/dead-runs.ts';
 import type { SeenSession } from './stages/sessions.ts';
 import { liveSessions } from '@once-upon-a-diff/adapters/claude-sessions/live-sessions';
 import { noPrWatcher, type PrWatcher } from './stages/pr-watcher.ts';
@@ -104,6 +106,7 @@ export class Board {
   private generation = 0;
   private blank = new BlankSessions();
   private titles = new SessionTitles();
+  private liveness = new SubagentLiveness();
   /** the session each listener's wait ran in, for its handling beat (adoptHandlers) */
   private listenerSessions = new Map<string, string>();
   private backlog: BacklogStore;
@@ -441,6 +444,7 @@ export class Board {
       seen: this.seen,
       blank: this.blank,
       titles: this.titles,
+      liveness: this.liveness,
       listenerSessions: this.listenerSessions,
       backlog: this.backlog,
       scanner: this.scanner,
@@ -613,7 +617,12 @@ export class Board {
    */
   finishAgent(sid: string, name: string): { ledger: boolean } {
     const now = (this.options.now || (() => new Date()))();
-    const { agents } = readAgents(this.home);
+    // the agents as the board shows them: a run the liveness rule shows dead is finished here too (the last build's answer)
+    const agents = endDeadRuns(
+      readAgents(this.home).agents,
+      this.liveness.lastAnswer(),
+      now.getTime(),
+    );
     const agent = agents.find((one) => one.sid === sid && one.name === name);
     if (!agent) {
       throw new BoardError(404, 'no registered agent with that sid and name');

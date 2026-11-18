@@ -19,3 +19,8 @@ process.env.CLAUDE_CONFIG_DIR = CLAUDE_DIR;
 const HOME_DIR = mkdtempSync(path.join(os.tmpdir(), 'once-upon-home-'));
 process.env.ONCE_UPON_HOME = HOME_DIR;
 process.env.ONCE_UPON_NO_HOST_CHECK = '1';
+// the heavy lock the board reads for who holds it: never the real ~/.cache one, where a live agent's name would be a holder here
+process.env.ONCE_UPON_HEAVY_LOCK = path.join(
+  mkdtempSync(path.join(os.tmpdir(), 'once-upon-heavy-')),
+  'heavy-run.lock',
+);

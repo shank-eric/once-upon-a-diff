@@ -11,6 +11,7 @@ import { DEFAULT_BRANCHES } from '@once-upon-a-diff/foundation/settings';
 import { readAgents } from '@once-upon-a-diff/state/records/agents/read';
 import type { LedgerAgent } from '@once-upon-a-diff/state/records/agents/ledger';
 import type { BlankSessions } from '@once-upon-a-diff/adapters/claude-sessions/blank-sessions';
+import type { SubagentLiveness } from '@once-upon-a-diff/adapters/claude-sessions/subagent-liveness';
 import type { SessionTitles } from '@once-upon-a-diff/adapters/claude-sessions/titles';
 import { readStatusLines } from '@once-upon-a-diff/adapters/claude-sessions/statusline';
 import { phoneReady, readVoice, voiceState } from '@once-upon-a-diff/adapters/larmor';
@@ -39,6 +40,7 @@ import {
 import type { BuildContext, PinnedVoice, SessionView, Work } from './types.ts';
 import { branchOfWork, startWork } from './works.ts';
 import { endGoneSelfRuns, openSessions, selfSessions } from './self-runs.ts';
+import { endDeadRuns, runsToJudge } from './dead-runs.ts';
 import { liveEditors } from './editors.ts';
 
 /** What the registry and the status source say of the live sessions and the agents. */
@@ -58,7 +60,7 @@ export interface LiveFacts {
 }
 
 /** Reads the registry's live sessions, their statuses, branches and repos, and the registered agents. */
-export async function readLive(ctx: BuildContext): Promise<LiveFacts> {
+export async function readLive(ctx: BuildContext, liveness: SubagentLiveness): Promise<LiveFacts> {
   const { settings, nowMs } = ctx;
   const status: { source: StatusSource; warning: string | null } = ctx.sourceOverride
     ? { source: ctx.sourceOverride, warning: null }
@@ -78,12 +80,18 @@ export async function readLive(ctx: BuildContext): Promise<LiveFacts> {
   // a self run of a session that is gone is shown stopped (self-runs.ts); an unusable registry scan changes nothing, and
   // neither does one with a file it could not use whose pid runs (its session may be that one: unknown, not gone)
   const trusted = health.folder === 'ok' && !unknown;
-  const agents = trusted
+  const gone = trusted
     ? endGoneSelfRuns(
         registered,
         live.map((session) => session.session.slice(0, 8)),
       )
     : registered;
+  // a work run whose subagent transcript has been silent for QUIET_MS is shown dead (dead-runs.ts); no transcript found, no change
+  const agents = endDeadRuns(
+    gone,
+    await liveness.lastWrite(settings.projectsDir, runsToJudge(gone), nowMs),
+    nowMs,
+  );
   return { picked, live, known, branches, repos, agents, editors, trusted };
 }
 

@@ -1,9 +1,14 @@
 /**
  * The file Claude Code writes next to a subagent's transcript: `<projects>/<proj>/<session>/subagents/agent-<id>.jsonl` has
  * `agent-<id>.meta.json` beside it, with the Agent tool's `description` (the house form is `<name>: <task>`), `agentType` and,
- * on newer versions, the tool's `name`. Read only by `agent auto-finish` to tell which registered run a stopped subagent was.
+ * on newer versions, the tool's `name`. Read to tell which registered run a subagent is: by `agent auto-finish` for a stopped one
+ * and by the board's liveness check (claude-sessions/subagent-liveness.ts) for a running one.
  */
 import { readFileSync } from 'node:fs';
+import { AGENT_NAME_RE } from '@once-upon-a-diff/terms/patterns';
+
+/** The house form of an Agent description: `<name>: <task>`. */
+const DESCRIPTION_NAME = /^([a-z0-9][a-z0-9-]*):/;
 
 export interface SubagentMeta {
   name: string | null;
@@ -30,4 +35,12 @@ export function readSubagentMeta(transcript: string): SubagentMeta | null {
   } catch {
     return null;
   }
+}
+
+/** The run name a subagent's meta gives: the tool's `name`, else the description's `name:` prefix. Null when it gives neither. */
+export function runNameOf(meta: SubagentMeta | null): string | null {
+  if (meta?.name && AGENT_NAME_RE.test(meta.name)) {
+    return meta.name;
+  }
+  return meta?.description?.match(DESCRIPTION_NAME)?.[1] ?? null;
 }

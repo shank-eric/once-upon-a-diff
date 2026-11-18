@@ -22,7 +22,8 @@ import { checkWrite } from '@once-upon-a-diff/foundation/shared-files';
 import { END_STATES, OPEN_STATES } from '@once-upon-a-diff/contracts/files/agent-states';
 import { readAgentEvent } from '@once-upon-a-diff/contracts/files/schemas';
 import { strictAgentEvent } from '@once-upon-a-diff/contracts/files/strict';
-import { isCritic, lastActivity } from './ledger.ts';
+import { lastActivity } from './ledger.ts';
+import { SWEPT_STATES, canAutoEnd, endOfStopped } from './auto-end.ts';
 import { AGENT_KINDS, type AgentKind, type AgentResult, type AgentRole } from './agent-types.ts';
 import {
   KIND_ALIASES,
@@ -115,8 +116,6 @@ export interface FinishInput extends Target {
   noCommit?: boolean;
 }
 
-/** The states a sweep closes: a run that owes beats. One parked on a person (waiting, review, plan) is never swept. */
-const SWEPT_STATES: LedgerAgent['state'][] = ['running', 'fixing'];
 /**
  * The kinds a sweep closes: work and check runs (an author's, a critic's), which beat. A helper of any kind is never swept: it
  * idles between requests, and the live editor skill still registers the editor as one. A storyteller is not swept either: the board
@@ -334,23 +333,16 @@ export class AgentRegistry {
    */
   autoFinish(sid: string, name: string): LedgerAgent | null {
     const agent = this.agents().find((one) => one.sid === sid && one.name === name);
-    if (
-      !agent?.run ||
-      !SWEPT_STATES.includes(agent.state) ||
-      agent.standing ||
-      agent.kind === 'editor' ||
-      isSelfName(agent.name)
-    ) {
+    if (!agent?.run || !canAutoEnd(agent)) {
       return null;
     }
-    // a run with no kind counts as work too (same rule as isWorkRun in queues/backlog/phase.ts)
-    const owesWork = !agent.kind || agent.kind === 'author' || isCritic(agent);
+    const end = endOfStopped(agent);
     try {
       return this.finish(name, {
         sid,
         run: agent.run,
-        state: owesWork ? 'failed' : 'done',
-        outcome: owesWork ? 'stopped without agent finish' : 'auto-finished',
+        state: end.state,
+        outcome: end.outcome,
         by: 'auto-finish',
       });
     } catch {
