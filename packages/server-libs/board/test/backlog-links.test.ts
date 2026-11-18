@@ -154,7 +154,7 @@ const backlogCard = async (board: Board, id: string): Promise<BoardCard | undefi
     .flatMap((lane) => lane.cards)
     .find((card) => card.backlog?.id === id);
 
-test('the Retire-the-inbox case: a claimed, started card is one Working card with its agent, and is Ready (unmerged work) when the agent finishes', async () => {
+test('the Retire-the-inbox case: a claimed, started card is one Working card with its agent, and is Ready (unmerged work, its critic skipped) when the agent finishes', async () => {
   const home = tmp('links-board');
   const sessions = tmp('links-sessions');
   const store = new BacklogStore(home);
@@ -209,6 +209,9 @@ test('the Retire-the-inbox case: a claimed, started card is one Working card wit
     outcome: 'committed on kill-inbox',
     at: new Date('2026-10-26T19:30:00Z'),
   });
+  // no critic has passed: the card waits for the user's call (Waiting) until one passes or the skip is recorded
+  assert.equal((await backlogCard(boardOf(home, later), item.id))?.column, 'waiting');
+  store.skipCritic(item.id, true);
   const done = await backlogCard(boardOf(home, later), item.id);
   assert.equal(done?.column, 'ready');
   assert.equal(done?.backlog?.started?.links?.agent?.state, 'done');
@@ -234,6 +237,8 @@ test('a finished carded author on a branch with no work card: unpushed is Ready 
   const checkout = repoWithWorktree(home);
   claimAt(store, item.id, 'ou-kill-inbox', CLAIMED);
   store.start(item.id, { branch: 'kill-inbox', repo: 'acme/widgets', by: 'ou-kill-inbox' });
+  // every repo's built card waits for a critic: the doors below are for a card whose critic is skipped
+  store.skipCritic(item.id, true);
   registry.finish('ou-kill-inbox', {
     outcome: 'committed on kill-inbox',
     at: new Date('2026-10-26T19:30:00Z'),

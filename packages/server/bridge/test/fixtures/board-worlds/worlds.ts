@@ -1231,7 +1231,10 @@ async function record(
 {
   const home = tmp('home');
   const sessions = tmp('sessions');
-  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
+  writeJson(path.join(home, 'config.json'), {
+    board_sessions_dir: sessions,
+    repos: { larmor: { skips_review: true } },
+  });
   const et = (hour: number, minute: number) => new Date(Date.UTC(2026, 9, 26, hour + 4, minute));
   const card = (id: string, title: string, repo: string, branch: string, agent: string) => [
     {
@@ -1298,7 +1301,7 @@ async function record(
     at: et(13, 41),
   });
   runs.finish('review-wrong', { sid: sid8, findings: 0, at: et(13, 50) });
-  // 3: built, then a carded researcher failed: still Ready for your review
+  // 3: built, then a carded researcher failed: no critic has passed, so Waiting (not back in Backlog)
   author('ou-built', 'bl_ccccc03', et(13, 5));
   runs.finish('ou-built', { sid: sid8, result: { branch: 'built-it' }, at: et(13, 40) });
   runs.start({

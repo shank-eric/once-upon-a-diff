@@ -89,7 +89,7 @@
             "build": null,
             "building": null,
             "can_focus": false,
-            "column": "ready",
+            "column": "checks",
             "detail": "Backlog card for dup-a: the note",
             "focus_session": null,
             "id": "backlog:ic_ddddd01",
@@ -100,7 +100,7 @@
             "pr": null,
             "repo": "acme/widgets",
             "sessions": [],
-            "since": "2026-10-26T18:40:00.000Z",
+            "since": "2026-10-26T18:30:00.000Z",
             "story": null,
             "title": "Backlog card for dup-a"
           },

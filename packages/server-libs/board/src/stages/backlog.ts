@@ -4,6 +4,7 @@
  */
 import { branchKey, repoKey } from '@once-upon-a-diff/terms/ids';
 import { checkoutFor, sameRepo, seenCheckouts } from '@once-upon-a-diff/foundation/repos';
+import { repoSettings } from '@once-upon-a-diff/foundation/settings';
 import { backlogCards, cardOnBranch } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
 import { agentKey, sameAgentView } from '@once-upon-a-diff/state/queues/backlog/claims';
@@ -329,7 +330,13 @@ export function addBacklogCards(
               nowMs,
             )
           : undefined;
-      const phase = cardPhase(item, runs, nowMs, ready);
+      const phase = cardPhase(
+        item,
+        runs,
+        nowMs,
+        ready,
+        !!repoSettings(ctx, item.repo).skips_review,
+      );
       if (phase !== undefined) {
         phases.set(item.id, phase);
       }

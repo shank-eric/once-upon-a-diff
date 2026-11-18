@@ -152,7 +152,7 @@ const stamped = { id, at: lenient(string()), by: lenient(string()) };
  *   {op:'edit',  id, title?, note?, repo?, by, at}
  *   {op:'claim', id, agent, sid?, session?, worktree?, by, at}   an agent (named as it registered) owns the card; `session` is the
  *                                              claimer's full session id (the editor's) and `worktree` the checkout path, when given
- *   {op:'hold' | 'someday', id, on, by, at}
+ *   {op:'hold' | 'someday' | 'skip_critic', id, on, by, at}
  * What each means, and how they fold into items, is state/src/queues/backlog/backlog.ts.
  */
 const BacklogEventSchema = variant('op', [
@@ -182,6 +182,7 @@ const BacklogEventSchema = variant('op', [
   }),
   looseObject({ op: literal('hold'), ...stamped, on: lenient(boolean()) }),
   looseObject({ op: literal('someday'), ...stamped, on: lenient(boolean()) }),
+  looseObject({ op: literal('skip_critic'), ...stamped, on: lenient(boolean()) }),
   looseObject({ op: literal('drop'), ...stamped }),
   looseObject({ op: literal('reopen'), ...stamped }),
   looseObject({

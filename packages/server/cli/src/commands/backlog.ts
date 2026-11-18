@@ -1,5 +1,5 @@
 /*
- * The backlog from the terminal: `once-upon backlog add|list|show|edit|start|claim|done|land|hold|someday|drop|reopen`. It reads and writes the backlog file
+ * The backlog from the terminal: `once-upon backlog add|list|show|edit|start|claim|done|land|hold|skip-critic|someday|drop|reopen`. It reads and writes the backlog file
  * (state/src/queues/backlog/backlog.ts) in-process, so nothing goes over HTTP; the board shows the items as its Backlog column.
  */
 import path from 'node:path';
@@ -39,6 +39,7 @@ const USAGE =
   '       once-upon backlog done ID [--sha SHA] [--by NAME]\n' +
   '       once-upon backlog land [PICKED_SHA...] --from REF --to REF [--by NAME] [--dry-run]\n' +
   '       once-upon backlog hold ID [--off]\n' +
+  '       once-upon backlog skip-critic ID [--off]\n' +
   '       once-upon backlog someday ID [--off]\n' +
   '       once-upon backlog drop ID [--into CARD]\n' +
   '       once-upon backlog reopen ID';
@@ -374,6 +375,15 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
         : `${held.id} released: a deploy or a merged PR can mark it done again`,
     );
   }
+  if (verb === 'skip-critic') {
+    const item = found();
+    const skipped = store.skipCritic(item.id, !opts.off, who);
+    return out(
+      skipped.critic_skipped
+        ? `${skipped.id} critic skipped: once its work is built it reads Ready, with no critic needed`
+        : `${skipped.id} critic needed again: once its work is built it waits for a passing critic or a skip`,
+    );
+  }
   if (verb === 'someday') {
     const item = found();
     // the ledger says whether the card's claim is live (an agent working it)
@@ -459,6 +469,7 @@ export const backlogCommands: Command[] = [
       'done',
       'land',
       'hold',
+      'skip-critic',
       'someday',
       'drop',
       'reopen',
@@ -471,6 +482,7 @@ export const backlogCommands: Command[] = [
       '  once-upon backlog land [PICKED_SHA...] --from REF --to REF [--dry-run]           a deploy: mark done the cards whose recorded commit (agent finish --commit) is in the range (a repo with no deploy lands by merged PR: the bridge does it)',
       '  once-upon backlog adopt ID [--title TEXT]                                        an implicit card (a run that did not start in the backlog; list --implicit shows them) becomes a backlog card with the same id',
       '  once-upon backlog hold ID [--off]                                                the card lands by hand: a deploy or a merged PR never marks it done',
+      '  once-upon backlog skip-critic ID [--off]                                         the card needs no critic: built with none passing it is Ready for your review, not Waiting',
       '  once-upon backlog someday ID [--off]                                             maybe someday: out of the main list into a collapsed Someday section (list --someday shows it)',
       '  once-upon backlog move ID --before ID | --top | --bottom                        reorder: new items go to the bottom',
       "  once-upon backlog start ID [--branch NAME]                                       work began: the card moves onto that branch's work card",

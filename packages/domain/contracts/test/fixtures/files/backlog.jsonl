@@ -14,3 +14,4 @@
 {"op":"done","id":"bl_abc123","sha":"0123456789abcdef0123456789abcdef01234567","by":"cli","at":"2026-10-29T15:01:00.000Z"}
 {"op":"drop","id":"bl_def456","by":"cli","at":"2026-10-29T16:00:00.000Z"}
 {"op":"reopen","id":"bl_def456","by":"cli","at":"2026-10-29T17:00:00.000Z"}
+{"op":"skip_critic","id":"bl_ghi789","on":true,"by":"cli","at":"2026-10-29T14:06:00.000Z"}

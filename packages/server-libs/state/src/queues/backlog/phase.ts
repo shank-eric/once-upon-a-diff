@@ -11,7 +11,6 @@
  */
 import type { BoardColumn } from '@once-upon-a-diff/contracts/types';
 import { isImplicitCard, sameRepo } from '@once-upon-a-diff/terms/ids';
-import { repoName } from '@once-upon-a-diff/terms/text';
 import { STALE_MS, runIsOpen, staleAfterMs } from '../../records/agents/events.ts';
 import { implicitCards } from '../../records/agents/implicit.ts';
 import {
@@ -26,12 +25,6 @@ import type { BacklogItem } from './types.ts';
 
 /** A started item whose work merged or landed, or whose agent finished, stays in Done this long. */
 export const DONE_HOURS = 1;
-
-/** The repos whose finished work skips review for now and is Ready to ship (Larmor only: once-upon-a-diff is reviewed through its story). */
-export const SKIPS_REVIEW = /^larmor$/i;
-
-/** The repos where a critic's run or findings hold the card in Agent checks (once-upon-a-diff and Larmor). */
-export const CRITIC_HOLD = /^(once-upon-a-diff|larmor)$/i;
 
 /** A run that changes the card's phase: an author's or fixer's (kind author), or an old row with no kind. A researcher's, a helper's or a storyteller's does not: a lookup is not the work. */
 export const isWorkRun = (run: Pick<LedgerAgent, 'kind'>): boolean =>
@@ -114,13 +107,13 @@ export interface CardPhase {
 /** The rows of the table `cardPhase` reads, one line each: the doc comment below and `once-upon card status` both say it from here. */
 export const PHASE_ROWS = {
   '1': 'a work run is open: waiting (a question) is Waiting, plan is Agent checks, running or fixing is Working',
-  '2': 'a critic is open (once-upon-a-diff and Larmor): Agent checks',
+  '2': 'a critic is open: Agent checks',
   '3': 'the latest work run failed or stopped: back in Backlog, tried',
   '3b': 'a storyteller is running: Agent checks',
-  '4': 'fixes are due (once-upon-a-diff and Larmor): the latest critic finished with findings after the latest work run: Agent checks until a fix run opens',
-  '5': 'no critic has passed yet (once-upon-a-diff and Larmor): Agent checks',
-  '6': 'built, with a branch: an open PR is PR open; pushed with no PR is Ready to ship; else Ready for your review (Larmor: Ready to ship)',
-  '7': 'no branch: Done for the Done hour after the work ended, then off the board',
+  '4': 'fixes are due: the latest critic finished with findings after the latest work run: Agent checks until a fix run opens',
+  '5': 'built, and no critic has passed (none yet, or the latest failed, stopped or died), with no skip recorded: Waiting for your call (skip the critic or start one)',
+  '6': 'built, with a branch: an open PR is PR open; pushed with no PR is Ready to ship; else Ready for your review (a repo whose settings say skips_review: Ready to ship)',
+  '7': 'landed, or no branch: Done for the Done hour after the work ended, then off the board',
 } as const;
 
 export type PhaseRow = keyof typeof PHASE_ROWS;
@@ -132,26 +125,30 @@ const msOf = (date: Date | null | undefined): number | null => (date ? date.getT
  *
  *   1  a work run is open        waiting (a question) is Waiting; plan is Agent checks (the plan to check); running or fixing is
  *                                Working. A fix round is the card's run, so it is Working here whether or not it was told `fixing`
- *   2  a critic is open          critic-hold repos only (once-upon-a-diff and Larmor): Agent checks (an open critic with no sign of life for STALE_MS is dead and holds nothing)
+ *   2  a critic is open          Agent checks, in every repo (an open critic with no sign of life for STALE_MS is dead and holds nothing)
  *   3  the latest work run       failed or stopped: back in Backlog, tried
  *   3b a storyteller is open     running with a sign of life in the last hour: Agent checks, in every repo (a failed build is read first; a waiting one, with a question, holds nothing)
- *   4  fixes are due             critic-hold repos only: the latest critic finished with findings above 0, after the latest work run
- *                                ended (and under STALE_MS ago: findings nobody fixed lapse): Agent checks until a fix run opens (row 1).
- *                                Elsewhere findings are the story's fix-before-push comments and hold nothing
- *   5  critic-hold repo, no pass no critic yet, or the latest failed, was stopped or died: Agent checks
+ *   4  fixes are due             the latest critic finished with findings above 0, after the latest work run
+ *                                ended (and under STALE_MS ago: findings nobody fixed lapse): Agent checks until a fix run opens (row 1)
+ *   5  built, no critic passed   no critic yet, or the latest failed, was stopped or died, and the card's critic is not skipped
+ *                                (`backlog skip-critic`): Waiting, for Eric's call to skip the critic or start one. A card that
+ *                                is not built (landed, or no branch) never waits here: it is row 7
  *   6  built                     With a branch: an open PR is PR open; pushed with no PR is Ready to ship (ready.ts); else Ready for
- *                                your review. Larmor (skip-review): Ready to ship. Facts not known yet keep Ready for your review
- *   7  no branch                 Done for DONE_HOURS after the work ended, then null (off the board)
+ *                                your review. A repo whose settings say skips_review (`skipsReview`): Ready to ship. Facts not known
+ *                                yet keep Ready for your review
+ *   7  landed, or no branch      Done for DONE_HOURS after the work ended, then null (off the board)
  *
  * A critic that finished done with no findings count (an old row) reads as a pass, as it always did; `agent finish` no
  * longer takes a carded critic's done without one. Null when the card is past its Done hour, or has nothing to say (no
  * work run and not started on a branch): the card keeps its own state, or shows pending on its claim.
  */
 export function cardPhase(
-  item: Pick<BacklogItem, 'state' | 'repo' | 'branch'>,
+  item: Pick<BacklogItem, 'state' | 'repo' | 'branch' | 'critic_skipped'> &
+    Partial<Pick<BacklogItem, 'landed_at'>>,
   runs: LedgerAgent[],
   nowMs: number,
   ready: ReadyFacts = UNKNOWN_READY,
+  skipsReview = false,
 ): CardPhase | null | undefined {
   const work = runs.filter(isWorkRun);
   const critics = runs.filter(isCritic);
@@ -173,8 +170,7 @@ export function cardPhase(
       row: '1',
     };
   }
-  const holds = CRITIC_HOLD.test(repoName(item.repo));
-  if (holds && critics.some(alive)) {
+  if (critics.some(alive)) {
     return { column: 'checks', when: null, tried: false, row: '2' };
   }
   if (latestWork && (latestWork.state === 'failed' || latestWork.state === 'stopped')) {
@@ -183,8 +179,8 @@ export function cardPhase(
   if (runs.some((run) => isStoryteller(run) && run.state === 'running' && alive(run))) {
     return { column: 'checks', when: null, tried: false, row: '3b' };
   }
-  const built = item.state === 'started' && !!item.branch;
-  if (!latestWork && !built) {
+  const built = item.state === 'started' && !!item.branch && !item.landed_at;
+  if (!latestWork && !built && !item.landed_at) {
     return undefined;
   }
   const when = msOf(latestWork?.ended);
@@ -193,7 +189,6 @@ export function cardPhase(
     (first, second) => settledAt(second) - settledAt(first),
   )[0];
   if (
-    holds &&
     latestCritic?.state === 'done' &&
     (latestCritic.findings ?? 0) > 0 &&
     nowMs - (msOf(latestCritic.ended) ?? nowMs) <= STALE_MS &&
@@ -201,12 +196,12 @@ export function cardPhase(
   ) {
     return { column: 'checks', when: msOf(latestCritic.ended), tried: false, row: '4' };
   }
-  if (holds && (!latestCritic || latestCritic.state !== 'done')) {
-    return { column: 'checks', when, tried: false, row: '5' };
+  if (built && (!latestCritic || latestCritic.state !== 'done') && !item.critic_skipped) {
+    return { column: 'waiting', when, tried: false, row: '5' };
   }
   if (built) {
     return {
-      column: readyColumn(ready, SKIPS_REVIEW.test(repoName(item.repo))),
+      column: readyColumn(ready, skipsReview),
       when,
       tried: false,
       row: '6',

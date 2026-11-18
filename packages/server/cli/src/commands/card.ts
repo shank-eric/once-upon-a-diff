@@ -4,7 +4,7 @@
  * `cardPhase` reads (state/src/queues/backlog/phase.ts, ADR-25), with the card's own facts and its runs. The board's columns.ts
  * may move the card further by its PR, its story review and its sessions; the page has the final column.
  */
-import { formatTime } from '@once-upon-a-diff/foundation/settings';
+import { formatTime, readSettings, repoSettings } from '@once-upon-a-diff/foundation/settings';
 import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { implicitItems } from '@once-upon-a-diff/state/queues/backlog/implicit';
 import { PHASE_ROWS, cardPhase, runsOf } from '@once-upon-a-diff/state/queues/backlog/phase';
@@ -46,7 +46,13 @@ async function card(home: string, _cfg: Config, opts: CliOpts) {
   }
   const nowMs = Date.now();
   const runs = runsOf(item, agents);
-  const phase = cardPhase(item, runs, nowMs);
+  const phase = cardPhase(
+    item,
+    runs,
+    nowMs,
+    undefined,
+    !!repoSettings(readSettings(home), item.repo).skips_review,
+  );
   const column = phase ? (COLUMN_LABELS[phase.column] ?? phase.column) : null;
   if (opts.json) {
     return out(

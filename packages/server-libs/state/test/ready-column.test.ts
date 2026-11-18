@@ -87,17 +87,17 @@ const critic: LedgerAgent = {
 
 test('cardPhase row 6 takes the facts: unknown is today’s column', () => {
   const item = { state: 'started' as const, repo: 'acme/widgets', branch: 'feat/x' };
-  const column = (facts?: Parameters<typeof cardPhase>[3], repo = item.repo) =>
-    cardPhase({ ...item, repo }, [finished, critic], NOW, facts);
+  const column = (facts?: Parameters<typeof cardPhase>[3], skipsReview = false) =>
+    cardPhase(item, [finished, critic], NOW, facts, skipsReview);
   assert.equal(column()?.column, 'ready');
   assert.equal(column(UNKNOWN_READY)?.column, 'ready');
   assert.equal(column({ pr: 'none', pushed: false })?.column, 'ready');
   assert.equal(column({ pr: 'none', pushed: true })?.column, 'ship');
   assert.equal(column({ pr: 'open', pushed: false })?.column, 'pr_open');
   assert.equal(column({ pr: 'open', pushed: false })?.row, '6');
-  assert.equal(column(undefined, 'shank-eric/larmor')?.column, 'ship', 'a skip-review repo');
+  assert.equal(column(undefined, true)?.column, 'ship', 'a skip-review repo');
   assert.equal(
-    column({ pr: 'open', pushed: true }, 'shank-eric/larmor')?.column,
+    column({ pr: 'open', pushed: true }, true)?.column,
     'pr_open',
     'an open PR wins over skip-review',
   );

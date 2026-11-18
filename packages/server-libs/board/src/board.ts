@@ -424,11 +424,13 @@ export class Board {
 
   private async build(now: Date): Promise<BoardData> {
     const nowMs = now.getTime();
+    const settings = readSettings(this.home);
     const ctx: BuildContext = {
       home: this.home,
       now,
       nowMs,
-      settings: readSettings(this.home).board,
+      settings: settings.board,
+      repos: settings.repos,
       stories: this.stories,
       review: this.review,
       builds: this.builds,

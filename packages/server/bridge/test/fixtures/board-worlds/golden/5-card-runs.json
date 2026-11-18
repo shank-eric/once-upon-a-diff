@@ -598,7 +598,7 @@
             "build": null,
             "building": null,
             "can_focus": false,
-            "column": "ready",
+            "column": "waiting",
             "detail": null,
             "focus_session": null,
             "id": "backlog:bl_ccccc03",

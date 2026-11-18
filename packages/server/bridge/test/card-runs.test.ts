@@ -23,7 +23,11 @@ const stamp = (minutes: number) => new Date(START_MS + minutes * 60000);
 
 function world() {
   const home = tmp('card-runs-home');
-  writeJson(path.join(home, 'config.json'), { board_sessions_dir: tmp('card-runs-sessions') });
+  writeJson(path.join(home, 'config.json'), {
+    board_sessions_dir: tmp('card-runs-sessions'),
+    // Larmor skips review: a built card that passed its critic is Ready to ship (the setting that used to be a name)
+    repos: { larmor: { skips_review: true } },
+  });
   const store = new BacklogStore(home);
   const registry = new AgentRegistry(home);
   const cards = async (now: Date): Promise<BoardCard[]> =>
@@ -281,15 +285,22 @@ test('G. cardPhase: every row of the table', () => {
     const started = store.start(item.id, { branch: 'x' });
     build(item.id);
     const agents = registry.agents();
-    return cardPhase(started, runsOf(started, agents), stamp(nowMin).getTime());
+    return cardPhase(
+      started,
+      runsOf(started, agents),
+      stamp(nowMin).getTime(),
+      undefined,
+      repo === LARMOR,
+    );
   };
+  const ONCE = 'acme/once-upon-a-diff';
+  // the repo whose settings say skips_review (the board passes `repos.<name>.skips_review`; no name decides it)
+  const LARMOR = 'acme/larmor';
+  const OTHER = 'acme/widgets';
   let count = 0;
   const unique = () => `w${count++}`;
   const run = (card: string, name: string, kind: 'author' | 'critic', startMin: number) =>
     registry.start({ name, sid: SID, card, kind, task: 't', at: stamp(startMin) });
-  const ONCE = 'acme/once-upon-a-diff';
-  const LARMOR = 'acme/larmor';
-  const OTHER = 'acme/widgets';
   // 1: a work run open
   assert.equal(phase(OTHER, (card) => run(card, unique(), 'author', 0))?.column, 'working');
   assert.equal(
@@ -326,9 +337,8 @@ test('G. cardPhase: every row of the table', () => {
       registry.finish(critic, { sid: SID, findings: 2, at: stamp(9) });
     });
   assert.equal(findings(ONCE)?.column, 'checks');
-  // elsewhere, findings are the story's (fix-before-push comments), and do not hold the card
-  assert.equal(findings(OTHER)?.column, 'ready');
-  // 5: skip-review repo with no critic waits; 6: built is Ready to ship there, Ready for review elsewhere
+  assert.equal(findings(OTHER)?.column, 'checks');
+  // 5: built with no critic is Waiting, in every repo; 6: built is Ready to ship where review is skipped, Ready for review elsewhere
   const built = (repo: string, critic: boolean) =>
     phase(repo, (card) => {
       const author = unique();
@@ -340,13 +350,14 @@ test('G. cardPhase: every row of the table', () => {
         registry.finish(name, { sid: SID, findings: 0, at: stamp(9) });
       }
     });
-  assert.equal(built(ONCE, false)?.column, 'checks');
-  assert.equal(built(LARMOR, false)?.column, 'checks');
-  // a passing critic: Ready to ship only where review is skipped (Larmor); once-upon-a-diff waits for your review of its story
+  assert.equal(built(ONCE, false)?.column, 'waiting');
+  assert.equal(built(LARMOR, false)?.column, 'waiting');
+  assert.equal(built(OTHER, false)?.column, 'waiting');
+  // a passing critic: Ready to ship only where review is skipped (Larmor); the others wait for your review
   assert.equal(built(LARMOR, true)?.column, 'ship');
   assert.equal(built(ONCE, true)?.column, 'ready');
-  assert.equal(built(OTHER, false)?.column, 'ready');
-  // a critic running holds a skip-review repo's card in Agent checks, and no other
+  assert.equal(built(OTHER, true)?.column, 'ready');
+  // a critic running holds the card in Agent checks, in every repo
   const reviewing = (repo: string) =>
     phase(repo, (card) => {
       const author = unique();
@@ -356,7 +367,7 @@ test('G. cardPhase: every row of the table', () => {
     })?.column;
   assert.equal(reviewing(ONCE), 'checks');
   assert.equal(reviewing(LARMOR), 'checks');
-  assert.equal(reviewing(OTHER), 'ready');
+  assert.equal(reviewing(OTHER), 'checks');
   // an open, alive storyteller holds a built card in Agent checks, in every repo
   const telling = (
     repo: string,
@@ -590,6 +601,7 @@ test('L. a carded research run that fails does not send a finished card back to 
   const item = store.add({ title: 'Built', repo: 'acme/widgets' });
   store.start(item.id, { branch: 'built' });
   claimAt(store, item.id, 'ou-built', stamp(0).toISOString(), SID);
+  store.skipCritic(item.id, true); // no critic ran: skipped by hand, so the finished card is Ready, not Waiting
   registry.start({
     name: 'ou-built',
     sid: SID,

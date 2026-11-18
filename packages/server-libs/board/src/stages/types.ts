@@ -1,5 +1,5 @@
 /** What the build stages pass between them, and what they need from the Board that holds the caches. */
-import type { readSettings } from '@once-upon-a-diff/foundation/settings';
+import type { RepoSettings, readSettings } from '@once-upon-a-diff/foundation/settings';
 import type { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
 import type { StoryStore } from '@once-upon-a-diff/stories/store';
 import type { Worktree } from '@once-upon-a-diff/state/queues/backlog/backlog-links';
@@ -74,6 +74,8 @@ export interface BuildContext {
   now: Date;
   nowMs: number;
   settings: BoardSettings;
+  /** config.json's per-repo settings (`repos`), by lower-cased key: read with `repoSettings` */
+  repos: Record<string, RepoSettings>;
   stories: StoryStore;
   review: PrWatcher;
   builds: Builds;

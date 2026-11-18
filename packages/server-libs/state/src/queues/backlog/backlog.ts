@@ -18,6 +18,8 @@
  *                                              claimer's full session id (the editor's: slots.ts) and `worktree` the checkout path
  *   {op:'hold',  id, on, by, at}              the card lands by hand: a deploy or a merged PR never marks it done (landing.ts, land-merged.ts), only `done ID` does.
  *                                              `on:false` clears it; a reopen clears it too. Sticky across claims
+ *   {op:'skip_critic', id, on, by, at}        the card's critic is skipped by hand: a built card with no passing critic reads Ready (phase.ts row 5)
+ *                                              instead of Waiting. `on:false` clears it; a reopen clears it too
  *   {op:'someday', id, on, by, at}            maybe someday: an open card with no live claim leaves the main list for the Someday section,
  *                                              keeping its place in the order (`on:false` puts it back there). A start, a claim, a done,
  *                                              a drop or a reopen clears it: work on the card brings it back
@@ -108,6 +110,7 @@ export interface BacklogStorage {
   done(id: string, input?: { sha?: string | null; by?: string | null }): BacklogItem;
   claim(id: string, input: ClaimInput): BacklogItem;
   hold(id: string, held: boolean, who?: string | null): BacklogItem;
+  skipCritic(id: string, skipped: boolean, who?: string | null): BacklogItem;
   someday(
     id: string,
     aside: boolean,
@@ -162,6 +165,7 @@ export function foldBacklogEvents(events: BacklogEvent[]): BacklogItem[] {
         landed_sha: null,
         claim: null,
         hold: false,
+        critic_skipped: false,
         someday: false,
       });
     } else if (found && found.state !== 'dropped' && event.op === 'start') {
@@ -204,6 +208,8 @@ export function foldBacklogEvents(events: BacklogEvent[]): BacklogItem[] {
       found.someday = false;
     } else if (found && found.state !== 'dropped' && event.op === 'hold') {
       found.hold = event.on !== false;
+    } else if (found && found.state !== 'dropped' && event.op === 'skip_critic') {
+      found.critic_skipped = event.on !== false;
     } else if (found && found.state === 'open' && !found.landed_at && event.op === 'someday') {
       found.someday = event.on !== false;
     } else if (found && event.op === 'drop') {
@@ -222,6 +228,7 @@ export function foldBacklogEvents(events: BacklogEvent[]): BacklogItem[] {
       found.repo = added.get(id)?.repo ?? null;
       found.claim = null;
       found.hold = false;
+      found.critic_skipped = false;
       found.someday = false;
     } else if (found && found.state === 'open' && !found.landed_at && event.op === 'edit') {
       // only the fields the event carries change (a note or repo of '' clears it); a title is never blanked
@@ -362,6 +369,21 @@ export class BacklogStore implements BacklogStorage {
       throw new Error(`${id} was dropped`);
     }
     this.append({ op: 'hold', id, on: held, by: clean(who, 'the name', BY_MAX) || 'cli' });
+    return this.find(id);
+  }
+
+  /** Records that the card's critic is skipped (or clears that): a built card with no passing critic is then Ready, not Waiting. */
+  skipCritic(id: string, skipped: boolean, who?: string | null): BacklogItem {
+    const item = this.find(id);
+    if (item.state === 'dropped') {
+      throw new Error(`${id} was dropped`);
+    }
+    this.append({
+      op: 'skip_critic',
+      id,
+      on: skipped,
+      by: clean(who, 'the name', BY_MAX) || 'cli',
+    });
     return this.find(id);
   }
 

@@ -212,6 +212,7 @@ export const COMMAND_AREAS: Record<string, Area> = {
   backlog: 'Backlog',
   agent: 'Ledger and agent registry',
   card: 'Backlog',
+  repo: 'Backlog',
   beat: 'Ledger and agent registry',
   heavy: 'Ledger and agent registry',
   dispatch: 'Ledger and agent registry',

@@ -474,11 +474,14 @@ test('a worktree removed while a scan runs does not come back from it', async ()
   );
 });
 
-test('readSettings keeps everfi-frontend on the keep list whatever config.json says', () => {
+test('readSettings: nothing is kept by name; board_keep_branches and repos.<name>.keep_branches add repos', () => {
   const home = tmp('ws-settings');
-  assert.deepEqual(readSettings(home).board.keepBranches, ['everfi-frontend']);
-  writeJson(path.join(home, 'config.json'), { board_keep_branches: [] });
-  assert.deepEqual(readSettings(home).board.keepBranches, ['everfi-frontend']);
+  assert.deepEqual(readSettings(home).board.keepBranches, []);
   writeJson(path.join(home, 'config.json'), { board_keep_branches: ['Acme/Widgets', 5, ''] });
-  assert.deepEqual(readSettings(home).board.keepBranches, ['everfi-frontend', 'acme/widgets']);
+  assert.deepEqual(readSettings(home).board.keepBranches, ['acme/widgets']);
+  writeJson(path.join(home, 'config.json'), {
+    board_keep_branches: ['Acme/Widgets'],
+    repos: { 'everfi-frontend': { keep_branches: true } },
+  });
+  assert.deepEqual(readSettings(home).board.keepBranches, ['acme/widgets', 'everfi-frontend']);
 });

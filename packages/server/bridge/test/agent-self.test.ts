@@ -72,7 +72,7 @@ test('--self registers the session under its sid with a fresh name, claims the c
   assert.equal(byName(oneName)?.state, 'running');
 });
 
-test('finish --self --commit puts the card in Ready for your review, and card status prints the row', async () => {
+test('finish --self --commit puts the card in Waiting, then Ready for your review once its critic is skipped, and card status prints the row', async () => {
   const home = tmp('self-finish');
   const id = startedCard(home);
   assert.equal(
@@ -103,6 +103,12 @@ test('finish --self --commit puts the card in Ready for your review, and card st
     id,
   );
   assert.equal(done.code, 0, done.stderr);
+  const waiting = await cardCmd(home, 'status', id);
+  assert.match(waiting.stdout, /column: Waiting/);
+  assert.match(waiting.stdout, /rule: 5 /);
+  const skip = await runCli(home, ['backlog', 'skip-critic', id], env);
+  assert.equal(skip.code, 0, skip.stderr);
+  assert.match(skip.stdout, /critic skipped/);
   const status = await cardCmd(home, 'status', id);
   assert.equal(status.code, 0, status.stderr);
   assert.match(status.stdout, /column: Ready for your review/);
@@ -117,7 +123,7 @@ test('finish --self --commit puts the card in Ready for your review, and card st
   assert.notEqual(missing.code, 0);
 });
 
-test('once-upon-a-diff cards pass Agent checks first (rule 5) until a critic has passed', async () => {
+test("every repo's built card waits in Waiting (rule 5) until a critic has passed or the skip is recorded", async () => {
   const home = tmp('self-hold');
   const id = startedCard(home, 'feat/x', 'shank-eric/once-upon-a-diff');
   assert.equal(
@@ -129,8 +135,17 @@ test('once-upon-a-diff cards pass Agent checks first (rule 5) until a critic has
     0,
   );
   const status = await cardCmd(home, 'status', id);
-  assert.match(status.stdout, /column: Agent checks/);
+  assert.match(status.stdout, /column: Waiting/);
   assert.match(status.stdout, /rule: 5 /);
+  // the same in a repo with another name, and the skip can be taken back
+  const other = startedCard(home, 'feat/y', 'acme/widgets');
+  await agent(home, 'start', '--self', '--role', 'author', '--card', other, '--task', 'b');
+  await agent(home, 'finish', '--self', '--state', 'done', '--commit', 'abc1234def');
+  assert.match((await cardCmd(home, 'status', other)).stdout, /rule: 5 /);
+  await runCli(home, ['backlog', 'skip-critic', other], env);
+  assert.match((await cardCmd(home, 'status', other)).stdout, /rule: 6 /);
+  await runCli(home, ['backlog', 'skip-critic', other, '--off'], env);
+  assert.match((await cardCmd(home, 'status', other)).stdout, /rule: 5 /);
 });
 
 test('--self refusals each name their cause and write nothing', async () => {

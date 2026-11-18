@@ -307,7 +307,8 @@ const phaseFor = (
   state: BoardAgentState,
   endedAt: string | null,
   nowMs: number,
-  passedCritic = false,
+  passedCritic = true,
+  skipsReview = false,
 ) => {
   const ended = endedAt ? new Date(endedAt) : null;
   const run = {
@@ -317,7 +318,7 @@ const phaseFor = (
     ended,
     lastEvent: ended ?? new Date(nowMs),
   } as unknown as LedgerAgent;
-  // a critic-hold repo (Larmor, once-upon-a-diff) waits for its critic: one that passed, with no findings
+  // every repo waits for its critic (Waiting, row 5): `passedCritic` adds one that passed, with no findings
   const critic = {
     kind: 'critic',
     state: 'done',
@@ -326,7 +327,12 @@ const phaseFor = (
     lastEvent: ended,
     findings: 0,
   } as unknown as LedgerAgent;
-  return new Map([[item.id, cardPhase(item, passedCritic ? [run, critic] : [run], nowMs) ?? null]]);
+  return new Map([
+    [
+      item.id,
+      cardPhase(item, passedCritic ? [run, critic] : [run], nowMs, undefined, skipsReview) ?? null,
+    ],
+  ]);
 };
 
 test('a claimed started item is one Working card with its agent on it; with a work card on its branch it rides there', () => {
@@ -1051,13 +1057,14 @@ test('an open item that landed with no start is Done for an hour', () => {
   );
 });
 
-test('finished, unmerged branch work whose critic passed is Ready (once-upon-a-diff through its story), or Ready to ship for Larmor', () => {
+test('finished, unmerged branch work whose critic passed is Ready, or Ready to ship in a repo whose settings skip review; with no critic it is Waiting', () => {
   const store = new BacklogStore(tmp('backlog-ready-ship'));
   const ended = new Date(NOW - 60 * 1000).toISOString();
-  for (const [repo, column] of [
-    ['acme/widgets', 'ready'],
-    ['shank-eric/once-upon-a-diff', 'ready'],
-    ['naveenvasou/larmor', 'ship'],
+  for (const [repo, column, skipsReview] of [
+    ['acme/widgets', 'ready', false],
+    ['shank-eric/once-upon-a-diff', 'ready', false],
+    ['naveenvasou/larmor', 'ready', false],
+    ['naveenvasou/larmor', 'ship', true],
   ] as const) {
     const item = store.add({ title: `Work in ${repo}`, repo });
     store.start(item.id, { branch: 'feat/x', by: 'builder' });
@@ -1074,14 +1081,52 @@ test('finished, unmerged branch work whose critic passed is Ready (once-upon-a-d
         ended,
         NOW,
         true,
+        skipsReview,
       ),
     );
     assert.deepEqual(
       cards.map((card) => card.column),
       [column],
-      repo,
+      `${repo} skips_review ${skipsReview}`,
     );
   }
+  // no critic has passed: Waiting, in every repo, until one passes or the card's critic is skipped
+  const bare = store.add({ title: 'No critic yet', repo: 'acme/widgets' });
+  store.start(bare.id, { branch: 'feat/bare', by: 'builder' });
+  const columnFor = (passedCritic: boolean) =>
+    backlogCards(
+      store.items().filter((one) => one.id === bare.id),
+      [],
+      NOW,
+      [],
+      new Map([[bare.id, linked({ agent: agentLink('done', ended) })]]),
+      new Map(),
+      phaseFor(
+        store.items().find((one) => one.id === bare.id) as BacklogItem,
+        'done',
+        ended,
+        NOW,
+        passedCritic,
+      ),
+    ).map((card) => card.column);
+  assert.deepEqual(columnFor(false), ['waiting']);
+  assert.deepEqual(columnFor(true), ['ready']);
+  store.skipCritic(bare.id, true);
+  assert.deepEqual(columnFor(false), ['ready'], 'a recorded skip lets it through');
+  store.skipCritic(bare.id, false);
+  assert.deepEqual(columnFor(false), ['waiting']);
+});
+
+test('skip_critic: recorded on the card by backlog skip-critic, refused on a dropped card, cleared by a reopen', () => {
+  const store = new BacklogStore(tmp('backlog-skip-critic'));
+  const item = store.add({ title: 'Skip it', repo: 'acme/widgets' });
+  assert.equal(store.items()[0].critic_skipped, false);
+  assert.equal(store.skipCritic(item.id, true).critic_skipped, true);
+  assert.equal(store.skipCritic(item.id, false).critic_skipped, false);
+  store.skipCritic(item.id, true);
+  store.drop(item.id);
+  assert.throws(() => store.skipCritic(item.id, false), /dropped/);
+  assert.equal(store.reopen(item.id).critic_skipped, false);
 });
 
 test('someday: an open card carries the flag on its board card, keeps its place, and work on it clears the flag', () => {

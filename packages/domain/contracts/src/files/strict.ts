@@ -172,6 +172,7 @@ const StrictBacklogEvent = variant('op', [
   }),
   looseObject({ op: literal('hold'), ...stamped, on: boolean() }),
   looseObject({ op: literal('someday'), ...stamped, on: boolean() }),
+  looseObject({ op: literal('skip_critic'), ...stamped, on: boolean() }),
   looseObject({ op: literal('drop'), ...stamped }),
   looseObject({ op: literal('reopen'), ...stamped }),
   looseObject({

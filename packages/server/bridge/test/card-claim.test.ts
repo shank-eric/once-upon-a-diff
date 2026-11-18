@@ -31,7 +31,10 @@ const agentsOf = (...runs: AgentRun[]) => registerRuns(tmp('claim-agents'), ...r
 function world(...runs: AgentRun[]) {
   const home = tmp('claim-home');
   registerRuns(home, ...runs);
-  writeJson(path.join(home, 'config.json'), { board_sessions_dir: tmp('claim-sessions') });
+  writeJson(path.join(home, 'config.json'), {
+    board_sessions_dir: tmp('claim-sessions'),
+    repos: { larmor: { skips_review: true } },
+  });
   const cards = async (now = NOW): Promise<BoardCard[]> =>
     (
       await new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
@@ -240,10 +243,11 @@ test('`backlog claim` writes the claim, and --branch also starts the card', asyn
   assert.match(missing.stderr, /agent/);
 });
 
-test('a finished card in a critic-hold repo is held in Agent checks until its critic has passed and no fix round is open, then Ready to ship (Larmor) or Ready for review (once-upon-a-diff)', async () => {
+test('a finished card in any repo waits in Waiting until its critic has passed, holds in Agent checks while a critic runs or fixes are due, then is Ready to ship (Larmor, skips_review) or Ready for review (others)', async () => {
   for (const [repo, done] of [
     ['naveenvasou/larmor', 'ship'],
     ['shank-eric/once-upon-a-diff', 'ready'],
+    ['acme/widgets', 'ready'],
   ] as const) {
     const { home, cards, store } = world();
     const registry = new AgentRegistry(home);
@@ -260,7 +264,7 @@ test('a finished card in a critic-hold repo is held in Agent checks until its cr
     registry.start({ ...author, kind: 'author', task: 'build it', at: stamp(0) });
     assert.equal(await columnAt(5), 'working');
     registry.finish('ou-build', { sid: 'aaaaaaaa', result: { branch: 'build-it' }, at: stamp(10) });
-    assert.equal(await columnAt(11), 'checks', 'built, and no critic has said anything yet');
+    assert.equal(await columnAt(11), 'waiting', 'built, and no critic has said anything yet');
 
     registry.start({ ...critic, kind: 'critic', task: 'review it', at: stamp(11) });
     assert.equal(await columnAt(12), 'checks', 'the critic is running');
@@ -286,7 +290,7 @@ test('a finished card in a critic-hold repo is held in Agent checks until its cr
   }
 });
 
-test('a critic that passed with no findings leaves a finished Larmor card in Ready to ship, and once-upon-a-diff and other repos wait for your review', async () => {
+test('a critic that passed with no findings leaves a finished card in Ready to ship where the repo settings skip review (Larmor), and in Ready for your review elsewhere', async () => {
   const { home, cards, store } = world();
   const registry = new AgentRegistry(home);
   const stamp = (minutes: number) => new Date(Date.parse('2026-11-03T15:00:00Z') + minutes * 60000);

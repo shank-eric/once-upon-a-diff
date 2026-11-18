@@ -19,6 +19,8 @@ import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { DEFAULT_PORT } from '@once-upon-a-diff/terms/bridge-port';
+import { repoKey } from '@once-upon-a-diff/terms/ids';
+import { repoName } from '@once-upon-a-diff/terms/text';
 import { readJson, writeFileAtomic } from '@once-upon-a-diff/adapters/stores/fs/json-file';
 import {
   ownerOnly,
@@ -146,8 +148,64 @@ const PLATFORM_OPENER: Partial<Record<NodeJS.Platform, string[]>> = {
   win32: ['explorer'],
 };
 
-/** Repos whose branches the board's worktree cleanup never deletes, whatever config.json says (the owner's packrat rule). */
-const ALWAYS_KEEP_BRANCHES = ['everfi-frontend'];
+/** What config.json's `repos` block says about one repo; every field is optional and a wrong type is dropped. */
+export interface RepoSettings {
+  /** finished work skips review and is Ready to ship (the board's row 6) */
+  skips_review?: boolean;
+  /** whether the repo's work gets a story (unset: the editor's profile prose decides) */
+  stories?: boolean;
+  /** `local` deploys by the repo's own deploy command; `pr` ships through a pull request (unset: the profile decides) */
+  deploy?: 'local' | 'pr';
+  /** Clean up never deletes this repo's branches */
+  keep_branches?: boolean;
+}
+
+const readRepos = (value: unknown): Record<string, RepoSettings> => {
+  const repos: Record<string, RepoSettings> = {};
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return repos;
+  }
+  for (const [key, raw] of Object.entries(value)) {
+    if (!key.trim() || !raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      continue;
+    }
+    const entry = raw as Record<string, unknown>;
+    const settings: RepoSettings = {};
+    for (const field of ['skips_review', 'stories', 'keep_branches'] as const) {
+      if (typeof entry[field] === 'boolean') {
+        settings[field] = entry[field];
+      }
+    }
+    if (entry.deploy === 'local' || entry.deploy === 'pr') {
+      settings.deploy = entry.deploy;
+    }
+    repos[key.trim().toLowerCase()] = settings;
+  }
+  return repos;
+};
+
+/**
+ * One repo's settings from `readSettings(...).repos`: an owner/name entry first, then the bare name, in any case; `{}` when none.
+ * A bare repo name (no owner, as `once-upon repo settings larmor` types it) also finds an owner/name entry by its name part.
+ */
+export function repoSettings(
+  settings: { repos: Record<string, RepoSettings> },
+  repo: string | null | undefined,
+): RepoSettings {
+  if (!repo) {
+    return {};
+  }
+  const exact = settings.repos[repoKey(repo)];
+  if (exact) {
+    return exact;
+  }
+  if (repo.includes('/')) {
+    return settings.repos[repoName(repo).toLowerCase()] ?? {};
+  }
+  const bare = repo.trim().toLowerCase();
+  const key = Object.keys(settings.repos).find((one) => repoName(one).toLowerCase() === bare);
+  return settings.repos[bare] ?? (key ? settings.repos[key] : undefined) ?? {};
+}
 
 /** Branches that are not a unit of work of their own. */
 export const DEFAULT_BRANCHES = new Set(['main', 'master', 'develop', 'development', 'trunk']);
@@ -194,8 +252,14 @@ const DEFAULT_HOSTS = ['once-upon.test', 'once-upon.fidev.net'];
  *                           author) in Waiting stays board_done_hours instead
  *   board_worktrees         false to leave git worktrees off the board (default: shown, with a Clean up button on the ones
  *                           whose work is in the main line)
- *   board_keep_branches     repos (a name like "widgets" or owner/name) whose branches Clean up never deletes, added to the
- *                           built-in everfi-frontend, which is always kept
+ *   board_keep_branches     repos (a name like "widgets" or owner/name) whose branches Clean up never deletes (nothing is
+ *                           built in: `repos.<name>.keep_branches` below does the same, per repo)
+ *   repos                   per-repo settings the board and the editor both read, keyed by a bare repo name or owner/name
+ *                           (any case): {"larmor": {"skips_review": true, "stories": false, "deploy": "local"},
+ *                           "everfi-frontend": {"stories": true, "deploy": "pr", "keep_branches": true}}.
+ *                           skips_review: finished work is Ready to ship, not Ready for your review; stories: the repo's work
+ *                           gets a story; deploy: "local" (its own deploy command) or "pr"; keep_branches: Clean up never
+ *                           deletes its branches. All optional; a wrong type is dropped. `once-upon repo settings` prints them
  *   extension_ids           more extension IDs the bridge answers (a store install, an older unpacked copy); the
  *                           fixed unpacked ID is always allowed
  * Read without creating config.json, so a missing file just means the defaults.
@@ -213,6 +277,7 @@ export function readSettings(home = homeDir()) {
           typeof name === 'string' && /^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/.test(name),
       )
     : DEFAULT_HOSTS;
+  const repos = readRepos(cfg.repos);
   const allowedHosts = hostNames.map((name) => name.toLowerCase());
   const wantedHost =
     typeof cfg.public_host === 'string' ? cfg.public_host.trim().toLowerCase() : null;
@@ -293,18 +358,20 @@ export function readSettings(home = homeDir()) {
           ? cfg.board_finished_wait_minutes
           : 30,
       worktrees: cfg.board_worktrees !== false,
-      // the built-in names are always kept, so a config that lists others cannot drop them
       keepBranches: [
         ...new Set([
-          ...ALWAYS_KEEP_BRANCHES,
           ...(Array.isArray(cfg.board_keep_branches)
             ? cfg.board_keep_branches
                 .filter((name): name is string => typeof name === 'string' && !!name.trim())
                 .map((name) => name.trim().toLowerCase())
             : []),
+          ...Object.entries(repos)
+            .filter(([, entry]) => entry.keep_branches)
+            .map(([key]) => key),
         ]),
       ],
     },
+    repos,
     extensionIds: [
       UNPACKED_EXTENSION_ID,
       ...(Array.isArray(cfg.extension_ids)

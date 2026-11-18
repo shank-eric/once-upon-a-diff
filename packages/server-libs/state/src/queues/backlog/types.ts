@@ -31,6 +31,8 @@ export interface BacklogItem {
   } | null;
   /** the card lands by hand: a deploy does not mark it done (part of its work lands outside the repo) */
   hold: boolean;
+  /** the card's critic is skipped by hand (Eric's call on the board's Waiting): a built card with no passing critic is Ready, not Waiting */
+  critic_skipped?: boolean;
   /** maybe someday: out of the main list into the Someday section (an open card only; cleared when work starts on it) */
   someday: boolean;
   /** an implicit card (ADR-27): derived from the registry's runs, not in backlog.jsonl until `backlog adopt` */
