@@ -39,16 +39,12 @@ export function readyFactsFor(
   });
   const commit = reviewed?.commit?.toLowerCase();
   const tip = tree?.head?.toLowerCase();
-  if (
-    reviewed &&
-    tree &&
-    commit &&
-    tip &&
+  if (!reviewed || !tree || !commit || !tip) {
+    return facts;
+  }
+  const movedPast =
     facts.pr !== 'open' &&
     !tip.startsWith(commit) &&
-    reviewed.movedPast(tree.path, commit, tip, tree.defaultBranch)
-  ) {
-    return { ...facts, working: true };
-  }
-  return facts;
+    reviewed.movedPast(tree.path, commit, tip, tree.defaultBranch);
+  return movedPast ? { ...facts, working: true } : facts;
 }

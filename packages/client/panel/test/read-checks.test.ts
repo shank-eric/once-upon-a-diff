@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { inferReadSteps, viewedEarlyCheck } from '../src/reading/read-checks.ts';
+import { inferReadSteps, pageShowsAll, viewedEarlyCheck } from '../src/reading/read-checks.ts';
 import { finishedInOf } from '@once-upon-a-diff/terms/chapters';
 import type { ReadChange, ReadInfo } from '@once-upon-a-diff/contracts/types';
 
@@ -163,4 +163,14 @@ test('a chapter first published without its text is not inferred read from Viewe
     [1],
     'only the chapter whose text was there when its files were ticked',
   );
+});
+
+test('pageShowsAll: a chapter with files due, toggles and none unknown is shown; any miss is not', () => {
+  const progress = { due: 2, viewed: 1, unknown: [] as string[], noToggle: false };
+  assert.equal(pageShowsAll(progress), true);
+  assert.equal(pageShowsAll(null), false);
+  assert.equal(pageShowsAll(undefined), false);
+  assert.equal(pageShowsAll({ ...progress, due: 0 }), false);
+  assert.equal(pageShowsAll({ ...progress, noToggle: true }), false);
+  assert.equal(pageShowsAll({ ...progress, unknown: ['a.ts'] }), false);
 });

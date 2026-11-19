@@ -264,7 +264,9 @@ export function chapterProblems(
     if (diff) {
       for (const comment of chapter.comments || []) {
         const path = String(comment.path || '');
-        if (comment.carried || comment.unmapped || !path || /^\(/.test(path) || diff.has(path)) {
+        const hasNoRealPath = !path || /^\(/.test(path);
+        const unchecked = comment.carried || comment.unmapped || hasNoRealPath;
+        if (unchecked || diff.has(path)) {
           continue;
         }
         problems.push(

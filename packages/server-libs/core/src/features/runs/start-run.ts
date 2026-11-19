@@ -185,7 +185,8 @@ export async function startRun(
   }
   // a story run with no role, PR, branch or card is a card of its own that no PR story can match (the board shows two
   // cards for one PR): the skill names story agents story-<id>, so the shape is caught here, by name
-  if (!role && !card && !typedPr && !typedBranch && /^story-/.test(name)) {
+  const placed = role || card || typedPr || typedBranch;
+  if (!placed && /^story-/.test(name)) {
     throw new Error('a story run needs --role storyteller with --pr N (or --branch NAME)');
   }
   const registry = runRegistry(home, options.mirror);

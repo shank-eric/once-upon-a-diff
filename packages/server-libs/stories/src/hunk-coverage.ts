@@ -89,13 +89,8 @@ export interface CoverageOptions {
 
 /** The refs of a chapter that count as pointers: all of them, or (linked) the ones its text links. */
 function countedRefs(chapter: Chapter, index: number, options: CoverageOptions): Chapter['refs'] {
-  if (
-    !options.linked ||
-    options.kept?.[index] ||
-    chapter.since ||
-    chapter.auto ||
-    !chapter.narrative.trim()
-  ) {
+  const noLinkedText = chapter.since || chapter.auto || !chapter.narrative.trim();
+  if (!options.linked || options.kept?.[index] || noLinkedText) {
     return chapter.refs;
   }
   const linked = new Set(refIdsIn(textOf(chapter)));

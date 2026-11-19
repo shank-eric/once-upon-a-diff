@@ -47,7 +47,8 @@ export function lintTextRefs(plan: Plan): string[] {
       const names =
         mayBeFile(name) &&
         (typeof findIn(name, listed) === 'string' || (findIn(name, listed) as string[]).length > 0);
-      if ((names || (line && (!name || mayBeFile(name)))) && !seen.has(match[1])) {
+      const looksLikeRef = names || (line && (!name || mayBeFile(name)));
+      if (looksLikeRef && !seen.has(match[1])) {
         seen.add(match[1]);
         warnings.push(
           `chapter ${i + 1}: \`${match[1]}\` is text, not a link: add a ref and write [text](ref:<id>)`,

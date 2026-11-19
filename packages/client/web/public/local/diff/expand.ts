@@ -97,7 +97,10 @@ export function expandHunks(
   const from = above ? lastNew(above) + 1 : 1;
   const stop = below ? firstNew(below) - 1 : text.length;
   const hidden = stop - from + 1;
-  if (hidden <= 0 || (direction === 'down' && !above) || (direction === 'up' && !below)) {
+  // nothing hidden, or no hunk on the side the direction grows from
+  const nothingToShow =
+    hidden <= 0 || (direction === 'down' && !above) || (direction === 'up' && !below);
+  if (nothingToShow) {
     return { hunks: hunks as DiffHunk[], added: [] };
   }
   // the lines above the gap added or removed move the old numbers off the new ones by `delta`

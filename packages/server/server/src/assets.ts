@@ -126,48 +126,37 @@ function served(file: string): [string | Buffer, string] {
   return [file.endsWith('.ts') ? strippedModule(file) : readFileSync(file), SCRIPT];
 }
 
+/** Where each module route's file is, by the route's pattern (the patterns never overlap, so order does not matter). */
+const MODULE_FILES: [RegExp, (name: string) => string][] = [
+  [PANEL_MODULE, (name) => path.join(PANEL, name)],
+  [BOARD_MODULE, (name) => path.join(PUBLIC, 'board', name)],
+  [GITHUB_PAGE_MODULE, (name) => path.join(GITHUB_PAGE, name)],
+  [BRIDGE_CLIENT_MODULE, (name) => path.join(BRIDGE_CLIENT, `${name}.ts`)],
+  [UI_MODULE, (name) => path.join(UI_DIR, name)],
+  [CONTRACTS_MODULE, (name) => path.join(CONTRACTS, `${name}.ts`)],
+  [TERMS_MODULE, (name) => path.join(TERMS, `${name}.ts`)],
+  [LOCAL_MODULE, (name) => path.join(PUBLIC, 'local', name)],
+];
+
+/** The file a shared-module path names, or null when the path is not one of the module routes. */
+export function moduleFileFor(pathname: string): string | null {
+  for (const [pattern, fileOf] of MODULE_FILES) {
+    const match = pattern.exec(pathname);
+    if (match) {
+      return fileOf(match[1]);
+    }
+  }
+  return null;
+}
+
 /** [contents, content type] for an asset path, or null when it isn't one. Throws 404 for a missing shared module. */
 export function assetFor(pathname: string): [string | Buffer, string] | null {
   if (ASSETS[pathname]) {
     return served(ASSETS[pathname]);
   }
-  const panelModule = PANEL_MODULE.exec(pathname);
-  const hostModule = GITHUB_PAGE_MODULE.exec(pathname);
-  const boardModule = BOARD_MODULE.exec(pathname);
-  const localModule = LOCAL_MODULE.exec(pathname);
-  const contractsModule = CONTRACTS_MODULE.exec(pathname);
-  const termsModule = TERMS_MODULE.exec(pathname);
-  const bridgeClientModule = BRIDGE_CLIENT_MODULE.exec(pathname);
-  const uiModule = UI_MODULE.exec(pathname);
-  if (
-    !panelModule &&
-    !hostModule &&
-    !boardModule &&
-    !localModule &&
-    !contractsModule &&
-    !termsModule &&
-    !bridgeClientModule &&
-    !uiModule
-  ) {
+  const file = moduleFileFor(pathname);
+  if (!file) {
     return null;
-  }
-  let file: string;
-  if (panelModule) {
-    file = path.join(PANEL, panelModule[1]);
-  } else if (boardModule) {
-    file = path.join(PUBLIC, 'board', boardModule[1]);
-  } else if (hostModule) {
-    file = path.join(GITHUB_PAGE, hostModule[1]);
-  } else if (bridgeClientModule) {
-    file = path.join(BRIDGE_CLIENT, `${bridgeClientModule[1]}.ts`);
-  } else if (uiModule) {
-    file = path.join(UI_DIR, uiModule[1]);
-  } else if (contractsModule) {
-    file = path.join(CONTRACTS, `${contractsModule[1]}.ts`);
-  } else if (termsModule) {
-    file = path.join(TERMS, `${termsModule[1]}.ts`);
-  } else {
-    file = path.join(PUBLIC, 'local', (localModule as RegExpExecArray)[1]);
   }
   if (!existsSync(file)) {
     throw new HttpError(404, 'no such module');

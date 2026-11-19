@@ -78,13 +78,7 @@ export class FileLinesRefusal extends Error {
  */
 export function fileLinesAt(dir: string, meta: StoryMeta, rel: string): string[] {
   const diff = loadDiff(dir, meta);
-  if (
-    !diff ||
-    !diff.has(rel) ||
-    !meta.repo_path ||
-    !meta.head_oid ||
-    checkedMeta(dir, meta).problem
-  ) {
+  if (!diff?.has(rel) || !meta.repo_path || !meta.head_oid || checkedMeta(dir, meta).problem) {
     throw new FileLinesRefusal('not-in-diff');
   }
   const blob = blobText(meta.repo_path, meta.head_oid, rel, FILE_LINES_MAX_BYTES);

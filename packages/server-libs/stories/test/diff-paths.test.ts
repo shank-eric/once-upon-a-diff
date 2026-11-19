@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { headerPaths, parseUnifiedDiff } from '../src/diff.ts';
+import { halvesNameOnePath, headerPaths, parseUnifiedDiff } from '../src/diff.ts';
 
 test('a diff header’s paths are read whether git quoted them or not', () => {
   assert.deepEqual(headerPaths('diff --git a/src/one.ts b/src/one.ts'), {
@@ -51,4 +51,16 @@ test('a type change’s two entries for one path keep both hunks', () => {
   assert.equal(file?.hunks.length, 2);
   assert.deepEqual(file?.stats, { added: 1, removed: 1 });
   assert.equal(file?.kind, 'created');
+});
+
+test('halvesNameOnePath: a/<path> b/<path> split at its middle is one path, anything else is not', () => {
+  const text = 'a/src/one.ts b/src/one.ts';
+  assert.equal(halvesNameOnePath(text, (text.length - 1) / 2), true);
+  const spaced = 'a/x b/y b/x b/y';
+  assert.equal(halvesNameOnePath(spaced, (spaced.length - 1) / 2), true);
+  const renamed = 'a/one.ts b/two.ts';
+  assert.equal(halvesNameOnePath(renamed, (renamed.length - 1) / 2), false);
+  const even = 'a/ab b/ab';
+  assert.equal(halvesNameOnePath(even, (even.length - 1) / 2), true);
+  assert.equal(halvesNameOnePath('a/x b/x!', 3.5), false);
 });

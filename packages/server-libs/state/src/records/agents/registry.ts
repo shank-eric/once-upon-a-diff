@@ -136,6 +136,9 @@ export interface FinishInput extends Target {
  * idles between requests, and the live editor skill still registers the editor as one. A storyteller is not swept either: the board
  * drops its gate when it has been silent for STALE_MS (board/stages/agents.ts).
  */
+/** The events that are no ledger line: a beat goes to the progress file, and a branch or card move or an ack tells nothing a run did. */
+const NOT_LEDGER_LINES: ReadonlySet<string> = new Set(['beat', 'branch', 'card', 'ack']);
+
 const SWEPT_KINDS: (LedgerAgent['kind'] & string)[] = ['author', 'critic'];
 
 /** The files the registry mirrors its events into as log lines, from the board settings. */
@@ -239,10 +242,7 @@ export class AgentRegistry {
       if (
         agent &&
         this.mirror.ledger &&
-        event.op !== 'beat' &&
-        event.op !== 'branch' &&
-        event.op !== 'card' &&
-        event.op !== 'ack' &&
+        !NOT_LEDGER_LINES.has(event.op) &&
         agent.kind !== 'editor'
       ) {
         appendLine(this.mirror.ledger, ledgerLine(event, agent));
@@ -431,12 +431,8 @@ export class AgentRegistry {
     kind: string,
   ): { cardId: string | null; standing: boolean; mints: boolean } {
     let cardId = optional(input.card, 'the card', BACKLOG_ID_RE);
-    if (
-      !cardId &&
-      !input.newCard &&
-      earlier?.card &&
-      (!this.cards || this.cardFacts(earlier.card)?.closed === null)
-    ) {
+    const stillOpen = (card: string) => !this.cards || this.cardFacts(card)?.closed === null;
+    if (!cardId && !input.newCard && earlier?.card && stillOpen(earlier.card)) {
       cardId = earlier.card;
     }
     const standing = input.standing ?? earlier?.standing === true;
@@ -839,13 +835,8 @@ export class AgentRegistry {
         ? autoFinished
         : this.open(name, { ...input, sid: wanted }, warn);
     // a null count reads as a pass, so a critic on a card must say how many (0 is fine)
-    if (
-      this.cards &&
-      agent.kind === 'critic' &&
-      agent.card &&
-      state === 'done' &&
-      count(input.findings, 'the findings count') === null
-    ) {
+    const criticOnCard = this.cards && agent.kind === 'critic' && agent.card;
+    if (criticOnCard && state === 'done' && count(input.findings, 'the findings count') === null) {
       throw new Error(
         'a critic finishes with its findings count: --findings N (0 if it found none). Without one the card would read as passed',
       );
@@ -882,12 +873,11 @@ export class AgentRegistry {
     if (state === 'done' && agent.kind === 'author' && !input.noCommit) {
       const dir = (agent.card && this.cardFacts(agent.card)?.worktree) || agent.cwd;
       const facts = dir ? worktreeFacts(dir) : null;
-      if (
-        dir &&
-        facts?.branch &&
+      const onItsBranch =
+        !!facts?.branch &&
         !DEFAULT_BRANCHES.has(facts.branch) &&
-        (!agent.branch || facts.branch === agent.branch)
-      ) {
+        (!agent.branch || facts.branch === agent.branch);
+      if (dir && facts && onItsBranch) {
         const typed = result.commit;
         if (typed && !isAncestor(dir, typed, facts.head)) {
           warn?.(
@@ -920,13 +910,8 @@ export class AgentRegistry {
     }
     // an author done with no commit and changes left in its worktree: recorded once, here (a planner made none to hold)
     let uncommitted: true | null = null;
-    if (
-      !result.commit &&
-      !input.noCommit &&
-      state === 'done' &&
-      agent.kind === 'author' &&
-      agent.state !== 'plan'
-    ) {
+    const finishedAuthor = state === 'done' && agent.kind === 'author' && agent.state !== 'plan';
+    if (finishedAuthor && !result.commit && !input.noCommit) {
       const dir = uncommittedWorktree(agent);
       if (dir) {
         uncommitted = true;

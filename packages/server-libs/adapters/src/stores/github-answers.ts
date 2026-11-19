@@ -35,24 +35,33 @@ export interface GithubAnswers {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
+/** Whether a record's `number` is a number and its `state` is one of `states`: what a stored PR of either shape has. */
+const hasNumberAndState = (record: Record<string, unknown>, states: readonly unknown[]): boolean =>
+  typeof record.number === 'number' && states.includes(record.state);
+
+/** Whether a stored value has the shape of a `StoredBranchPr`. */
+export function isStoredBranchPr(value: unknown): value is StoredBranchPr {
+  if (!isRecord(value)) {
+    return false;
+  }
+  const hasMergedAt = value.merged_at === null || typeof value.merged_at === 'string';
+  const hasHead = value.head_oid === undefined || typeof value.head_oid === 'string';
+  const hasShipped =
+    value.shipped === undefined ||
+    (Array.isArray(value.shipped) && value.shipped.every((oid) => typeof oid === 'string'));
+  const hasNumberAndKnownState = hasNumberAndState(value, ['open', 'merged']);
+  return hasNumberAndKnownState && hasMergedAt && hasHead && hasShipped;
+}
+
+/** Whether a stored value has the shape of a `PrInfo`: a number and a known state. */
+export const isStoredPrInfo = (info: unknown): info is Record<string, unknown> =>
+  isRecord(info) && hasNumberAndState(info, ['open', 'merged', 'closed']);
+
 function branchPrOf(value: unknown): StoredBranchPr | null | undefined {
   if (value === null) {
     return null;
   }
-  if (
-    !isRecord(value) ||
-    typeof value.number !== 'number' ||
-    (value.state !== 'open' && value.state !== 'merged') ||
-    !(value.merged_at === null || typeof value.merged_at === 'string') ||
-    !(value.head_oid === undefined || typeof value.head_oid === 'string') ||
-    !(
-      value.shipped === undefined ||
-      (Array.isArray(value.shipped) && value.shipped.every((oid) => typeof oid === 'string'))
-    )
-  ) {
-    return undefined;
-  }
-  return value as unknown as StoredBranchPr;
+  return isStoredBranchPr(value) ? value : undefined;
 }
 
 /** What was kept, without the entries older than a week at `now`. */
@@ -74,13 +83,7 @@ export function readGithubAnswers(home: string, now = Date.now()): GithubAnswers
   if (isRecord(stored.prs)) {
     for (const [key, entry] of Object.entries(stored.prs)) {
       const info = isRecord(entry) ? entry.info : undefined;
-      if (
-        isRecord(entry) &&
-        fresh(entry.at) &&
-        isRecord(info) &&
-        typeof info.number === 'number' &&
-        (info.state === 'open' || info.state === 'merged' || info.state === 'closed')
-      ) {
+      if (isRecord(entry) && fresh(entry.at) && isStoredPrInfo(info)) {
         out.prs[key] = { at: Math.min(entry.at, now), info: info as unknown as PrInfo };
       }
     }

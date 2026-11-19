@@ -15,6 +15,14 @@ export interface StepProgress {
   noToggle: boolean;
 }
 
+type ChapterProgress = Pick<StepProgress, 'due' | 'viewed' | 'unknown' | 'noToggle'>;
+
+/** Whether the page shows every file the chapter marks viewed: it has some due, each has a toggle and none is unknown. */
+export const pageShowsAll = (
+  progress: ChapterProgress | null | undefined,
+): progress is ChapterProgress =>
+  !!progress && !!progress.due && !progress.noToggle && progress.unknown.length === 0;
+
 /**
  * Chapters they reviewed before the panel tracked reads (or with the panel closed): every file the chapter marks
  * viewed was already Viewed the first time this page could see all of them, and read.json has no record of it.
@@ -24,7 +32,7 @@ export interface StepProgress {
  */
 export function inferReadSteps(
   chapters: { key?: unknown; title?: unknown; skeleton?: unknown }[],
-  progress: (Pick<StepProgress, 'due' | 'viewed' | 'unknown' | 'noToggle'> | null | undefined)[],
+  progress: (ChapterProgress | null | undefined)[],
   readInfo: ReadInfo | null,
   firstLook: Map<number, boolean>,
 ): number[] {
@@ -34,14 +42,8 @@ export function inferReadSteps(
   const out: number[] = [];
   progress.forEach((stepProgress, index) => {
     const step = index + 1;
-    if (
-      firstLook.has(step) ||
-      chapters[index]?.skeleton || // published before its text: files ticked meanwhile say nothing about the text
-      !stepProgress ||
-      !stepProgress.due ||
-      stepProgress.noToggle ||
-      stepProgress.unknown.length
-    ) {
+    // a skeleton is published before its text: files ticked meanwhile say nothing about the text
+    if (firstLook.has(step) || chapters[index]?.skeleton || !pageShowsAll(stepProgress)) {
       return; // not loaded on the page yet: look again later
     }
     const complete = stepProgress.viewed === stepProgress.due;

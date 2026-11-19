@@ -39,7 +39,7 @@ import { Board } from '@once-upon-a-diff/board/board';
 import { BoardError } from '@once-upon-a-diff/foundation/errors';
 import { codeOfStatus } from '@once-upon-a-diff/terms/error-code';
 import { SEEN_WRITE_MS } from '@once-upon-a-diff/terms/timing';
-import { HttpError, decodeId, sameToken, readBody } from './request.ts';
+import { HttpError, decodeId, originAllowed, sameToken, readBody } from './request.ts';
 import { COOKIE_NAMES, cookieFor, cookiesOf } from './session-cookie.ts';
 import { assetFor } from './assets.ts';
 import { nonLoopbackClient } from './client-address.ts';
@@ -456,16 +456,7 @@ export function createBridge({
       const url = new URL(req.url as string, `http://127.0.0.1:${port}`);
       const pathname = url.pathname;
       const origin = req.headers.origin;
-      if (
-        origin &&
-        !extensionOrigins.has(origin) &&
-        origin !== `http://127.0.0.1:${port}` &&
-        origin !== `http://localhost:${port}` &&
-        !(
-          allowedHostOf(req) &&
-          (origin === `https://${allowedHostOf(req)}` || origin === `http://${allowedHostOf(req)}`)
-        )
-      ) {
+      if (origin && !originAllowed(origin, port, extensionOrigins, allowedHostOf(req))) {
         throw new HttpError(
           403,
           origin.startsWith('chrome-extension://')

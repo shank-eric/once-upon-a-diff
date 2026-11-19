@@ -57,12 +57,11 @@ export function reachesFor(file: string, text: string): string[] {
     }
   };
   const visit = (node: typescript.Node): void => {
-    if (
-      (typescript.isImportDeclaration(node) || typescript.isExportDeclaration(node)) &&
-      node.moduleSpecifier &&
-      typescript.isStringLiteral(node.moduleSpecifier) &&
-      NETWORK_MODULE.test(node.moduleSpecifier.text)
-    ) {
+    const specifier =
+      typescript.isImportDeclaration(node) || typescript.isExportDeclaration(node)
+        ? node.moduleSpecifier
+        : undefined;
+    if (specifier && typescript.isStringLiteral(specifier) && NETWORK_MODULE.test(specifier.text)) {
       add('network-module', node);
     }
     if (typescript.isCallExpression(node)) {

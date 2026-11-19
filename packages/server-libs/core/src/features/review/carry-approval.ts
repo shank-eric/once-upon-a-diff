@@ -151,11 +151,21 @@ export function approvableTip(meta: LocalMeta): { tip: string; base: string } | 
   return base ? { tip, base } : 'stale';
 }
 
+type StoredApproval = NonNullable<ReturnType<typeof readApproval>>;
+
+/** Whether an approval is one a rebase could carry: it names the base it was given over, has not lapsed and is still fresh. */
+export function isRebaseCarriable(
+  approval: StoredApproval | null,
+  now: number,
+): approval is StoredApproval & { base_oid: string } {
+  return !!approval?.base_oid && !approval.lapsed && approvalFresh(approval, now);
+}
+
 /** Moves the story's approval to `tip` (`rebasedBase` is the tip's new base for a rebase), recording where it came from. */
 function moveApproval(
   stories: StoryStore,
   entry: LocalEntry,
-  approval: NonNullable<ReturnType<typeof readApproval>>,
+  approval: StoredApproval,
   tip: string,
   rebasedBase: string | null,
   run: string,
@@ -196,15 +206,10 @@ export function carryRebasedApproval(
 ): boolean {
   try {
     const approval = readApproval(stories, entry.story.id);
-    if (
-      !entry.repo_path ||
-      !approval ||
-      approval.lapsed ||
-      !approval.base_oid ||
-      tip === approval.head_oid ||
-      !approvalFresh(approval, now) ||
-      isAncestor(entry.repo_path, approval.head_oid, tip)
-    ) {
+    if (!entry.repo_path || !isRebaseCarriable(approval, now)) {
+      return false;
+    }
+    if (tip === approval.head_oid || isAncestor(entry.repo_path, approval.head_oid, tip)) {
       return false;
     }
     const approved = commitLog(entry.repo_path, [`${approval.base_oid}..${approval.head_oid}`]);

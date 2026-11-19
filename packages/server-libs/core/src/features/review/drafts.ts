@@ -108,11 +108,9 @@ export function similarity(first: unknown, second: unknown): number {
   if (!left || !right) {
     return 0;
   }
-  if (
-    left === right ||
-    (left.length > 20 && right.includes(left)) ||
-    (right.length > 20 && left.includes(right))
-  ) {
+  const oneHoldsOther =
+    (left.length > 20 && right.includes(left)) || (right.length > 20 && left.includes(right));
+  if (left === right || oneHoldsOther) {
     return 1;
   }
   const grams = (text: string) => {

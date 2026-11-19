@@ -78,6 +78,19 @@ function readMark(raw: unknown): ReviewMark | undefined {
 const CHANGE_KINDS: readonly string[] = ['added', 'dropped', 'edited', 'reordered'];
 const MAX_LAPSE_CHANGES = 30;
 
+type StoredLapseChange = Record<string, unknown> & { kind: string; sha: string; subject: string };
+
+/** Whether a stored value is one change of a lapse note: a known kind with its commit and subject. */
+export const isStoredLapseChange = (item: unknown): item is StoredLapseChange => {
+  if (!isObject(item)) {
+    return false;
+  }
+  const hasKnownKind = typeof item.kind === 'string' && CHANGE_KINDS.includes(item.kind);
+  const hasCommit = typeof item.sha === 'string';
+  const hasSubject = typeof item.subject === 'string';
+  return hasKnownKind && hasCommit && hasSubject;
+};
+
 /** A stored lapse note, or undefined when it is malformed or names no change. */
 function readLapse(raw: unknown): LocalLapse | undefined {
   if (!isObject(raw) || typeof raw.at !== 'string' || typeof raw.tip !== 'string') {
@@ -85,13 +98,7 @@ function readLapse(raw: unknown): LocalLapse | undefined {
   }
   const changes: LocalLapseChange[] = [];
   for (const item of Array.isArray(raw.changes) ? raw.changes.slice(0, MAX_LAPSE_CHANGES) : []) {
-    if (
-      isObject(item) &&
-      typeof item.kind === 'string' &&
-      CHANGE_KINDS.includes(item.kind) &&
-      typeof item.sha === 'string' &&
-      typeof item.subject === 'string'
-    ) {
+    if (isStoredLapseChange(item)) {
       changes.push({
         kind: item.kind as LocalLapseChange['kind'],
         sha: item.sha,
@@ -107,12 +114,16 @@ function readLapse(raw: unknown): LocalLapse | undefined {
   return { at: raw.at, tip: raw.tip, changes, ...(more && { more }) };
 }
 
+/** Whether a stored value is a commit id or the absence of one (null or missing). */
+export const isOptionalOid = (value: unknown): value is string | null | undefined =>
+  value === null || value === undefined || typeof value === 'string';
+
 function readApprovalFacet(raw: unknown): Approval | undefined {
   if (
     !isObject(raw) ||
     typeof raw.at !== 'string' ||
     typeof raw.head_oid !== 'string' ||
-    (raw.base_oid !== null && raw.base_oid !== undefined && typeof raw.base_oid !== 'string')
+    !isOptionalOid(raw.base_oid)
   ) {
     return undefined;
   }

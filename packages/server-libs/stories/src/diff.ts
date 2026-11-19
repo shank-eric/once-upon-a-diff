@@ -64,6 +64,18 @@ const wholePath = (text: string): string | null => {
   return quoted.rest ? null : quoted.path;
 };
 
+/** Whether a `diff --git` line's text, split at `half` (its middle), is `a/<path> b/<path>` with the same path on both sides. */
+export const halvesNameOnePath = (text: string, half: number): boolean => {
+  if (!Number.isInteger(half)) {
+    return false;
+  }
+  const sameOnBothSides = text.slice(2, half) === text.slice(half + 3);
+  const oldSideStartsA = text.startsWith('a/');
+  const splitsAtSpace = text[half] === ' ';
+  const newSideStartsB = text.startsWith('b/', half + 1);
+  return sameOnBothSides && oldSideStartsA && splitsAtSpace && newSideStartsB;
+};
+
 /** A `diff --git` line's two paths, without the a/ and b/, whether git quoted them or not. Null when it can't tell. */
 export function headerPaths(line: string): { from: string; to: string } | null {
   const text = line.replace(/^diff --git /, '');
@@ -79,13 +91,7 @@ export function headerPaths(line: string): { from: string; to: string } | null {
     if (quotedNew > 0) {
       oldPath = text.slice(0, quotedNew);
       newPath = wholePath(text.slice(quotedNew + 1));
-    } else if (
-      Number.isInteger(half) &&
-      text.slice(2, half) === text.slice(half + 3) &&
-      text.startsWith('a/') &&
-      text[half] === ' ' &&
-      text.slice(half + 1, half + 3) === 'b/'
-    ) {
+    } else if (halvesNameOnePath(text, half)) {
       // a path may hold " b/", so when both halves name one path, that is the split
       [oldPath, newPath] = [text.slice(0, half), text.slice(half + 1)];
     } else {

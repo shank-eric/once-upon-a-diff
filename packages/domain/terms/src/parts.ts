@@ -97,19 +97,14 @@ export function parsePartsFile(raw: unknown, warn?: (line: string) => void): Par
       return null;
     }
     const { id, name, group, paths, note } = entry;
-    if (
-      typeof id !== 'string' ||
-      !ID_RE.test(id) ||
-      id === OTHER_PART_ID ||
-      ids.has(id) ||
-      !isText(name, MAX_NAME) ||
-      typeof group !== 'string' ||
-      !groups.includes(group) ||
-      !Array.isArray(paths) ||
-      paths.length > MAX_PATHS ||
-      !paths.every((one) => isText(one, MAX_PATH)) ||
-      (note !== undefined && !isText(note, MAX_NOTE))
-    ) {
+    const idOk = typeof id === 'string' && ID_RE.test(id) && id !== OTHER_PART_ID && !ids.has(id);
+    const groupOk = typeof group === 'string' && groups.includes(group);
+    const pathsOk =
+      Array.isArray(paths) &&
+      paths.length <= MAX_PATHS &&
+      paths.every((one) => isText(one, MAX_PATH));
+    const textsOk = isText(name, MAX_NAME) && (note === undefined || isText(note, MAX_NOTE));
+    if (!idOk || !groupOk || !pathsOk || !textsOk) {
       return null;
     }
     const clean = (paths as string[]).map(normalizePath);

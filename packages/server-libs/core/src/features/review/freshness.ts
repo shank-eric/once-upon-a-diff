@@ -260,6 +260,17 @@ function localFreshness(meta: StoryMeta, chapters: ChapterFiles[]): Freshness {
   };
 }
 
+/** Whether the build is a finished update from a commit other than the story's head: the kind `updatedInPlace` can compare. */
+export function isFinishedUpdateFrom(build: Build | null, story: string): build is Build {
+  if (!build) {
+    return false;
+  }
+  const isFinishedUpdate = build.status === 'done' && build.mode === 'update';
+  const hasBaseSha = SHA_RE.test(String(build.base_sha || ''));
+  const startsElsewhere = !sameSha(build.base_sha, story);
+  return isFinishedUpdate && hasBaseSha && startsElsewhere;
+}
+
 /**
  * An update that rewrote the story in place, with no "Since you read it" chapter for it: the last build for the PR was
  * a finished update from an older commit, and no chapter covers that range. Then the panel can still say what's new,
@@ -272,14 +283,7 @@ async function updatedInPlace(
 ): Promise<FreshUpdate | null> {
   const build = lastBuild;
   const story = meta.head_oid;
-  if (
-    !build ||
-    build.status !== 'done' ||
-    build.mode !== 'update' ||
-    !SHA_RE.test(String(build.base_sha || '')) ||
-    !story ||
-    sameSha(build.base_sha, story)
-  ) {
+  if (!story || !isFinishedUpdateFrom(build, story)) {
     return null;
   }
   if (chapters.some((chapter) => chapter.since && sameSha(chapter.since.to, story))) {

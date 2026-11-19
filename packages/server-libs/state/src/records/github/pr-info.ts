@@ -97,13 +97,9 @@ function actionAt(pr: PrNode, viewer: string): string | null {
   );
   for (const review of own ? pr.reviews.nodes : []) {
     const login = review.author?.login.toLowerCase();
-    if (
-      review.state === 'CHANGES_REQUESTED' &&
-      login &&
-      login !== viewer &&
-      standing.has(login) &&
-      !isBotLike(review.author)
-    ) {
+    const isOtherHuman = !!login && login !== viewer && !isBotLike(review.author);
+    const standingReviewer = isOtherHuman && standing.has(login);
+    if (review.state === 'CHANGES_REQUESTED' && standingReviewer) {
       times.push(review.submittedAt);
     }
   }

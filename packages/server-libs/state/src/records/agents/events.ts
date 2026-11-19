@@ -70,6 +70,19 @@ const isOpen = (agent: Pick<LedgerAgent, 'state'>) =>
 /** Whether a run is still going (running, at a gate, or waiting on a question or a story review). */
 export const runIsOpen = isOpen;
 
+/**
+ * Whether a run takes an event for it: the run is open (or its auto-finish is being replaced), and the event names no
+ * other run (one with no run, or either side unnamed, is for this one).
+ */
+export function takesEvent(
+  agent: Pick<LedgerAgent, 'state' | 'run'>,
+  eventRun: string | null | undefined,
+  replaces: boolean,
+): boolean {
+  const namesOtherRun = !!eventRun && !!agent.run && eventRun !== agent.run;
+  return (isOpen(agent) || replaces) && !namesOtherRun;
+}
+
 /** Whether a finish's named card moves with its run when the run moves off `from`: only a finish that named that card does. */
 export const movesWith = (named: string | null | undefined, from: string | null | undefined) =>
   !!named && named === from;
@@ -159,11 +172,7 @@ export function foldAgentEvents(events: AgentEvent[]): LedgerAgent[] {
       !!agent?.autoFinished &&
       event.by !== 'auto-finish';
     // an event names its run: one for a run that is not the latest (a restarted agent's old beats and finish) is not this run's
-    if (
-      !agent ||
-      (!isOpen(agent) && !replaces) ||
-      (event.run && agent.run && event.run !== agent.run)
-    ) {
+    if (!agent || !takesEvent(agent, event.run, replaces)) {
       continue;
     }
     // a rename is not the agent working, so it is no sign of life

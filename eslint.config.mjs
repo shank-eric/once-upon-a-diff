@@ -15,6 +15,7 @@ import eslintPrettierConfig from 'eslint-config-prettier';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 import sideEffects from './configs/eslint.side-effects.mjs';
+import { guards } from './configs/eslint.guards.mjs';
 
 const NODE_FILES = [
   'packages/{server,server-libs}/*/**/*.{ts,mjs}',
@@ -116,8 +117,9 @@ export default defineConfig(
   },
   {
     // readability measures, warnings only for now (a measuring pass, not a gate yet)
-    plugins: { sonarjs },
+    plugins: { sonarjs, guards },
     rules: {
+      'guards/long-guard': ['warn', { max: 4 }],
       'sonarjs/cognitive-complexity': ['warn', 15],
       complexity: ['warn', 10],
       'max-depth': ['warn', 4],

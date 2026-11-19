@@ -35,15 +35,11 @@ export function approvalOf(
   const found = readApproval(stories, id);
   // a carried approval also counts for the story as told at the commit it was first given for: a story pinned to its
   // told-over commits (`--head <branch>`) keeps that head while the approval moves with the fixer's commits
-  if (
-    !found ||
-    found.lapsed ||
-    !headOid ||
-    (found.head_oid !== headOid && found.carried?.from !== headOid)
-  ) {
+  if (!found || found.lapsed || !headOid) {
     return null;
   }
-  return approvalFresh(found, now) ? found : null;
+  const namesHead = found.head_oid === headOid || found.carried?.from === headOid;
+  return namesHead && approvalFresh(found, now) ? found : null;
 }
 
 /** The longest the board or a page waits on git for where a story's ref is. */

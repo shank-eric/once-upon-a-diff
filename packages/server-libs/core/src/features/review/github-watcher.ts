@@ -592,13 +592,8 @@ export class AutoReview {
       .then(({ code, stdout }) => {
         const tip = stdout.trim();
         const current = readApproval(this.stories, entry.story.id);
-        if (
-          code === 0 &&
-          tip &&
-          !current?.lapsed &&
-          current?.head_oid === approval.head_oid &&
-          tip !== approval.head_oid
-        ) {
+        const stillApproved = !current?.lapsed && current?.head_oid === approval.head_oid;
+        if (code === 0 && tip && stillApproved && tip !== approval.head_oid) {
           // a moved tip is looked at again on the next poll until it is carried or lapsed
           this.delivered.delete(key);
           if (!carryRebasedApproval(this.stories, entry, tip, now)) {

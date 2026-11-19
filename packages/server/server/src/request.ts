@@ -21,6 +21,22 @@ export class HttpError extends Error {
   }
 }
 
+/**
+ * Whether a request's Origin may call the bridge: an extension in `extensionOrigins`, the bridge's own page at 127.0.0.1 or
+ * localhost on `port`, or the allowed host (when one is set) on https or http.
+ */
+export function originAllowed(
+  origin: string,
+  port: number,
+  extensionOrigins: ReadonlySet<string>,
+  allowedHost: string | null,
+): boolean {
+  const own = [`http://127.0.0.1:${port}`, `http://localhost:${port}`];
+  const viaHost =
+    !!allowedHost && [`https://${allowedHost}`, `http://${allowedHost}`].includes(origin);
+  return extensionOrigins.has(origin) || own.includes(origin) || viaHost;
+}
+
 /** A story id from a path segment: a 400 when its %-escapes are malformed, not a 500 with a stack in the log. */
 export function decodeId(raw: string): string {
   try {
