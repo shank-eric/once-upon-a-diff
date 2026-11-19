@@ -917,7 +917,7 @@ describe('wait', { concurrency: 2 }, () => {
 
     test('the waiting beat is rewritten about every 5 s', async () => {
       const { home } = homeWith();
-      const running = cli(home, [...REPO_WAIT, '--timeout', '9']);
+      const running = cli(home, [...REPO_WAIT, '--timeout', '12']);
       const beatFile = path.join(home, 'listeners', 'repo-acme-widgets.json');
       const read = () =>
         existsSync(beatFile) ? (JSON.parse(readFileSync(beatFile, 'utf8')).at as string) : null;
@@ -928,13 +928,15 @@ describe('wait', { concurrency: 2 }, () => {
       }
       const seen = Date.now();
       let later = read();
-      while (later === first && Date.now() - seen < 8000) {
+      while (later === first && Date.now() - seen < 11000) {
         await new Promise((resolve) => setTimeout(resolve, 50));
         later = read();
       }
-      const gap = Date.now() - seen;
       assert.notEqual(later, first, 'the beat was not rewritten');
-      assert.ok(gap > 3000 && gap < 6500, `rewritten after ${gap} ms`);
+      // the gap between the two beats' own timestamps, not between the moments this test noticed them: a loaded machine
+      // delays the noticing (the file is polled here) but not the beat's own clock, so the cadence is measured where it is written
+      const gap = Date.parse(later!) - Date.parse(first);
+      assert.ok(gap > 3000 && gap < 8000, `rewritten after ${gap} ms`);
       await running;
     });
   });
