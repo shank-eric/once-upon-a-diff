@@ -26,6 +26,11 @@ export interface BacklogItem {
   started_at: string | null;
   started_by: string | null;
   dropped_at: string | null;
+  /**
+   * when the card was last parked: the latest hold on, someday on or reopen (a story told before it is not the card's work: the
+   * board ignores it). Turning hold or someday off, with the other not on, clears it
+   */
+  parked_at?: string | null;
   /** when a `done` event recorded the work as landed (started items only), and the sha it landed as, when given */
   landed_at: string | null;
   landed_sha: string | null;

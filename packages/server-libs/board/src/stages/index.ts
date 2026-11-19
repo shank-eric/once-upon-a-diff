@@ -46,6 +46,7 @@ import { editorsOf } from './editors.ts';
 import { carriedKeys } from '@once-upon-a-diff/state/queues/backlog/phase';
 import {
   addBacklogCards,
+  ignoreStoriesBeforePark,
   markLandedWorks,
   nestClaimedAgents,
   keepWorkWorking,
@@ -175,6 +176,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
     [...stories, ...localStoryList].map((story) => [story.id, story]),
   );
   markLandedWorks(backlogItems, cards, nowMs, byStory, agents);
+  ignoreStoriesBeforePark(backlogItems, cards, byStory, agents);
 
   // the columns, now that every card has its sessions and agents; a Ready card whose branch moved past its story is Working
   placeCards(

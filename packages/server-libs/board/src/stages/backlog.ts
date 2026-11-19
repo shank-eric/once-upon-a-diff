@@ -145,6 +145,49 @@ export function markLandedWorks(
   }
 }
 
+/**
+ * A parked card (on hold, set aside for someday, or reopened with `backlog reopen`) is not working a local story told before its
+ * latest mark (`parked_at`): that story is not the card's work, so it does not put the card in Ready. The work card on the
+ * card's branch loses that story (and is taken off the board when nothing else is on it), which leaves the card in Backlog. A
+ * story told after the mark counts as usual. The branch is the item's, or one its runs registered (a reopen forgets the branch a
+ * start set). A card with a PR follows its PR, and a landed card is markLandedWorks's. It changes `cards`.
+ */
+export function ignoreStoriesBeforePark(
+  items: BacklogItem[],
+  cards: BoardCard[],
+  stories: Map<string, StoryFacts>,
+  agents: LedgerAgent[] = [],
+): void {
+  for (const item of items) {
+    const parkedMs = Date.parse(item.parked_at ?? '');
+    if (item.state === 'dropped' || item.landed_at || Number.isNaN(parkedMs)) {
+      continue;
+    }
+    const places = [
+      item,
+      ...runsOf(item, agents).map((run) => ({
+        branch: run.branch ?? null,
+        repo: run.repo ?? item.repo,
+      })),
+    ].filter((place) => place.branch);
+    for (const place of places) {
+      const found = cardOnBranch(place, cards);
+      if (!found || found.kind !== 'work' || !isLocalStoryCard(found)) {
+        continue;
+      }
+      const card: BoardCard = found;
+      if (Date.parse(stories.get(found.story.id)?.built_at ?? '') >= parkedMs) {
+        continue;
+      }
+      if (card.sessions.length || card.agents.length) {
+        card.story = null;
+      } else {
+        cards.splice(cards.indexOf(card), 1);
+      }
+    }
+  }
+}
+
 /** What a started item is linked against. */
 export interface LinkFacts {
   items: BacklogItem[];

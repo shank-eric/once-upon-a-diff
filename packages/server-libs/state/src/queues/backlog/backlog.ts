@@ -177,6 +177,8 @@ export function foldBacklogEvents(events: BacklogEvent[]): BacklogItem[] {
   const items = new Map<string, BacklogItem>();
   // what each item was added with, which a reopen goes back to (a start overwrote the branch and the repo)
   const added = new Map<string, { branch: string | null; repo: string | null }>();
+  // when each item was last reopened, put on hold and set aside, which `parked_at` reads
+  const marks = new Map<string, { reopened?: string; hold?: string; someday?: string }>();
   const order: string[] = [];
   for (const event of events) {
     const id = event.id;
@@ -261,10 +263,12 @@ export function foldBacklogEvents(events: BacklogEvent[]): BacklogItem[] {
       found.someday = false;
     } else if (found && found.state !== 'dropped' && event.op === 'hold') {
       found.hold = event.on !== false;
+      marks.set(id, { ...marks.get(id), hold: found.hold ? when : undefined });
     } else if (found && found.state !== 'dropped' && event.op === 'skip_critic') {
       found.critic_skipped = event.on !== false;
     } else if (found && found.state === 'open' && !found.landed_at && event.op === 'someday') {
       found.someday = event.on !== false;
+      marks.set(id, { ...marks.get(id), someday: found.someday ? when : undefined });
     } else if (found && event.op === 'drop') {
       found.state = 'dropped';
       found.dropped_at = when;
@@ -273,6 +277,7 @@ export function foldBacklogEvents(events: BacklogEvent[]): BacklogItem[] {
       // back to an open item: the work it was started on no longer speaks for it, and it keeps its place in the order
       found.state = 'open';
       found.dropped_at = null;
+      marks.set(id, { ...marks.get(id), reopened: when, hold: undefined, someday: undefined });
       found.started_at = null;
       found.started_by = null;
       found.landed_at = null;
@@ -308,6 +313,18 @@ export function foldBacklogEvents(events: BacklogEvent[]): BacklogItem[] {
         order.splice(place, 0, id);
       }
     }
+  }
+  for (const [id, mark] of marks) {
+    const item = items.get(id) as BacklogItem;
+    // a mark counts while it stands: a start or a claim ends someday, and hold or someday off end theirs
+    const times = [
+      mark.reopened,
+      item.hold ? mark.hold : undefined,
+      item.someday ? mark.someday : undefined,
+    ]
+      .filter((time): time is string => !!time)
+      .sort();
+    item.parked_at = times.length ? times[times.length - 1] : null;
   }
   return order.map((id) => items.get(id) as BacklogItem);
 }

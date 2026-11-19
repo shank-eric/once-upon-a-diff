@@ -2233,6 +2233,90 @@ async function record(
   }
 }
 
+// ---- 17. a parked card (reopened with `backlog reopen`, on hold, or set aside for someday) ignores a local story told before the
+// mark: it is in Backlog, not Ready; a story told after the mark counts as usual (Ready). Every story is unreviewed with no PR.
+{
+  const home = tmp('home');
+  const sessions = tmp('sessions');
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
+  const et = (hour: number, minute: number) => new Date(Date.UTC(2026, 9, 26, hour + 4, minute));
+  const events: Record<string, unknown>[] = [];
+  const add = (id: string, branch: string | null) =>
+    events.push({
+      op: 'add',
+      id,
+      title: `Card ${id}`,
+      note: null,
+      repo: 'acme/widgets',
+      ...(branch ? { branch } : {}),
+      by: 'cli',
+      at: et(8, 0).toISOString(),
+    });
+  // the marks are all at 11:00 ET (15:00Z); the old stories were told at 13:00Z, the new one at 17:00Z
+  const reopen = (id: string, branch: string) =>
+    events.push(
+      { op: 'start', id, branch, repo: 'acme/widgets', by: 'cli', at: et(8, 1).toISOString() },
+      { op: 'drop', id, by: 'cli', at: et(10, 0).toISOString() },
+      { op: 'reopen', id, by: 'cli', at: et(11, 0).toISOString() },
+    );
+  // a reopened card added with a branch, with an old story (Backlog) and with a new one (Ready)
+  add('bl_reopenold', 'feat/reopen-old');
+  reopen('bl_reopenold', 'feat/reopen-old');
+  add('bl_reopennew', 'feat/reopen-new');
+  reopen('bl_reopennew', 'feat/reopen-new');
+  // a reopened card added with no branch (a start gave it one, and the reopen forgot it): its run names the branch
+  add('bl_reopenbare', null);
+  reopen('bl_reopenbare', 'feat/reopen-bare');
+  const runs = new AgentRegistry(home);
+  runs.start({
+    sid: 'ffffffff',
+    name: 'au-reopen-bare',
+    kind: 'author',
+    task: 'the dropped work',
+    card: 'bl_reopenbare',
+    repo: 'acme/widgets',
+    branch: 'feat/reopen-bare',
+    at: et(8, 2),
+  });
+  runs.finish('au-reopen-bare', {
+    sid: 'ffffffff',
+    state: 'stopped',
+    outcome: 'dropped with the card',
+    at: et(9, 0),
+  });
+  // a card on hold, and one set aside for someday, whose branch holds an older story
+  add('bl_heldold', 'feat/held-old');
+  events.push({ op: 'hold', id: 'bl_heldold', on: true, by: 'cli', at: et(11, 0).toISOString() });
+  add('bl_somedayold', 'feat/someday-old');
+  events.push({
+    op: 'someday',
+    id: 'bl_somedayold',
+    on: true,
+    by: 'cli',
+    at: et(11, 0).toISOString(),
+  });
+  for (const [id, branch, built] of [
+    ['story-reopen-old', 'feat/reopen-old', '2026-10-26T13:00:00Z'],
+    ['story-reopen-new', 'feat/reopen-new', '2026-10-26T17:00:00Z'],
+    ['story-reopen-bare', 'feat/reopen-bare', '2026-10-26T13:00:00Z'],
+    ['story-held-old', 'feat/held-old', '2026-10-26T13:00:00Z'],
+    ['story-someday-old', 'feat/someday-old', '2026-10-26T13:00:00Z'],
+  ] as const) {
+    localStory(home, id, checkoutOf('widgets', branch), branch, { built_at: built });
+  }
+  writeFileSync(
+    path.join(home, 'backlog.jsonl'),
+    events.map((event) => JSON.stringify(event)).join('\n') + '\n',
+  );
+  const { watcher } = fakeWatcher([], {});
+  const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
+    source: sourceSaying({}),
+    now: () => NOW,
+    repoOf,
+  });
+  await record('17-reopened-old-story', board);
+}
+
 // ---- normalize paths and pids
 export const snapshots: Record<string, string> = {};
 for (const [name, value] of Object.entries(results)) {
