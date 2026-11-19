@@ -101,7 +101,14 @@ test('every deploy command the skill writes starts with a program, not a VAR=val
     }
   }
   const profile = readFileSync(path.join(SKILL, 'repos/once-upon-a-diff.md'), 'utf8');
-  assert.match(profile, /once-upon deploy <name> scripts\/deploy-local\.sh --yes <branch>/);
+  assert.match(
+    profile,
+    /once-upon deploy <name> scripts\/deploy-local\.sh --yes --batch main <sha>/,
+  );
+  assert.match(
+    profile,
+    /Fast-forward, `\.\.\. scripts\/deploy-local\.sh --yes <branch>`, only when the user says so/,
+  );
   assert.ok(seen >= 3, 'the skill, the template and the profile each write one');
 });
 
@@ -143,4 +150,23 @@ test('the skill says a general-purpose launch asks dispatch for it (--general), 
   const skill = readFileSync(path.join(SKILL, 'SKILL.md'), 'utf8');
   assert.match(skill, /--general/);
   assert.doesNotMatch(skill, /are in the agent types, not in each brief/);
+});
+
+test('the deploy gate still runs the full suite: the batch block of deploy-local.sh runs plain `yarn test`, and the skill and AGENTS.md say authors leave it to the deploy', () => {
+  const script = read('scripts/deploy-local.sh');
+  const batch = script.slice(
+    script.indexOf('quiet "yarn install"'),
+    script.indexOf('quiet "build"'),
+  );
+  assert.match(
+    batch,
+    /quiet "test" bash -c "cd '\$WT' && yarn test"$/m,
+    'the gate runs plain yarn test',
+  );
+  assert.match(batch, /quiet "typecheck" bash -c "cd '\$WT' && yarn typecheck"$/m);
+  assert.match(read('AGENTS.md'), /the deploy gate[^\n]*runs them/);
+  assert.match(
+    readFileSync(path.join(SKILL, 'SKILL.md'), 'utf8'),
+    /the deploy gate is the only place the full suite runs/,
+  );
 });

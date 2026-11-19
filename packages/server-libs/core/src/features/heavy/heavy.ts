@@ -5,4 +5,4 @@
 import { HEAVY_LANES, runHeavy } from '@once-upon-a-diff/adapters/heavy-lock';
 
 export { HEAVY_LANES, runHeavy };
-export type { HeavyLane } from '@once-upon-a-diff/adapters/heavy-lock';
+export type { HeavyLane, Waited } from '@once-upon-a-diff/adapters/heavy-lock';

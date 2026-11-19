@@ -13,6 +13,12 @@
  *
  * A run waiting for the lock keeps `<lock>-waiters/<name>.<its pid>` (removed when it has the lock; the folder goes when empty, a dead pid's file is ignored and cleared by `heavyHolders`), so a run queued behind another is still known to be at work.
  *
+ * A deploy (`runHeavy` with `priority: 'deploy'`, which only `once-upon deploy` passes) goes ahead of the other waiters: its waiter file holds the text `deploy`, and
+ * a waiting run that is not a deploy takes no turn while a live deploy waiter other than itself is there (it says "waiting for a deploy"). The holder is never
+ * preempted, and a deploy record older than two hours is ignored, so a reused pid or a hung deploy cannot starve the others. The record is written after a deploy's first failed attempt,
+ * so authors that poll in that first interval can still win once. A run that waited says so when it gets the lock, `once-upon heavy: waited 312 s (position 3 on arrival,
+ * behind <holder>)`: the position counts the waiters ahead of it plus itself, the holder not counted, as of its arrival (the order of arrival, not a promised order of turns: waiters that are not deploys still race for the folder).
+ *
  * A lane is a second lock of the same kind, its own queue with at most one holder at a time, so a single-spec browser run need
  * not wait behind the main lock: `browser` is the one lane, at `$ONCE_UPON_HEAVY_LOCK_BROWSER`, else `<$ONCE_UPON_HEAVY_LOCK>-browser`
  * when that is set, else `${XDG_CACHE_HOME:-~/.cache}/heavy-run-browser.lock`. Nothing checks memory: the most that runs at once is one
@@ -80,6 +86,9 @@ const DEFAULT_STALE_MS = 60_000;
 /** A file or link at the lock path (not a folder: never made by a heavy lock) this old is cleared away. */
 const LEFTOVER_MS = 2_000;
 
+/** A deploy waiter's record older than this is not believed (a reused pid, a hung deploy): the others take their turn. */
+const DEPLOY_WAITER_MAX_MS = 2 * 60 * 60 * 1000;
+
 const wait = (millis: number) => new Promise((resolve) => setTimeout(resolve, millis));
 
 /** The holder's `<lock>.who`, when it was written for the lock there now (one older than the folder is a crashed holder's). */
@@ -108,16 +117,8 @@ export function heavyHolders(env: NodeJS.ProcessEnv = process.env): Set<string> 
   const names = new Set<string>();
   for (const lane of [undefined, 'browser'] as const) {
     const lock = heavyLockPath(env, lane);
-    for (const entry of readdirSafe(`${lock}-waiters`)) {
-      const match = /^(\S+)\.(\d+)$/.exec(entry);
-      if (!match) {
-        continue;
-      }
-      if (pidAlive(Number(match[2]))) {
-        names.add(match[1]);
-      } else {
-        rmSync(path.join(`${lock}-waiters`, entry), { force: true });
-      }
+    for (const waiter of liveWaiters(lock)) {
+      names.add(waiter.name);
     }
     if (!lstatSafe(lock)?.isDirectory()) {
       continue;
@@ -132,6 +133,71 @@ export function heavyHolders(env: NodeJS.ProcessEnv = process.env): Set<string> 
   return names;
 }
 
+interface Waiter {
+  name: string;
+  /** the file's name in `<lock>-waiters`: `<name>.<pid>` */
+  file: string;
+  deploy: boolean;
+  mtimeMs: number;
+}
+
+/** The runs waiting for the lock whose pid still runs (a dead pid's record is deleted here). */
+function liveWaiters(lock: string): Waiter[] {
+  const waiters: Waiter[] = [];
+  for (const entry of readdirSafe(`${lock}-waiters`)) {
+    const match = /^(\S+)\.(\d+)$/.exec(entry);
+    if (!match) {
+      continue;
+    }
+    const file = path.join(`${lock}-waiters`, entry);
+    if (!pidAlive(Number(match[2]))) {
+      rmSync(file, { force: true });
+      continue;
+    }
+    waiters.push({
+      name: match[1],
+      file: entry,
+      deploy: readFileSafe(file).trim() === 'deploy',
+      mtimeMs: lstatSafe(file)?.mtimeMs ?? 0,
+    });
+  }
+  return waiters;
+}
+
+/** Whether a deploy other than `own` (a waiter file name) is waiting: a run that is not a deploy lets it go first. */
+function deployAhead(lock: string, own: string): boolean {
+  const now = Date.now();
+  return liveWaiters(lock).some(
+    (waiter) => waiter.deploy && waiter.file !== own && now - waiter.mtimeMs < DEPLOY_WAITER_MAX_MS,
+  );
+}
+
+/**
+ * The waiters ahead of a run arriving now, plus itself, the holder not counted: a deploy waits behind only the deploys already
+ * waiting, any other run behind every waiter.
+ */
+function queuePosition(lock: string, deploy: boolean): number {
+  const ahead = liveWaiters(lock).filter((waiter) => !deploy || waiter.deploy).length;
+  return ahead + 1;
+}
+
+/** What a run that took the lock learned of its wait. */
+export interface Waited {
+  waitedMs: number;
+  /** the queue position on arrival (see the header); 0 when it did not wait */
+  position: number;
+  /** who it waited for, as it said ("" when it did not wait) */
+  holder: string;
+}
+
+/** Options of `runHeavy` beyond the lock itself. */
+export interface HeavyOptions {
+  /** a deploy goes ahead of the runs that wait (never of the holder) */
+  priority?: 'deploy';
+  /** told once, when the run has the lock, how long it waited (0 and position 0 when it did not) */
+  onWaited?: (waited: Waited) => void;
+}
+
 /**
  * Whether the lock there is stale by age but its holder's process (the pid on the `.who`'s second line) still runs: a holder
  * that stalled, for instance across a Mac's sleep, and has not touched the lock yet. It is not taken from.
@@ -144,7 +210,7 @@ function stalledHolderLives(lock: string, staleMs: number): boolean {
   return pid > 0 && pidAlive(pid);
 }
 
-/** Takes the lock, waiting for a holder to finish (`waiting` hears who, once), and returns the release. */
+/** Takes the lock, waiting for a holder to finish (`waiting` hears who, once), and returns the release and what the wait was. */
 async function take(
   lock: string,
   who: string,
@@ -152,12 +218,21 @@ async function take(
   staleMs: number,
   waiting: (holder: string) => void,
   lost: () => void,
-): Promise<() => Promise<void>> {
+  deploy = false,
+): Promise<{ release: () => Promise<void>; waited: Waited }> {
   mkdirSync(path.dirname(lock), { recursive: true });
+  const waited: Waited = { waitedMs: 0, position: 0, holder: '' };
+  const name = /^(\S+)/.exec(who)?.[1];
+  const own = name ? `${name}.${process.pid}` : '';
+  const started = Date.now();
   let said = false;
   let waiter = '';
   try {
-    return await takeLoop();
+    const release = await takeLoop();
+    if (said) {
+      waited.waitedMs = Date.now() - started;
+    }
+    return { release, waited };
   } finally {
     if (waiter) {
       rmSync(waiter, { force: true });
@@ -171,7 +246,12 @@ async function take(
 
   async function takeLoop(): Promise<() => Promise<void>> {
     for (;;) {
+      let yielded = false;
       try {
+        if (!deploy && deployAhead(lock, own)) {
+          yielded = true;
+          throw Object.assign(new Error('a deploy waits'), { code: 'ELOCKED' });
+        }
         if (stalledHolderLives(lock, staleMs)) {
           throw Object.assign(new Error('the holder is alive'), { code: 'ELOCKED' });
         }
@@ -201,17 +281,18 @@ async function take(
         }
       }
       if (!said) {
-        const name = /^(\S+)/.exec(who)?.[1];
+        waited.position = queuePosition(lock, deploy);
         if (name) {
           try {
             mkdirSync(`${lock}-waiters`, { recursive: true });
-            waiter = path.join(`${lock}-waiters`, `${name}.${process.pid}`);
-            writeFileSync(waiter, '');
+            waiter = path.join(`${lock}-waiters`, own);
+            writeFileSync(waiter, deploy ? 'deploy' : '');
           } catch {
             waiter = '';
           }
         }
-        waiting(holderOf(lock) || 'another heavy run');
+        waited.holder = holderOf(lock) || (yielded ? 'a deploy' : 'another heavy run');
+        waiting(waited.holder);
         said = true;
       }
       await wait(pollMs);
@@ -263,6 +344,7 @@ export async function runHeavy(
   env: NodeJS.ProcessEnv = process.env,
   logFile?: string,
   lane?: HeavyLane,
+  options: HeavyOptions = {},
 ): Promise<number> {
   const lock = heavyLockPath(env, lane);
   const poll = Number(env.ONCE_UPON_HEAVY_POLL);
@@ -276,16 +358,30 @@ export async function runHeavy(
   }
   const tell = (line: string) =>
     logFd === undefined ? say(line) : writeFileSync(logFd, line + '\n');
+  const laneNote = lane ? ` (${lane} lane)` : '';
   let release: () => Promise<void>;
   try {
-    release = await take(
+    const taken = await take(
       lock,
       `${name} (${clock(new Date())}): ${command.join(' ')}`,
       pollMs,
       staleMs,
-      (holder) => tell(`once-upon heavy${lane ? ` (${lane} lane)` : ''}: waiting for ${holder}`),
+      (holder) => tell(`once-upon heavy${laneNote}: waiting for ${holder}`),
       () => tell('once-upon heavy: the lock was taken over while this run held it (it stalled)'),
+      options.priority === 'deploy',
     );
+    release = taken.release;
+    const { waitedMs, position, holder } = taken.waited;
+    if (position > 0) {
+      tell(
+        `once-upon heavy${laneNote}: waited ${Math.round(waitedMs / 1000)} s (position ${position} on arrival, behind ${holder})`,
+      );
+    }
+    try {
+      options.onWaited?.(taken.waited);
+    } catch {
+      // a note about the wait must never fail or delay the command
+    }
   } catch (err) {
     if (logFd !== undefined) {
       closeSync(logFd);

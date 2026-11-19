@@ -40,6 +40,8 @@ export interface BriefFacts {
   fanOut?: boolean;
   /** the repo ships by pull request: a storyteller or finisher drafts the PR text */
   prDraft?: boolean;
+  /** the repo's deploy runs the full gate (config.json `repos.<repo>.deploy_gate`): an author or fixer brief carries the GATE line */
+  deployGate?: boolean;
   /** a story's folder, and a writer's chapter key, the story id and the keys a finisher writes itself */
   dir?: string;
   key?: string;
@@ -103,6 +105,10 @@ const heavyLine = (name: string): string =>
   '(plain `once-upon heavy ' +
   `${name} <command>\` where your shell is on Node 24), with run_in_background, then wait for the notice.`;
 
+/** The author gate (one line, so a rebase over a brief rewrite stays small); the shared-layer rule's wording is the same in AGENTS.md and agents/once-upon-author.md. */
+const GATE =
+  'Gate before you hand back: the targeted tests for the files you changed (bare), eslint on the changed files, yarn format:check, yarn workspace <pkg> typecheck for each changed workspace. Not yet: the full yarn test and the whole-repo typecheck, which the deploy gate runs; run them (heavy) only if the diff (git diff --name-only <base>...HEAD) touches packages/domain/, packages/server-libs/foundation/, configs/ or a tsconfig*.json at the repo root. test:extension, test:expand and the pixel shots only for client changes. A Success check that names a command wins.';
+
 const handbackCommand = (facts: BriefFacts, tail: string): string =>
   `fnm exec --using=24 once-upon handback ${facts.name} --sid ${facts.sid} ${tail}`;
 
@@ -143,7 +149,7 @@ export function renderBrief(facts: BriefFacts): string {
       }
       lines.push(check, task, note, beatLine(facts));
       if (shape !== 'plan') {
-        lines.push(heavyLine(name));
+        lines.push(heavyLine(name), facts.deployGate ? GATE : null);
       }
       lines.push(
         shape === 'plan'
@@ -163,6 +169,7 @@ export function renderBrief(facts: BriefFacts): string {
         note,
         beatLine(facts),
         heavyLine(name),
+        facts.deployGate ? GATE : null,
         `When the amended commit is in, finish with: ${handbackCommand(facts, '--outcome "<one line>"')}`,
         STUCK,
       );

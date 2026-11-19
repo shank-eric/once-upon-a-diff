@@ -212,6 +212,7 @@ export async function dispatchRun(
     fromNotes: text(input.fromNotes) ?? undefined,
     fanOut: !!input.fanOut,
     prDraft: shipsByPr(repoSettings(readSettings(home), item.repo)),
+    deployGate: !!repoSettings(readSettings(home), item.repo).deploy_gate,
     dir: text(input.dir) ?? undefined,
     key: text(input.key) ?? undefined,
     story: text(input.story) ?? undefined,

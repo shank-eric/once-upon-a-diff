@@ -717,6 +717,29 @@ export class AgentRegistry {
   }
 
   /**
+   * A line in the progress file only, for `name` (a heavy command's own note): no event, so the run's step and its sign of
+   * life are untouched and a name with no open run (a deploy) warns of nothing. N/M is the open run's latest beat, else 1/1.
+   * Nothing without a progress file; the caller swallows a failure.
+   */
+  progressNote(name: string, step: string, note: string): void {
+    if (!this.mirror.progress) {
+      return;
+    }
+    const run = this.agents().find((one) => one.name === name && runIsOpen(one));
+    appendLine(
+      this.mirror.progress,
+      beatLine({
+        name,
+        n: run?.beat?.n ?? 1,
+        of: run?.beat?.of ?? 1,
+        step,
+        note: clean(note, 'the note') || '',
+        at: new Date().toISOString(),
+      }),
+    );
+  }
+
+  /**
    * Moves the open run to another branch (its author renamed or switched it): the run's own `branch` is what the agent
    * registered, and the card's is what the board reads (ADR-25), so `backlog branch` calls this for each open run of the card.
    * The same branch writes nothing. A run that is over is refused, like any event.

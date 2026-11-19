@@ -135,6 +135,7 @@ test('every standing rule is in the agent’s own body or in its printed brief',
     ['once-upon-author', 'author', /100 tool calls/, 'B'],
     ['once-upon-author', 'author', /--state waiting/, 'B'],
     ['once-upon-author', 'author', /heavy/i, 'B'],
+    ['once-upon-author', 'author', /deploy gate/, 'B'],
     ['once-upon-author', 'author', /handback/, 'B'],
     ['once-upon-author', 'author', /beat/, 'B'],
     ['once-upon-author', 'author', /Node 24/, 'P'],
@@ -173,6 +174,33 @@ test('a helper brief carries the heavy lock line', () => {
     text,
     /ONCE_UPON_PATH="\$PATH" fnm exec --using=24 once-upon heavy check-feat-x <command>/,
   );
+});
+
+test('the author gate line is in the author, build and fixer briefs of a deploy_gate repo only, and says what waits for the deploy gate', () => {
+  const gate =
+    /Gate before you hand back: .*targeted tests.*eslint on the changed files.*format:check/;
+  for (const shape of ['author', 'build', 'fixer'] as const) {
+    const text = renderBrief(facts({ shape, fromNotes: '/n.md', deployGate: true }));
+    assert.match(text, gate, shape);
+    assert.doesNotMatch(
+      renderBrief(facts({ shape, fromNotes: '/n.md' })),
+      /Gate before you hand back/,
+      `${shape}: a repo whose deploy runs no gate keeps the old brief`,
+    );
+    assert.match(
+      text,
+      /the full yarn test and the whole-repo typecheck, which the deploy gate runs/,
+    );
+    assert.match(
+      text,
+      /touches packages\/domain\/, packages\/server-libs\/foundation\/, configs\/ or a tsconfig\*\.json at the repo root/,
+    );
+    assert.match(text, /A Success check that names a command wins/, shape);
+  }
+  for (const shape of ['plan', 'critic', 'helper', 'storyteller', 'writer', 'finisher'] as const) {
+    const text = renderBrief(facts({ shape, out: '/r.md', dir: '/d', key: 'k', story: 's' }));
+    assert.doesNotMatch(text, /Gate before you hand back/, shape);
+  }
 });
 
 test('a fan-out storyteller parks at the skeleton in state plan with a fanout outcome; a plain one parks in review', () => {

@@ -2,9 +2,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile, spawn } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { runCli, tmp } from './helpers.ts';
+import { runCli, tmp, writeJson } from './helpers.ts';
+import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
 import { CLI_BIN, until } from './script-helpers.ts';
 
 const home = () => tmp('heavy-home');
@@ -258,4 +259,76 @@ test('with no override the browser lane lock is ~/.cache/heavy-run-browser.lock,
     },
   );
   assert.match(viaEnv.stdout, /^z \(/);
+});
+
+// The `heavy` progress line: one per heavy command, the wait in it, and no beat on the agent's run.
+
+/** A home whose progress file is `progress`, with a registered author `name` that has beaten 3/6 `code`. */
+async function progressHome(name: string, progress: string) {
+  const dir = tmp('heavy-home');
+  writeJson(path.join(dir, 'config.json'), { board_progress_file: progress });
+  const sid = 'abcdef01';
+  const start = ['agent', 'start', name, '--kind', 'helper', '--task', 'x', '--sid', sid];
+  assert.equal((await runCli(dir, start)).code, 0);
+  assert.equal((await runCli(dir, ['beat', name, '3/6', 'code', '--sid', sid])).code, 0);
+  return dir;
+}
+
+test('a heavy command leaves one `heavy` line in the progress file and leaves the run’s own step alone', async () => {
+  const progress = path.join(tmp('heavy-out'), 'progress.md');
+  const dir = await progressHome('author-a', progress);
+  const env = lockEnv(path.join(tmp('heavy'), 'lock'));
+  const run = await runCli(dir, ['heavy', 'author-a', 'echo', 'ran'], env);
+  assert.equal(run.code, 0, run.stderr);
+  assert.equal(run.stdout, 'ran\n');
+  const lines = readFileSync(progress, 'utf8').trim().split('\n');
+  assert.equal(lines.length, 2, 'the beat and the heavy line');
+  assert.match(
+    lines[1],
+    /^- \d{1,2}:\d{2} [AP]M author-a 3\/6 heavy: ran "echo ran" with no wait$/,
+  );
+  const beat = new AgentRegistry(dir).agents().find((one) => one.name === 'author-a')?.beat;
+  assert.deepEqual([beat?.n, beat?.step], [3, 'code'], 'the run’s step is still its own');
+});
+
+test('a name with no open run (a deploy) still gets its line, as 1/1, and a deploy prints only its one line', async () => {
+  const progress = path.join(tmp('heavy-out'), 'progress.md');
+  const dir = tmp('heavy-home');
+  writeJson(path.join(dir, 'config.json'), { board_progress_file: progress });
+  const run = await runCli(
+    dir,
+    ['deploy', 'ship', 'true'],
+    lockEnv(path.join(tmp('heavy'), 'lock')),
+  );
+  assert.equal(run.code, 0, run.stderr);
+  assert.equal(run.stderr, '');
+  assert.match(run.stdout, /^ok \S+\n$/);
+  assert.match(
+    readFileSync(progress, 'utf8'),
+    /^- \d{1,2}:\d{2} [AP]M ship 1\/1 heavy: ran "true" with no wait\n$/,
+  );
+});
+
+test('a run that waited has the seconds and the position in its line', async () => {
+  const progress = path.join(tmp('heavy-out'), 'progress.md');
+  const dir = tmp('heavy-home');
+  writeJson(path.join(dir, 'config.json'), { board_progress_file: progress });
+  const lock = path.join(tmp('heavy'), 'lock');
+  mkdirSync(lock);
+  writeFileSync(`${lock}.who`, `other (3:40 PM): yarn test\npid ${process.pid}\n`);
+  const run = runCli(dir, ['heavy', 'late', 'true'], lockEnv(lock));
+  try {
+    assert.ok(
+      await until(() => existsSync(`${lock}-waiters`), 20000),
+      'the run waits for the lock',
+    );
+  } finally {
+    rmSync(lock, { recursive: true, force: true });
+    rmSync(`${lock}.who`, { force: true });
+  }
+  assert.equal((await run).code, 0);
+  assert.match(
+    readFileSync(progress, 'utf8'),
+    /late 1\/1 heavy: ran "true" after waiting \d+ s \(position 1, behind other \(3:40 PM\): yarn test\)\n$/,
+  );
 });

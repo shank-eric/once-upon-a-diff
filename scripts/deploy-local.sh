@@ -3,13 +3,13 @@
 # ../once-upon-a-diff-worktrees) when that branch is now an ancestor of main. Batch mode, which cherry-picks, also deletes
 # each fully picked local branch (git cherry shows only '-') and logs its tip sha in the ledger line for restoring.
 #
-#   scripts/deploy-local.sh --yes <branch-or-sha>            fast-forward deploy (default)
-#   scripts/deploy-local.sh [--yes] --batch <base> <sha>...  cherry-pick deploy with gates
+#   scripts/deploy-local.sh [--yes] --batch <base> <sha>...  cherry-pick deploy with gates (the default deploy)
+#   scripts/deploy-local.sh --yes <branch-or-sha>            fast-forward deploy, no gates (only when the user says so)
 #   scripts/deploy-local.sh --rollback <sha>
 #
 # Fast-forward mode refuses unless the target descends from the main checkout's live HEAD and the checkout is clean.
-# It fast-forwards main to the target, installs, builds, respawns the bridge and verifies. It runs no gates: the
-# branch's own agent ran them. Without --yes it only prints the plan.
+# It fast-forwards main to the target, installs, builds, respawns the bridge and verifies. It runs no gates, and
+# authors leave the full suite to the deploy gate, so use it only on the user's say-so. Without --yes it only prints the plan.
 # Batch mode cherry-picks the shas onto <base> in ONE reusable worktree (../once-upon-a-diff-worktrees/deploy, reset
 # to the base each time), runs every gate and prints the plan. Re-running with the same arguments and --yes reuses
 # that worktree and skips the gates when the tip is unchanged.

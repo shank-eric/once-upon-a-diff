@@ -102,7 +102,10 @@ test('waiting for a busy lock is noted in the log, not on the terminal', async (
   assert.equal(done.code, 0);
   assert.equal(done.stderr, '', 'nothing on stderr');
   const text = readFileSync(result(done.stdout).log, 'utf8');
-  assert.match(text, /once-upon heavy: waiting for other \(3:40 PM\): yarn test\nhi\n/);
+  assert.match(
+    text,
+    /once-upon heavy: waiting for other \(3:40 PM\): yarn test\nonce-upon heavy: waited \d+ s \(position 1 on arrival, behind other \(3:40 PM\): yarn test\)\nhi\n/,
+  );
 });
 
 test('a NAME that is not a plain agent name is refused before anything is written, and the log is owner-only', async () => {

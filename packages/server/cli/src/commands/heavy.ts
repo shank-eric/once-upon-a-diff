@@ -14,7 +14,14 @@
  */
 import path from 'node:path';
 import { AGENT_NAME_RE } from '@once-upon-a-diff/terms/patterns';
-import { HEAVY_LANES, runHeavy, type HeavyLane } from '@once-upon-a-diff/core/features/heavy/heavy';
+import {
+  HEAVY_LANES,
+  runHeavy,
+  type HeavyLane,
+  type Waited,
+} from '@once-upon-a-diff/core/features/heavy/heavy';
+import { readSettings } from '@once-upon-a-diff/foundation/settings';
+import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
 import type { CliOpts, Command } from '../types.ts';
 
 /** The name and command words of `heavy NAME COMMAND...` or `deploy NAME COMMAND...` (`NAME -- COMMAND...` also works). */
@@ -41,7 +48,34 @@ function lanePrefix(opts: CliOpts, usage: string): { lane?: HeavyLane; opts: Cli
   return { lane, opts: { ...opts, _: rest } };
 }
 
-async function heavy(_home: string, _cfg: unknown, opts: CliOpts) {
+/**
+ * The one `heavy` progress line a heavy command leaves in the progress file (`- 3:40 PM NAME 4/6 heavy: ran "yarn test" after waiting
+ * 312 s (position 3, behind X)`), so the runs that took the lock, and for what, can be read off the file. It is no beat: the run's
+ * step and sign of life stay as they were. A failure to write it is swallowed.
+ */
+function noteHeavy(home: string, name: string, command: string[], lane?: HeavyLane) {
+  return ({ waitedMs, position, holder }: Waited) => {
+    try {
+      const program = command.join(' ').slice(0, 60);
+      const waited =
+        position > 0
+          ? `after waiting ${Math.round(waitedMs / 1000)} s (position ${position}, behind ${holder})`
+          : 'with no wait';
+      new AgentRegistry(home, {
+        ledger: null,
+        progress: readSettings(home).board.progressFile,
+      }).progressNote(
+        name,
+        'heavy',
+        `ran "${program}"${lane ? ` on the ${lane} lane` : ''} ${waited}`,
+      );
+    } catch {
+      // the note is a log line, never a reason for the command to fail
+    }
+  };
+}
+
+async function heavy(home: string, _cfg: unknown, opts: CliOpts) {
   const usage = 'usage: once-upon heavy [--lane browser] NAME COMMAND...';
   const { lane, opts: rest } = lanePrefix(opts, usage);
   const { name, command } = words(rest, usage);
@@ -52,6 +86,7 @@ async function heavy(_home: string, _cfg: unknown, opts: CliOpts) {
     process.env,
     undefined,
     lane,
+    { onWaited: noteHeavy(home, name, command, lane) },
   );
 }
 
@@ -68,7 +103,10 @@ async function deploy(home: string, _cfg: unknown, opts: CliOpts) {
   }
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
   const log = path.join(home, 'logs', `deploy-${name}-${stamp}.log`);
-  const code = await runHeavy(name, command, () => {}, process.env, log);
+  const code = await runHeavy(name, command, () => {}, process.env, log, undefined, {
+    priority: 'deploy',
+    onWaited: noteHeavy(home, name, command),
+  });
   process.stdout.write(`${code === 0 ? 'ok' : 'failed'} ${log}\n`);
   process.exitCode = code;
 }

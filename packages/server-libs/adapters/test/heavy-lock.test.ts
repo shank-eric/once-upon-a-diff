@@ -72,7 +72,12 @@ test('a name left beside the lock by a crashed holder is not believed: it is old
   await pause(300);
   rmdirSync(lock);
   assert.equal(await run, 0);
-  assert.deepEqual(lines, ['once-upon heavy: waiting for another heavy run']);
+  assert.equal(lines[0], 'once-upon heavy: waiting for another heavy run');
+  assert.match(
+    lines[1],
+    /^once-upon heavy: waited \d+ s \(position 1 on arrival, behind another heavy run\)$/,
+  );
+  assert.equal(lines.length, 2);
 });
 
 test('a lock nobody has touched for longer than the stale age is a crashed holder’s and is taken over', async () => {
@@ -405,4 +410,138 @@ test('heavyHolders names a run while it waits for the lock, not once it has run,
   rmSync(lock, { recursive: true, force: true });
   assert.equal(await run, 0);
   assert.deepEqual([...heavyHolders(env)], []);
+});
+
+// A deploy goes ahead of the runs that wait, and a run that waited says how long.
+
+const until = async (what: string, done: () => boolean) => {
+  for (let tries = 0; tries < 200 && !done(); tries++) {
+    await pause(25);
+  }
+  assert.ok(done(), what);
+};
+const waiterFile = (lock: string, entry: string) => path.join(`${lock}-waiters`, entry);
+/** A command that appends its name to `order`. */
+const note = (order: string, name: string) => [
+  process.execPath,
+  '-e',
+  `require('node:fs').appendFileSync(${JSON.stringify(order)}, ${JSON.stringify(name + '\n')})`,
+];
+
+test('a deploy that queues behind an author runs first once the holder lets go, and the holder is not preempted', async () => {
+  const dir = tmp('heavy-lock');
+  const lock = path.join(dir, 'lock');
+  const order = path.join(dir, 'order');
+  mkdirSync(lock);
+  writeFileSync(`${lock}.who`, 'holder\n');
+  const authorLines: string[] = [];
+  const deployLines: string[] = [];
+  const author = runHeavy(
+    'author',
+    note(order, 'author'),
+    (line) => authorLines.push(line),
+    lockEnv(lock),
+  );
+  await until('the author waits', () => existsSync(waiterFile(lock, `author.${process.pid}`)));
+  const deploy = runHeavy(
+    'deploy',
+    note(order, 'deploy'),
+    (line) => deployLines.push(line),
+    lockEnv(lock),
+    undefined,
+    undefined,
+    {
+      priority: 'deploy',
+    },
+  );
+  await until('the deploy waits', () => existsSync(waiterFile(lock, `deploy.${process.pid}`)));
+  assert.equal(readFileSync(waiterFile(lock, `deploy.${process.pid}`), 'utf8'), 'deploy');
+  await pause(300);
+  assert.equal(existsSync(order), false, 'neither ran while the holder had the lock');
+  rmdirSync(lock);
+  assert.deepEqual([await deploy, await author], [0, 0]);
+  assert.deepEqual(readFileSync(order, 'utf8').trim().split('\n'), ['deploy', 'author']);
+  assert.match(deployLines.at(-1) ?? '', /waited \d+ s \(position 1 on arrival, behind holder\)/);
+  assert.match(authorLines.at(-1) ?? '', /waited \d+ s \(position 1 on arrival, behind holder\)/);
+  assert.deepEqual(readdirSync(dir), ['order'], 'the lock and the waiter records are gone');
+});
+
+test('a run that does not wait says nothing of waiting and onWaited hears zeros; one that waited hears who', async () => {
+  const dir = tmp('heavy-lock');
+  const lock = path.join(dir, 'lock');
+  const lines: string[] = [];
+  const heard: unknown[] = [];
+  await runHeavy(
+    'clean',
+    ['true'],
+    (line) => lines.push(line),
+    lockEnv(lock),
+    undefined,
+    undefined,
+    {
+      onWaited: (waited) => heard.push(waited),
+    },
+  );
+  assert.deepEqual(lines, []);
+  assert.deepEqual(heard, [{ waitedMs: 0, position: 0, holder: '' }]);
+  mkdirSync(lock);
+  writeFileSync(`${lock}.who`, 'holder\n');
+  const run = runHeavy('late', ['true'], () => {}, lockEnv(lock), undefined, undefined, {
+    onWaited: (waited) => heard.push(waited),
+  });
+  await pause(300);
+  rmdirSync(lock);
+  await run;
+  const waited = heard[1] as { waitedMs: number; position: number; holder: string };
+  assert.equal(heard.length, 2);
+  assert.ok(waited.waitedMs >= 200);
+  assert.deepEqual([waited.position, waited.holder], [1, 'holder']);
+});
+
+test('a deploy waiter record of a dead pid, or an old one, does not hold an author back; a fresh one does, and the author says why', async () => {
+  const dir = tmp('heavy-lock');
+  const lock = path.join(dir, 'lock');
+  mkdirSync(`${lock}-waiters`, { recursive: true });
+  const dead = waiterFile(lock, `deploy-a.${deadPid()}`);
+  writeFileSync(dead, 'deploy');
+  const lines: string[] = [];
+  assert.equal(await runHeavy('one', ['true'], (line) => lines.push(line), lockEnv(lock)), 0);
+  assert.equal(lines.length, 0, 'a dead pid’s deploy record is ignored');
+  assert.equal(existsSync(dead), false, 'and cleared');
+
+  const stuck = waiterFile(lock, `deploy-b.${process.pid}`);
+  mkdirSync(`${lock}-waiters`, { recursive: true });
+  writeFileSync(stuck, 'deploy');
+  ageOf(stuck, 3 * 3600);
+  assert.equal(await runHeavy('two', ['true'], (line) => lines.push(line), lockEnv(lock)), 0);
+  assert.equal(
+    lines.length,
+    0,
+    'a record over two hours old is ignored even when its pid is alive',
+  );
+
+  writeFileSync(stuck, 'deploy');
+  let finished = false;
+  const run = runHeavy('three', ['true'], (line) => lines.push(line), lockEnv(lock)).then(
+    (code) => {
+      finished = true;
+      return code;
+    },
+  );
+  await pause(300);
+  assert.equal(finished, false, 'a fresh deploy record is let go first');
+  assert.equal(lines[0], 'once-upon heavy: waiting for a deploy');
+  rmSync(stuck);
+  assert.equal(await run, 0);
+});
+
+test('a run named like a deploy is not one: only the deploy priority makes a deploy record', async () => {
+  const dir = tmp('heavy-lock');
+  const lock = path.join(dir, 'lock');
+  mkdirSync(lock);
+  const run = runHeavy('deploy-x', ['true'], () => {}, lockEnv(lock));
+  await until('it waits', () => existsSync(waiterFile(lock, `deploy-x.${process.pid}`)));
+  assert.equal(readFileSync(waiterFile(lock, `deploy-x.${process.pid}`), 'utf8'), '');
+  rmdirSync(lock);
+  await run;
 });
