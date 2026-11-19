@@ -39,60 +39,201 @@ export interface FragmentOutcome {
   why: string;
 }
 
+/** A drafted comment that is checked: on a file (with its line) or general (path `(general)`, line 0). */
+type ReadComment = PlanComment & { path: string; line: number; body: string };
+
+/** What `readFragment` returns for a fragment it accepts. */
+interface ReadFragment {
+  ok: true;
+  key: string;
+  narrative: string;
+  answer: string | null;
+  refs: PlanRef[];
+  comments: ReadComment[];
+}
+
+/** The trimmed text of a field, or '' when it is not a string. */
+function trimmed(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+/** One comment of a fragment, checked and cleaned, or the reason it is not one. */
+function readComment(item: unknown): ReadComment | string {
+  const comment = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>;
+  const body = trimmed(comment.body);
+  if (!body) {
+    return 'a comment has no body';
+  }
+  const path = trimmed(comment.path);
+  const line = Number(comment.line);
+  if (path && (!Number.isInteger(line) || line < 1)) {
+    return `the comment on ${path} has no line`;
+  }
+  return {
+    path: path || '(general)',
+    line: path ? line : 0,
+    body,
+    ...(comment.side === 'L' ? { side: 'L' } : {}),
+  };
+}
+
+/** The first thing wrong with a fragment's `comments` and `refs` fields' shape, if anything. */
+function listProblem(fragment: Record<string, unknown>): string | null {
+  if (fragment.comments !== undefined && !Array.isArray(fragment.comments)) {
+    return 'comments is not a list';
+  }
+  if (fragment.refs !== undefined && !Array.isArray(fragment.refs)) {
+    return 'refs is not a list';
+  }
+  return null;
+}
+
 /** The fragment's fields checked and cleaned, or the reason it is not one. */
-function readFragment(raw: unknown):
-  | {
-      ok: true;
-      key: string;
-      narrative: string;
-      answer: string | null;
-      refs: PlanRef[];
-      comments: (PlanComment & { path: string; line: number; body: string })[];
-    }
-  | { ok: false; key: string; why: string } {
+function readFragment(raw: unknown): ReadFragment | { ok: false; key: string; why: string } {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return { ok: false, key: '', why: 'not a JSON object' };
   }
   const fragment = raw as Record<string, unknown>;
-  const key = typeof fragment.key === 'string' ? fragment.key.trim() : '';
+  const key = trimmed(fragment.key);
   if (!key) {
     return { ok: false, key: '', why: 'has no key' };
   }
-  const narrative = typeof fragment.narrative === 'string' ? fragment.narrative.trim() : '';
-  if (!narrative) {
-    return { ok: false, key, why: 'has no narrative' };
-  }
-  if (fragment.comments !== undefined && !Array.isArray(fragment.comments)) {
-    return { ok: false, key, why: 'comments is not a list' };
-  }
-  if (fragment.refs !== undefined && !Array.isArray(fragment.refs)) {
-    return { ok: false, key, why: 'refs is not a list' };
+  const narrative = trimmed(fragment.narrative);
+  const why = narrative ? listProblem(fragment) : 'has no narrative';
+  if (why) {
+    return { ok: false, key, why };
   }
   const refs = ((fragment.refs as unknown[]) || []).map((item) =>
     item && typeof item === 'object' ? (item as PlanRef) : ({} as PlanRef),
   );
-  const comments: (PlanComment & { path: string; line: number; body: string })[] = [];
+  const comments: ReadComment[] = [];
   for (const item of (fragment.comments as unknown[]) || []) {
-    const comment = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>;
-    const body = typeof comment.body === 'string' ? comment.body.trim() : '';
-    if (!body) {
-      return { ok: false, key, why: 'a comment has no body' };
+    const comment = readComment(item);
+    if (typeof comment === 'string') {
+      return { ok: false, key, why: comment };
     }
-    const path = typeof comment.path === 'string' ? comment.path.trim() : '';
-    const line = Number(comment.line);
-    if (path && (!Number.isInteger(line) || line < 1)) {
-      return { ok: false, key, why: `the comment on ${path} has no line` };
-    }
-    comments.push({
-      path: path || '(general)',
-      line: path ? line : 0,
-      body,
-      ...(comment.side === 'L' ? { side: 'L' } : {}),
-    });
+    comments.push(comment);
   }
-  const answer =
-    typeof fragment.answer === 'string' && fragment.answer.trim() ? fragment.answer.trim() : null;
-  return { ok: true, key, narrative, answer, refs, comments };
+  return { ok: true, key, narrative, answer: trimmed(fragment.answer) || null, refs, comments };
+}
+
+/** The chapter of `plan` that a fragment with this key fills, or why it fills none. */
+function targetOf(
+  plan: Plan,
+  key: string,
+): { index: number } | { status: 'rejected' | 'skipped'; why: string } {
+  const found = (plan.chapters || [])
+    .map((chapter, i) => (chapterKeyOf(chapter) === key ? i : -1))
+    .filter((i) => i >= 0);
+  if (!found.length) {
+    return { status: 'rejected', why: 'no chapter has this key' };
+  }
+  if (found.length > 1) {
+    return { status: 'rejected', why: `${found.length} chapters share this key` };
+  }
+  const target = plan.chapters![found[0]];
+  if (target.since) {
+    return {
+      status: 'rejected',
+      why: 'a "Since you read it" chapter is written in full, not merged',
+    };
+  }
+  if (String(target.narrative || '').trim()) {
+    return { status: 'skipped', why: 'the chapter already has its text' };
+  }
+  return { index: found[0] };
+}
+
+/** The first comment a chapter cannot take (a file it does not list, or a line not in the diff), as a reason. */
+function commentProblem(
+  chapter: PlanChapter,
+  comments: ReadComment[],
+  diff: Map<string, DiffFile>,
+): string | null {
+  const listed = (chapter.files || []).map((entry) => entryOf(entry).rel);
+  const outside = comments.find(
+    (comment) => comment.path !== '(general)' && !listed.includes(comment.path),
+  );
+  if (outside) {
+    return `a comment is on ${outside.path}, which the chapter does not list (write the file's full path)`;
+  }
+  const offDiff = comments.find((comment) => {
+    const file = comment.path === '(general)' ? null : diff.get(comment.path);
+    return !!file && !lineInDiff(file, comment.line, comment.side);
+  });
+  return offDiff
+    ? `the comment on ${offDiff.path}:${offDiff.line} is not on a line in the diff`
+    : null;
+}
+
+/** The comments a chapter has, then the fragment's that it does not already have (same place, side and text). */
+function withFreshComments(
+  existing: PlanComment[],
+  comments: ReadComment[],
+): { all: PlanComment[]; fresh: PlanComment[] } {
+  const sideOf = (comment: { side?: string }) => toSide(comment.side);
+  const sameAs = (known: PlanComment, comment: PlanComment) =>
+    (known.path || '(general)') === comment.path &&
+    sideOf(known) === sideOf(comment) &&
+    Number(known.line || 0) === Number(comment.line || 0) &&
+    String(known.body || '').trim() === String(comment.body || '').trim();
+  const fresh: PlanComment[] = [];
+  for (const comment of comments) {
+    if (![...existing, ...fresh].some((known) => sameAs(known, comment))) {
+      fresh.push(comment);
+    }
+  }
+  return { all: [...existing, ...fresh], fresh };
+}
+
+/** The chapter's refs plus the fragment's, and the reason for a clash when one id points at two places. */
+function withFragmentRefs(
+  existing: PlanRef[],
+  incoming: PlanRef[],
+): { refs: PlanRef[]; clash: string | null } {
+  const refs = [...existing];
+  let clash: string | null = null;
+  for (const ref of incoming) {
+    const known = refs.find((one) => one.id === ref.id);
+    if (!known) {
+      refs.push(ref);
+    } else if (placeOf(known) !== placeOf(ref)) {
+      // the same id and place is the planned ref again (its label may differ or be left out): the chapter's stays
+      clash = `ref "${String(ref.id)}" is already in the chapter on ${placeOf(known)}, and the fragment has it on ${placeOf(ref)}`;
+    }
+  }
+  return { refs, clash };
+}
+
+/** The plan with the fragment laid on its chapter, or the reason the chapter would not build with it. */
+function laidOn(
+  plan: Plan,
+  index: number,
+  fragment: ReadFragment,
+  diff: Map<string, DiffFile>,
+): { plan: Plan; fresh: number } | { problem: string } {
+  const next: Plan = structuredClone(plan);
+  const chapter = next.chapters![index];
+  chapter.narrative = fragment.narrative;
+  const { all, fresh } = withFreshComments(
+    Array.isArray(chapter.comments) ? chapter.comments : [],
+    fragment.comments,
+  );
+  chapter.comments = all;
+  const { refs, clash } = withFragmentRefs(
+    Array.isArray(chapter.refs) ? chapter.refs : [],
+    fragment.refs,
+  );
+  chapter.refs = refs;
+  const problem =
+    clash || chapterProblems({ chapters: [{ ...chapter, key: fragment.key }] }, { diff })[0];
+  if (problem) {
+    return { problem: problem.replace(/^chapter 1: /, '') };
+  }
+  if (fragment.answer) {
+    chapter.answer = fragment.answer;
+  }
+  return { plan: next, fresh: fresh.length };
 }
 
 /**
@@ -113,91 +254,22 @@ export function mergeFragments(
       continue;
     }
     const { key } = fragment;
-    const found = (current.chapters || [])
-      .map((chapter, i) => (chapterKeyOf(chapter) === key ? i : -1))
-      .filter((i) => i >= 0);
-    if (!found.length) {
-      outcomes.push({ key, status: 'rejected', why: 'no chapter has this key' });
+    const target = targetOf(current, key);
+    if (!('index' in target)) {
+      outcomes.push({ key, ...target });
       continue;
     }
-    if (found.length > 1) {
-      outcomes.push({ key, status: 'rejected', why: `${found.length} chapters share this key` });
+    const offered = commentProblem(current.chapters![target.index], fragment.comments, diff);
+    const laid = offered ? { problem: offered } : laidOn(current, target.index, fragment, diff);
+    if ('problem' in laid) {
+      outcomes.push({ key, status: 'rejected', why: laid.problem });
       continue;
     }
-    const target = current.chapters![found[0]];
-    if (target.since) {
-      outcomes.push({
-        key,
-        status: 'rejected',
-        why: 'a "Since you read it" chapter is written in full, not merged',
-      });
-      continue;
-    }
-    if (String(target.narrative || '').trim()) {
-      outcomes.push({ key, status: 'skipped', why: 'the chapter already has its text' });
-      continue;
-    }
-    const listed = (target.files || []).map((entry) => entryOf(entry).rel);
-    const refused = (why: string) => outcomes.push({ key, status: 'rejected', why });
-    const outside = fragment.comments.find(
-      (comment) => comment.path !== '(general)' && !listed.includes(comment.path),
-    );
-    if (outside) {
-      refused(
-        `a comment is on ${outside.path}, which the chapter does not list (write the file's full path)`,
-      );
-      continue;
-    }
-    const offDiff = fragment.comments.find((comment) => {
-      const file = comment.path === '(general)' ? null : diff.get(comment.path);
-      return !!file && !lineInDiff(file, comment.line, comment.side);
-    });
-    if (offDiff) {
-      refused(`the comment on ${offDiff.path}:${offDiff.line} is not on a line in the diff`);
-      continue;
-    }
-    const next: Plan = structuredClone(current);
-    const chapter = next.chapters![found[0]];
-    chapter.narrative = fragment.narrative;
-    const existing = Array.isArray(chapter.comments) ? chapter.comments : [];
-    const sideOf = (comment: { side?: string }) => toSide(comment.side);
-    const sameAs = (known: PlanComment, comment: PlanComment) =>
-      (known.path || '(general)') === comment.path &&
-      sideOf(known) === sideOf(comment) &&
-      Number(known.line || 0) === Number(comment.line || 0) &&
-      String(known.body || '').trim() === String(comment.body || '').trim();
-    const fresh: PlanComment[] = [];
-    for (const comment of fragment.comments) {
-      if (![...existing, ...fresh].some((known) => sameAs(known, comment))) {
-        fresh.push(comment);
-      }
-    }
-    chapter.comments = [...existing, ...fresh];
-    const refs = Array.isArray(chapter.refs) ? [...chapter.refs] : [];
-    let clash: string | null = null;
-    for (const ref of fragment.refs) {
-      const known = refs.find((one) => one.id === ref.id);
-      if (!known) {
-        refs.push(ref);
-      } else if (placeOf(known) !== placeOf(ref)) {
-        // the same id and place is the planned ref again (its label may differ or be left out): the chapter's stays
-        clash = `ref "${String(ref.id)}" is already in the chapter on ${placeOf(known)}, and the fragment has it on ${placeOf(ref)}`;
-      }
-    }
-    chapter.refs = refs;
-    const problem = clash || chapterProblems({ chapters: [{ ...chapter, key }] }, { diff })[0];
-    if (problem) {
-      refused(problem.replace(/^chapter 1: /, ''));
-      continue;
-    }
-    if (fragment.answer) {
-      chapter.answer = fragment.answer;
-    }
-    current = next;
+    current = laid.plan;
     outcomes.push({
       key,
       status: 'merged',
-      why: `${fragment.narrative.split(/\s+/).length} words, ${fresh.length} comments`,
+      why: `${fragment.narrative.split(/\s+/).length} words, ${laid.fresh} comments`,
     });
   }
   return { plan: current, outcomes };

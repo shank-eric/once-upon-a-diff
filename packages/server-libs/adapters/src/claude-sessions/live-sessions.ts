@@ -114,29 +114,18 @@ function readOne(file: string): Read {
   }
 }
 
-/** Reads every registry file, without asking whether the pid still runs. */
-async function scan(
-  dir: string,
-): Promise<{ found: Parsed[]; health: RegistryHealth; undecided: number[] }> {
-  let names: string[];
+/** The registry file names in the folder, or how the folder could not be listed. */
+function registryNames(dir: string): string[] | 'missing' | 'unreadable' {
   try {
-    names = readdirSync(dir).filter((name) => /^\d+\.json$/.test(name));
+    return readdirSync(dir).filter((name) => /^\d+\.json$/.test(name));
   } catch (err) {
-    const missing = (err as NodeJS.ErrnoException).code === 'ENOENT';
-    return {
-      found: [],
-      undecided: [],
-      health: {
-        folder: missing ? 'missing' : 'unreadable',
-        seen: 0,
-        skipped: 0,
-        broken: 0,
-        unreadable: 0,
-      },
-    };
+    return (err as NodeJS.ErrnoException).code === 'ENOENT' ? 'missing' : 'unreadable';
   }
+}
+
+/** Reads each file; one that does not parse may be mid-write, so it gets one more read after a short pause, off the event loop. */
+async function readAll(dir: string, names: string[]): Promise<Map<string, Read>> {
   const reads = new Map<string, Read>(names.map((name) => [name, readOne(path.join(dir, name))]));
-  // a file that does not parse may be mid-write: one more read after a short pause, off the event loop
   const again = names.filter((name) => reads.get(name) === 'broken');
   if (again.length) {
     await new Promise((resolve) => setTimeout(resolve, REREAD_AFTER_MS));
@@ -144,6 +133,46 @@ async function scan(
       reads.set(name, readOne(path.join(dir, name)));
     }
   }
+  return reads;
+}
+
+/** Whether a registry file names a pid and a session: the two things a session is found by. */
+function hasPidAndSession(reg: Registry): boolean {
+  const pid = Number(reg.pid);
+  return (
+    Number.isInteger(pid) &&
+    pid > 0 &&
+    typeof reg.sessionId === 'string' &&
+    typeof reg.cwd === 'string'
+  );
+}
+
+/** One registry file's session, its fields kept only when they have the shape Claude Code writes. Call only when `hasPidAndSession`. */
+function parsedSession(reg: Registry): Parsed {
+  return {
+    pid: Number(reg.pid),
+    session: reg.sessionId as string,
+    cwd: reg.cwd as string,
+    name: typeof reg.name === 'string' && reg.name ? reg.name : null,
+    tty: null,
+    status: typeof reg.status === 'string' ? reg.status : 'idle',
+    statusAt: typeof reg.statusUpdatedAt === 'number' ? reg.statusUpdatedAt : null,
+    startedAt: typeof reg.startedAt === 'number' ? reg.startedAt : null,
+    kind: typeof reg.kind === 'string' ? reg.kind : null,
+    procStart: typeof reg.procStart === 'string' ? collapse(reg.procStart) : null,
+  };
+}
+
+/** Reads every registry file, without asking whether the pid still runs. */
+async function scan(
+  dir: string,
+): Promise<{ found: Parsed[]; health: RegistryHealth; undecided: number[] }> {
+  const names = registryNames(dir);
+  if (typeof names === 'string') {
+    const health = { folder: names, seen: 0, skipped: 0, broken: 0, unreadable: 0 };
+    return { found: [], undecided: [], health };
+  }
+  const reads = await readAll(dir, names);
   const found: Parsed[] = [];
   // the pids of files the reader could not use, whose session may be live (the file name is the pid)
   const undecided: number[] = [];
@@ -160,36 +189,15 @@ async function scan(
       undecided.push(pidOf(name));
       broken += read === 'broken' ? 1 : 0;
       unreadable += read === 'unreadable' ? 1 : 0;
-      continue;
+    } else if (read.parsed && typeof read.parsed === 'object') {
+      // `null`, a number or a string is valid JSON but not a registry file: it drops only itself
+      const reg = read.parsed as Registry;
+      if (hasPidAndSession(reg)) {
+        found.push(parsedSession(reg));
+      } else {
+        undecided.push(pidOf(name));
+      }
     }
-    const { parsed } = read;
-    // `null`, a number or a string is valid JSON but not a registry file: it drops only itself
-    if (!parsed || typeof parsed !== 'object') {
-      continue;
-    }
-    const reg = parsed as Registry;
-    const pid = Number(reg.pid);
-    if (
-      !Number.isInteger(pid) ||
-      pid <= 0 ||
-      typeof reg.sessionId !== 'string' ||
-      typeof reg.cwd !== 'string'
-    ) {
-      undecided.push(pidOf(name));
-      continue;
-    }
-    found.push({
-      pid,
-      session: reg.sessionId,
-      cwd: reg.cwd,
-      name: typeof reg.name === 'string' && reg.name ? reg.name : null,
-      tty: null,
-      status: typeof reg.status === 'string' ? reg.status : 'idle',
-      statusAt: typeof reg.statusUpdatedAt === 'number' ? reg.statusUpdatedAt : null,
-      startedAt: typeof reg.startedAt === 'number' ? reg.startedAt : null,
-      kind: typeof reg.kind === 'string' ? reg.kind : null,
-      procStart: typeof reg.procStart === 'string' ? collapse(reg.procStart) : null,
-    });
   }
   return {
     found,

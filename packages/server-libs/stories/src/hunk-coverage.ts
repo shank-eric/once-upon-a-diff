@@ -214,45 +214,62 @@ export function thinHunks(
     if (!listed.has(file.rel) || file.binary) {
       continue;
     }
-    const changed = file.stats.added + file.stats.removed;
     if (marked.has(file.rel)) {
-      if (changed > WHOLE_WARN_LINES) {
-        out.push({ rel: file.rel, ref: file.rel, kind: 'whole', lines: changed });
+      const place = thinWholeFile(file);
+      if (place) {
+        out.push(place);
       }
-      continue;
-    }
-    if (whole.has(file.rel)) {
-      continue;
-    }
-    for (const hunk of file.hunks) {
-      const ref = hunkRef(file.rel, hunk);
-      const side: Side = /:L\d/.test(ref) ? 'L' : 'R';
-      const span = sidesOf(hunk)[side];
-      const lines = span.end - span.start + 1;
-      if (lines < BIG_HUNK_LINES) {
-        continue;
-      }
-      const sides = sidesOf(hunk);
-      const pointed = ranges
-        .get(file.rel)!
-        .filter((range) => overlaps(range, sides[toSide(range.side)]));
-      if (!pointed.length) {
-        continue; // uncovered
-      }
-      const touched = new Set<number>();
-      for (const range of pointed.filter((one) => toSide(one.side) === side)) {
-        for (
-          let line = Math.max(range.start, span.start);
-          line <= Math.min(range.end, span.end);
-          line++
-        ) {
-          touched.add(line);
+    } else if (!whole.has(file.rel)) {
+      for (const hunk of file.hunks) {
+        const place = thinHunkOf(file.rel, hunk, ranges.get(file.rel)!);
+        if (place) {
+          out.push(place);
         }
-      }
-      if (touched.size < lines * THIN_SHARE) {
-        out.push({ rel: file.rel, ref, kind: 'hunk', lines, covered: touched.size });
       }
     }
   }
   return out;
+}
+
+/** A file marked whole that is more than WHOLE_WARN_LINES changed lines, as a thin place. */
+function thinWholeFile(file: DiffFile): ThinPlace | null {
+  const changed = file.stats.added + file.stats.removed;
+  return changed > WHOLE_WARN_LINES
+    ? { rel: file.rel, ref: file.rel, kind: 'whole', lines: changed }
+    : null;
+}
+
+/** The lines of a hunk's side that the ranges on that side point at. */
+function touchedLines(ranges: LineSpan[], side: Side, span: { start: number; end: number }) {
+  const touched = new Set<number>();
+  for (const range of ranges.filter((one) => toSide(one.side) === side)) {
+    for (
+      let line = Math.max(range.start, span.start);
+      line <= Math.min(range.end, span.end);
+      line++
+    ) {
+      touched.add(line);
+    }
+  }
+  return touched;
+}
+
+/** A big hunk that something points at, but under THIN_SHARE of it, as a thin place; null for any other hunk. */
+function thinHunkOf(rel: string, hunk: DiffHunk, fileRanges: LineSpan[]): ThinPlace | null {
+  const ref = hunkRef(rel, hunk);
+  const side: Side = /:L\d/.test(ref) ? 'L' : 'R';
+  const sides = sidesOf(hunk);
+  const span = sides[side];
+  const lines = span.end - span.start + 1;
+  if (lines < BIG_HUNK_LINES) {
+    return null;
+  }
+  const pointed = fileRanges.filter((range) => overlaps(range, sides[toSide(range.side)]));
+  if (!pointed.length) {
+    return null; // uncovered
+  }
+  const touched = touchedLines(pointed, side, span);
+  return touched.size < lines * THIN_SHARE
+    ? { rel, ref, kind: 'hunk', lines, covered: touched.size }
+    : null;
 }

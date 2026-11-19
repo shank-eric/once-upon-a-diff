@@ -168,26 +168,16 @@ export function sinceDay(
   return etDay(now.getTime() - millis);
 }
 
-export function buildReport(input: {
-  home: string;
-  root: string;
-  now?: Date;
-  since?: string | null;
-  save?: boolean;
-}): Report {
-  const now = input.now ?? new Date();
-  const stamp = now.toISOString();
-  const bridge = asCoverage(readUsageJson(input.home, coverageFileOf('bridge')), stamp);
-  const cli = asCoverage(readUsageJson(input.home, coverageFileOf('cli')), stamp);
-  const bridgeStored = readUsageJson<CoverageFile>(input.home, coverageFileOf('bridge'));
-  const cliStored = readUsageJson<CoverageFile>(input.home, coverageFileOf('cli'));
-  const actions = readUsageJson<ActionsFile>(input.home, 'actions.json');
-  const sinceKey = input.since ?? null;
-  const inWindow = (day: string) => !sinceKey || day >= sinceKey;
+/** A name and how many times it was counted. */
+type Counts = Record<string, number>;
 
-  // counts in the window
-  const routes: Record<string, number> = {};
-  const uiCounts: Record<string, number> = {};
+/** The route, UI action and unmatched counts of the days in the window. */
+function windowCounts(
+  actions: ActionsFile | null,
+  inWindow: (day: string) => boolean,
+): { routes: Counts; uiCounts: Counts; unmatched: number; unknownDropped: number } {
+  const routes: Counts = {};
+  const uiCounts: Counts = {};
   let unmatched = 0;
   let unknownDropped = 0;
   for (const [day, counts] of Object.entries(actions?.days ?? {})) {
@@ -210,77 +200,88 @@ export function buildReport(input: {
     }
     unknownDropped += counts.unknownDropped ?? 0;
   }
-  const commands: Record<string, number> = {};
+  return { routes, uiCounts, unmatched, unknownDropped };
+}
+
+/** The CLI log's runs per command label in the window, and how many runs there were. */
+function commandCounts(
+  log: string,
+  inWindow: (day: string) => boolean,
+): { commands: Counts; cliRuns: number } {
+  const commands: Counts = {};
   let cliRuns = 0;
-  for (const line of readUsageText(input.home, CLI_LOG).split('\n')) {
+  for (const line of log.split('\n')) {
     const [day, label] = line.split(' ');
     if (day && label && inWindow(day)) {
       commands[label] = (commands[label] ?? 0) + 1;
       cliRuns++;
     }
   }
+  return { commands, cliRuns };
+}
 
-  // files: the sources on disk, joined with the stored coverage
-  const files: FileUse[] = [];
-  for (const rel of sourceFiles(input.root)) {
-    let text = '';
-    try {
-      text = readFileSync(path.join(input.root, rel), 'utf8');
-    } catch {
-      continue;
-    }
-    const sha = shaOf(text);
-    const versions = [...(bridge.files[rel] ?? []), ...(cli.files[rel] ?? [])];
-    const exact = versions.filter((entry) => entry.sha === sha);
-    const pool = exact.length ? exact : versions.slice(0, 1);
-    let bits: Uint8Array | null = null;
-    let mode: FileUse['mode'] = null;
-    for (const entry of pool) {
-      bits = bits ? andBits(bits, fromBase64(entry.uncovered)) : fromBase64(entry.uncovered);
-      mode = mode === 'function' || entry.mode === 'function' ? 'function' : 'lines';
-    }
-    files.push({
-      path: rel,
-      area: areaOfPath(rel),
-      codeLines: nonBlankLines(text),
-      uncovered: bits ? countBits(bits) : null,
-      stale: !exact.length && versions.length > 0,
-      mode,
-    });
+/** Whether a logged command label is the command or one of its subcommands (`backlog.add` is a `backlog`). */
+const isCommandLabel = (label: string, name: string) =>
+  label === name || label.startsWith(`${name}.`);
+
+/** Whether a route is one a person's use of the feature would hit, and nothing hit it: a poll or an uncounted route says nothing. */
+const isRouteZero = (key: string, routes: Counts) =>
+  !routes[key] && !POLLED_ROUTES.has(key) && !UNCOUNTED_ROUTES.has(key);
+
+/** One source file joined with the stored coverage of its versions, or null when it cannot be read. */
+function fileUse(
+  root: string,
+  rel: string,
+  bridge: CoverageFile,
+  cli: CoverageFile,
+): FileUse | null {
+  let text = '';
+  try {
+    text = readFileSync(path.join(root, rel), 'utf8');
+  } catch {
+    return null;
   }
-
-  // per area
-  const areas = new Map<string, AreaUse>();
-  const areaOf = (name: AreaOrNone): AreaUse => {
-    let row = areas.get(name);
-    if (!row) {
-      row = {
-        area: name,
-        files: 0,
-        codeLines: 0,
-        uncoveredLines: 0,
-        neverLoaded: [],
-        routesTotal: 0,
-        routeCalls: 0,
-        routesZero: [],
-        commandsTotal: 0,
-        commandRuns: 0,
-        commandsZero: [],
-        actionsTotal: 0,
-        actionCounts: 0,
-        actionsZero: [],
-      };
-      areas.set(name, row);
-    }
-    return row;
+  const sha = shaOf(text);
+  const versions = [...(bridge.files[rel] ?? []), ...(cli.files[rel] ?? [])];
+  const exact = versions.filter((entry) => entry.sha === sha);
+  const pool = exact.length ? exact : versions.slice(0, 1);
+  let bits: Uint8Array | null = null;
+  let mode: FileUse['mode'] = null;
+  for (const entry of pool) {
+    bits = bits ? andBits(bits, fromBase64(entry.uncovered)) : fromBase64(entry.uncovered);
+    mode = mode === 'function' || entry.mode === 'function' ? 'function' : 'lines';
+  }
+  return {
+    path: rel,
+    area: areaOfPath(rel),
+    codeLines: nonBlankLines(text),
+    uncovered: bits ? countBits(bits) : null,
+    stale: !exact.length && versions.length > 0,
+    mode,
   };
-  for (const name of AREAS) {
-    areaOf(name);
-  }
-  for (const file of files) {
-    if (!inNodeScope(file.path)) {
-      continue;
-    }
+}
+
+/** A feature area with nothing counted yet. */
+const emptyAreaUse = (area: AreaOrNone): AreaUse => ({
+  area,
+  files: 0,
+  codeLines: 0,
+  uncoveredLines: 0,
+  neverLoaded: [],
+  routesTotal: 0,
+  routeCalls: 0,
+  routesZero: [],
+  commandsTotal: 0,
+  commandRuns: 0,
+  commandsZero: [],
+  actionsTotal: 0,
+  actionCounts: 0,
+  actionsZero: [],
+});
+
+/** Adds the files the bridge can load to their areas: lines, and the files never loaded. */
+function addFiles(areaOf: (name: AreaOrNone) => AreaUse, files: FileUse[]): void {
+  for (const file of files.filter((one) => inNodeScope(one.path))) {
     const row = areaOf(file.area);
     row.files++;
     row.codeLines += file.codeLines;
@@ -291,20 +292,27 @@ export function buildReport(input: {
       row.uncoveredLines += file.uncovered;
     }
   }
+}
+
+/** Adds each route to its area: how many there are, their calls (a poll's are not use) and the ones nothing hit. */
+function addRoutes(areaOf: (name: AreaOrNone) => AreaUse, routes: Counts): void {
   for (const [key, area] of Object.entries(ROUTE_AREAS)) {
     const row = areaOf(area);
     row.routesTotal++;
-    // a poll's calls are not people using the feature: they stay out of the area's total and its zero list
     row.routeCalls += POLLED_ROUTES.has(key) ? 0 : (routes[key] ?? 0);
-    if (!routes[key] && !POLLED_ROUTES.has(key) && !UNCOUNTED_ROUTES.has(key)) {
+    if (isRouteZero(key, routes)) {
       row.routesZero.push(key);
     }
   }
+}
+
+/** Adds each command to its area: how many there are, their runs and the ones never run. */
+function addCommands(areaOf: (name: AreaOrNone) => AreaUse, commands: Counts): void {
   for (const [name, area] of Object.entries(COMMAND_AREAS)) {
     const row = areaOf(area);
     row.commandsTotal++;
     const runs = Object.entries(commands)
-      .filter(([label]) => label === name || label.startsWith(`${name}.`))
+      .filter(([label]) => isCommandLabel(label, name))
       .reduce((sum, [, total]) => sum + total, 0);
     row.commandRuns += runs;
     // `usage` is never logged (a report must not count itself), so its zero says nothing
@@ -312,6 +320,10 @@ export function buildReport(input: {
       row.commandsZero.push(name);
     }
   }
+}
+
+/** Adds each UI action to its area: how many there are, their counts and the ones never taken. */
+function addActions(areaOf: (name: AreaOrNone) => AreaUse, uiCounts: Counts): void {
   for (const [name, { area }] of Object.entries(ACTIONS)) {
     const row = areaOf(area);
     row.actionsTotal++;
@@ -320,8 +332,35 @@ export function buildReport(input: {
       row.actionsZero.push(name);
     }
   }
+}
 
-  // coverage growth by day (the current versions' uncovered counts, carried forward)
+/** The per-area rows, every area present even when nothing was counted for it. */
+function areaRows(files: FileUse[], routes: Counts, commands: Counts, uiCounts: Counts): AreaUse[] {
+  const areas = new Map<string, AreaUse>();
+  const areaOf = (name: AreaOrNone): AreaUse => {
+    let row = areas.get(name);
+    if (!row) {
+      row = emptyAreaUse(name);
+      areas.set(name, row);
+    }
+    return row;
+  };
+  for (const name of AREAS) {
+    areaOf(name);
+  }
+  addFiles(areaOf, files);
+  addRoutes(areaOf, routes);
+  addCommands(areaOf, commands);
+  addActions(areaOf, uiCounts);
+  return [...areas.values()];
+}
+
+/** Coverage growth by day: the current versions' uncovered counts, carried forward. */
+function coverageGrowth(
+  bridge: CoverageFile,
+  cli: CoverageFile,
+  inWindow: (day: string) => boolean,
+): Report['growth'] {
   const days = new Set<string>();
   const perFile: { day: string; value: number; path: string }[] = [];
   for (const [rel, entries] of [...Object.entries(bridge.files), ...Object.entries(cli.files)]) {
@@ -331,7 +370,7 @@ export function buildReport(input: {
       perFile.push({ day, value, path: rel });
     }
   }
-  const growth = [...days]
+  return [...days]
     .sort()
     .filter(inWindow)
     .map((day) => {
@@ -343,7 +382,118 @@ export function buildReport(input: {
       }
       return { day, uncovered: [...latest.values()].reduce((sum, total) => sum + total, 0) };
     });
+}
 
+/** What each source (bridge, CLI, actions) says about when it started and last flushed. */
+function sourcesOf(
+  stored: { bridge: CoverageFile | null; cli: CoverageFile | null; actions: ActionsFile | null },
+  bridgeStarts: number,
+  now: Date,
+): Report['sources'] {
+  const bridgeFlush = stored.bridge?.lastFlush ?? null;
+  return {
+    bridge: {
+      since: stored.bridge?.since ?? null,
+      lastFlush: bridgeFlush,
+      starts: bridgeStarts,
+      ageMs: bridgeFlush ? now.getTime() - new Date(bridgeFlush).getTime() : null,
+    },
+    cli: { since: stored.cli?.since ?? null, lastFlush: stored.cli?.lastFlush ?? null },
+    actions: { since: stored.actions?.since ?? null, lastFlush: stored.actions?.lastFlush ?? null },
+  };
+}
+
+/** Every counted thing under its kind (`route x`, `action x`, `command x`), for the snapshot's movers. */
+function snapshotCounts(routes: Counts, uiCounts: Counts, commands: Counts): Counts {
+  const counts: Counts = {};
+  for (const [kind, table] of [
+    ['route', routes],
+    ['action', uiCounts],
+    ['command', commands],
+  ] as const) {
+    for (const [key, total] of Object.entries(table)) {
+      counts[`${kind} ${key}`] = total;
+    }
+  }
+  return counts;
+}
+
+/** The routes, actions and commands nothing used, each under its kind, for the snapshot's first hits. */
+function zeroUses(routes: Counts, uiCounts: Counts, commands: Counts): string[] {
+  return [
+    ...Object.keys(ROUTE_AREAS)
+      .filter((key) => isRouteZero(key, routes))
+      .map((key) => `route ${key}`),
+    ...Object.keys(ACTIONS)
+      .filter((key) => !uiCounts[key])
+      .map((key) => `action ${key}`),
+    ...Object.keys(COMMAND_AREAS)
+      .filter(
+        (name) =>
+          name !== 'usage' && !Object.keys(commands).some((label) => isCommandLabel(label, name)),
+      )
+      .map((name) => `command ${name}`),
+  ];
+}
+
+/** What changed since the last report's snapshot. */
+function sinceLastReport(
+  last: Snapshot,
+  areas: AreaUse[],
+  counts: Counts,
+  zero: string[],
+  bridgeStarts: number,
+): SinceLast {
+  const zeroBefore = new Set(last.zero ?? []);
+  return {
+    at: last.at,
+    newlyCoveredLines: Object.fromEntries(
+      areas
+        .map(
+          (row) =>
+            [
+              row.area,
+              (last.uncoveredByArea?.[row.area] ?? row.uncoveredLines) - row.uncoveredLines,
+            ] as const,
+        )
+        .filter(([, delta]) => delta > 0),
+    ),
+    firstHits: [...zeroBefore].filter((item) => !zero.includes(item)),
+    movers: Object.entries(counts)
+      .map(([name, total]) => ({ name, delta: total - (last.counts?.[name] ?? 0) }))
+      .filter((item) => item.delta > 0)
+      .sort((left, right) => right.delta - left.delta)
+      .slice(0, 8),
+    newRestarts: Math.max(0, bridgeStarts - (last.starts ?? 0)),
+  };
+}
+
+/** The report for a window, from the stored coverage, route and action counts and the CLI log; `save` moves the baseline. */
+export function buildReport(input: {
+  home: string;
+  root: string;
+  now?: Date;
+  since?: string | null;
+  save?: boolean;
+}): Report {
+  const now = input.now ?? new Date();
+  const stamp = now.toISOString();
+  const bridge = asCoverage(readUsageJson(input.home, coverageFileOf('bridge')), stamp);
+  const cli = asCoverage(readUsageJson(input.home, coverageFileOf('cli')), stamp);
+  const bridgeStored = readUsageJson<CoverageFile>(input.home, coverageFileOf('bridge'));
+  const cliStored = readUsageJson<CoverageFile>(input.home, coverageFileOf('cli'));
+  const actions = readUsageJson<ActionsFile>(input.home, 'actions.json');
+  const sinceKey = input.since ?? null;
+  const inWindow = (day: string) => !sinceKey || day >= sinceKey;
+
+  const { routes, uiCounts, unmatched, unknownDropped } = windowCounts(actions, inWindow);
+  const { commands, cliRuns } = commandCounts(readUsageText(input.home, CLI_LOG), inWindow);
+  // files: the sources on disk, joined with the stored coverage
+  const files = sourceFiles(input.root)
+    .map((rel) => fileUse(input.root, rel, bridge, cli))
+    .filter((file): file is FileUse => file !== null);
+
+  const stored = { bridge: bridgeStored, cli: cliStored, actions };
   const starts = [bridgeStored?.since, cliStored?.since, actions?.since].filter(
     (value): value is string => !!value,
   );
@@ -352,7 +502,6 @@ export function buildReport(input: {
   );
   const from = starts.length ? starts.sort()[0] : stamp;
   const until = ends.length ? ends.sort().at(-1)! : stamp;
-  const bridgeFlush = bridgeStored?.lastFlush ?? null;
 
   const report: Report = {
     generatedAt: stamp,
@@ -360,87 +509,33 @@ export function buildReport(input: {
     to: until,
     narrowed: !!sinceKey,
     partial: now.getTime() - new Date(from).getTime() < PARTIAL_UNDER_MS,
-    sources: {
-      bridge: {
-        since: bridgeStored?.since ?? null,
-        lastFlush: bridgeFlush,
-        starts: bridge.starts,
-        ageMs: bridgeFlush ? now.getTime() - new Date(bridgeFlush).getTime() : null,
-      },
-      cli: { since: cliStored?.since ?? null, lastFlush: cliStored?.lastFlush ?? null },
-      actions: { since: actions?.since ?? null, lastFlush: actions?.lastFlush ?? null },
-    },
+    sources: sourcesOf(stored, bridge.starts, now),
     cliRuns,
-    areas: [...areas.values()],
+    areas: areaRows(files, routes, commands, uiCounts),
     files,
     routes,
     ui: uiCounts,
     commands,
     unmatched,
     unknownDropped,
-    growth,
+    growth: coverageGrowth(bridge, cli, inWindow),
     since_last: null,
   };
 
   // what changed since the last report
   const last = readUsageJson<Snapshot>(input.home, LAST_REPORT);
-  const counts: Record<string, number> = {};
-  for (const [key, total] of Object.entries(routes)) {
-    counts[`route ${key}`] = total;
-  }
-  for (const [key, total] of Object.entries(uiCounts)) {
-    counts[`action ${key}`] = total;
-  }
-  for (const [key, total] of Object.entries(commands)) {
-    counts[`command ${key}`] = total;
-  }
-  const zero = [
-    ...Object.keys(ROUTE_AREAS)
-      .filter((key) => !routes[key] && !POLLED_ROUTES.has(key) && !UNCOUNTED_ROUTES.has(key))
-      .map((key) => `route ${key}`),
-    ...Object.keys(ACTIONS)
-      .filter((key) => !uiCounts[key])
-      .map((key) => `action ${key}`),
-    ...Object.keys(COMMAND_AREAS)
-      .filter(
-        (name) =>
-          name !== 'usage' &&
-          !Object.keys(commands).some((label) => label === name || label.startsWith(`${name}.`)),
-      )
-      .map((name) => `command ${name}`),
-  ];
-  const uncoveredByArea = Object.fromEntries(
-    report.areas.map((row) => [row.area, row.uncoveredLines]),
-  );
+  const counts = snapshotCounts(routes, uiCounts, commands);
+  const zero = zeroUses(routes, uiCounts, commands);
   if (last && typeof last.at === 'string') {
-    const zeroBefore = new Set(last.zero ?? []);
-    report.since_last = {
-      at: last.at,
-      newlyCoveredLines: Object.fromEntries(
-        report.areas
-          .map(
-            (row) =>
-              [
-                row.area,
-                (last.uncoveredByArea?.[row.area] ?? row.uncoveredLines) - row.uncoveredLines,
-              ] as const,
-          )
-          .filter(([, delta]) => delta > 0),
-      ),
-      firstHits: [...zeroBefore].filter((item) => !zero.includes(item)),
-      movers: Object.entries(counts)
-        .map(([name, total]) => ({ name, delta: total - (last.counts?.[name] ?? 0) }))
-        .filter((item) => item.delta > 0)
-        .sort((left, right) => right.delta - left.delta)
-        .slice(0, 8),
-      newRestarts: Math.max(0, bridge.starts - (last.starts ?? 0)),
-    };
+    report.since_last = sinceLastReport(last, report.areas, counts, zero, bridge.starts);
   }
   // only a full report moves the baseline: windowed counts saved as it would make the next full one all "movers"
   if (input.save && !sinceKey) {
     writeUsageJson(input.home, LAST_REPORT, {
       at: stamp,
-      uncoveredByArea,
+      uncoveredByArea: Object.fromEntries(
+        report.areas.map((row) => [row.area, row.uncoveredLines]),
+      ),
       counts,
       zero,
       starts: bridge.starts,

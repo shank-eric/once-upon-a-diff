@@ -140,86 +140,107 @@ export function contentHash(file: DiffFile): string {
     .slice(0, 16);
 }
 
+/** Where `parseUnifiedDiff` stands: the file and hunk being read, and what its hash covers. */
+interface ParseState {
+  files: Map<string, DiffFile>;
+  cur: DiffFile | null;
+  hunk: DiffHunk | null;
+  raw: string[];
+  index: string; // the file's `index a..b` ids, as git printed them; a binary file keeps them in `blobs`
+}
+
+/** Fixes the open file's hash from the raw lines read so far. */
+function closeFile(state: ParseState): void {
+  if (state.cur) {
+    state.cur.hash = createHash('sha1').update(state.raw.join('\n')).digest('hex').slice(0, 16);
+  }
+}
+
+/** A `diff --git` line: closes the open file and opens that path's entry. */
+function openFile(state: ParseState, line: string): void {
+  closeFile(state);
+  const names = headerPaths(line);
+  const rel = names ? names.to : line.slice(11);
+  // a type change (symlink to file) is two entries for one path: the second joins the first
+  const again = state.files.get(rel);
+  if (again) {
+    state.cur = again;
+  } else {
+    state.cur = { rel, kind: 'modified', stats: { added: 0, removed: 0 }, hunks: [] };
+    state.files.set(rel, state.cur);
+    state.raw = [];
+  }
+  state.hunk = null;
+  state.index = '';
+  state.raw.push(line);
+}
+
+/** A file-level header line (kind, rename, index ids, binary), applied to the file; false when the line is not one. */
+function readHeaderLine(state: ParseState, file: DiffFile, line: string): boolean {
+  if (line.startsWith('new file mode')) {
+    file.kind = 'created';
+    return true;
+  }
+  if (line.startsWith('deleted file mode')) {
+    file.kind = 'deleted';
+    return true;
+  }
+  if (line.startsWith('rename from ')) {
+    file.renamed_from = wholePath(line.slice(12)) ?? line.slice(12);
+    file.kind = 'renamed';
+    return true;
+  }
+  const ids = /^index ([0-9a-f]+)\.\.([0-9a-f]+)/.exec(line);
+  if (ids) {
+    // git's abbreviation length can grow with the repo: compare only the first 7
+    state.index = `${ids[1].slice(0, 7)}..${ids[2].slice(0, 7)}`;
+    return true;
+  }
+  if (line.startsWith('Binary files ')) {
+    file.binary = true;
+    file.blobs = state.index;
+    return true;
+  }
+  return false;
+}
+
+/** A line inside a hunk: added, removed, context or the "no newline" marker; anything else is dropped. */
+function readHunkLine(file: DiffFile, hunk: DiffHunk, line: string): void {
+  if (line.startsWith('+')) {
+    file.stats.added++;
+  } else if (line.startsWith('-')) {
+    file.stats.removed++;
+  } else if (!line.startsWith(' ') && !line.startsWith('\\')) {
+    return;
+  }
+  hunk.lines.push(line);
+}
+
+/** One line of the diff text, after a `diff --git` line has opened a file. */
+function readFileLine(state: ParseState, file: DiffFile, line: string): void {
+  state.raw.push(line);
+  if (readHeaderLine(state, file, line)) {
+    return;
+  }
+  const hunkHeader = parseHunkHeader(line);
+  if (hunkHeader) {
+    state.hunk = { ...hunkHeader, lines: [] };
+    file.hunks.push(state.hunk);
+  } else if (state.hunk) {
+    readHunkLine(file, state.hunk, line);
+  }
+}
+
 /** Unified diff -> Map(rel -> DiffFile). */
 export function parseUnifiedDiff(text: string): Map<string, DiffFile> {
-  const files = new Map<string, DiffFile>();
-  let cur: DiffFile | null = null;
-  let hunk: DiffHunk | null = null;
-  let raw: string[] = [];
-  let index = ''; // the file's `index a..b` ids, as git printed them; a binary file keeps them in `blobs`
-  const close = () => {
-    if (cur) {
-      cur.hash = createHash('sha1').update(raw.join('\n')).digest('hex').slice(0, 16);
-    }
-  };
+  const state: ParseState = { files: new Map(), cur: null, hunk: null, raw: [], index: '' };
   for (const line of String(text).split('\n')) {
     if (line.startsWith('diff --git ')) {
-      close();
-      const names = headerPaths(line);
-      const rel = names ? names.to : line.slice(11);
-      // a type change (symlink to file) is two entries for one path: the second joins the first
-      const again = files.get(rel);
-      if (again) {
-        cur = again;
-      } else {
-        cur = { rel, kind: 'modified', stats: { added: 0, removed: 0 }, hunks: [] };
-        files.set(rel, cur);
-        raw = [];
-      }
-      hunk = null;
-      index = '';
-      raw.push(line);
-      continue;
-    }
-    if (!cur) {
-      continue;
-    }
-    raw.push(line);
-    if (line.startsWith('new file mode')) {
-      cur.kind = 'created';
-      continue;
-    }
-    if (line.startsWith('deleted file mode')) {
-      cur.kind = 'deleted';
-      continue;
-    }
-    if (line.startsWith('rename from ')) {
-      cur.renamed_from = wholePath(line.slice(12)) ?? line.slice(12);
-      cur.kind = 'renamed';
-      continue;
-    }
-    const ids = /^index ([0-9a-f]+)\.\.([0-9a-f]+)/.exec(line);
-    if (ids) {
-      // git's abbreviation length can grow with the repo: compare only the first 7
-      index = `${ids[1].slice(0, 7)}..${ids[2].slice(0, 7)}`;
-      continue;
-    }
-    if (line.startsWith('Binary files ')) {
-      cur.binary = true;
-      cur.blobs = index;
-      continue;
-    }
-    const hunkHeader = parseHunkHeader(line);
-    if (hunkHeader) {
-      hunk = { ...hunkHeader, lines: [] };
-      cur.hunks.push(hunk);
-      continue;
-    }
-    if (!hunk) {
-      continue;
-    }
-    if (line.startsWith('+')) {
-      hunk.lines.push(line);
-      cur.stats.added++;
-    } else if (line.startsWith('-')) {
-      hunk.lines.push(line);
-      cur.stats.removed++;
-    } else if (line.startsWith(' ')) {
-      hunk.lines.push(line);
-    } else if (line.startsWith('\\')) {
-      hunk.lines.push(line);
+      openFile(state, line);
+    } else if (state.cur) {
+      readFileLine(state, state.cur, line);
     }
   }
-  close();
-  return files;
+  closeFile(state);
+  return state.files;
 }

@@ -21,7 +21,7 @@
  * The routes live in ./routes/, one file per area. Each gets `app` (the
  * stores and settings below) and answers with `send`.
  */
-import http, { type IncomingMessage } from 'node:http';
+import http, { type IncomingMessage, type ServerResponse } from 'node:http';
 import { createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -133,6 +133,29 @@ export type Bridge = http.Server & {
   /** the usage capture's counts (the tests flush them to read them back) */
   usage: UsageCounters;
 };
+
+/** The `send` of one response: the status and body, with the headers every answer has. */
+function senderFor(res: ServerResponse): Send {
+  return (status, body, type = 'application/json; charset=utf-8', extra = {}) => {
+    res.writeHead(status, {
+      'Content-Type': type,
+      'Cache-Control': 'no-store',
+      'X-Content-Type-Options': 'nosniff',
+      'Referrer-Policy': 'no-referrer',
+      ...extra,
+    });
+    res.end(type.startsWith('application/json') ? JSON.stringify(body) : (body as string | Buffer));
+  };
+}
+
+/** The status a thrown error answers with: an HttpError carries its own, so does a BoardError (foundation/src/errors.ts). */
+function statusOfError(caught: unknown): number {
+  const carried =
+    caught instanceof HttpError || caught instanceof BoardError
+      ? caught.status
+      : (caught as { status?: number }).status;
+  return carried || 500;
+}
 
 export function createBridge({
   home,
@@ -432,88 +455,97 @@ export function createBridge({
     return route.handle(call, story);
   }
 
-  const server = http.createServer(async (req, res) => {
-    const send: Send = (status, body, type = 'application/json; charset=utf-8', extra = {}) => {
-      res.writeHead(status, {
-        'Content-Type': type,
-        'Cache-Control': 'no-store',
-        'X-Content-Type-Options': 'nosniff',
-        'Referrer-Policy': 'no-referrer',
-        ...extra,
-      });
-      res.end(
-        type.startsWith('application/json') ? JSON.stringify(body) : (body as string | Buffer),
+  /** Refuses a request for another host, or from another machine. */
+  function checkSource(req: IncomingMessage, port: number): void {
+    const host = String(req.headers.host || '').toLowerCase();
+    // the bridge's own address, or a name allowed in config.json (allowed_hosts) that a proxy forwards: exact names only
+    if (host !== `127.0.0.1:${port}` && host !== `localhost:${port}` && !allowedHostOf(req)) {
+      throw new HttpError(421, 'wrong host');
+    }
+    // this machine only: a proxy here forwards a LAN client with its address in a header (silent: nothing logged)
+    if (nonLoopbackClient(req)) {
+      throw new HttpError(403, 'this bridge answers this machine only');
+    }
+  }
+
+  /** Refuses a request whose Origin is not this extension or one of the bridge's own pages. */
+  function checkOrigin(req: IncomingMessage, port: number): void {
+    const origin = req.headers.origin;
+    if (origin && !originAllowed(origin, port, extensionOrigins, allowedHostOf(req))) {
+      throw new HttpError(
+        403,
+        origin.startsWith('chrome-extension://')
+          ? `origin not allowed: add ${origin.slice('chrome-extension://'.length)} to extension_ids in ~/.once-upon/config.json if it's your copy of Once Upon a Diff`
+          : 'origin not allowed',
       );
-    };
+    }
+  }
+
+  /** A /api/ call: the bridge-wide route for its path, else the story's. */
+  async function apiCall(req: IncomingMessage, url: URL, send: Send): Promise<unknown> {
+    const pathname = url.pathname;
+    const { body, scope, pageScope, readOnly } = await checkApiCall(
+      req,
+      pathname,
+      req.headers.origin,
+    );
+    const surface = surfaceOf(req.headers.origin, scope, pageScope, readOnly);
+    const call: Call = { app, req, url, body, send, pageScope, readOnly, surface };
+    // a page key never reaches the bridge-wide routes, even one whose path looks like a story's
+    const route =
+      !scope &&
+      API_ROUTES.find(
+        (candidate) =>
+          candidate.route.path === pathname &&
+          candidate.route.method === req.method &&
+          (!pageScope || boardKeyMay(candidate.route)),
+      );
+    if (route) {
+      countCall(route.route, surface);
+      return await route.handle(call);
+    }
+    if (pageScope) {
+      throw new HttpError(
+        403,
+        `the ${pageScope} page's key works only for the ${pageScope}'s routes`,
+      );
+    }
+    const storyMatch = STORY_PATH.exec(pathname);
+    if (!storyMatch) {
+      countCall(null, surface);
+      throw new HttpError(404, 'not found', 'no_route');
+    }
+    return await storyCall(call, storyMatch, scope);
+  }
+
+  /** One request: the page, the session routes or an API call; a refusal is thrown. */
+  async function answer(req: IncomingMessage, send: Send, port: number): Promise<unknown> {
+    checkSource(req, port);
+    const url = new URL(req.url as string, `http://127.0.0.1:${port}`);
+    const pathname = url.pathname;
+    checkOrigin(req, port);
+    if (servePage(req, pathname, send)) {
+      return;
+    }
+    if (req.method === 'POST' && pathname === '/auth/session') {
+      return await startSession(req, req.headers.origin, send);
+    }
+    if (req.method === 'POST' && pathname === '/auth/handshake') {
+      return await handshake(req, port, send);
+    }
+    if (!pathname.startsWith('/api/')) {
+      throw new HttpError(404, 'not found', 'no_route');
+    }
+    return await apiCall(req, url, send);
+  }
+
+  const server = http.createServer(async (req, res) => {
+    const send = senderFor(res);
     try {
-      const port = (server.address() as { port: number }).port;
-      const host = String(req.headers.host || '').toLowerCase();
-      // the bridge's own address, or a name allowed in config.json (allowed_hosts) that a proxy forwards: exact names only
-      if (host !== `127.0.0.1:${port}` && host !== `localhost:${port}` && !allowedHostOf(req)) {
-        throw new HttpError(421, 'wrong host');
-      }
-      // this machine only: a proxy here forwards a LAN client with its address in a header (silent: nothing logged)
-      if (nonLoopbackClient(req)) {
-        throw new HttpError(403, 'this bridge answers this machine only');
-      }
-      const url = new URL(req.url as string, `http://127.0.0.1:${port}`);
-      const pathname = url.pathname;
-      const origin = req.headers.origin;
-      if (origin && !originAllowed(origin, port, extensionOrigins, allowedHostOf(req))) {
-        throw new HttpError(
-          403,
-          origin.startsWith('chrome-extension://')
-            ? `origin not allowed: add ${origin.slice('chrome-extension://'.length)} to extension_ids in ~/.once-upon/config.json if it's your copy of Once Upon a Diff`
-            : 'origin not allowed',
-        );
-      }
-      if (servePage(req, pathname, send)) {
-        return;
-      }
-      if (req.method === 'POST' && pathname === '/auth/session') {
-        return await startSession(req, origin, send);
-      }
-      if (req.method === 'POST' && pathname === '/auth/handshake') {
-        return await handshake(req, port, send);
-      }
-      if (!pathname.startsWith('/api/')) {
-        throw new HttpError(404, 'not found', 'no_route');
-      }
-      const { body, scope, pageScope, readOnly } = await checkApiCall(req, pathname, origin);
-      const surface = surfaceOf(origin, scope, pageScope, readOnly);
-      const call: Call = { app, req, url, body, send, pageScope, readOnly, surface };
-      // a page key never reaches the bridge-wide routes, even one whose path looks like a story's
-      const route =
-        !scope &&
-        API_ROUTES.find(
-          (candidate) =>
-            candidate.route.path === pathname &&
-            candidate.route.method === req.method &&
-            (!pageScope || boardKeyMay(candidate.route)),
-        );
-      if (route) {
-        countCall(route.route, surface);
-        return await route.handle(call);
-      }
-      if (pageScope) {
-        throw new HttpError(
-          403,
-          `the ${pageScope} page's key works only for the ${pageScope}'s routes`,
-        );
-      }
-      const storyMatch = STORY_PATH.exec(pathname);
-      if (!storyMatch) {
-        countCall(null, surface);
-        throw new HttpError(404, 'not found', 'no_route');
-      }
-      return await storyCall(call, storyMatch, scope);
+      await answer(req, send, (server.address() as { port: number }).port);
     } catch (caught) {
-      const err = caught as Error & { status?: number };
-      // an HttpError carries its status; so does a BoardError, the board's own refusal (foundation/src/errors.ts)
-      const status =
-        (caught instanceof HttpError || caught instanceof BoardError
-          ? caught.status
-          : err.status) || 500;
+      const err = caught as Error;
+      const status = statusOfError(caught);
       if (status === 500) {
         log(err.stack || String(err));
       }

@@ -160,10 +160,7 @@ export function createLocalStory({
   // the branch --head names (the checkout's only when it is HEAD), so Create pull request pushes the story's branch
   const { branch, ambiguous } = branchOfRef(top, head);
   const name = path.basename(top);
-  // the story is told by the branch only when --head names it (or is HEAD): a commit stays its own story, by its first
-  // nine characters when it is a full sha, so it never takes over the default story of the branch it happens to tip
-  const named = head === 'HEAD' || head.replace(/^refs\/heads\//, '') === branch;
-  const shown = (named && branch) || (FULL_SHA_RE.test(head) ? head.slice(0, 9) : head);
+  const shown = shownHead(head, branch);
   id = id || slug(`local-${name}-${shown}`);
   if (!STORY_ID_RE.test(id)) {
     throw new Error(`bad story id: ${id}`);
@@ -177,42 +174,8 @@ export function createLocalStory({
   const old: Partial<StoryMeta> = existsSync(metaFile)
     ? JSON.parse(readFileSync(metaFile, 'utf8'))
     : {};
-  // a story over HEAD keeps its commits when told again (refreshLocal follows the checkout). A pinned one is told again to
-  // take the tips as they are now, so its stored commits are dropped and refreshLocal pins the new ones.
-  const sameRange =
-    old.repo_path === top && old.base === base && old.head === head && followsHead({ head });
-  const meta: LocalMeta = {
-    kind: 'local',
-    repo_path: top,
-    repo_name: name,
-    base,
-    head,
-    branch,
-    base_oid: sameRange ? old.base_oid : null,
-    head_oid: sameRange ? old.head_oid : null, // null makes the diff get remade
-    // what the chapters were told over stays through a told-again with no chapters (a refused one never takes a new one)
-    ...(old.told_head_oid ? { told_head_oid: old.told_head_oid } : {}),
-    ...(old.told_base_oid ? { told_base_oid: old.told_base_oid } : {}),
-    built_at: new Date().toISOString(), // a publish or a rebuild: refreshLocal keeps it, so a moved HEAD is not one
-    title:
-      title ||
-      (old.title as string | undefined) ||
-      `${name}: ${base}..${shown}${branch ? ` (${branch})` : ''}`,
-  };
-  // a refused `chapters` leaves the story folder as it was: what the told-again steps write is put back on a refusal
-  const kept = REFUSAL_RESTORES.map((name) => {
-    const file = path.join(dir, name);
-    return { file, text: existsSync(file) ? readFileSync(file, 'utf8') : null };
-  });
-  const restore = () => {
-    for (const { file, text } of kept) {
-      if (text === null) {
-        removeFile(file);
-      } else {
-        writeFileAtomic(file, text);
-      }
-    }
-  };
+  const meta = freshLocalMeta({ top, base, head, branch, shown, title, old });
+  const restore = folderRestorer(dir);
   writeJsonAtomic(metaFile, meta);
   const refreshed = refreshLocal(dir, meta);
 
@@ -220,47 +183,17 @@ export function createLocalStory({
   const rels = [...diff.keys()];
   const chaptersFile = path.join(dir, 'chapters.json');
   let expanded = 0; // hunk ids of `chapters` made into refs
-  let hunked = false; // `chapters` had hunk ids, so the file is written back without them
   if (chapters) {
     try {
-      removeFile(path.join(dir, STORYLESS_FILE)); // told: a story now, with Approve before Push
-      const after: Plan = JSON.parse(readFileSync(path.resolve(chapters), 'utf8'));
-      // chapters handed in are a told story: a by-folder mode carried over from the fallback (a rebuild starting from the
-      // served chapters.json) would skip the being-written check, so it is dropped
-      const carried = after.mode === BY_FOLDER;
-      if (carried) {
-        delete after.mode;
-      }
-      const before: Plan = existsSync(chaptersFile)
-        ? JSON.parse(readFileSync(chaptersFile, 'utf8'))
-        : {};
-      // a chapter's `hunks` ids become refs first, so a rebuild's vet (and the checks below) read refs
-      ({ expanded, changed: hunked } = expandHunksForPublish(after, diff));
-      const vetted = vet ? vet({ id, meta: refreshed, diff, before, after }) : null;
-      // every chapter has a key and its refs (validate.ts); an older story's chapters kept as they were are let through
-      const ready = vetted || after;
-      const assigned = readyPlan(ready, { diff, served: before });
-      const refusal = gateRefusal(gateCheck(ready, diff, before), { allowMissing, allowUncovered });
-      if (refusal) {
-        throw new Error(refusal);
-      }
-      if (vetted || assigned.length || carried || hunked) {
-        writeJsonAtomic(chaptersFile, ready);
-        writeJsonAtomic(path.resolve(chapters), ready);
-      } else {
-        copyFileAtomic(path.resolve(chapters), chaptersFile);
-      }
-      // what each ref was told over, so a later commit that moves its lines is noticed (anchors.ts); written with a told
-      // plan that passed the gate only, so a refusal or telling again with no chapters never takes a new baseline
-      writeAnchors(dir, anchorsFor(ready, diff, readAnchors(dir), before));
-      // the commits those chapters were told over: what Update and "Since you read it" count from
-      if (refreshed.head_oid && refreshed.base_oid) {
-        writeJsonAtomic(metaFile, {
-          ...readJson<LocalMeta>(metaFile, refreshed),
-          told_head_oid: refreshed.head_oid,
-          told_base_oid: refreshed.base_oid,
-        });
-      }
+      expanded = tellChapters({
+        dir,
+        chapters,
+        id,
+        refreshed,
+        diff,
+        vet,
+        gate: { allowMissing, allowUncovered },
+      });
     } catch (error) {
       restore(); // any refusal (the plan, a vet, the gate) leaves the folder as it was
       throw error;
@@ -287,6 +220,140 @@ export function createLocalStory({
     unknown: [...placed].filter((rel) => !diff.has(rel)),
     ambiguous,
   };
+}
+
+/**
+ * What names a local story's head: the branch when --head names it (or is HEAD), else the head itself. A commit stays its
+ * own story, by its first nine characters when it is a full sha, so it never takes over the default story of the branch it
+ * happens to tip.
+ */
+function shownHead(head: string, branch: string | null | undefined): string {
+  const named = head === 'HEAD' || head.replace(/^refs\/heads\//, '') === branch;
+  return (named && branch) || (FULL_SHA_RE.test(head) ? head.slice(0, 9) : head);
+}
+
+/** The meta a local story is (re)written with: the range, and what an earlier telling of the same range keeps. */
+function freshLocalMeta({
+  top,
+  base,
+  head,
+  branch,
+  shown,
+  title,
+  old,
+}: {
+  top: string;
+  base: string;
+  head: string;
+  branch: string | null | undefined;
+  shown: string;
+  title?: string | null;
+  old: Partial<StoryMeta>;
+}): LocalMeta {
+  const name = path.basename(top);
+  // a story over HEAD keeps its commits when told again (refreshLocal follows the checkout). A pinned one is told again to
+  // take the tips as they are now, so its stored commits are dropped and refreshLocal pins the new ones.
+  const sameRange =
+    old.repo_path === top && old.base === base && old.head === head && followsHead({ head });
+  return {
+    kind: 'local',
+    repo_path: top,
+    repo_name: name,
+    base,
+    head,
+    branch,
+    base_oid: sameRange ? old.base_oid : null,
+    head_oid: sameRange ? old.head_oid : null, // null makes the diff get remade
+    // what the chapters were told over stays through a told-again with no chapters (a refused one never takes a new one)
+    ...(old.told_head_oid ? { told_head_oid: old.told_head_oid } : {}),
+    ...(old.told_base_oid ? { told_base_oid: old.told_base_oid } : {}),
+    built_at: new Date().toISOString(), // a publish or a rebuild: refreshLocal keeps it, so a moved HEAD is not one
+    title:
+      title ||
+      (old.title as string | undefined) ||
+      `${name}: ${base}..${shown}${branch ? ` (${branch})` : ''}`,
+  };
+}
+
+/** A refused `chapters` leaves the story folder as it was: the returned function puts back what the told-again steps write. */
+function folderRestorer(dir: string): () => void {
+  const kept = REFUSAL_RESTORES.map((name) => {
+    const file = path.join(dir, name);
+    return { file, text: existsSync(file) ? readFileSync(file, 'utf8') : null };
+  });
+  return () => {
+    for (const { file, text } of kept) {
+      if (text === null) {
+        removeFile(file);
+      } else {
+        writeFileAtomic(file, text);
+      }
+    }
+  };
+}
+
+/**
+ * Checks and writes the chapters file handed in (the refusals throw; the caller restores the folder). Returns how many hunk
+ * ids were made into refs.
+ */
+function tellChapters({
+  dir,
+  chapters,
+  id,
+  refreshed,
+  diff,
+  vet,
+  gate,
+}: {
+  dir: string;
+  chapters: string;
+  id: string;
+  refreshed: LocalMeta;
+  diff: Map<string, DiffFile>;
+  vet: ((input: VetInput) => Plan | null) | null;
+  gate: { allowMissing: boolean; allowUncovered: boolean };
+}): number {
+  const metaFile = path.join(dir, 'meta.json');
+  const chaptersFile = path.join(dir, 'chapters.json');
+  removeFile(path.join(dir, STORYLESS_FILE)); // told: a story now, with Approve before Push
+  const after: Plan = JSON.parse(readFileSync(path.resolve(chapters), 'utf8'));
+  // chapters handed in are a told story: a by-folder mode carried over from the fallback (a rebuild starting from the
+  // served chapters.json) would skip the being-written check, so it is dropped
+  const carried = after.mode === BY_FOLDER;
+  if (carried) {
+    delete after.mode;
+  }
+  const before: Plan = existsSync(chaptersFile)
+    ? JSON.parse(readFileSync(chaptersFile, 'utf8'))
+    : {};
+  // a chapter's `hunks` ids become refs first, so a rebuild's vet (and the checks below) read refs
+  const { expanded, changed: hunked } = expandHunksForPublish(after, diff);
+  const vetted = vet ? vet({ id, meta: refreshed, diff, before, after }) : null;
+  // every chapter has a key and its refs (validate.ts); an older story's chapters kept as they were are let through
+  const ready = vetted || after;
+  const assigned = readyPlan(ready, { diff, served: before });
+  const refusal = gateRefusal(gateCheck(ready, diff, before), gate);
+  if (refusal) {
+    throw new Error(refusal);
+  }
+  if (vetted || assigned.length || carried || hunked) {
+    writeJsonAtomic(chaptersFile, ready);
+    writeJsonAtomic(path.resolve(chapters), ready);
+  } else {
+    copyFileAtomic(path.resolve(chapters), chaptersFile);
+  }
+  // what each ref was told over, so a later commit that moves its lines is noticed (anchors.ts); written with a told
+  // plan that passed the gate only, so a refusal or telling again with no chapters never takes a new baseline
+  writeAnchors(dir, anchorsFor(ready, diff, readAnchors(dir), before));
+  // the commits those chapters were told over: what Update and "Since you read it" count from
+  if (refreshed.head_oid && refreshed.base_oid) {
+    writeJsonAtomic(metaFile, {
+      ...readJson<LocalMeta>(metaFile, refreshed),
+      told_head_oid: refreshed.head_oid,
+      told_base_oid: refreshed.base_oid,
+    });
+  }
+  return expanded;
 }
 
 /**
