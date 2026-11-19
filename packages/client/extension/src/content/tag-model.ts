@@ -43,95 +43,84 @@ export interface MissingListener {
   checkout: string | null;
 }
 
-/** What the tag shows and does, from a status-many result. */
-export function tagFor(result: StoryStatus | null | undefined, { repo, number }: PrRef): Tag {
-  const href = prUrl(repo, number, 'changes');
-  const asked =
-    result && result.request && result.request.requested_at
-      ? ` at ${clockTime(result.request.requested_at)}`
-      : '';
-  if (!result || result.state === 'none' || !result.state) {
-    const failed = result && result.request && result.request.status === 'failed';
-    return {
-      kind: 'button',
-      act: 'build',
-      cls: '',
-      label: 'Build story',
-      title: `Ask a Claude session to write a story for this PR${failed ? '. The last build failed.' : ''}`,
-    };
-  }
+/** A tag with no story to show: "Build story", asking for one (the last build's failure goes in its hover). */
+function buildTag(result: StoryStatus | null | undefined): Tag {
+  const failed = !!result && !!result.request && result.request.status === 'failed';
+  return {
+    kind: 'button',
+    act: 'build',
+    cls: '',
+    label: 'Build story',
+    title: `Ask a Claude session to write a story for this PR${failed ? '. The last build failed.' : ''}`,
+  };
+}
+
+/** The not-clickable tag of a story asked for and not done: queued, or building. */
+function progressTag(building: boolean, label: string, title: string): Tag {
+  return building
+    ? { kind: 'progress', cls: 'building', label, spin: true, title }
+    : { kind: 'progress', cls: 'queued', label, title };
+}
+
+/** The tag of a story that is queued or building, or null once it is built. */
+function buildingTag(result: StoryStatus, asked: string): Tag | null {
   if (result.state === 'queued') {
-    return {
-      kind: 'progress',
-      cls: 'queued',
-      label: 'Queued',
-      title: `A story was asked for${asked}. No session has taken it yet.`,
-    };
+    return progressTag(
+      false,
+      'Queued',
+      `A story was asked for${asked}. No session has taken it yet.`,
+    );
   }
   if (result.state === 'building') {
-    return {
-      kind: 'progress',
-      cls: 'building',
-      label: 'Building…',
-      spin: true,
-      title: `A Claude session is building the story (asked for${asked})`,
-    };
+    return progressTag(
+      true,
+      'Building…',
+      `A Claude session is building the story (asked for${asked})`,
+    );
   }
-  if (result.updating && result.update_kind === 'rebuild') {
-    return result.update_state === 'building'
-      ? {
-          kind: 'progress',
-          cls: 'building',
-          label: 'Rebuilding…',
-          spin: true,
-          title: 'A Claude session is rebuilding the story',
-        }
-      : {
-          kind: 'progress',
-          cls: 'queued',
-          label: 'Rebuild queued',
-          title: 'A rebuild of the story was asked for. No session has taken it yet.',
-        };
+  return null;
+}
+
+/** The tag of a story being brought up to date or rebuilt, or null when no update is under way. */
+function updatingTag(result: StoryStatus): Tag | null {
+  if (!result.updating) {
+    return null;
   }
-  if (result.updating) {
-    return result.update_state === 'building'
-      ? {
-          kind: 'progress',
-          cls: 'building',
-          label: 'Updating…',
-          spin: true,
-          title: 'A Claude session is updating the story to the latest commit',
-        }
-      : {
-          kind: 'progress',
-          cls: 'queued',
-          label: 'Update queued',
-          title: 'An update to the latest commit was asked for. No session has taken it yet.',
-        };
+  const building = result.update_state === 'building';
+  if (result.update_kind === 'rebuild') {
+    return building
+      ? progressTag(true, 'Rebuilding…', 'A Claude session is rebuilding the story')
+      : progressTag(
+          false,
+          'Rebuild queued',
+          'A rebuild of the story was asked for. No session has taken it yet.',
+        );
   }
-  const readCount = result.reads && result.reads.total ? result.reads : null;
-  const all = !!readCount && readCount.read >= readCount.total;
-  if (result.stale && readCount && readCount.read) {
-    const newer = Number.isFinite(result.newer) ? (result.newer as number) : null;
-    const label = `${all ? 'Read' : `${readCount.read} of ${readCount.total} read`} · ${newer == null ? 'new commits' : plural(newer, 'new commit')} · Update`;
-    return {
-      kind: 'button',
-      act: 'update',
-      base: result.story_head,
-      cls: 'stale',
-      label,
-      title:
-        `Update (new commits): you've read ${all ? 'the story' : `${readCount.read} of its ${readCount.total} chapters`}, and the PR has moved on from ${shortSha(result.story_head)} to ${shortSha(result.current_head)}. ` +
-        'Adds a "Since you read it" chapter for the new commits, first, and keeps the chapters you read.',
-      alt: {
-        act: 'retell',
-        label: 'Re-tell',
-        title:
-          'Re-tell from scratch: a whole new story at the latest commit, for a rebase or a big rework',
-      },
-    };
-  }
-  if (result.stale) {
+  return building
+    ? progressTag(true, 'Updating…', 'A Claude session is updating the story to the latest commit')
+    : progressTag(
+        false,
+        'Update queued',
+        'An update to the latest commit was asked for. No session has taken it yet.',
+      );
+}
+
+/** The small "Re-tell" beside a stale tag: a whole new story at the latest commit. */
+const RETELL = {
+  act: 'retell' as const,
+  label: 'Re-tell',
+  title:
+    'Re-tell from scratch: a whole new story at the latest commit, for a rebase or a big rework',
+};
+
+/** How many chapters they have read: reads of a story with chapters, else null. */
+type ReadCount = NonNullable<StoryStatus['reads']>;
+const readCountOf = (result: StoryStatus): ReadCount | null =>
+  result.reads && result.reads.total ? result.reads : null;
+
+/** The tag of a story the PR has moved past: "Update", with "Re-tell" beside it. */
+function staleTag(result: StoryStatus, readCount: ReadCount | null): Tag {
+  if (!readCount || !readCount.read) {
     return {
       kind: 'button',
       act: 'update',
@@ -141,41 +130,72 @@ export function tagFor(result: StoryStatus | null | undefined, { repo, number }:
       title:
         `Update (new commits): the story is for ${shortSha(result.story_head)} and the PR has newer commits (${shortSha(result.current_head)}). ` +
         'Adds a "Since you read it" chapter for them, first, and keeps the chapters you read.',
-      alt: {
-        act: 'retell',
-        label: 'Re-tell',
-        title:
-          'Re-tell from scratch: a whole new story at the latest commit, for a rebase or a big rework',
-      },
+      alt: RETELL,
     };
   }
+  const all = readCount.read >= readCount.total;
+  const newer = Number.isFinite(result.newer) ? (result.newer as number) : null;
+  const readSoFar = all ? 'Read' : `${readCount.read} of ${readCount.total} read`;
+  const newCommits = newer == null ? 'new commits' : plural(newer, 'new commit');
+  const label = `${readSoFar} · ${newCommits} · Update`;
+  return {
+    kind: 'button',
+    act: 'update',
+    base: result.story_head,
+    cls: 'stale',
+    label,
+    title:
+      `Update (new commits): you've read ${all ? 'the story' : `${readCount.read} of its ${readCount.total} chapters`}, and the PR has moved on from ${shortSha(result.story_head)} to ${shortSha(result.current_head)}. ` +
+      'Adds a "Since you read it" chapter for the new commits, first, and keeps the chapters you read.',
+    alt: RETELL,
+  };
+}
+
+/** The link tag of a story that is up to date: "Read", "Story · 2 of 5 read", or plain "Story". */
+function readingTag(result: StoryStatus, readCount: ReadCount | null, href: string): Tag {
   const upTo = result.story_head ? ` (up to date with ${shortSha(result.story_head)})` : '';
-  if (all) {
+  if (!readCount || !readCount.read) {
+    return {
+      kind: 'link',
+      href,
+      cls: 'ready',
+      label: 'Story',
+      title: `Open the story on Files changed${upTo}`,
+    };
+  }
+  if (readCount.read >= readCount.total) {
     return {
       kind: 'link',
       href,
       cls: 'read',
       label: 'Read',
-      title: `You've read all ${readCount!.total} chapters${upTo}. Opens the story on Files changed.`, // all says there's one
+      title: `You've read all ${readCount.total} chapters${upTo}. Opens the story on Files changed.`,
     };
   }
-  if (readCount && readCount.read) {
-    // the panel opens on the step a #ou-step-N hash names (pages/files-changed.js)
-    return {
-      kind: 'link',
-      href: readCount.next ? `${href}#ou-step-${readCount.next}` : href,
-      cls: 'ready',
-      label: `Story · ${readCount.read} of ${readCount.total} read`,
-      title: `You've read ${readCount.read} of ${readCount.total} chapters${upTo}. Opens the first one you haven't read.`,
-    };
-  }
+  // the panel opens on the step a #ou-step-N hash names (pages/files-changed.js)
   return {
     kind: 'link',
-    href,
+    href: readCount.next ? `${href}#ou-step-${readCount.next}` : href,
     cls: 'ready',
-    label: 'Story',
-    title: `Open the story on Files changed${upTo}`,
+    label: `Story · ${readCount.read} of ${readCount.total} read`,
+    title: `You've read ${readCount.read} of ${readCount.total} chapters${upTo}. Opens the first one you haven't read.`,
   };
+}
+
+/** What the tag shows and does, from a status-many result. */
+export function tagFor(result: StoryStatus | null | undefined, { repo, number }: PrRef): Tag {
+  if (!result || result.state === 'none' || !result.state) {
+    return buildTag(result);
+  }
+  const asked = result.request?.requested_at ? ` at ${clockTime(result.request.requested_at)}` : '';
+  const readCount = readCountOf(result);
+  return (
+    buildingTag(result, asked) ??
+    updatingTag(result) ??
+    (result.stale
+      ? staleTag(result, readCount)
+      : readingTag(result, readCount, prUrl(repo, number, 'changes')))
+  );
 }
 
 /** Does a Files changed URL's #ou-ask hash ask for the panel's Ask dock to open? */

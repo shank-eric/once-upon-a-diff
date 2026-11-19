@@ -14,7 +14,11 @@ import {
 } from '/assets/board/shared.ts';
 import { act, openStory, reviewCard, typeInto } from '/assets/board/columns/actions.ts';
 import { AgentList, AgentNotes } from '/assets/board/columns/agent.ts';
-import { answerBits } from '/assets/board/columns/story-answers.ts';
+import {
+  answerBits,
+  approvedToShip,
+  type AnswerBits,
+} from '/assets/board/columns/story-answers.ts';
 import { ContextMeter } from '/assets/ui-kit/components/meter.ts';
 import { Chips } from '/assets/ui-kit/components/chip.ts';
 import { SubagentList } from '/assets/ui-kit/components/subagents.ts';
@@ -179,45 +183,38 @@ function Summary(props: { card: BoardCard; now: number; api: Api }) {
     ${agent.notes && html`<${AgentNotes} path=${agent.notes} api=${api} />`}`;
 }
 
-/** A card other than a Backlog item: its title, where it is, what is going on, its sessions and agents, and its buttons. */
-export function Card(props: { card: BoardCard; now: number; api: Api }) {
-  const { card, now, api } = props;
-  const { switching, focus } = useFocus(api.bridge);
+/** The labels on a card: its PR's facts, then what is unconfirmed, approved, ahead, and what the story's answers say. */
+function cardChips(card: BoardCard, bits: AnswerBits) {
   const pr = card.pr;
-  const time = compactAge(card.since, now);
-  const where = [card.repo && card.kind !== 'agent' ? repoName(card.repo) : '', card.branch]
-    .filter(Boolean)
-    .join(' · ');
-  const prLink = pr && html`<a href=${pr.url} target="_blank" rel="noopener">PR #${pr.number}</a>`;
-  const merged = pr?.state === 'merged' && time ? `merged ${ago(card.since, now)}` : '';
   const chips = pr ? prChips(pr) : [];
   if (pr && card.pr_unconfirmed) {
     // GitHub has not answered lately (or yet): the PR's facts may be out of date
     chips.push({ text: 'unconfirmed', mark: 'plain' });
   }
-  if (card.story?.approved_at && card.column === 'ship') {
+  if (approvedToShip(card)) {
     chips.push({ text: 'Approved, ready to ship', mark: 'ok' });
   }
   if (card.ahead) {
     chips.push({ text: `${card.ahead.count} ahead`, mark: 'warn' });
   }
-  const gates = card.agents.filter((agent) => agent.gate).map(gateText);
-  // Open story: on a card ready for review, or an approved local story in Ready to ship (a local story is never in Back to you)
-  const bits = answerBits(card);
-  const { openable } = bits;
   if (bits.chip) {
     chips.push({ text: bits.chip, mark: 'warn' });
   }
-  const focusTitle = card.can_focus
-    ? "Bring this session's iTerm tab to the front"
-    : 'No iTerm tab is known for this session';
-  // what is going on that the column alone doesn't say
+  return chips;
+}
+
+/** What a card's build is doing, and who for, and for how long. */
+function buildingNote(building: NonNullable<BoardCard['building']>, now: number): string {
+  const age = compactAge(building.since, now);
+  return `${BUILDING_TEXT[building.kind]}${building.by ? ` (${building.by})` : ''}${age && ` · ${age}`}`;
+}
+
+/** The lines on a card for what is going on that the column alone doesn't say. */
+function cardNotes(card: BoardCard, bits: AnswerBits, now: number): string[] {
+  const pr = card.pr;
   const notes: string[] = [];
   if (card.building) {
-    const building = compactAge(card.building.since, now);
-    notes.push(
-      `${BUILDING_TEXT[card.building.kind]}${card.building.by ? ` (${card.building.by})` : ''}${building && ` · ${building}`}`,
-    );
+    notes.push(buildingNote(card.building, now));
   }
   if (card.from_backlog?.length) {
     notes.push(`from backlog: ${card.from_backlog.map((item) => item.title).join(', ')}`);
@@ -231,43 +228,108 @@ export function Card(props: { card: BoardCard; now: number; api: Api }) {
   if (pr && !pr.mine && pr.author) {
     notes.push(`${pr.author}'s PR${pr.review_requested ? ', your review is requested' : ''}`);
   }
-  // a click on the card itself (not on one of its links or buttons) raises the session's tab; on a touch screen there is no tab to raise
-  const onCard = (event: MouseEvent) => {
-    if (
-      card.can_focus &&
-      card.focus_session &&
-      !(event.target as Element).closest('a, button') &&
-      !isTouch()
-    ) {
-      void focus(card.focus_session);
-    }
-  };
-  const story = card.story;
-  const brief = summed(card);
-  const hover = brief ? [brief.outcome, brief.task].filter(Boolean).join('\n') : undefined;
-  return html`<li class=${`ou-board-card ou-board-c-${card.column}${card.can_focus ? ' ou-board-clickable' : ''}`} data-card=${card.id} data-focus-card=${card.can_focus ? card.focus_session : ''} title=${hover} onClick=${onCard}>
-    <div class="ou-board-title" title=${card.title}>${card.title}</div>
-    ${brief && html`<${Summary} card=${card} now=${now} api=${api} />`}
-    ${card.kind === 'agent' && !brief && html`<div class="ou-local-muted ou-board-meta"><${From} card=${card} api=${api} /></div>`}
-    ${!brief && html`<${Finished} card=${card} now=${now} />`}
-    ${!brief && html`<div class="ou-local-muted ou-board-meta">${prLink}${prLink && where && ' · '}${where}${(prLink || where) && (merged || time) && ' · '}${merged || time}</div>`}
-    ${notes.map((note) => html`<div class="ou-board-detail">${note}</div>`)}
+  return notes;
+}
+
+/** A card's one meta line: its PR's link, where it is (repo and branch), and when (merged, or how long ago). */
+function Place(props: { card: BoardCard; now: number }) {
+  const { card, now } = props;
+  const pr = card.pr;
+  const time = compactAge(card.since, now);
+  const where = [card.repo && card.kind !== 'agent' ? repoName(card.repo) : '', card.branch]
+    .filter(Boolean)
+    .join(' · ');
+  const prLink = pr && html`<a href=${pr.url} target="_blank" rel="noopener">PR #${pr.number}</a>`;
+  const merged = pr?.state === 'merged' && time ? `merged ${ago(card.since, now)}` : '';
+  const when = merged || time;
+  return html`<div class="ou-local-muted ou-board-meta">${prLink}${prLink && where && ' · '}${where}${(prLink || where) && when && ' · '}${when}</div>`;
+}
+
+/** The top of a card, under its title: a finished agent in brief, or who it is from, whether it is leaving, and where and when. */
+function CardTop(props: {
+  card: BoardCard;
+  brief: BoardCard['agents'][number] | null;
+  now: number;
+  api: Api;
+}) {
+  const { card, brief, now, api } = props;
+  if (brief) {
+    return html`<${Summary} card=${card} now=${now} api=${api} />`;
+  }
+  return html`${card.kind === 'agent' && html`<div class="ou-local-muted ou-board-meta"><${From} card=${card} api=${api} /></div>`}
+    <${Finished} card=${card} now=${now} />
+    <${Place} card=${card} now=${now} />`;
+}
+
+/** The middle of a card: what is going on, its listener, its labels, and its sessions and agents. */
+function CardBody(props: {
+  card: BoardCard;
+  hasBrief: boolean;
+  bits: AnswerBits;
+  now: number;
+  api: Api;
+}) {
+  const { card, hasBrief, bits, now, api } = props;
+  const gates = card.agents.filter((agent) => agent.gate).map(gateText);
+  const chips = cardChips(card, bits);
+  const session = card.sessions[0];
+  const isSession = card.kind === 'session';
+  const isAgent = card.kind === 'agent';
+  return html`${cardNotes(card, bits, now).map((note) => html`<div class="ou-board-detail">${note}</div>`)}
     ${card.listening && html`<${Listening} listening=${card.listening} api=${api} />`}
-    ${card.kind === 'session' && card.detail && html`<div class="ou-board-detail">${card.detail}</div>`}
+    ${isSession && card.detail && html`<div class="ou-board-detail">${card.detail}</div>`}
     ${gates.length > 0 && html`<${Chips} class="ou-board-gates" items=${gates} />`}
     ${chips.length > 0 && html`<${Chips} items=${chips} />`}
-    ${card.kind === 'session' && card.sessions[0] && html`<div class="ou-local-muted">${card.sessions[0].status}${card.sessions[0].branch ? ` on ${card.sessions[0].branch}` : ''}</div>`}
-    ${card.kind === 'work' && card.sessions.length > 0 && html`<ul class="ou-board-sessions">${card.sessions.map((session) => html`<${Session} key=${session.id} session=${session} now=${now} />`)}</ul>`}
-    ${card.agents.length > 0 && !brief && html`<${AgentList} agents=${card.agents} now=${now} api=${api} byEditor=${card.kind !== 'agent'} />`}
-    ${card.subagents && card.kind !== 'agent' && html`<${SubagentList} subagents=${card.subagents} now=${now} />`}
-    <${CardTrees} card=${card} now=${now} api=${api} />
-    <div class="ou-board-actions">
+    ${isSession && session && html`<div class="ou-local-muted">${session.status}${session.branch ? ` on ${session.branch}` : ''}</div>`}
+    ${card.kind === 'work' && card.sessions.length > 0 && html`<ul class="ou-board-sessions">${card.sessions.map((each) => html`<${Session} key=${each.id} session=${each} now=${now} />`)}</ul>`}
+    ${card.agents.length > 0 && !hasBrief && html`<${AgentList} agents=${card.agents} now=${now} api=${api} byEditor=${!isAgent} />`}
+    ${card.subagents && !isAgent && html`<${SubagentList} subagents=${card.subagents} now=${now} />`}
+    <${CardTrees} card=${card} now=${now} api=${api} />`;
+}
+
+/** The buttons at the foot of a card. `focus` and `switching` are the card's, so a click on the card and the button share one. */
+function CardActions(props: {
+  card: BoardCard;
+  bits: AnswerBits;
+  api: Api;
+  focus: (session: string) => Promise<void> | void;
+  switching: boolean;
+}) {
+  const { card, bits, api, focus, switching } = props;
+  const story = card.story;
+  const focusTitle = card.can_focus
+    ? "Bring this session's iTerm tab to the front"
+    : 'No iTerm tab is known for this session';
+  const storyless = !card.story || card.story.storyless;
+  return html`<div class="ou-board-actions">
       ${card.build && html`<${Build} card=${card} api=${api} />`}
-      ${card.review && (!card.story || card.story.storyless) && html`<${Review} card=${card} api=${api} />`}
+      ${card.review && storyless && html`<${Review} card=${card} api=${api} />`}
       ${finishable(card) && html`<${ActionButton} class="ou-board-finish" attrs=${{ 'data-finish-agent': card.id }} onClick=${() => finishAgent(api, card)} title="Clears this card now. It comes back only if the agent does something more">Finish</${ActionButton}>`}
       ${card.focus_session && html`<button type="button" class="ou-board-focus" data-focus=${card.focus_session} disabled=${!card.can_focus || switching} onClick=${() => focus(card.focus_session as string)} title=${focusTitle}>${switching ? 'Switching…' : 'Open in iTerm'}</button>`}
-      ${openable && story?.url && html`<a class="ou-board-open" href=${`${story.url}${bits.hash}`} target="_blank" rel="noopener">Open story</a>`}
-      ${openable && story && !story.url && html`<${ActionButton} class="ou-board-open" attrs=${{ 'data-open-local': story.id }} onClick=${() => openStory(api, story.id)} title="Opens the local story's page">Open story</${ActionButton}>`}
-    </div>
+      ${bits.openable && story?.url && html`<a class="ou-board-open" href=${`${story.url}${bits.hash}`} target="_blank" rel="noopener">Open story</a>`}
+      ${bits.openable && story && !story.url && html`<${ActionButton} class="ou-board-open" attrs=${{ 'data-open-local': story.id }} onClick=${() => openStory(api, story.id)} title="Opens the local story's page">Open story</${ActionButton}>`}
+    </div>`;
+}
+
+/** A card other than a Backlog item: its title, where it is, what is going on, its sessions and agents, and its buttons. */
+export function Card(props: { card: BoardCard; now: number; api: Api }) {
+  const { card, now, api } = props;
+  const { switching, focus } = useFocus(api.bridge);
+  const bits = answerBits(card);
+  const brief = summed(card);
+  const hover = brief ? [brief.outcome, brief.task].filter(Boolean).join('\n') : undefined;
+  // a click on the card itself (not on one of its links or buttons) raises the session's tab; on a touch screen there is no tab to raise
+  const onCard = (event: MouseEvent) => {
+    const canRaise = !!card.can_focus && !!card.focus_session && !isTouch();
+    const onControl = !!(event.target as Element).closest('a, button');
+    if (canRaise && !onControl) {
+      void focus(card.focus_session as string);
+    }
+  };
+  return html`<li class=${`ou-board-card ou-board-c-${card.column}${card.can_focus ? ' ou-board-clickable' : ''}`} data-card=${card.id} data-focus-card=${card.can_focus ? card.focus_session : ''} title=${hover} onClick=${onCard}>
+    <div class="ou-board-title" title=${card.title}>${card.title}</div>
+    <${CardTop} card=${card} brief=${brief} now=${now} api=${api} />
+    <${CardBody} card=${card} hasBrief=${!!brief} bits=${bits} now=${now} api=${api} />
+    <${CardActions} card=${card} bits=${bits} api=${api} focus=${focus} switching=${switching} />
   </li>`;
 }

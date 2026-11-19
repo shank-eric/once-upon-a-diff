@@ -414,9 +414,13 @@ export function createDrafts(context: PanelContext) {
     }
   }
 
+  /** Does the comment name a file and a line to sit on? */
+  const hasLine = (comment: DraftComment | undefined): comment is DraftComment =>
+    !!comment && !!comment.path && Number(comment.line) > 0;
+
   /** Is this line draft's comment on the page yet? Read only: it looks for its text in the file's comments. */
   function commentOnPage(comment: DraftComment | undefined) {
-    if (!comment || !comment.path || !(Number(comment.line) > 0)) {
+    if (!hasLine(comment)) {
       return false;
     }
     const rel = context.refs.fileOf(comment.path);
@@ -439,6 +443,127 @@ export function createDrafts(context: PanelContext) {
 
   const githubLinkOf = (url: string | null | undefined) => url || null;
 
+  /** The parts of a comment's model: its classes, whether it is hidden, its state line and its buttons. */
+  interface CommentParts {
+    classes: string[];
+    hidden: boolean;
+    line: Line | null;
+    buttons: Button[];
+  }
+
+  /** A comment that is dealt with (dismissed, posted or added): greyed, with `pending` while GitHub has it but this page doesn't show it. */
+  const dealtWith = (
+    line: Line,
+    { hidden = false, pending = false, buttons = [] as Button[] } = {},
+  ): CommentParts => ({
+    classes: ['ou-comment', 'ou-c-done', ...(pending ? ['ou-c-pending'] : [])],
+    hidden,
+    line,
+    buttons,
+  });
+
+  /** The parts of a comment draftView says is dealt with, or null for a draft that is still open. */
+  function dealtWithParts(
+    show: DraftShow,
+    row: DraftRow,
+    comment: DraftComment | undefined,
+  ): CommentParts | null {
+    switch (show) {
+      case 'dismissed':
+        return dealtWith(
+          { kind: 'dismissed' },
+          {
+            hidden: !state.showDismissed,
+            buttons: [{ action: 'restore', label: 'Restore', title: 'Bring this draft back' }],
+          },
+        );
+      case 'fix':
+        return dealtWith({ kind: 'fix', fix: row.fix as DraftFix }, { pending: true }); // draftView says 'fix' only with one
+      case 'posted':
+        return dealtWith(
+          { kind: 'posted', link: githubLinkOf(row.url) },
+          { hidden: !state.showPosted },
+        );
+      case 'pending':
+        return dealtWith(
+          { kind: 'pending', link: githubLinkOf(row.url) || githubLinkOf(row.added?.url) },
+          { pending: true },
+        );
+      case 'added':
+        // Add to my review worked, but this page won't show the comment until it's reloaded
+        return dealtWith(
+          {
+            kind: 'added',
+            path: comment ? comment.path : '',
+            line: comment ? comment.line : '',
+            rel: comment ? context.refs.fileOf(comment.path) : null,
+            side: comment ? comment.side : undefined,
+            link: row.added!.url || null, // GitHub may return no comment URL
+            reload: !!opts.reloadPage,
+          },
+          { pending: true },
+        );
+      default:
+        return null;
+    }
+  }
+
+  /** What an open draft's state line says: why it can't be posted as it is, or null when nothing needs saying. */
+  function openLine(comment: DraftComment | undefined, step: number, index: number): Line | null {
+    if (comment && comment.unmapped) {
+      return { kind: 'unmapped' };
+    }
+    if (context.reading.isStaleDraft(step, index)) {
+      return { kind: 'stale' };
+    }
+    if (comment && comment.carried) {
+      return { kind: 'carried' };
+    }
+    return state.n ? null : { kind: 'notposted' };
+  }
+
+  /** The parts of a draft that is still open: its state line, and Dismiss, Add to fix before push and Add to my review. */
+  function openParts(
+    row: DraftRow,
+    key: string,
+    comment: DraftComment | undefined,
+    step: number,
+    index: number,
+  ): CommentParts {
+    const onLine = hasLine(comment) && !comment.unmapped;
+    const canFix = !!opts.fixes && onLine && context.fixes.canAdd();
+    const canReview = context.canPostDrafts && onLine;
+    const error = canFix || canReview ? reviewErrors.get(row.key || key) : undefined;
+    const buttons: Button[] = [];
+    if (canReview) {
+      buttons.push({
+        action: 'review',
+        label: 'Add to my review',
+        title:
+          'Adds it to your pending review on GitHub. Only you can see it until you submit the review yourself.',
+      });
+    }
+    if (canFix) {
+      buttons.push({
+        action: 'fix',
+        label: 'Add to fix before push',
+        title:
+          'Makes it a fix-before-push note on its line, to send to the Claude session working the branch with the others',
+      });
+    }
+    buttons.push({
+      action: 'dismiss',
+      label: 'Dismiss',
+      title: "Not a comment you want: hide it, and don't suggest it again",
+    });
+    return {
+      classes: ['ou-comment'],
+      hidden: false,
+      line: error ? { kind: 'error', error } : openLine(comment, step, index),
+      buttons,
+    };
+  }
+
   /** One comment's model: how it shows, what its state line says, which buttons it has. Returns what it shows, for the counts. */
   function modelComment(
     row: DraftRow,
@@ -456,88 +581,16 @@ export function createDrafts(context: PanelContext) {
       settling.add(row.key);
       settle.push({ step, index, key: row.key });
     }
-    const classes = ['ou-comment'];
-    let hidden = false;
-    let line: Line | null = null;
-    const buttons: Button[] = [];
-    // a button added later sits before the ones added earlier
-    const addButton = (action: DraftAction, label: string, title: string) =>
-      buttons.unshift({ action, label, title });
-    const showError = () => {
-      const error = reviewErrors.get(row.key || key);
-      if (error) {
-        line = { kind: 'error', error };
-      }
-    };
-    if (view.show === 'dismissed') {
-      classes.push('ou-c-done');
-      hidden = !state.showDismissed;
-      line = { kind: 'dismissed' };
-      addButton('restore', 'Restore', 'Bring this draft back');
-    } else if (view.show === 'fix') {
-      classes.push('ou-c-done', 'ou-c-pending');
-      line = { kind: 'fix', fix: row.fix as DraftFix }; // draftView says 'fix' only with one
-    } else if (view.show === 'posted') {
-      classes.push('ou-c-done');
-      hidden = !state.showPosted;
-      line = { kind: 'posted', link: githubLinkOf(row.url) };
-    } else if (view.show === 'pending') {
-      classes.push('ou-c-done', 'ou-c-pending');
-      line = { kind: 'pending', link: githubLinkOf(row.url) || githubLinkOf(row.added?.url) };
-    } else if (view.show === 'added') {
-      // Add to my review worked, but this page won't show the comment until it's reloaded
-      classes.push('ou-c-done', 'ou-c-pending');
-      line = {
-        kind: 'added',
-        path: comment ? comment.path : '',
-        line: comment ? comment.line : '',
-        rel: comment ? context.refs.fileOf(comment.path) : null,
-        side: comment ? comment.side : undefined,
-        link: row.added!.url || null, // GitHub may return no comment URL
-        reload: !!opts.reloadPage,
-      };
-    } else {
-      const unmapped = !!(comment && comment.unmapped);
-      if (unmapped) {
-        line = { kind: 'unmapped' };
-      } else if (context.reading.isStaleDraft(step, index)) {
-        line = { kind: 'stale' };
-      } else if (comment && comment.carried) {
-        line = { kind: 'carried' };
-      } else if (!state.n) {
-        line = { kind: 'notposted' };
-      }
-      addButton(
-        'dismiss',
-        'Dismiss',
-        "Not a comment you want: hide it, and don't suggest it again",
-      );
-      const onLine = comment && comment.path && Number(comment.line) > 0 && !unmapped;
-      if (opts.fixes && onLine && context.fixes.canAdd()) {
-        addButton(
-          'fix',
-          'Add to fix before push',
-          'Makes it a fix-before-push note on its line, to send to the Claude session working the branch with the others',
-        );
-        showError();
-      }
-      if (context.canPostDrafts && onLine) {
-        addButton(
-          'review',
-          'Add to my review',
-          'Adds it to your pending review on GitHub. Only you can see it until you submit the review yourself.',
-        );
-        showError();
-      }
-    }
+    const parts =
+      dealtWithParts(view.show, row, comment) ?? openParts(row, key, comment, step, index);
     return {
       show: view.show,
       model: {
-        classes: classes.join(' '),
-        hidden,
-        line,
-        content: line || models.get(key)?.content || null,
-        buttons,
+        classes: parts.classes.join(' '),
+        hidden: parts.hidden,
+        line: parts.line,
+        content: parts.line || models.get(key)?.content || null,
+        buttons: parts.buttons,
       },
     };
   }

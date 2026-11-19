@@ -14,10 +14,14 @@ export interface AnswerBits {
   hash: string;
 }
 
+/** Is the card's story approved, so the card sits in Ready to ship? */
+export const approvedToShip = (card: Pick<BoardCard, 'column' | 'story'>): boolean =>
+  !!card.story?.approved_at && card.column === 'ship';
+
 export function answerBits(card: Pick<BoardCard, 'column' | 'story'>): AnswerBits {
   const story = card.story;
   const answers = story?.unread_answers ?? 0;
-  const approved = !!story?.approved_at && card.column === 'ship';
+  const approved = approvedToShip(card);
   const plural = answers === 1;
   return {
     answers,

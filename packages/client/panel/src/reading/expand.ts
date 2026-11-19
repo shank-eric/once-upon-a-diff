@@ -22,7 +22,7 @@ import type { ExpandDir, ExpandRow } from '../host/diff-types.ts';
  * the drawn line that control opens from. null when no gap holds the line.
  */
 export function expandStep(
-  rows: { gap?: readonly string[]; n?: number | null }[],
+  rows: ExpandStepRow[],
   line: number,
 ): { at: number; dir: ExpandDir; far: number } | null {
   for (let i = 0; i < rows.length; i++) {
@@ -30,41 +30,63 @@ export function expandStep(
     if (!directions) {
       continue;
     }
-    let before = 0;
-    for (let j = i - 1; j >= 0; j--) {
-      if (!rows[j].gap && rows[j].n != null) {
-        before = rows[j].n as number;
-        break;
-      }
-    }
-    let after = Infinity;
-    for (let j = i + 1; j < rows.length; j++) {
-      if (!rows[j].gap && rows[j].n != null) {
-        after = rows[j].n as number;
-        break;
-      }
-    }
-    if (!(before < line && line < after)) {
+    const before = drawnLineNear(rows, i, -1, 0);
+    const after = drawnLineNear(rows, i, 1, Infinity);
+    const gapHoldsLine = before < line && line < after;
+    if (!gapHoldsLine) {
       continue;
     }
-    if (directions.includes('all')) {
-      return { at: i, dir: 'all', far: Math.min(line - before, after - line) };
-    }
-    const canUp = directions.includes('up');
-    const canDown = directions.includes('down');
-    if (!canUp && !canDown) {
-      return null;
-    }
-    // "down" opens the lines under the drawn line above the gap, "up" the lines over the one below it
-    let direction: 'up' | 'down';
-    if (canUp && canDown) {
-      direction = line - before <= after - line ? 'down' : 'up';
-    } else {
-      direction = canUp ? 'up' : 'down';
-    }
-    return { at: i, dir: direction, far: direction === 'up' ? after - line : line - before };
+    const fromAbove = line - before;
+    const fromBelow = after - line;
+    const dir = controlFor(directions, fromAbove, fromBelow);
+    return dir && { at: i, dir, far: distanceOpened(dir, fromAbove, fromBelow) };
   }
   return null;
+}
+
+/** A row of a file's table for expandStep: a gap row's controls, or a drawn row's line number. */
+type ExpandStepRow = { gap?: readonly string[]; n?: number | null };
+
+/** The line number of the nearest drawn row from row `from` going `step` rows at a time (-1 up, 1 down), or `none` when there is none. */
+function drawnLineNear(rows: ExpandStepRow[], from: number, step: 1 | -1, none: number): number {
+  for (let j = from + step; j >= 0 && j < rows.length; j += step) {
+    if (!rows[j].gap && rows[j].n != null) {
+      return rows[j].n as number;
+    }
+  }
+  return none;
+}
+
+/** How far the line is from the drawn line the control opens from ("all" opens from the nearer one). */
+function distanceOpened(dir: ExpandDir, fromAbove: number, fromBelow: number): number {
+  if (dir === 'all') {
+    return Math.min(fromAbove, fromBelow);
+  }
+  return dir === 'up' ? fromBelow : fromAbove;
+}
+
+/**
+ * The control to click on a gap whose line is `fromAbove` lines under the drawn line above it and `fromBelow` over the
+ * one below it, or null when the gap has none. "down" opens the lines under the drawn line above the gap, "up" the
+ * lines over the one below it; with both it opens from the nearer side.
+ */
+function controlFor(
+  directions: readonly string[],
+  fromAbove: number,
+  fromBelow: number,
+): ExpandDir | null {
+  const canUp = directions.includes('up');
+  const canDown = directions.includes('down');
+  if (directions.includes('all')) {
+    return 'all';
+  }
+  if (canUp && canDown) {
+    return fromAbove <= fromBelow ? 'down' : 'up';
+  }
+  if (canUp) {
+    return 'up';
+  }
+  return canDown ? 'down' : null;
 }
 
 /** A line farther than this from the nearest drawn line opens the whole file in one click, where the page has a button for that. */

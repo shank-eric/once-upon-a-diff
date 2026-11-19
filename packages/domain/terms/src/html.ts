@@ -114,9 +114,11 @@ const TABLE_MAX_ROWS = 500;
 // the cells (padded, header included) all the tables of one render may emit; a table that would pass it stays text
 const TABLE_MAX_CELLS = 40_000;
 const HEADING = /^(#{1,6})\s+(.*)$/;
+const FENCE = /^\s*```/;
+const QUOTE = /^\s*>/;
 /** A line that opens a block of its own: a table's header can't be one, and a table's body ends at one. */
 const startsBlock = (line: string): boolean =>
-  /^\s*(```|>)/.test(line) || HEADING.test(line) || LIST_ITEM.test(line);
+  FENCE.test(line) || QUOTE.test(line) || HEADING.test(line) || LIST_ITEM.test(line);
 
 /** A table row's cells: the outer pipes are optional, and `\|` is a pipe inside a cell, not a break. */
 function tableCells(line: string): string[] {
@@ -172,6 +174,59 @@ const emphasis = (text: string): string =>
     .replace(/(^|[^\w*])\*([^*\s][^*]*)\*(?!\w)/g, '$1<em>$2</em>')
     .replace(/(^|[^\w])_([^_\s][^_]*)_(?!\w)/g, '$1<em>$2</em>');
 
+/** A fenced code block opening on line `start`: its lines, and the index of the closing fence (the end of the text when it has none). */
+function fencedLines(lines: string[], start: number): { body: string[]; end: number } {
+  const body: string[] = [];
+  let end = start + 1;
+  while (end < lines.length && !FENCE.test(lines[end])) {
+    body.push(lines[end++]);
+  }
+  return { body, end };
+}
+
+/** A quote starting on line `start`: its lines without their ">", and the index of its last line. */
+function quotedLines(lines: string[], start: number): { body: string[]; end: number } {
+  const body: string[] = [];
+  let end = start;
+  while (end < lines.length && QUOTE.test(lines[end])) {
+    body.push(lines[end++].replace(/^\s*> ?/, ''));
+  }
+  return { body, end: end - 1 };
+}
+
+/** The alignments of the table whose header is line `start`, or null when the lines there aren't a table (or sit inside a run already found to be text). */
+function tableHeaderAt(
+  lines: string[],
+  start: number,
+  notTableUntil: number,
+): (string | null)[] | null {
+  const line = lines[start];
+  const aligns =
+    line.includes('|') && !startsBlock(line) ? tableAlignments(lines[start + 1] ?? '') : null;
+  const fits =
+    !!aligns && aligns.length <= TABLE_MAX_COLUMNS && tableCells(line).length === aligns.length;
+  return start >= notTableUntil && fits ? aligns : null;
+}
+
+/** The index of the line after the body of the table whose header is line `start`. */
+function tableEnd(lines: string[], start: number): number {
+  let next = start + 2;
+  while (
+    next < lines.length &&
+    lines[next].includes('|') &&
+    lines[next].trim() &&
+    !startsBlock(lines[next])
+  ) {
+    next++;
+  }
+  return next;
+}
+
+/** After a blank line, a list goes on only when the next line is an item or is indented under one. */
+function listGoesOn(next: string): boolean {
+  return /^\s+\S/.test(next) || /^\s*(\d+[.)]|[-*+])\s/.test(next);
+}
+
 export function createMarkdown({ link: hostLink }: { link?: MarkdownLink } = {}) {
   function inline(source: string): Html {
     const codes: string[] = [];
@@ -201,6 +256,21 @@ export function createMarkdown({ link: hostLink }: { link?: MarkdownLink } = {})
     return render(source, { cells: 0 });
   }
 
+  /** A table as markup: `aligns` is its columns, line `start` its header and lines start+2 up to `end` its body. */
+  function tableHtml(
+    aligns: (string | null)[],
+    lines: string[],
+    start: number,
+    end: number,
+  ): string {
+    const cell = (tag: 'th' | 'td', text: string, column: number) =>
+      `<${tag}${aligns[column] ? ` data-align="${aligns[column]}"` : ''}>${inline(text)}</${tag}>`;
+    const row = (tag: 'th' | 'td', cells: string[]) =>
+      `<tr>${aligns.map((align, column) => cell(tag, cells[column] ?? '', column)).join('')}</tr>`;
+    const body = lines.slice(start + 2, end).map((text) => row('td', tableCells(text)));
+    return `<div class="ou-table"><table><thead>${row('th', tableCells(lines[start]))}</thead><tbody>${body.join('')}</tbody></table></div>`;
+  }
+
   /** `budget` is made by each top-level call and handed down to a quote's body, so one render has one count. */
   function render(source: string | null | undefined, budget: { cells: number }): Html {
     const lines = String(source || '')
@@ -224,60 +294,58 @@ export function createMarkdown({ link: hostLink }: { link?: MarkdownLink } = {})
         lists = null;
       }
     };
+    /** A list item: a new item of the list at its indent, or the start of a list (a sibling of another type ends that list first). */
+    const addListItem = (item: RegExpExecArray) => {
+      flushParagraph();
+      const indent = item[1].length;
+      const type = /\d/.test(item[2]) ? 'ol' : 'ul';
+      closeLists(indent);
+      if (!lists) {
+        lists = [];
+      }
+      const top = lists[lists.length - 1];
+      if (top && top.indent === indent && top.type === type) {
+        html += '</li><li>';
+      } else {
+        if (top && top.indent === indent) {
+          html += `</li></${lists.pop()!.type}>`;
+        }
+        html += `<${type}><li>`;
+        lists.push({ type, indent });
+      }
+      html += inline(item[3]);
+    };
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      if (/^\s*```/.test(line)) {
+      if (FENCE.test(line)) {
         flushParagraph();
         closeLists();
-        const body: string[] = [];
-        while (++i < lines.length && !/^\s*```/.test(lines[i])) {
-          body.push(lines[i]);
-        }
-        html += `<pre><code>${escapeHtml(body.join('\n'))}</code></pre>`;
+        const fence = fencedLines(lines, i);
+        html += `<pre><code>${escapeHtml(fence.body.join('\n'))}</code></pre>`;
+        i = fence.end;
         continue;
       }
-      if (/^\s*>/.test(line)) {
+      if (QUOTE.test(line)) {
         flushParagraph();
         closeLists();
-        const body: string[] = [];
-        while (i < lines.length && /^\s*>/.test(lines[i])) {
-          body.push(lines[i++].replace(/^\s*> ?/, ''));
-        }
-        i--;
-        html += `<blockquote>${render(body.join('\n'), budget)}</blockquote>`;
+        const quote = quotedLines(lines, i);
+        html += `<blockquote>${render(quote.body.join('\n'), budget)}</blockquote>`;
+        i = quote.end;
         continue;
       }
-      const aligns =
-        line.includes('|') && !startsBlock(line) ? tableAlignments(lines[i + 1] ?? '') : null;
-      if (
-        aligns &&
-        i >= notTableUntil &&
-        aligns.length <= TABLE_MAX_COLUMNS &&
-        tableCells(line).length === aligns.length
-      ) {
-        let next = i + 2;
-        while (
-          next < lines.length &&
-          lines[next].includes('|') &&
-          lines[next].trim() &&
-          !startsBlock(lines[next])
-        ) {
-          next++;
-        }
+      const aligns = tableHeaderAt(lines, i, notTableUntil);
+      if (aligns) {
+        const next = tableEnd(lines, i);
         const cells = aligns.length * (next - i - 1);
-        if (next - (i + 2) > TABLE_MAX_ROWS || budget.cells + cells > TABLE_MAX_CELLS) {
+        const tooBig = next - (i + 2) > TABLE_MAX_ROWS || budget.cells + cells > TABLE_MAX_CELLS;
+        if (tooBig) {
           // the whole run is text: its body ends at the same line for every header inside it, so it is scanned once
           notTableUntil = next;
         } else {
           budget.cells += cells;
           flushParagraph();
           closeLists();
-          const cell = (tag: 'th' | 'td', text: string, column: number) =>
-            `<${tag}${aligns[column] ? ` data-align="${aligns[column]}"` : ''}>${inline(text)}</${tag}>`;
-          const row = (tag: 'th' | 'td', cells: string[]) =>
-            `<tr>${aligns.map((align, column) => cell(tag, cells[column] ?? '', column)).join('')}</tr>`;
-          const body = lines.slice(i + 2, next).map((text) => row('td', tableCells(text)));
-          html += `<div class="ou-table"><table><thead>${row('th', tableCells(line))}</thead><tbody>${body.join('')}</tbody></table></div>`;
+          html += tableHtml(aligns, lines, i, next);
           i = next - 1;
           continue;
         }
@@ -291,30 +359,12 @@ export function createMarkdown({ link: hostLink }: { link?: MarkdownLink } = {})
       }
       const item = LIST_ITEM.exec(line);
       if (item) {
-        flushParagraph();
-        const indent = item[1].length;
-        const type = /\d/.test(item[2]) ? 'ol' : 'ul';
-        closeLists(indent);
-        if (!lists) {
-          lists = [];
-        }
-        const top = lists[lists.length - 1];
-        if (top && top.indent === indent && top.type === type) {
-          html += '</li><li>';
-        } else {
-          if (top && top.indent === indent) {
-            html += `</li></${lists.pop()!.type}>`;
-          }
-          html += `<${type}><li>`;
-          lists.push({ type, indent });
-        }
-        html += inline(item[3]);
+        addListItem(item);
         continue;
       }
       if (!line.trim()) {
         flushParagraph();
-        const next = lines[i + 1] || '';
-        if (lists && !/^\s+\S/.test(next) && !/^\s*(\d+[.)]|[-*+])\s/.test(next)) {
+        if (lists && !listGoesOn(lines[i + 1] || '')) {
           closeLists();
         }
         continue;

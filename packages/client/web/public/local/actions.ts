@@ -328,6 +328,51 @@ export function openRun(rel: string, keys: string[]) {
   }));
 }
 
+/** Is `line` still within a jump to start..end? A jump looks at most 400 lines on from its start. */
+const withinJump = (line: number, start: number, end: number | undefined) =>
+  line <= Math.max(start, end || start) && line < start + 400;
+
+/** The keys of the rows in the folds that hide a jump's lines (start..end on `side`), which Show would open. */
+function foldsHiding(
+  state: LocalState,
+  file: LocalFile,
+  rel: string,
+  step: NonNullable<LocalState['step']>,
+  side: Side,
+  start: number,
+  end: number | undefined,
+): Record<string, true> {
+  const local = storyOf(state).local;
+  const split = local.diff_view === 'split';
+  const expanded = state.expansion[rel];
+  const shown = rowsFor({
+    file,
+    split,
+    notes: local.notes.filter((note) => note.path === rel),
+    editors: state.editors.filter((editor) => editor.rel === rel),
+    claims: claimsFor(storyOf(state).chapters),
+    step,
+    opened: state.opened[rel],
+    free: expanded?.free,
+    ended: !!expanded?.ended,
+  });
+  const { anchors, rows } = baseRows(file, split);
+  const byKey = new Map(shown.map((row) => [row.key, row]));
+  const open: Record<string, true> = {};
+  const seen = new Set<string>();
+  for (let line = start; withinJump(line, start, end); line++) {
+    const pos = anchors.get(`${side}${line}`);
+    const row = pos === undefined ? undefined : byKey.get(rows[pos].key);
+    if (row && row.hidden && row.run && !seen.has(row.run)) {
+      seen.add(row.run);
+      for (const key of hiddenKeysOfRun(shown, row.run)) {
+        open[key] = true;
+      }
+    }
+  }
+  return open;
+}
+
 /** A jump from the panel to a file or its lines: unfold the file (Viewed files fold) and open the folds that hold the lines. Viewed stays as it is. Nothing is changed (and nothing drawn again) when it is all open already. */
 export function reveal(rel: string, side?: Side, start?: number, end?: number) {
   const file = fileByRel(rel);
@@ -335,44 +380,14 @@ export function reveal(rel: string, side?: Side, start?: number, end?: number) {
     return;
   }
   const state = store.get();
-  const expanded = state.expansion[rel];
   const patch: Partial<LocalState> = {};
   if (isFolded(state, file)) {
     patch.folds = { ...state.folds, [rel]: false };
   }
-  if (state.step && !state.step.all && side && Number.isFinite(start)) {
-    const local = storyOf(state).local;
-    const split = local.diff_view === 'split';
-    const shown = rowsFor({
-      file,
-      split,
-      notes: local.notes.filter((note) => note.path === rel),
-      editors: state.editors.filter((editor) => editor.rel === rel),
-      claims: claimsFor(storyOf(state).chapters),
-      step: state.step,
-      opened: state.opened[rel],
-      free: expanded?.free,
-      ended: !!expanded?.ended,
-    });
-    const { anchors, rows } = baseRows(file, split);
-    const byKey = new Map(shown.map((row) => [row.key, row]));
-    const open: Record<string, true> = {};
-    const seen = new Set<string>();
-    // start is a number past the isFinite check
-    for (
-      let line = start!;
-      line <= Math.max(start!, end || start!) && line < start! + 400;
-      line++
-    ) {
-      const pos = anchors.get(`${side}${line}`);
-      const row = pos === undefined ? undefined : byKey.get(rows[pos].key);
-      if (row && row.hidden && row.run && !seen.has(row.run)) {
-        seen.add(row.run);
-        for (const key of hiddenKeysOfRun(shown, row.run)) {
-          open[key] = true;
-        }
-      }
-    }
+  // only a step that hides some lines folds any of them away
+  const narrowed = state.step && !state.step.all ? state.step : null;
+  if (narrowed && side && Number.isFinite(start)) {
+    const open = foldsHiding(state, file, rel, narrowed, side, start as number, end);
     if (Object.keys(open).length) {
       patch.opened = { ...state.opened, [rel]: { ...state.opened[rel], ...open } };
     }
