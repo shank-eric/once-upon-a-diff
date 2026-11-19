@@ -106,6 +106,8 @@ const BOARD_KEY_REACH = [
   'POST /api/board/open-story',
   // Review: a storyless review of a card's branch, and its page link (the same full key open-story hands out)
   'POST /api/board/review',
+  // Record as fix: a branch that moved outside every run, its tip filed as a fixer run (the tip is the card's, never the body's)
+  'POST /api/board/record-fix',
   'POST /api/board/stop-listening',
   'POST /api/board/type',
   'POST /api/board/voice/pause',

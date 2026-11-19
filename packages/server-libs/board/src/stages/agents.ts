@@ -10,11 +10,16 @@ import {
   landedFor,
   leftUncommitted,
   pendingReview,
+  type PendingReview,
 } from '../agent-home.ts';
 import { readyColumn } from '@once-upon-a-diff/state/queues/backlog/ready';
 import { readyFactsFor } from './ready-facts.ts';
 import { agentKey } from '@once-upon-a-diff/state/queues/backlog/claims';
-import { agentsOnCard } from '@once-upon-a-diff/state/queues/backlog/phase';
+import {
+  agentsOnCard,
+  coveringRun,
+  runsOnBranch,
+} from '@once-upon-a-diff/state/queues/backlog/phase';
 import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
 import { isEndState } from '@once-upon-a-diff/contracts/files/agent-states';
 import { STALE_MS, staleAfterMs } from '@once-upon-a-diff/state/records/agents/events';
@@ -196,6 +201,20 @@ export interface AgentFacts {
   trees?: WorktreeFacts[];
 }
 
+/** A pending commit whose branch moved, marked `outside` when no run of the branch accounts for the tip (`coveringRun`). */
+function withOutside(
+  pending: PendingReview | null,
+  agent: LedgerAgent,
+  agents: LedgerAgent[],
+  nowMs: number,
+): PendingReview | null {
+  if (!pending?.working || !agent.repo) {
+    return pending;
+  }
+  const covered = coveringRun(runsOnBranch(agents, agent.repo, pending.branch), pending.tip, nowMs);
+  return covered ? pending : { ...pending, outside: true };
+}
+
 /**
  * Places the agents the board shows (running, at a gate, waiting, or finished within the last few hours), except the held
  * ones: an agent whose run names a card is shown on that card (phase.ts), never here. An implicit card whose repo and branch
@@ -290,7 +309,7 @@ export function placeAgents(
     // a finished agent waits until its card's Finish clears it, or `waitMs` after its last sign of life; an author (kind
     // author) that failed or finished with no result sits for `doneHours` instead, an hour by default
     const item = agent.card ? items.find((one) => one.id === agent.card) : undefined;
-    const pending = pendingOf.get(agent) ?? null;
+    const pending = withOutside(pendingOf.get(agent) ?? null, agent, agents, nowMs);
     const finishedIn = isFinished(agent)
       ? finishedColumn(agent, landedFor(agent, item), pending)
       : null;
@@ -410,6 +429,17 @@ export function placeAgents(
       // a commit waiting on your review: Review and Build story work on its branch's worktree
       ...((finishedIn === 'ready' || finishedIn === 'ship') && pending
         ? { review: { branch: pending.branch, path: pending.path } }
+        : {}),
+      // moved past the commit with no run behind the tip: Record as fix
+      ...(finishedIn === 'working' && pending?.outside && agent.repo
+        ? {
+            outside: {
+              sha: pending.tip,
+              branch: pending.branch,
+              repo: agent.repo,
+              path: pending.path,
+            },
+          }
         : {}),
     };
     if (implicitId) {

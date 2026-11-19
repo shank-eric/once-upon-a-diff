@@ -786,6 +786,7 @@ export function backlogCards(
     let column: BoardCard['column'] = 'backlog';
     let since: string | null = item.added_at || null;
     let tried = false;
+    let outside: CardPhase['outside'];
     const agent = link?.agent ?? null;
     const itemViews = views.get(item.id) ?? [];
     const claim = liveClaim(original, agent, nowMs);
@@ -805,6 +806,7 @@ export function backlogCards(
       }
       column = placed.column;
       tried = placed.tried;
+      outside = placed.outside;
       since = item.started_at ?? item.added_at ?? null;
       if (column === 'backlog') {
         since = item.added_at || null;
@@ -865,6 +867,11 @@ export function backlogCards(
       can_focus: false,
       listening: null,
       build: null,
+      ...(outside && item.repo && item.branch && column === 'working'
+        ? {
+            outside: { sha: outside.tip, branch: item.branch, repo: item.repo, path: outside.path },
+          }
+        : {}),
       backlog: {
         id: item.id,
         added_by: item.added_by,

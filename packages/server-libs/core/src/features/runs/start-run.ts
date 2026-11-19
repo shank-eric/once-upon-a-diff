@@ -71,6 +71,8 @@ export interface RunStartInput {
   notes?: string | null;
   by?: string | null;
   slots?: unknown;
+  /** when the run began, for a run recorded after the fact (`recordFix`); absent: now */
+  at?: Date;
 }
 
 export interface RunIo {
@@ -100,7 +102,7 @@ const LEGACY_JOIN_DAYS = 14;
  * is never "landed", so it counts as open only while a run is open or the latest ended within LEGACY_JOIN_DAYS). Delete with the
  * `card backfill` that stores those cards.
  */
-function legacyCard(
+export function legacyCard(
   registry: AgentRegistry,
   store: BacklogStore,
   repo: string | null,
@@ -398,6 +400,7 @@ function startInputOf(
     lane: text(input.lane),
     notes: text(input.notes),
     by: text(input.by),
+    ...(input.at ? { at: input.at } : {}),
   };
 }
 

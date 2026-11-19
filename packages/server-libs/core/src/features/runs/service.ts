@@ -12,12 +12,15 @@
  *   start-run.ts    a start: refusals, the PR's head branch, the card's stamp, the run, then the card.
  *   move-branch.ts  a card's branch change: the card first, then its open runs.
  *   finish-run.ts   an end, with the findings check.
+ *   record-fix.ts   a fix made outside any run, recorded as a done fixer run on the branch's card (`once-upon fixed --sha`, the board's Record as fix).
  *   dispatch.ts     launching an agent for a card: claim, start and the brief (`once-upon dispatch`); briefs.ts the brief's text, checkout.ts the paths.
  *   handback.ts     an agent's hand-back (`once-upon handback`): the run's commit, branch and card recorded, or its state moved.
  *   auto-finish.ts  an end for a subagent that stopped with its run open (the SubagentStop hook).
  */
 export { startRun } from './start-run.ts';
 export type { RunStartInput, RunIo, StartedRun } from './start-run.ts';
+export { recordFix } from './record-fix.ts';
+export type { RecordFixInput, RecordedFix } from './record-fix.ts';
 export { moveBranch } from './move-branch.ts';
 export type { BranchMove } from './move-branch.ts';
 export { finishRun } from './finish-run.ts';

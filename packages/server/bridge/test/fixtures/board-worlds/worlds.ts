@@ -2108,6 +2108,8 @@ async function record(
   author('moved-by-hand', 'feat-d', heads['feat-d'], 10);
   author('moved-first', 'feat-e', heads['feat-e'], 11);
   author('moved-second', 'feat-e', tips['feat-e'], 12);
+  // f's amend is a recorded fix (`once-upon fixed --sha`): its story is not retold yet, but the move is covered by a run
+  author('fixed-f', 'feat-f', tips['feat-f'], 13);
   const none = Object.fromEntries(
     ['feat-a', 'feat-b', 'feat-c', 'feat-d', 'feat-e', 'feat-f'].map((name) => [
       `acme/widgets@${name}`,

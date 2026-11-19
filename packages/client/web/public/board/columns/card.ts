@@ -8,6 +8,8 @@ import {
   CardTrees,
   FocusButton,
   isTouch,
+  OUTSIDE_CHIP,
+  RecordFix,
   SessionLink,
   useFocus,
   type Api,
@@ -197,6 +199,9 @@ function cardChips(card: BoardCard, bits: AnswerBits) {
   if (card.ahead) {
     chips.push({ text: `${card.ahead.count} ahead`, mark: 'warn' });
   }
+  if (card.outside) {
+    chips.push(OUTSIDE_CHIP);
+  }
   if (bits.chip) {
     chips.push({ text: bits.chip, mark: 'warn' });
   }
@@ -304,6 +309,7 @@ function CardActions(props: {
   return html`<div class="ou-board-actions">
       ${card.build && html`<${Build} card=${card} api=${api} />`}
       ${card.review && storyless && html`<${Review} card=${card} api=${api} />`}
+      ${card.outside && html`<${RecordFix} card=${card} api=${api} />`}
       ${finishable(card) && html`<${ActionButton} class="ou-board-finish" attrs=${{ 'data-finish-agent': card.id }} onClick=${() => finishAgent(api, card)} title="Clears this card now. It comes back only if the agent does something more">Finish</${ActionButton}>`}
       ${card.focus_session && html`<button type="button" class="ou-board-focus" data-focus=${card.focus_session} disabled=${!card.can_focus || switching} onClick=${() => focus(card.focus_session as string)} title=${focusTitle}>${switching ? 'Switching…' : 'Open in iTerm'}</button>`}
       ${bits.openable && story?.url && html`<a class="ou-board-open" href=${`${story.url}${bits.hash}`} target="_blank" rel="noopener">Open story</a>`}

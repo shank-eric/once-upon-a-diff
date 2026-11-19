@@ -290,14 +290,17 @@ export function relayEntryMessage(
   return relayMessage(entry, agent, cli);
 }
 
-/** What the session does when SendMessage can't reach the agent: never edit, so a fix or rebuild is failed back. */
+/**
+ * What the session does when SendMessage can't reach the agent: a fix request is fixed inline (the listen skill's section 6; `fixed
+ * --sha` records it as a fixer run), a rebuild is failed back, an approval waits.
+ */
 export function relayFallback(
   entry: Relayable,
   consumer: string,
   cli: string = cliCommand(),
 ): string {
   if (entry.type === 'fix_request') {
-    return `If SendMessage can't reach the agent, don't change code yourself: ${cli} fixed --request ${entry.id} --failed --note "author gone" --consumer ${consumer}, and tell the user.`;
+    return `If SendMessage can't reach the agent, fix it yourself as the listen skill's section 6 says (check the checkout and the tree first, \`working\`, one commit), then report it: ${cli} fixed --request ${entry.id} --sha <sha> --consumer ${consumer}, which records the fix as a fixer run on the branch's card. If it can't be fixed: ${cli} fixed --request ${entry.id} --failed --note "author gone" --consumer ${consumer}. Tell the user the agent was gone.`;
   }
   if (entry.type === 'build_request') {
     return `If SendMessage can't reach the agent: ${cli} done ${entry.id} --failed --note "author gone", and tell the user.`;

@@ -30,6 +30,10 @@ export interface PendingReview {
   path: string;
   /** the branch has moved past the commit (a new commit or an amend), and no other run's card carries the tip */
   working: boolean;
+  /** with `working`: the worktree's tip, which the card's Record as fix records */
+  tip: string;
+  /** with `working`: no run accounts for the tip (the board sets it, from every run of the branch): the card says "changed outside a run" */
+  outside?: true;
 }
 
 /**
@@ -114,7 +118,7 @@ export function pendingReview(
   });
   return facts.pr === 'unknown'
     ? null
-    : { pushed: facts.pushed === true, pr: facts.pr, branch, path: tree.path, working };
+    : { pushed: facts.pushed === true, pr: facts.pr, branch, path: tree.path, working, tip };
 }
 
 /** An author that finished done with no commit and changes left in its worktree (`agent finish` recorded it once). */
@@ -243,7 +247,7 @@ function whyDone(
     if (pending) {
       let state = pending.pushed ? 'no PR' : 'not pushed';
       if (pending.working) {
-        state = 'branch moved on';
+        state = pending.outside ? 'changed outside a run' : 'branch moved on';
       }
       return `${committed}, ${pending.pr === 'open' ? 'PR open' : state}`;
     }

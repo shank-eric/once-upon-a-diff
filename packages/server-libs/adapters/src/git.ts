@@ -480,6 +480,18 @@ export function commitOf(repo: string, ref: string, timeoutMs?: number): string 
   }
 }
 
+/** When a commit was committed (its committer date), or null when the checkout has no such commit. */
+export function commitTime(repo: string, ref: string): Date | null {
+  try {
+    const stamp = runGit(repo, ['log', '-1', '--format=%cI', '--end-of-options', ref], {
+      quiet: true,
+    }).trim();
+    return stamp && !Number.isNaN(Date.parse(stamp)) ? new Date(stamp) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** The commits reachable from `until` and not from `since`, as `git rev-list since..until` lists them (merges left out when asked). */
 export function commitsInRange(
   repo: string,

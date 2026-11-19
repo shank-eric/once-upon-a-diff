@@ -321,6 +321,8 @@ const FixRequestSchema = looseObject({
   fixed: absent(array(string())),
   why: lenient(string()),
   by: lenient(string()),
+  // the run that accounts for the fix (once-upon fixed records or finds it)
+  run: lenient(string()),
 });
 export type FixRequest = Listed<InferOutput<typeof FixRequestSchema>>;
 export const readFixRequest = reader(FixRequestSchema);

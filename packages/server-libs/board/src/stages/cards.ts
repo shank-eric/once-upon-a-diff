@@ -11,7 +11,8 @@ import type {
   InboxStory,
   PrInfo,
 } from '@once-upon-a-diff/contracts/types';
-import { gateText, plural } from '@once-upon-a-diff/terms/text';
+import { gateText, plural, shortSha } from '@once-upon-a-diff/terms/text';
+import type { Moved } from './moved.ts';
 import type { LiveSession } from '@once-upon-a-diff/adapters/claude-sessions/live-sessions';
 import { laneOf } from './lanes.ts';
 import { MERGED_HOURS } from './works.ts';
@@ -285,7 +286,7 @@ function focusOf(sessions: BoardSession[]): { focus_session: string | null; can_
 function placeCard(
   card: BoardCard,
   byStory: Map<string, StoryFacts>,
-  moved: boolean,
+  moved: Moved | undefined,
   launched: Launched | undefined,
 ): void {
   const built = card.story ? byStory.get(card.story.id) : undefined;
@@ -308,7 +309,7 @@ function placeCard(
         }
       : null,
     building: !!card.building,
-    moved,
+    moved: !!moved,
     launched: launched && { running: launched.running.length },
   });
   const asking = card.sessions.find((session) => session.status === 'waiting');
@@ -343,7 +344,7 @@ function placeCard(
     case 'working':
       card.detail = card.building
         ? BUILDING_TEXT[card.building.kind]
-        : busy?.detail || (moved ? MOVED_TEXT : null) || launchedText(launched);
+        : busy?.detail || (moved ? movedText(moved) : null) || launchedText(launched);
       card.since = earliest([
         card.building?.since,
         ...(launched?.running ?? []).map((one) => one.started?.toISOString()),
@@ -402,6 +403,17 @@ function launchedText(launched: Launched | undefined): string | null {
 
 /** What a card says when it is Working only because its branch moved past its story (stages/moved.ts). */
 const MOVED_TEXT = 'branch moved past its story';
+const OUTSIDE_TEXT = 'changed outside a run';
+
+/** The detail of a moved card: no run behind the tip, a finished fixer behind it (the story needs retelling), or a run still going. */
+const movedText = ({ covering }: Moved): string => {
+  if (!covering) {
+    return OUTSIDE_TEXT;
+  }
+  return covering.state === 'done' && covering.result?.commit
+    ? `fixed in ${shortSha(covering.result.commit)}, story not retold`
+    : MOVED_TEXT;
+};
 
 /**
  * Sets each session or work card's column, detail and `since`, once its agents are on it. `moved` holds the cards whose branch
@@ -410,18 +422,22 @@ const MOVED_TEXT = 'branch moved past its story';
 export function placeCards(
   cards: BoardCard[],
   byStory: Map<string, StoryFacts>,
-  moved: Set<BoardCard> = new Set(),
+  moved: Map<BoardCard, Moved> = new Map(),
   launched: Map<string, Launched> = new Map(),
 ): void {
   for (const card of cards) {
     if (card.kind !== 'agent') {
+      const move = moved.get(card);
       // only a session's own card counts the agents it launched: a work card has its agents nested in it already
       placeCard(
         card,
         byStory,
-        moved.has(card),
+        move,
         card.kind === 'session' ? launched.get(card.id.slice(0, 8)) : undefined,
       );
+      if (move && !move.covering && card.column === 'working' && card.repo && card.branch) {
+        card.outside = { sha: move.tip, branch: card.branch, repo: card.repo, path: move.path };
+      }
     }
   }
 }

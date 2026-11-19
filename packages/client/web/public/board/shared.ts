@@ -152,6 +152,23 @@ export function Worktree(props: { tree: BoardWorktree; now: number; api: Api; la
   </li>`;
 }
 
+/** The chip a card with a branch that moved outside every run wears (`card.outside`). */
+export const OUTSIDE_CHIP = { text: 'changed outside a run', mark: 'warn' as const };
+
+/** Record as fix: the tip no run accounts for becomes a done fixer run on the card (the bridge reads the tip from the card, not from here). */
+export function RecordFix(props: { card: BoardCard; api: Api }) {
+  const { card, api } = props;
+  const record = async () => {
+    try {
+      await api.bridge.ask(ROUTES.boardRecordFix, { body: { card: card.id } });
+    } catch (err) {
+      alert(`Couldn't record the fix: ${(err as Error).message}`);
+    }
+    await api.refresh();
+  };
+  return html`<${ActionButton} class="ou-board-open" attrs=${{ 'data-record-fix': card.id }} onClick=${record} title="The branch moved with no run behind it: record its tip as a fixer run on this card">Record as fix</${ActionButton}>`;
+}
+
 /** A card's worktrees, under its own chips. */
 export function CardTrees(props: { card: BoardCard; now: number; api: Api }) {
   const { card, now, api } = props;

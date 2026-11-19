@@ -22,6 +22,9 @@
  *   POST /api/board/review      {card}: Review on a card with a branch and no story: a storyless review (a by-folder local
  *                               story over the branch's own commits) made in the branch's checkout, and its page link with
  *                               its full key. The branch and folder are the card's as the bridge built it, never the body's
+ *   POST /api/board/record-fix  {card}: Record as fix on a card labelled "changed outside a run" (its `outside`): the tip as a done
+ *                               fixer run on the branch's card, carrying an approval where it can. The tip, branch and checkout are
+ *                               the card's as the bridge built it, never the body's. 409 for a card that is not outside any run
  *   POST /api/board/backlog     {title, note?, repo?}: add a backlog item (the Backlog column's Add)
  *   POST /api/board/backlog/move {id, before | edge}: reorder (before another item's id, or edge top or bottom)
  *   POST /api/board/backlog/edit {id, title?, note?, repo?}: change an open item (a field left out stays; '' clears a note or repo)
@@ -47,6 +50,8 @@ import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
 import { localStory } from '@once-upon-a-diff/core/features/review/story-lists';
 import { reviewBranch } from '@once-upon-a-diff/stories/local-story';
+import { recordFix } from '@once-upon-a-diff/core/features/runs/service';
+import { carryApproval } from '@once-upon-a-diff/core/features/review/carry-approval';
 import type { MoveTo } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import type { ApiRoute, Call } from '../types.ts';
 
@@ -140,6 +145,43 @@ async function review({ app, body, send }: Call) {
   }
   app.board.refresh(); // the card has its story on the page's next poll
   return send(200, { url: app.links.story(made.id), story: made.id });
+}
+
+/** The session id a fix recorded from the board is filed under: the board is no Claude session. */
+const BOARD_SID = '00000000';
+
+/** POST {card}: Record as fix, the tip of a branch that moved outside every run as a done fixer run on its card. */
+async function recordFixOf({ app, body, send }: Call) {
+  const id = parseBody('boardRecordFix', body).card;
+  const card = (await app.board.snapshot()).lanes
+    .flatMap((lane) => lane.cards)
+    .find((one) => one.id === id);
+  if (!card) {
+    throw new HttpError(404, 'no card with that id');
+  }
+  if (!card.outside) {
+    throw new HttpError(409, 'that card has no change outside a run to record');
+  }
+  const { sha, branch, repo, path: checkout } = card.outside;
+  let found: Awaited<ReturnType<typeof recordFix>>;
+  try {
+    found = await recordFix(app.home, {
+      repo,
+      branch,
+      sha,
+      checkout,
+      task: `recorded from the board: ${branch} changed outside a run`,
+      sid: BOARD_SID,
+      by: 'board',
+    });
+  } catch (err) {
+    throw new HttpError(409, (err as Error).message);
+  }
+  if (found.finished) {
+    carryApproval(app.home, found.finished);
+  }
+  app.board.refresh(); // the card leaves "changed outside a run" on the page's next poll
+  return send(200, { ok: true, run: found.run, covered: found.covered });
 }
 
 /** An error from the backlog's checks (a bad repo, a missing title, an unknown item) is the caller's: 400. */
@@ -261,6 +303,7 @@ export const boardRoutes: ApiRoute[] = [
   { route: ROUTES.boardFocus, handle: focus },
   { route: ROUTES.boardOpenStory, handle: openStory },
   { route: ROUTES.boardReview, handle: review },
+  { route: ROUTES.boardRecordFix, handle: recordFixOf },
   { route: ROUTES.boardBacklogMove, handle: moveBacklog },
   { route: ROUTES.boardBacklogEdit, handle: editBacklog },
   { route: ROUTES.boardBacklogSomeday, handle: somedayBacklog },

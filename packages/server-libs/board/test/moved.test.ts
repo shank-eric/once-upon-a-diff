@@ -9,6 +9,11 @@ import type { BoardCard } from '@once-upon-a-diff/contracts/types';
 import { Board, noPrWatcher } from '../src/board.ts';
 import { columnOf, type ColumnInput } from '../src/columns.ts';
 import { movedCards } from '../src/stages/moved.ts';
+import { placeCards } from '../src/stages/cards.ts';
+import { cardPhase } from '@once-upon-a-diff/state/queues/backlog/phase';
+import { backlogCards } from '@once-upon-a-diff/state/queues/backlog/backlog';
+import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
+import type { LedgerAgent } from '@once-upon-a-diff/state/records/agents/ledger';
 import { readyFactsFor } from '../src/stages/ready-facts.ts';
 import type { PrWatcher } from '../src/stages/pr-watcher.ts';
 import type { Lookups } from '../src/stages/types.ts';
@@ -67,7 +72,10 @@ test('movedCards: a local story card whose worktree tip is not its told commit, 
       return answer;
     };
   const card = workCard();
-  assert.deepEqual([...movedCards([card], new Map([['s1', TOLD]]), [tree], says(true))], [card]);
+  assert.deepEqual(
+    [...movedCards([card], new Map([['s1', TOLD]]), [tree], says(true)).keys()],
+    [card],
+  );
   assert.deepEqual(asked, [['/wt/x', TOLD, TIP, 'main']]);
   // unknown yet, or no: unchanged
   assert.equal(movedCards([card], new Map([['s1', TOLD]]), [tree], says(null)).size, 0);
@@ -97,6 +105,136 @@ test('movedCards: a local story card whose worktree tip is not its told commit, 
   assert.deepEqual(asked, []);
 });
 
+const placed = (): BoardCard => workCard({ sessions: [], agents: [] });
+const fixer = (over: Partial<LedgerAgent> = {}): LedgerAgent => ({
+  sid: 'aaaaaaaa',
+  name: 'fix-feat-x',
+  kind: 'author',
+  state: 'done',
+  model: null,
+  modelName: null,
+  task: null,
+  started: new Date(NOW - 3600000),
+  ended: new Date(NOW - 60000),
+  lastEvent: new Date(NOW - 60000),
+  outcome: null,
+  repo: 'acme/widgets',
+  result: { commit: TIP, branch: 'feat/x' },
+  ...over,
+});
+const NOW = Date.parse('2026-11-19T15:00:00Z');
+
+test('a story card whose branch moved: "changed outside a run" with Record as fix, until a run covers the tip', () => {
+  const told = new Map([['s1', TOLD]]);
+  const says = () => true;
+  // no run of the branch: outside
+  const bare = placed();
+  const outside = movedCards([bare], told, [tree], says, [], NOW);
+  assert.equal(outside.get(bare)?.covering, null);
+  placeCards([bare], new Map(), outside);
+  assert.equal(bare.column, 'working');
+  assert.equal(bare.detail, 'changed outside a run');
+  assert.deepEqual(bare.outside, {
+    sha: TIP,
+    branch: 'feat/x',
+    repo: 'acme/widgets',
+    path: '/wt/x',
+  });
+  // a finished fixer run whose commit is the tip (what `fixed --sha` records): the fix is recorded, the story needs retelling
+  const done = placed();
+  const recorded = movedCards([done], told, [tree], says, [fixer()], NOW);
+  placeCards([done], new Map(), recorded);
+  assert.equal(done.column, 'working');
+  assert.equal(done.detail, 'fixed in bbbbbbb, story not retold');
+  assert.equal(done.outside, undefined);
+  // a run still going accounts for it too, with the plain text
+  const going = placed();
+  const live = fixer({ state: 'fixing', ended: null, branch: 'feat/x', result: undefined });
+  placeCards([going], new Map(), movedCards([going], told, [tree], says, [live], NOW));
+  assert.equal(going.detail, 'branch moved past its story');
+  assert.equal(going.outside, undefined);
+  // a run of another branch, or a finished one with another commit, does not
+  const other = placed();
+  const unrelated = [
+    fixer({ branch: 'other', result: { commit: TIP, branch: 'other' } }),
+    fixer({ result: { commit: 'c'.repeat(40), branch: 'feat/x' } }),
+    fixer({ state: 'waiting', ended: null }),
+  ];
+  assert.equal(movedCards([other], told, [tree], says, unrelated, NOW).get(other)?.covering, null);
+});
+
+test('a built backlog card whose branch moved past its run’s commit is Working, outside a run, with its tip', () => {
+  const item = {
+    id: 'bl_aaaaaa111111',
+    state: 'started',
+    repo: 'acme/widgets',
+    branch: 'feat/x',
+    title: 'x',
+    note: null,
+    added_by: 'cli',
+    added_at: '2026-11-19T10:00:00Z',
+    started_at: '2026-11-19T11:00:00Z',
+    critic_skipped: true,
+  } as unknown as BacklogItem;
+  const run = fixer({ card: item.id, result: { commit: TOLD, branch: 'feat/x' } });
+  const unpushed = { ...tree, unpushed: 1 } as WorktreeFacts;
+  const review = {
+    branchPr: () => null,
+    kickInfo: () => {},
+    info: () => null,
+  } as unknown as PrWatcher;
+  const ready = (head: string) =>
+    readyFactsFor(
+      review,
+      { repo: 'acme/widgets', branch: 'feat/x' },
+      [{ ...unpushed, head }],
+      NOW,
+      { commit: run.result?.commit, movedPast: () => true },
+    );
+  const phase = cardPhase(item, [run], NOW, ready(TIP), false);
+  assert.equal(phase?.column, 'working');
+  assert.deepEqual(phase?.outside, { tip: TIP, path: '/wt/x' });
+  const [shown] = backlogCards(
+    [item],
+    [],
+    NOW,
+    [],
+    new Map(),
+    new Map(),
+    new Map([[item.id, phase ?? null]]),
+  );
+  assert.deepEqual(shown.outside, {
+    sha: TIP,
+    branch: 'feat/x',
+    repo: 'acme/widgets',
+    path: '/wt/x',
+  });
+  // a fixer run recorded at the tip: no longer working, so no label
+  const recorded = fixer({
+    card: item.id,
+    started: new Date(NOW - 1000),
+    result: { commit: TIP, branch: 'feat/x' },
+  });
+  const after = cardPhase(
+    item,
+    [run, recorded],
+    NOW,
+    readyFactsFor(
+      review,
+      { repo: 'acme/widgets', branch: 'feat/x' },
+      [{ ...unpushed, head: TIP }],
+      NOW,
+      {
+        commit: recorded.result?.commit,
+        movedPast: () => true,
+      },
+    ),
+    false,
+  );
+  assert.equal(after?.column, 'ready');
+  assert.equal(after?.outside, undefined);
+});
+
 test('readyFactsFor: a reviewed commit the tip has moved past is working, unless a PR is open', () => {
   const review = (answer: unknown) =>
     ({ branchPr: () => answer, kickInfo: () => {}, info: () => null }) as unknown as PrWatcher;
@@ -110,6 +248,7 @@ test('readyFactsFor: a reviewed commit the tip has moved past is working, unless
     pr: 'none',
     pushed: false,
     working: true,
+    moved: { tip: TIP, path: '/wt/x' },
   });
   assert.deepEqual(readyFactsFor(review(null), branch, [unpushedTree], 0, reviewed(null)), {
     pr: 'none',

@@ -187,6 +187,8 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
       collected.toldHeads,
       settings.worktrees ? state.scanner.read().items : [],
       ctx.lookups.movedPast,
+      agents,
+      nowMs,
     ),
     placed.launched,
   );

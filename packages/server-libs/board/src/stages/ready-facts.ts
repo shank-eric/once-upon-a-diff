@@ -45,5 +45,5 @@ export function readyFactsFor(
     facts.pr !== 'open' &&
     !tip.startsWith(commit) &&
     reviewed.movedPast(tree.path, commit, tip, tree.defaultBranch);
-  return movedPast ? { ...facts, working: true } : facts;
+  return movedPast ? { ...facts, working: true, moved: { tip, path: tree.path } } : facts;
 }

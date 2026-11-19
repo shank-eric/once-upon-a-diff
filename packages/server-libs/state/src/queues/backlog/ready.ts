@@ -16,6 +16,8 @@ export interface ReadyFacts {
   pushed: boolean | null;
   /** the branch's tip has moved past the reviewed commit; absent when not known or not asked */
   working?: boolean;
+  /** with `working`: the tip the branch moved to, and the worktree it is in (no run accounts for it: `Record as fix`) */
+  moved?: { tip: string; path: string };
 }
 
 export const UNKNOWN_READY: ReadyFacts = { pr: 'unknown', pushed: null };

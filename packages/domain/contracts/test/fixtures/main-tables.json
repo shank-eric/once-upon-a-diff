@@ -193,6 +193,14 @@
    "token+board"
   ],
   [
+   "boardRecordFix",
+   "POST",
+   "/api/board/record-fix",
+   null,
+   null,
+   "token+board"
+  ],
+  [
    "boardBacklogAdd",
    "POST",
    "/api/board/backlog",
@@ -3295,6 +3303,30 @@
   ],
   [
    "boardReview",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "card": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(string | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "string",
+       "expects": "string",
+       "async": false
+      },
+      "default": ""
+     }
+    }
+   }
+  ],
+  [
+   "boardRecordFix",
    {
     "kind": "schema",
     "type": "object",

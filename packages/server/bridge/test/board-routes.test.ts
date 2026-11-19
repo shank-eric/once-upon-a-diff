@@ -11,8 +11,10 @@ import {
   TOKEN,
   storyList,
   markReviewed,
+  registerRuns,
   type TestBridge,
 } from './helpers.ts';
+import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
 import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
 import { worktreeFixture } from '@once-upon-a-diff/test-kit/git';
 import { stopRequested } from '@once-upon-a-diff/core/features/listeners/auto-stop';
@@ -989,3 +991,92 @@ test('POST /api/board/review: a session’s branch becomes a storyless review ov
   assert.equal(repinned.head_oid, git(dir, 'rev-parse', 'HEAD'), 're-pinned to the new tip');
   assert.match(readFileSync(path.join(folder, 'local.diff'), 'utf8'), /changed-x two/);
 });
+
+test(
+  'POST /api/board/record-fix: a finished author’s branch that moved outside every run says so, and Record as fix files the tip as a fixer run',
+  { timeout: 120000 },
+  async () => {
+    const home = tmp('board-record-fix');
+    const sessions = tmp('board-sessions');
+    const fixture = worktreeFixture();
+    const dir = fixture.add('feat/x');
+    fixture.commit(dir, 'x one');
+    const first = git(dir, 'rev-parse', 'HEAD');
+    const ago = (millis: number) => new Date(Date.now() - millis);
+    registerRuns(home, {
+      sid: 'aaaaaaaa',
+      name: 'ou-x',
+      kind: 'author',
+      repo: 'acme/widgets',
+      branch: 'feat/x',
+      cwd: fixture.main,
+      started: ago(3600000),
+      now: { state: 'done', at: ago(300000), result: { commit: first, branch: 'feat/x' } },
+    });
+    const child = liveChild();
+    after(() => child.stop());
+    registry(sessions, child.pid, { cwd: fixture.main, name: 'elsewhere' }, child.procStart);
+    writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
+    const bridge = await startBridge({ home });
+    open.push(bridge);
+    const outside = async (): Promise<BoardCard | undefined> => {
+      // the scanner and the movedPast look answer in the background: a loaded machine takes a while
+      for (const deadline = Date.now() + 45000; Date.now() < deadline;) {
+        const cards = (await bridge.call<BoardData>('GET', '/api/board')).body.lanes.flatMap(
+          (lane) => lane.cards,
+        );
+        const found = cards.find((one) => one.outside);
+        if (found) {
+          return found;
+        }
+        await pause(200);
+      }
+      return undefined;
+    };
+    const post = (body: unknown, key = boardKey(TOKEN)) =>
+      bridge.call<{ ok: boolean; run: string | null; covered: boolean }>(
+        'POST',
+        '/api/board/record-fix',
+        body,
+        { Authorization: `Bearer ${key}` },
+      );
+    const notYet = (await bridge.call<BoardData>('GET', '/api/board')).body.lanes.flatMap(
+      (lane) => lane.cards,
+    );
+    assert.equal(
+      notYet.some((one) => one.outside),
+      false,
+      'the tip is the commit: nothing to record',
+    );
+    assert.equal((await post({ card: 'nope' })).status, 404);
+
+    // someone commits by hand: the card is Working and outside a run, with the tip and its worktree
+    fixture.commit(dir, 'x two', 2);
+    const tip = git(dir, 'rev-parse', 'HEAD');
+    const card = await outside();
+    assert.ok(card, 'the card says it changed outside a run');
+    assert.equal(card.column, 'working');
+    assert.deepEqual(card.outside, { sha: tip, branch: 'feat/x', repo: 'acme/widgets', path: dir });
+    assert.equal((await post({ card: card.id }, pageKey(TOKEN, 'x'))).status, 403);
+
+    // the tip, branch and checkout are the card's, never the body's
+    const made = await post({ card: card.id, sha: first, branch: 'main' });
+    assert.equal(made.status, 200, made.text);
+    assert.equal(made.body.covered, false);
+    const runs = new AgentRegistry(home).agents();
+    const fix = runs.find((one) => one.name === 'fix-feat-x');
+    assert.equal(fix?.role, 'fixer');
+    assert.equal(fix?.state, 'done');
+    assert.equal(fix?.result?.commit, tip);
+    assert.equal(fix?.run, made.body.run);
+    // the next board has no such card, and a second click has nothing left to record
+    const after2 = (await bridge.call<BoardData>('GET', '/api/board')).body.lanes.flatMap(
+      (lane) => lane.cards,
+    );
+    assert.equal(
+      after2.some((one) => one.outside),
+      false,
+    );
+    assert.equal((await post({ card: card.id })).status, 409);
+  },
+);

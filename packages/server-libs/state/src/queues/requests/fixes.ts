@@ -8,7 +8,7 @@
  *   <home>/state/<story id>/fix-settings.json  {auto_send}
  *   <home>/fixes.json                           {<request id>: {id, story, repo, kind, title, url, branch, checkout,
  *                                                notes: [{id, path, side, line, body, chapter, from_draft}], to, requested_at,
- *                                                status, claimed_by, claimed_at, done_at, sha, fixed, why}}
+ *                                                status, claimed_by, claimed_at, done_at, sha, fixed, why, by, run}}
  *
  * A note is a draft until it's sent: it can be edited or removed. Sent, it's locked until the session reports back
  * (`once-upon fixed`): fixed in <sha>, or returned to the drafts with why. The reviewer can take back a request
@@ -286,6 +286,40 @@ export function takeBack(
 }
 
 /**
+ * What a report on `found` must pass: the request still pending, a sha unless it failed, and note ids that are in it. Returns the
+ * ids it fixes. `reportFix` runs it under the lock; `once-upon fixed` runs it first, so it records no run for a report that will
+ * be refused.
+ */
+export function checkFixReport(
+  found: FixRequest,
+  {
+    sha = null,
+    fixed = null,
+    failed = false,
+  }: { sha?: string | null; fixed?: string[] | null; failed?: boolean },
+): string[] {
+  if (found.status === 'taken_back') {
+    throw failure(
+      409,
+      `the reviewer took ${found.id} back at ${found.done_at}; its notes are drafts again`,
+    );
+  }
+  if (found.status !== 'pending') {
+    throw failure(409, `${found.id} is ${found.status} already`);
+  }
+  if (!failed && !sha) {
+    throw failure(400, 'say which commit fixed it (--sha), or --failed with why');
+  }
+  const ids = found.notes.map((note) => note.id);
+  const fixedIds = failed ? [] : fixed || ids;
+  const unknown = fixedIds.filter((id) => !ids.includes(id));
+  if (unknown.length) {
+    throw failure(400, `not in ${found.id}: ${unknown.join(', ')}`);
+  }
+  return fixedIds;
+}
+
+/**
  * The session reports on a request (`once-upon fixed`): the notes it fixed in `sha` (all of them unless `fixed`
  * names some), or `failed` with why. Notes it didn't fix go back to the drafts with why.
  */
@@ -299,6 +333,7 @@ export function reportFix(
     failed = false,
     why = null,
     by: reporter = null,
+    run = null,
     inbox = null,
   }: {
     sha?: string | null;
@@ -306,35 +341,21 @@ export function reportFix(
     failed?: boolean;
     why?: string | null;
     by?: string | null;
+    /** the run that accounts for the fix (once-upon fixed records or finds it) */
+    run?: string | null;
     inbox?: Inbox | null;
   } = {},
 ): FixRequest {
   const request = locked(home, () => {
     const reported = fixesQueue(home).finish(requestId, (found) => {
-      if (found.status === 'taken_back') {
-        throw failure(
-          409,
-          `the reviewer took ${requestId} back at ${found.done_at}; its notes are drafts again`,
-        );
-      }
-      if (found.status !== 'pending') {
-        throw failure(409, `${requestId} is ${found.status} already`);
-      }
-      if (!failed && !sha) {
-        throw failure(400, 'say which commit fixed it (--sha), or --failed with why');
-      }
-      const ids = found.notes.map((note) => note.id);
-      const fixedIds = failed ? [] : fixed || ids;
-      const unknown = fixedIds.filter((id) => !ids.includes(id));
-      if (unknown.length) {
-        throw failure(400, `not in ${requestId}: ${unknown.join(', ')}`);
-      }
+      const fixedIds = checkFixReport(found, { sha, fixed, failed });
       return {
         status: failed ? 'failed' : 'done',
         sha,
         fixed: fixedIds,
         why: why || null,
         by: reporter,
+        ...(run ? { run } : {}),
       };
     });
     if (!reported) {

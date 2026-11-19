@@ -42,6 +42,7 @@ export const BOARD_BODIES = {
   boardFocus: object({ session: sessionId }),
   boardOpenStory: object({ story: optional(string(), '') }),
   boardReview: object({ card: optional(string(), '') }),
+  boardRecordFix: object({ card: optional(string(), '') }),
   boardBacklogAdd: object({
     title: optional(string(), ''),
     note: optional(nullable(string())),

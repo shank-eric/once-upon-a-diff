@@ -848,11 +848,13 @@ describe("an author's story: fix requests, rebuilds and approvals go to it too",
       result.stdout.match(/SendMessage to "ou-fix-cache", with this message:/g)?.length,
       3,
     );
+    assert.match(result.stdout, /fixed --request fx_1 --sha <sha> --consumer story-x/);
     assert.match(
       result.stdout,
       /fixed --request fx_1 --failed --note "author gone" --consumer story-x/,
     );
-    assert.match(result.stdout, /don't change code yourself/);
+    assert.match(result.stdout, /fix it yourself as the listen skill's section 6 says/);
+    assert.doesNotMatch(result.stdout, /don't change code yourself/);
     assert.doesNotMatch(result.stdout, /It's yours \(wait claimed it\)/);
     assert.doesNotMatch(result.stdout, /Say what you'll change: once-upon working --story/);
     assert.doesNotMatch(result.stdout, /It's a rebuild: follow/);

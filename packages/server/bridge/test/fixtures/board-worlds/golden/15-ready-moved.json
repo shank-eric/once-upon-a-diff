@@ -15,12 +15,18 @@
             "building": null,
             "can_focus": false,
             "column": "working",
-            "detail": "branch moved past its story",
+            "detail": "changed outside a run",
             "focus_session": null,
             "id": "branch:acme/widgets@feat-a",
             "kind": "work",
             "lane": "acme/widgets",
             "listening": null,
+            "outside": {
+              "branch": "feat-a",
+              "path": "<WORK>/moved-repo-49/widgets-worktrees/feat-a",
+              "repo": "acme/widgets",
+              "sha": "<SHA:7>"
+            },
             "parent": null,
             "pr": null,
             "repo": "acme/widgets",
@@ -201,7 +207,7 @@
             "building": null,
             "can_focus": false,
             "column": "working",
-            "detail": "branch moved past its story",
+            "detail": "fixed in <SHA:10>, story not retold",
             "focus_session": null,
             "id": "branch:acme/widgets@feat-f",
             "kind": "work",
@@ -277,7 +283,7 @@
                 "status": "done",
                 "summary": {
                   "did": "build moved-by-hand",
-                  "why": "committed <SHA:4>, branch moved on"
+                  "why": "committed <SHA:4>, changed outside a run"
                 },
                 "task": "build moved-by-hand"
               }
@@ -293,6 +299,12 @@
             "kind": "agent",
             "lane": "acme/widgets",
             "listening": null,
+            "outside": {
+              "branch": "feat-d",
+              "path": "<WORK>/moved-repo-49/widgets-worktrees/feat-d",
+              "repo": "acme/widgets",
+              "sha": "<SHA:11>"
+            },
             "parent": null,
             "pr": null,
             "repo": null,
@@ -354,6 +366,60 @@
             "since": "2026-10-26T16:30:00.000Z",
             "story": null,
             "title": "moved-second"
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": "2026-10-26T17:30:00.000Z",
+                "gate": null,
+                "key": "dddddddd:fixed-f",
+                "kind": "author",
+                "model": "sonnet",
+                "name": "fixed-f",
+                "notes": null,
+                "outcome": "built",
+                "review": false,
+                "sid": "dddddddd",
+                "stale": false,
+                "started_at": "2026-10-26T17:00:00.000Z",
+                "state": "done",
+                "status": "done",
+                "summary": {
+                  "did": "build fixed-f",
+                  "why": "committed <SHA:10>, not pushed"
+                },
+                "task": "build fixed-f"
+              }
+            ],
+            "branch": null,
+            "build": {
+              "blocked": "its session has ended",
+              "prompt": "Build the Once Upon story of the unpushed commits on branch feat-f in `<WORK>/moved-repo-49/widgets-worktrees/feat-f`",
+              "session": null
+            },
+            "building": null,
+            "can_focus": false,
+            "column": "ready",
+            "detail": "built",
+            "focus_session": null,
+            "id": "agent:dddddddd:fixed-f",
+            "kind": "agent",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": null,
+            "review": {
+              "branch": "feat-f",
+              "path": "<WORK>/moved-repo-49/widgets-worktrees/feat-f"
+            },
+            "sessions": [],
+            "since": "2026-10-26T17:30:00.000Z",
+            "story": null,
+            "title": "fixed-f"
           }
         ],
         "key": "acme/widgets",

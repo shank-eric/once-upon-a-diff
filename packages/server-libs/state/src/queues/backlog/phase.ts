@@ -45,6 +45,39 @@ export function runsOf(item: Pick<BacklogItem, 'id'>, agents: LedgerAgent[]): Le
     .sort((first, second) => startedAt(first) - startedAt(second));
 }
 
+/** Every run of the repo's branch, whatever card it names, oldest first: what covers a branch that has moved (`coveringRun`). */
+export function runsOnBranch(agents: LedgerAgent[], repo: string, branch: string): LedgerAgent[] {
+  return agents
+    .flatMap((agent) => [...(agent.earlier ?? []), agent])
+    .filter(
+      (run) =>
+        !!run.repo && sameRepo(run.repo, repo) && (run.result?.branch ?? run.branch) === branch,
+    )
+    .sort((first, second) => startedAt(first) - startedAt(second));
+}
+
+/**
+ * The work run that accounts for a branch tip: one still going (running, at a plan or fixing, with a sign of life inside its
+ * stale time; a parked or waiting one does not), or one that finished done with a commit that is the tip (a short sha counts
+ * either way round). Null means the branch moved outside every run. The board's three "moved" rules and `recordFix` ask this
+ * one question.
+ */
+export function coveringRun(runs: LedgerAgent[], tip: string, nowMs: number): LedgerAgent | null {
+  const head = tip.toLowerCase();
+  const covers = (run: LedgerAgent): boolean => {
+    if (run.state === 'running' || run.state === 'plan' || run.state === 'fixing') {
+      return nowMs - (lastActivity(run)?.getTime() ?? nowMs) <= staleAfterMs(run);
+    }
+    const commit = run.result?.commit?.toLowerCase() ?? '';
+    return (
+      run.state === 'done' &&
+      commit.length >= 7 &&
+      (head.startsWith(commit) || commit.startsWith(head))
+    );
+  };
+  return [...runs].reverse().find((run) => isWorkRun(run) && covers(run)) ?? null;
+}
+
 /**
  * Why dropping the card would leave a live run on no card, or null when it would not: a run of the card (the latest of an agent
  * or one before it) that is still open is stranded, so the drop says to move it first (`backlog drop ID --into CARD`). Runs
@@ -103,6 +136,8 @@ export interface CardPhase {
   tried: boolean;
   /** the key into PHASE_ROWS of the row that decided it: `once-upon card status` prints it */
   row: PhaseRow;
+  /** row 6 only: Working because the branch moved past the run's commit, with no run behind the tip (the card says "changed outside a run") */
+  outside?: { tip: string; path: string };
 }
 
 /** The rows of the table `cardPhase` reads, one line each: the doc comment below and `once-upon card status` both say it from here. */
@@ -213,11 +248,13 @@ export function cardPhase(
     return { column: 'waiting', when, tried: false, row: '5' };
   }
   if (built) {
+    const column = readyColumn(ready, skipsReview);
     return {
-      column: readyColumn(ready, skipsReview),
+      column,
       when,
       tried: false,
       row: '6',
+      ...(column === 'working' && ready.moved ? { outside: ready.moved } : {}),
     };
   }
   return when !== null && nowMs - when > DONE_HOURS * 3600 * 1000

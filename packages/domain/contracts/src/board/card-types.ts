@@ -149,6 +149,12 @@ export interface BoardCard {
    * names: a finished author's commit waiting on your review, or a work card's branch with no PR. Absent otherwise
    */
   review?: BoardReview | null;
+  /**
+   * The branch moved past what was reviewed and no run accounts for its tip (a listener edited in place, or someone committed by
+   * hand): the card is Working, labelled "changed outside a run", and Record as fix (POST /api/board/record-fix) records the
+   * tip as a done fixer run on the card. Absent when a run covers the tip, or the branch has not moved
+   */
+  outside?: BoardOutside | null;
   /** a backlog card's item (the Backlog column: src/board/backlog.ts) */
   backlog?: {
     id: string;
@@ -185,6 +191,15 @@ export interface BoardCard {
   from_backlog?: { id: string; title: string }[];
   /** the git worktrees tied to this card (same repo and branch, a session inside, or listed by a started backlog item) */
   worktrees?: BoardWorktree[];
+}
+
+/** A branch tip no run accounts for: the worktree's checkout, and the commit at its head. */
+export interface BoardOutside {
+  sha: string;
+  branch: string;
+  repo: string;
+  /** the worktree the tip is in */
+  path: string;
 }
 
 /** What git and GitHub say about one worktree (state/src/records/worktrees/worktrees.ts). */

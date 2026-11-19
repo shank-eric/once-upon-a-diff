@@ -629,6 +629,7 @@ const PENDING = {
   branch: 'feat/x',
   path: '/wt/feat-x',
   working: false,
+  tip: 'c80964d00000000000000000000000000000000',
 };
 
 /** The tip of feat/x's worktree: the commit the author below finished with. */
@@ -943,9 +944,33 @@ test('a finished author whose branch moved past its commit is Working until anot
   const looks: string[][] = [];
   assert.deepEqual(ownCard(committer(), { tree: { head: tip }, moved: true, looks }), {
     column: 'working',
-    why: 'committed c80964d, branch moved on',
+    why: 'committed c80964d, changed outside a run',
   });
   assert.deepEqual(looks, [['c80964d9', tip]], 'asked with the commit and the tip');
+  // no run accounts for the tip: the card says so and offers Record as fix, with the tip and its worktree
+  const [outside] = placeWith([committer()], { tree: { head: tip }, moved: true });
+  assert.deepEqual(outside.outside, {
+    sha: tip,
+    branch: 'feat/x',
+    repo: 'acme/widgets',
+    path: '/wt/feat-x',
+  });
+  // a run of the branch still going accounts for it: Working still, but not "outside a run"
+  const going = registered({
+    name: 'ou-fixer',
+    sid: 'bbbbbbbb',
+    state: 'fixing',
+    repo: 'acme/widgets',
+    branch: 'feat/x',
+    ended: null,
+    lastEvent: new Date(NOW - 60000),
+  });
+  const covered = placeWith([committer(), going], { tree: { head: tip }, moved: true }).find(
+    (one) => one.title === 'ou-commit',
+  );
+  assert.equal(covered?.column, 'working');
+  assert.equal(covered?.outside, undefined);
+  assert.equal(covered?.agents[0].summary?.why, 'committed c80964d, branch moved on');
   // no answer yet, or an answer of no: not this agent’s to wait on, as before
   assert.equal(ownCard(committer(), { tree: { head: tip }, moved: null })?.column, 'done');
   assert.equal(ownCard(committer(), { tree: { head: tip }, moved: false })?.column, 'done');

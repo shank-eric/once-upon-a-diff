@@ -123,6 +123,7 @@ export const ROUTE_AREAS: Record<RouteName, Area> = {
   boardFocus: 'Board backend',
   boardOpenStory: 'Board backend',
   boardReview: 'Review',
+  boardRecordFix: 'Review',
   boardBacklogAdd: 'Backlog',
   boardBacklogMove: 'Backlog',
   boardBacklogEdit: 'Backlog',

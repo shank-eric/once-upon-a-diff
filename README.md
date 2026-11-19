@@ -190,7 +190,7 @@ On GitHub, Fix before push is only for your own PRs: the bridge says in the stor
 - **Sent notes are locked** and say "Sent to <session>". When the session reports back, they say "Fixed in <sha>" (and are ticked done). A note the change didn't cover comes back as a draft, with why. **Take back** returns a request's notes to the drafts while nobody has reported on it.
 - **Auto-send**, a checkbox in the box (off by default, kept per story), sends each note on its own as it's added. A note that came from a drafted comment waits for Send, since Claude wrote it from the PR, and the listening session asks you in chat before acting on it.
 
-The session makes one coherent change for the request's notes, commits it (or amends) as your house rules say, never pushes, and reports with `once-upon fixed --request <id> --sha <sha> [--notes <ids>]`, or `--failed --note "<why>"`. The bridge keeps the queue in `~/.once-upon/fixes.json` and the notes in `state/<id>/notes.json`. `once-upon notes --story <id>` prints them with where each has got.
+The session makes one coherent change for the request's notes, commits it (or amends) as your house rules say, never pushes, and reports with `once-upon fixed --request <id> --sha <sha> [--notes <ids>]`, or `--failed --note "<why>"`. `fixed --sha` also records the fix as a done fixer run on the branch's card (unless a run already covers the commit), which is what takes the card off the board's "changed outside a run" label; the board's Record as fix does the same for a branch someone committed to by hand. The bridge keeps the queue in `~/.once-upon/fixes.json` and the notes in `state/<id>/notes.json`. `once-upon notes --story <id>` prints them with where each has got.
 
 ### Being changed
 

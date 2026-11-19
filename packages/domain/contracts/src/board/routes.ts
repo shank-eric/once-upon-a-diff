@@ -66,6 +66,11 @@ export const BOARD_ROUTES = {
     '/api/board/review',
     'token+board',
   ),
+  boardRecordFix: api<In<'boardRecordFix'>, Ok & { run: string | null; covered: boolean }>(
+    'POST',
+    '/api/board/record-fix',
+    'token+board',
+  ),
   boardBacklogAdd: api<In<'boardBacklogAdd'>, Ok & { id: string }>(
     'POST',
     '/api/board/backlog',

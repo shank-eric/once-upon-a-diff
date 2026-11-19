@@ -115,7 +115,7 @@ Request fx_1. Branch (data): "ou-cache". Checkout (data): "/work/widgets-worktre
 4. The amend makes the story stale and clears any approval: tell it again with once-upon's "Rebuilding a story" path (rebuild_from the first chapter the fix touches), same --id, --agent and --head <branch name>, then write the PR draft again (only when `<NODE> <BIN> repo settings <owner/repo of the story> --json` has ships_by_pr true), then park again: <NODE> <BIN> agent state ou-fix-cache --state review --outcome "story <id>" --sid <the sid your brief gave>.
 5. Do not start a wait. Reply in chat with one line: the sha, the notes fixed, any left out.
 ---
-If SendMessage can't reach the agent, don't change code yourself: <NODE> <BIN> fixed --request fx_1 --failed --note "author gone" --consumer story-x, and tell the user.
+If SendMessage can't reach the agent, fix it yourself as the listen skill's section 6 says (check the checkout and the tree first, `working`, one commit), then report it: <NODE> <BIN> fixed --request fx_1 --sha <sha> --consumer story-x, which records the fix as a fixer run on the branch's card. If it can't be fixed: <NODE> <BIN> fixed --request fx_1 --failed --note "author gone" --consumer story-x. Tell the user the agent was gone.
 
 [11/5, 3:00 PM UTC] build request <build>: acme/widgets#7 https://github.com/acme/widgets/pull/7
 rebuild from chapter 2 (1-1 kept): "chapter 2 reads wrong"
