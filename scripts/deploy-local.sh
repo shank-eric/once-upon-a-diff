@@ -157,34 +157,28 @@ listener_pid() { lsof -nP -iTCP:$PORT -sTCP:LISTEN -t 2>/dev/null | head -n 1 ||
 
 cwd_of() { lsof -a -p "$1" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p'; }
 
-# The bridge's folder in MAIN: packages/server/bridge, or packages/bridge while MAIN still has the layout from before the packages
-# were regrouped (the live bridge's cwd on the first deploy past the move, and after a rollback to before it). It is whichever
-# holds bin/once-upon.mjs: git leaves the old folder behind with its untracked node_modules after the move, so the bin decides.
-# The legacy branch goes in a later card, once no rollback target is older than the regroup.
+# The bridge's folder in MAIN.
 bridge_dir() {
   if [ -f "$MAIN/packages/server/bridge/bin/once-upon.mjs" ]; then
     echo "$MAIN/packages/server/bridge"
-  elif [ -f "$MAIN/packages/bridge/bin/once-upon.mjs" ]; then
-    echo "$MAIN/packages/bridge"
   else
-    die "no bridge folder under $MAIN/packages (packages/server/bridge or packages/bridge)"
+    die "no bridge folder under $MAIN/packages/server"
   fi
 }
 
-# The vendored files' folder in MAIN, by the same rule.
+# The vendored files' folder in MAIN.
 vendor_dir() {
   if [ -d "$MAIN/packages/client-libs/ui-kit/vendor" ]; then
     echo "$MAIN/packages/client-libs/ui-kit/vendor"
-  elif [ -d "$MAIN/packages/client/web/public/vendor" ]; then
-    echo "$MAIN/packages/client/web/public/vendor"
   else
-    echo "$MAIN/packages/web/public/vendor"
+    echo "$MAIN/packages/client/web/public/vendor"
   fi
 }
 
-# Kill the bridge on $PORT (only if it is a node process running from MAIN's bridge folder, new or legacy) and respawn it from bridge_dir.
+# Kill the bridge on $PORT (only if it is a node process running from MAIN's bridge folder) and respawn it from bridge_dir.
 respawn_bridge() {
-  local pid cwd comm
+  local pid cwd comm dir
+  dir="$(bridge_dir)"
   pid="$(listener_pid)"
   if [ -n "$pid" ]; then
     cwd="$(cwd_of "$pid")"
@@ -194,8 +188,8 @@ respawn_bridge() {
       *) die "the process on $PORT (pid $pid) is not the bridge ($comm). Not killing it." ;;
     esac
     case "$cwd" in
-      "$MAIN/packages/server/bridge" | "$MAIN/packages/bridge") ;;
-      *) die "the bridge on $PORT (pid $pid) runs from $cwd, not $MAIN/packages/server/bridge (or the old $MAIN/packages/bridge). Not killing it. Stop it by hand and re-run." ;;
+      "$MAIN/packages/server/bridge") ;;
+      *) die "the bridge on $PORT (pid $pid) runs from $cwd, not $MAIN/packages/server/bridge. Not killing it. Stop it by hand and re-run." ;;
     esac
     say "killing bridge pid $pid"
     kill "$pid" || true
@@ -205,8 +199,6 @@ respawn_bridge() {
     done
     if kill -0 "$pid" 2>/dev/null; then die "bridge pid $pid did not exit"; fi
   fi
-  local dir
-  dir="$(bridge_dir)"
   (
     cd "$dir" || exit 1
     nohup node bin/once-upon.mjs serve </dev/null >>"$BRIDGE_LOG" 2>&1 &
@@ -224,7 +216,7 @@ respawn_bridge() {
 }
 
 verify_live() {
-  local code type f name want got tok terms base="http://127.0.0.1:$PORT"
+  local code type f name want got tok base="http://127.0.0.1:$PORT"
   # /api/board wants the bridge token. It goes to curl on stdin (-K -), so it is never in argv, output or logs.
   tok="$(read_token)" || tok=""
   [ -n "$tok" ] || die "no token in ${ONCE_UPON_HOME:-$HOME/.once-upon}/token for the /api/board check"
@@ -236,10 +228,8 @@ verify_live() {
   [ "$code" = 200 ] || die "/assets/preact.mjs returned $code"
   type="$(curl -s --max-time 10 -o /dev/null -w '%{content_type}' "$base/assets/preact.mjs")"
   case "$type" in text/javascript*) ;; *) die "/assets/preact.mjs content-type is '$type'" ;; esac
-  # the terms package is served as /assets/terms/ (it was /assets/domain/ before the regroup, which a rollback past it brings back)
-  if [ -d "$MAIN/packages/domain/terms" ]; then terms=terms; else terms=domain; fi
-  code="$(curl -s --max-time 10 -o /dev/null -w '%{http_code}' "$base/assets/$terms/patterns.ts")"
-  [ "$code" = 200 ] || die "/assets/$terms/patterns.ts returned $code"
+  code="$(curl -s --max-time 10 -o /dev/null -w '%{http_code}' "$base/assets/terms/patterns.ts")"
+  [ "$code" = 200 ] || die "/assets/terms/patterns.ts returned $code"
   SERVED_N=0
   for f in "$(vendor_dir)"/*.sha256; do
     [ -e "$f" ] || continue
