@@ -22,6 +22,7 @@ import { runIsOpen } from '@once-upon-a-diff/state/records/agents/events';
 import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
 import { out } from '../output.ts';
 import { warnTypedRepo } from '../typed-repo.ts';
+import type { ImplicitCard } from '@once-upon-a-diff/state/records/agents/implicit';
 import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
 import type { Config } from '@once-upon-a-diff/foundation/settings';
 import type { CliOpts, Command } from '../types.ts';
@@ -73,23 +74,44 @@ function describe(item: BacklogItem, home: string): string {
   );
 }
 
-function backlog(home: string, cfg: Config, opts: CliOpts) {
-  const [verb, ...words] = opts._ || [];
+/** One call of `backlog VERB`: the store, the words after the verb and the lookups the verbs share. */
+interface Call {
+  home: string;
+  opts: CliOpts;
+  /** the words after the verb: an id, a title */
+  words: string[];
+  store: BacklogStore;
+  who: string | null;
+  /** the stored card the first word names (an implicit card is refused with the way to adopt it) */
+  found(): BacklogItem;
+  /** the implicit cards (ADR-27) are the registry's runs: they are in no backlog file until adopted */
+  implicit(): BacklogItem[];
+  adoptCard(id: string | undefined, title: string | null, note?: string | null): AdoptedCard;
+  adoptStarted(id: string | undefined, title: string | null, note?: string | null): BacklogItem;
+}
+
+type AdoptedCard = {
+  card: ImplicitCard;
+  adopted: BacklogItem;
+};
+
+type Verb = (call: Call) => unknown;
+
+function callOf(home: string, opts: CliOpts, words: string[]): Call {
   const store = new BacklogStore(home);
   const who = text(opts.by);
-  // the implicit cards (ADR-27) are the registry's runs: they are in no backlog file until adopted
   const implicit = () => implicitItems(new AgentRegistry(home).agents(), store.listed());
   const found = () => {
     const item = store.listed().find((one) => one.id === words[0]);
-    if (!item) {
-      if (implicit().some((one) => one.id === words[0])) {
-        throw new Error(
-          `${words[0]} is an implicit card (a run that did not start in the backlog): once-upon backlog adopt ${words[0]} first`,
-        );
-      }
-      throw new Error(`no backlog item ${words[0] || ''}`.trim());
+    if (item) {
+      return item;
     }
-    return item;
+    if (implicit().some((one) => one.id === words[0])) {
+      throw new Error(
+        `${words[0]} is an implicit card (a run that did not start in the backlog): once-upon backlog adopt ${words[0]} first`,
+      );
+    }
+    throw new Error(`no backlog item ${words[0] || ''}`.trim());
   };
   // an implicit card written into the backlog under its own id, as `adopt` and `drop` need it
   const adoptCard = (id: string | undefined, title: string | null, note?: string | null) => {
@@ -103,15 +125,16 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
       );
     }
     // an agent's card the start already stored (ADR-29) is listed, not added a second time
+    const adder = who ?? card.agent;
     const adopted = store.items().some((one) => one.id === card.id)
-      ? store.adopt(card.id, { title, note, by: who ?? card.agent })
+      ? store.adopt(card.id, { title, note, by: adder })
       : store.add({
           id: card.id,
           title: title ?? card.title,
           note: note ?? (card.task && card.task !== card.title ? card.task : null),
           repo: card.repo,
           branch: card.branch,
-          by: who ?? card.agent,
+          by: adder,
         });
     return { card, adopted };
   };
@@ -128,328 +151,411 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
     }
     return adopted;
   };
-  if (verb === 'adopt') {
-    // an implicit card becomes a backlog card, with its own id: its runs already name it
-    const adopted = adoptStarted(words[0], text(opts.title));
-    return out(`${adopted.id} adopted: ${adopted.title}`);
+  return { home, opts, words, store, who, found, implicit, adoptCard, adoptStarted };
+}
+
+/** `adopt`: an implicit card becomes a backlog card, with its own id: its runs already name it. */
+function adopt({ opts, words, adoptStarted }: Call) {
+  const adopted = adoptStarted(words[0], text(opts.title));
+  return out(`${adopted.id} adopted: ${adopted.title}`);
+}
+
+/** The title is the words after `add`, or --title / --title-file / --title - (not both). */
+function titleOf(opts: CliOpts, words: string[]): string {
+  const flagged = text(opts.title);
+  if (flagged !== null && words.length) {
+    throw new Error('give the title as words or as --title, not both');
   }
-  if (verb === 'add') {
-    // the title is the words after `add`, or --title / --title-file / --title - (not both)
-    const flagged = text(opts.title);
-    if (flagged !== null && words.length) {
-      throw new Error('give the title as words or as --title, not both');
-    }
-    warnTypedRepo(home, text(opts.repo), process.cwd());
-    // the checkout the command runs in names the repo unless --repo says otherwise
-    const repo = text(opts.repo) ?? repoOfCheckout(process.cwd());
-    const branch = text(opts.branch);
-    const title = flagged ?? words.join(' ');
-    // work and its card are one card: an implicit card with a run open on this repo and branch is the card this add would make,
-    // so it is adopted with this title and note (as `adopt` does) and no second card is written. A card whose runs are all over
-    // is earlier work on a reused branch name: this one is its own
-    const live = isFeatureBranch(branch)
-      ? implicitCards(new AgentRegistry(home).agents()).find(
-          (one) =>
-            !store.listed().some((item) => item.id === one.id) &&
-            one.runs.some(runIsOpen) &&
-            (repo ? sameRepo(one.repo, repo) : !one.repo) &&
-            one.runs.some((run) => (run.result?.branch ?? run.branch) === branch),
-        )
-      : undefined;
-    if (live) {
-      const joined = adoptStarted(live.id, title, text(opts.note));
-      return out(
-        `${joined.id} added: ${joined.title} (joined the implicit card for ${branch}, so its runs are on it)`,
-      );
-    }
-    const item = store.add({ title, note: text(opts.note), repo, branch, by: who });
-    return out(`${item.id} added: ${item.title}`);
+  return flagged ?? words.join(' ');
+}
+
+/** The implicit card an `add` on this repo and branch would make: it is not stored yet, a run of it is open, and one ran on the branch. */
+function liveCardOn(call: Call, repo: string | null, branch: string | null) {
+  if (!isFeatureBranch(branch)) {
+    return undefined;
   }
-  if (verb === 'list') {
-    if (opts.implicit) {
-      // only the implicit cards: the live ones (a run open), or every one with --all
-      const live = liveImplicitIds(new AgentRegistry(home).agents(), Date.now());
-      const cards = implicit().filter((item) => opts.all || live.has(item.id));
-      if (opts.json) {
-        return out(JSON.stringify(cards, null, 2));
-      }
-      return out(
-        cards.length
-          ? cards.map((item, index) => `${index + 1}\t${describe(item, home)}`).join('\n')
-          : 'No implicit cards.',
-      );
-    }
-    const all = store.listed().filter((item) => opts.all || reported(item) === 'open');
-    // the Someday section is collapsed: out of the main list, and printed (expanded) only by --someday
-    // (--all is everything, someday cards marked in place)
-    const later = all.filter((item) => item.someday);
-    let items = all.filter((item) => !item.someday);
-    if (opts.someday) {
-      items = later;
-    } else if (opts.all) {
-      items = all;
-    }
-    // --all is every card, the implicit ones too (marked)
-    const withImplicit = opts.all && !opts.someday ? [...items, ...implicit()] : items;
-    if (opts.json) {
-      return out(JSON.stringify(withImplicit.map(shown), null, 2));
-    }
-    // in the board's order, numbered
-    const lines = withImplicit.map((item, index) => `${index + 1}\t${describe(item, home)}`);
-    if (opts.someday) {
-      return out(
-        later.length ? [`Someday (${later.length})`, ...lines].join('\n') : 'Nothing is someday.',
-      );
-    }
-    if (later.length && !opts.all) {
-      lines.push(`Someday (${later.length})`);
-    }
-    return out(items.length || later.length ? lines.join('\n') : 'No backlog items.');
-  }
-  if (verb === 'show') {
-    const card = implicit().find((one) => one.id === words[0]);
-    return out(JSON.stringify(shown(card ?? found()), null, 2));
-  }
-  if (verb === 'edit') {
-    const item = found();
-    // a flag left out stays; an empty --note or --repo clears it (a flag with no value reads as true, so it is not text)
-    const changes = { title: text(opts.title), note: text(opts.note), repo: text(opts.repo) };
-    if (changes.title === null && changes.note === null && changes.repo === null) {
-      throw new Error('change something: --title, --note or --repo');
-    }
-    warnTypedRepo(home, changes.repo, process.cwd());
-    const edited = store.edit(
-      item.id,
-      {
-        title: changes.title ?? undefined,
-        note: changes.note ?? undefined,
-        repo: changes.repo ?? undefined,
-      },
-      who,
+  const isStored = (card: ImplicitCard) => call.store.listed().some((item) => item.id === card.id);
+  const inRepo = (card: ImplicitCard) => (repo ? sameRepo(card.repo, repo) : !card.repo);
+  const ranOnBranch = (card: ImplicitCard) =>
+    card.runs.some((run) => (run.result?.branch ?? run.branch) === branch);
+  return implicitCards(new AgentRegistry(call.home).agents()).find(
+    (card) => !isStored(card) && card.runs.some(runIsOpen) && inRepo(card) && ranOnBranch(card),
+  );
+}
+
+function add(call: Call) {
+  const { home, opts, words, store, who } = call;
+  const title = titleOf(opts, words);
+  warnTypedRepo(home, text(opts.repo), process.cwd());
+  // the checkout the command runs in names the repo unless --repo says otherwise
+  const repo = text(opts.repo) ?? repoOfCheckout(process.cwd());
+  const branch = text(opts.branch);
+  // work and its card are one card: an implicit card with a run open on this repo and branch is the card this add would make,
+  // so it is adopted with this title and note (as `adopt` does) and no second card is written. A card whose runs are all over
+  // is earlier work on a reused branch name: this one is its own
+  const live = liveCardOn(call, repo, branch);
+  if (live) {
+    const joined = call.adoptStarted(live.id, title, text(opts.note));
+    return out(
+      `${joined.id} added: ${joined.title} (joined the implicit card for ${branch}, so its runs are on it)`,
     );
-    return out(`${edited.id} edited: ${edited.title}`);
   }
-  if (verb === 'start') {
-    const item = found();
-    // the branch the session is on, unless it is a default branch (then the work has no branch yet: say which)
-    const current = currentBranch(process.cwd());
-    const branch = text(opts.branch) ?? item.branch ?? (isFeatureBranch(current) ? current : null);
-    if (!branch) {
-      throw new Error('this checkout is not on a work branch: pass --branch NAME');
-    }
-    warnTypedRepo(home, item.repo ? null : text(opts.repo), process.cwd());
-    const started = store.start(item.id, {
+  const item = store.add({ title, note: text(opts.note), repo, branch, by: who });
+  return out(`${item.id} added: ${item.title}`);
+}
+
+const numbered = (items: BacklogItem[], home: string): string[] =>
+  items.map((item, index) => `${index + 1}\t${describe(item, home)}`);
+
+/** `list --implicit`: only the implicit cards, the live ones (a run open), or every one with --all. */
+function listImplicit({ home, opts, implicit }: Call) {
+  const live = liveImplicitIds(new AgentRegistry(home).agents(), Date.now());
+  const cards = implicit().filter((item) => opts.all || live.has(item.id));
+  if (opts.json) {
+    return out(JSON.stringify(cards, null, 2));
+  }
+  return out(cards.length ? numbered(cards, home).join('\n') : 'No implicit cards.');
+}
+
+/** The cards `list` prints: the main list, the Someday section only with --someday, everything with --all (someday cards marked in place). */
+function listedItems(opts: CliOpts, all: BacklogItem[], later: BacklogItem[]): BacklogItem[] {
+  if (opts.someday) {
+    return later;
+  }
+  return opts.all ? all : all.filter((item) => !item.someday);
+}
+
+function list(call: Call) {
+  const { home, opts, store, implicit } = call;
+  if (opts.implicit) {
+    return listImplicit(call);
+  }
+  const all = store.listed().filter((item) => opts.all || reported(item) === 'open');
+  // the Someday section is collapsed: out of the main list, and printed (expanded) only by --someday
+  const later = all.filter((item) => item.someday);
+  const items = listedItems(opts, all, later);
+  // --all is every card, the implicit ones too (marked)
+  const shownItems = opts.all && !opts.someday ? [...items, ...implicit()] : items;
+  if (opts.json) {
+    return out(JSON.stringify(shownItems.map(shown), null, 2));
+  }
+  // in the board's order, numbered
+  const lines = numbered(shownItems, home);
+  if (opts.someday) {
+    return out(
+      later.length ? [`Someday (${later.length})`, ...lines].join('\n') : 'Nothing is someday.',
+    );
+  }
+  if (later.length && !opts.all) {
+    lines.push(`Someday (${later.length})`);
+  }
+  return out(items.length || later.length ? lines.join('\n') : 'No backlog items.');
+}
+
+function show({ words, implicit, found }: Call) {
+  const card = implicit().find((one) => one.id === words[0]);
+  return out(JSON.stringify(shown(card ?? found()), null, 2));
+}
+
+function edit({ home, opts, store, who, found }: Call) {
+  const item = found();
+  // a flag left out stays; an empty --note or --repo clears it (a flag with no value reads as true, so it is not text)
+  const changes = { title: text(opts.title), note: text(opts.note), repo: text(opts.repo) };
+  if (changes.title === null && changes.note === null && changes.repo === null) {
+    throw new Error('change something: --title, --note or --repo');
+  }
+  warnTypedRepo(home, changes.repo, process.cwd());
+  const edited = store.edit(
+    item.id,
+    {
+      title: changes.title ?? undefined,
+      note: changes.note ?? undefined,
+      repo: changes.repo ?? undefined,
+    },
+    who,
+  );
+  return out(`${edited.id} edited: ${edited.title}`);
+}
+
+/** The branch the work starts on: --branch, the card's own, or the branch the session is on unless it is a default branch. */
+function startBranch(opts: CliOpts, item: BacklogItem): string | null {
+  const typed = text(opts.branch) ?? item.branch;
+  if (typed !== null) {
+    return typed;
+  }
+  const current = currentBranch(process.cwd());
+  return isFeatureBranch(current) ? current : null;
+}
+
+function start({ home, opts, store, who, found }: Call) {
+  const item = found();
+  // the branch the session is on, unless it is a default branch (then the work has no branch yet: say which)
+  const branch = startBranch(opts, item);
+  if (!branch) {
+    throw new Error('this checkout is not on a work branch: pass --branch NAME');
+  }
+  warnTypedRepo(home, item.repo ? null : text(opts.repo), process.cwd());
+  const started = store.start(item.id, {
+    branch,
+    repo: text(opts.repo) ?? item.repo ?? repoOfCheckout(process.cwd()),
+    by: who,
+  });
+  return out(
+    `${started.id} started on ${started.branch}: ${started.title}\n${claimHint(started.id)}`,
+  );
+}
+
+/** `branch ID NEW`: the author renamed or switched its branch. */
+function branch({ home, words, who, found }: Call) {
+  // the card's branch is what the board reads, and each open run of the card keeps its own copy, so both move. The card is
+  // written first, then the runs: after a crash, running it again finishes
+  const item = found();
+  const moved = moveBranch(home, item.id, words[1], who);
+  if (moved.unchanged) {
+    return out(`${moved.id} already on ${moved.to}`);
+  }
+  return out(
+    `${moved.id} branch ${moved.from ?? 'none'} -> ${moved.to} (runs: ${moved.runsMoved})`,
+  );
+}
+
+/** A claim takes the card's repo (ADR-25), so it cannot move the card to another one; a --worktree is checked against git when given. */
+function checkClaim(item: BacklogItem, opts: CliOpts): void {
+  const typedRepo = text(opts.repo);
+  if (typedRepo && item.repo && !sameRepo(typedRepo, item.repo)) {
+    throw new Error(`${item.id} is on ${item.repo}, not ${typedRepo}: edit the card's repo first`);
+  }
+  // the claimer's full session is the editor's: its slots count the cards it claimed (state/src/queues/backlog/slots.ts). A worktree is
+  // checked against git only when given: the author makes its worktree after the claim
+  const worktree = text(opts.worktree);
+  const problem =
+    worktree &&
+    claimWorktreeProblem(worktree, { repo: item.repo, branch: text(opts.branch) ?? item.branch });
+  if (problem) {
+    throw new Error(problem);
+  }
+}
+
+function claim({ home, opts, store, who, found }: Call) {
+  // the agent (named as the ledger names it) owns the card: the board links the two by this and nothing else. --branch
+  // also starts the card on that branch, so it rides on the branch's work card
+  const item = found();
+  const agent = text(opts.agent);
+  if (!agent) {
+    throw new Error('whose card? pass --agent NAME, the name the agent has in the ledger');
+  }
+  checkClaim(item, opts);
+  const typedRepo = text(opts.repo);
+  const branch = text(opts.branch);
+  const worktree = text(opts.worktree);
+  // --repo cannot differ from a card that has one (refused above); on a card with none it is kept by --branch's start
+  warnTypedRepo(home, item.repo || !branch ? null : typedRepo, process.cwd());
+  const claimed = store.claim(item.id, {
+    agent,
+    sid: text(opts.sid),
+    session: ownSession(),
+    worktree: worktree ? path.resolve(worktree) : null,
+    by: who ?? agent,
+  });
+  if (branch) {
+    store.start(item.id, {
       branch,
-      repo: text(opts.repo) ?? item.repo ?? repoOfCheckout(process.cwd()),
-      by: who,
-    });
-    return out(
-      `${started.id} started on ${started.branch}: ${started.title}\n${claimHint(started.id)}`,
-    );
-  }
-  if (verb === 'branch') {
-    // the author renamed or switched its branch: the card's branch is what the board reads, and each open run of the card
-    // keeps its own copy, so both move. The card is written first, then the runs: after a crash, running it again finishes
-    const item = found();
-    const moved = moveBranch(home, item.id, words[1], who);
-    if (moved.unchanged) {
-      return out(`${moved.id} already on ${moved.to}`);
-    }
-    return out(
-      `${moved.id} branch ${moved.from ?? 'none'} -> ${moved.to} (runs: ${moved.runsMoved})`,
-    );
-  }
-  if (verb === 'claim') {
-    // the agent (named as the ledger names it) owns the card: the board links the two by this and nothing else. --branch
-    // also starts the card on that branch, so it rides on the branch's work card
-    const item = found();
-    const agent = text(opts.agent);
-    if (!agent) {
-      throw new Error('whose card? pass --agent NAME, the name the agent has in the ledger');
-    }
-    // a run takes its card's repo (ADR-25), so a claim cannot move the card to another one
-    const typedRepo = text(opts.repo);
-    if (typedRepo && item.repo && !sameRepo(typedRepo, item.repo)) {
-      throw new Error(
-        `${item.id} is on ${item.repo}, not ${typedRepo}: edit the card's repo first`,
-      );
-    }
-    // the claimer's full session is the editor's: its slots count the cards it claimed (state/src/queues/backlog/slots.ts). A worktree is
-    // checked against git only when given: the author makes its worktree after the claim
-    const worktree = text(opts.worktree);
-    if (worktree) {
-      const problem = claimWorktreeProblem(worktree, {
-        repo: item.repo,
-        branch: text(opts.branch) ?? item.branch,
-      });
-      if (problem) {
-        throw new Error(problem);
-      }
-    }
-    // --repo cannot differ from a card that has one (refused above); on a card with none it is kept by --branch's start
-    warnTypedRepo(home, item.repo || !text(opts.branch) ? null : typedRepo, process.cwd());
-    const claimed = store.claim(item.id, {
-      agent,
-      sid: text(opts.sid),
-      session: ownSession(),
-      worktree: worktree ? path.resolve(worktree) : null,
+      repo: typedRepo ?? claimed.repo ?? repoOfCheckout(process.cwd()),
       by: who ?? agent,
     });
-    const branch = text(opts.branch);
-    if (branch) {
-      store.start(item.id, {
-        branch,
-        repo: text(opts.repo) ?? claimed.repo ?? repoOfCheckout(process.cwd()),
-        by: who ?? agent,
-      });
+  }
+  return out(
+    `${item.id} claimed by ${agent}${branch ? `, started on ${branch}` : ''}: ${item.title}`,
+  );
+}
+
+function move({ opts, store, who, found }: Call) {
+  const item = found();
+  const before = text(opts.before);
+  if (!before && !opts.top && !opts.bottom) {
+    throw new Error('move it --before ID, --top or --bottom');
+  }
+  const edge = opts.top ? 'top' : 'bottom';
+  store.move(item.id, before ? { before } : { edge }, who);
+  return out(`${item.id} moved ${before ? `before ${before}` : `to the ${edge}`}: ${item.title}`);
+}
+
+function done({ opts, words, store, who, found }: Call) {
+  // by id: the work landed. A deploy marks cards by the commit each recorded (`land`), never by a branch name
+  if (!words[0] || opts.branch) {
+    throw new Error('mark an item done by ID: once-upon backlog done ID [--sha SHA]');
+  }
+  const landed = store.done(found().id, { sha: text(opts.sha), by: who });
+  return out(
+    `${landed.id} done${landed.landed_sha ? ` at ${landed.landed_sha}` : ''}: ${landed.title}`,
+  );
+}
+
+/** `land`: what deploy-local.sh runs after a deploy: --from the live commit before it, --to the deployed tip, and a batch deploy's picked shas as words. The checkout is the one the command runs in. */
+function land({ home, opts, words, store, who }: Call) {
+  const from = text(opts.from);
+  const upto = text(opts.to);
+  if (!from || !upto) {
+    throw new Error('which deploy? pass --from REF --to REF (the range that went live)');
+  }
+  const repo = process.cwd();
+  const registry = new AgentRegistry(home);
+  const found = landItems(
+    repo,
+    repoOfCheckout(repo),
+    store.listed(),
+    recordedTips(registry.events()),
+    { from, to: upto, picked: words },
+    registry.agents(),
+  );
+  for (const { item, sha } of found.landed) {
+    if (opts['dry-run']) {
+      out(`${item.id} would be done at ${sha}: ${item.title}`);
+    } else {
+      const landed = store.done(item.id, { sha, by: who ?? 'land' });
+      out(`${landed.id} done at ${landed.landed_sha}: ${landed.title}`);
     }
-    return out(
-      `${item.id} claimed by ${agent}${branch ? `, started on ${branch}` : ''}: ${item.title}`,
+  }
+  for (const item of found.held) {
+    out(
+      `${item.id} held, not marked (close it with: once-upon backlog done ${item.id}): ${item.title}`,
     );
   }
-  if (verb === 'move') {
-    const item = found();
-    const before = text(opts.before);
-    if (!before && !opts.top && !opts.bottom) {
-      throw new Error('move it --before ID, --top or --bottom');
-    }
-    const edge = opts.top ? 'top' : 'bottom';
-    store.move(item.id, before ? { before } : { edge }, who);
-    return out(`${item.id} moved ${before ? `before ${before}` : `to the ${edge}`}: ${item.title}`);
-  }
-  if (verb === 'done') {
-    // by id: the work landed. A deploy marks cards by the commit each recorded (`land`), never by a branch name
-    if (!words[0] || opts.branch) {
-      throw new Error('mark an item done by ID: once-upon backlog done ID [--sha SHA]');
-    }
-    const landed = store.done(found().id, { sha: text(opts.sha), by: who });
-    return out(
-      `${landed.id} done${landed.landed_sha ? ` at ${landed.landed_sha}` : ''}: ${landed.title}`,
+  for (const { item, why } of found.open) {
+    out(
+      `${item.id} still open, ${why}. If it landed: once-upon backlog done ${item.id} --sha SHA: ${item.title}`,
     );
   }
-  if (verb === 'land') {
-    // what deploy-local.sh runs after a deploy: --from the live commit before it, --to the deployed tip, and a batch
-    // deploy's picked shas as words. The checkout is the one the command runs in.
-    const from = text(opts.from);
-    const upto = text(opts.to);
-    if (!from || !upto) {
-      throw new Error('which deploy? pass --from REF --to REF (the range that went live)');
-    }
-    const repo = process.cwd();
-    const registry = new AgentRegistry(home);
-    const found = landItems(
-      repo,
-      repoOfCheckout(repo),
-      store.listed(),
-      recordedTips(registry.events()),
-      { from, to: upto, picked: words },
-      registry.agents(),
-    );
-    for (const { item, sha } of found.landed) {
-      if (opts['dry-run']) {
-        out(`${item.id} would be done at ${sha}: ${item.title}`);
-      } else {
-        const landed = store.done(item.id, { sha, by: who ?? 'land' });
-        out(`${landed.id} done at ${landed.landed_sha}: ${landed.title}`);
-      }
-    }
-    for (const item of found.held) {
-      out(
-        `${item.id} held, not marked (close it with: once-upon backlog done ${item.id}): ${item.title}`,
-      );
-    }
-    for (const { item, why } of found.open) {
-      out(
-        `${item.id} still open, ${why}. If it landed: once-upon backlog done ${item.id} --sha SHA: ${item.title}`,
-      );
-    }
-    return;
+}
+
+function hold({ opts, store, who, found }: Call) {
+  const held = store.hold(found().id, !opts.off, who);
+  return out(
+    held.hold
+      ? `${held.id} held: neither a deploy nor a merged PR will mark it done, only backlog done ${held.id} does`
+      : `${held.id} released: a deploy or a merged PR can mark it done again`,
+  );
+}
+
+function skipCritic({ opts, store, who, found }: Call) {
+  const skipped = store.skipCritic(found().id, !opts.off, who);
+  return out(
+    skipped.critic_skipped
+      ? `${skipped.id} critic skipped: once its work is built it reads Ready, with no critic needed`
+      : `${skipped.id} critic needed again: once its work is built it waits for a passing critic or a skip`,
+  );
+}
+
+function someday({ home, opts, store, who, found }: Call) {
+  const item = found();
+  // the ledger says whether the card's claim is live (an agent working it)
+  const maybe = store.someday(item.id, !opts.off, who, new AgentRegistry(home).agents());
+  return out(
+    maybe.someday
+      ? `${maybe.id} someday: out of the main list, in the Someday section (backlog someday ${maybe.id} --off brings it back)`
+      : `${maybe.id} back in the backlog, in its old place`,
+  );
+}
+
+/** Why a card cannot be dropped into `into`, or null: its runs stay on their own repo's cards, and a closed card takes none. */
+function dropIntoProblem(
+  item: BacklogItem,
+  into: string,
+  stored: ReturnType<ReturnType<typeof cardLookup>>,
+  target: { repo: string | null } | null,
+): string | null {
+  if (into === item.id) {
+    return `${item.id} cannot be dropped into itself`;
   }
-  if (verb === 'hold') {
-    const item = found();
-    const held = store.hold(item.id, !opts.off, who);
-    return out(
-      held.hold
-        ? `${held.id} held: neither a deploy nor a merged PR will mark it done, only backlog done ${held.id} does`
-        : `${held.id} released: a deploy or a merged PR can mark it done again`,
-    );
+  if (item.state === 'dropped') {
+    return `${item.id} is already dropped`;
   }
-  if (verb === 'skip-critic') {
-    const item = found();
-    const skipped = store.skipCritic(item.id, !opts.off, who);
-    return out(
-      skipped.critic_skipped
-        ? `${skipped.id} critic skipped: once its work is built it reads Ready, with no critic needed`
-        : `${skipped.id} critic needed again: once its work is built it waits for a passing critic or a skip`,
-    );
+  if (!target) {
+    return `no card ${into}: drop ${item.id} into a backlog card or an implicit card`;
   }
-  if (verb === 'someday') {
-    const item = found();
-    // the ledger says whether the card's claim is live (an agent working it)
-    const maybe = store.someday(item.id, !opts.off, who, new AgentRegistry(home).agents());
-    return out(
-      maybe.someday
-        ? `${maybe.id} someday: out of the main list, in the Someday section (backlog someday ${maybe.id} --off brings it back)`
-        : `${maybe.id} back in the backlog, in its old place`,
-    );
+  if (stored?.closed) {
+    return `${into} is ${stored.closed}: it takes no runs, so drop ${item.id} into another card`;
   }
-  if (verb === 'drop') {
-    // an implicit card that was never adopted is only its runs: a drop with no --into takes it (adopted first, then dropped).
-    // A card with an open run is refused: it would be left on no card
-    const registry = new AgentRegistry(home);
-    const agents = registry.agents();
-    const fresh = implicit().find((one) => one.id === words[0]);
-    const item = fresh ?? found();
-    const into = text(opts.into);
-    if (!into) {
-      const problem = dropRunsProblem(item, agents);
-      if (problem) {
-        throw new Error(problem);
-      }
-      const dropped = fresh ? adoptCard(item.id, null).adopted : item;
-      store.drop(dropped.id, who);
-      return out(`${dropped.id} dropped: ${dropped.title}`);
-    }
-    // --into: its runs move to another card first, then the card goes. The runs are moved one event each, so a failure
-    // part-way leaves the card undropped and running it again moves what is left
-    if (into === item.id) {
-      throw new Error(`${item.id} cannot be dropped into itself`);
-    }
-    if (item.state === 'dropped') {
-      throw new Error(`${item.id} is already dropped`);
-    }
-    const stored = cardLookup(store)(into);
-    const target = stored ?? implicit().find((one) => one.id === into) ?? null;
-    if (!target) {
-      throw new Error(`no card ${into}: drop ${item.id} into a backlog card or an implicit card`);
-    }
-    if (stored?.closed) {
-      throw new Error(
-        `${into} is ${stored.closed}: it takes no runs, so drop ${item.id} into another card`,
-      );
-    }
-    if (item.repo && target.repo && !sameRepo(item.repo, target.repo)) {
-      throw new Error(
-        `${item.id} is on ${item.repo} and ${into} on ${target.repo}: runs stay on their own repo's cards`,
-      );
-    }
-    const runs = runsOf(item, agents);
-    for (const run of runs) {
-      registry.setCard(run, into, { by: who ?? undefined });
-    }
-    if (!fresh) {
-      store.drop(item.id, who);
-    }
-    return out(
-      `${item.id} dropped: ${item.title} (moved ${runs.length} run${runs.length === 1 ? '' : 's'} onto ${into})`,
-    );
+  if (item.repo && target.repo && !sameRepo(item.repo, target.repo)) {
+    return `${item.id} is on ${item.repo} and ${into} on ${target.repo}: runs stay on their own repo's cards`;
   }
-  if (verb === 'reopen') {
-    const item = found();
-    store.reopen(item.id, who);
-    return out(`${item.id} reopened: ${item.title}`);
+  return null;
+}
+
+function drop(call: Call) {
+  const { opts, words, store, who, implicit, found } = call;
+  // an implicit card that was never adopted is only its runs: a drop with no --into takes it (adopted first, then dropped).
+  // A card with an open run is refused: it would be left on no card
+  const registry = new AgentRegistry(call.home);
+  const agents = registry.agents();
+  const fresh = implicit().find((one) => one.id === words[0]);
+  const item = fresh ?? found();
+  const into = text(opts.into);
+  if (!into) {
+    const problem = dropRunsProblem(item, agents);
+    if (problem) {
+      throw new Error(problem);
+    }
+    const dropped = fresh ? call.adoptCard(item.id, null).adopted : item;
+    store.drop(dropped.id, who);
+    return out(`${dropped.id} dropped: ${dropped.title}`);
   }
-  throw new Error(USAGE);
+  // --into: its runs move to another card first, then the card goes. The runs are moved one event each, so a failure
+  // part-way leaves the card undropped and running it again moves what is left
+  const stored = cardLookup(store)(into);
+  const problem = dropIntoProblem(
+    item,
+    into,
+    stored,
+    stored ?? implicit().find((one) => one.id === into) ?? null,
+  );
+  if (problem) {
+    throw new Error(problem);
+  }
+  const runs = runsOf(item, agents);
+  for (const run of runs) {
+    registry.setCard(run, into, { by: who ?? undefined });
+  }
+  if (!fresh) {
+    store.drop(item.id, who);
+  }
+  return out(
+    `${item.id} dropped: ${item.title} (moved ${runs.length} run${runs.length === 1 ? '' : 's'} onto ${into})`,
+  );
+}
+
+function reopen({ store, who, found }: Call) {
+  const item = found();
+  store.reopen(item.id, who);
+  return out(`${item.id} reopened: ${item.title}`);
+}
+
+/** `backlog VERB`: one function per verb. */
+const VERBS: Record<string, Verb> = {
+  adopt,
+  add,
+  list,
+  show,
+  edit,
+  start,
+  branch,
+  claim,
+  move,
+  done,
+  land,
+  hold,
+  'skip-critic': skipCritic,
+  someday,
+  drop,
+  reopen,
+};
+
+function backlog(home: string, _cfg: Config, opts: CliOpts) {
+  const [verb = '', ...words] = opts._ || [];
+  if (!Object.hasOwn(VERBS, verb)) {
+    throw new Error(USAGE);
+  }
+  return VERBS[verb](callOf(home, opts, words));
 }
 
 export const backlogCommands: Command[] = [

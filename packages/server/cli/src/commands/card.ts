@@ -17,6 +17,7 @@ import {
 } from '@once-upon-a-diff/core/features/runs/service';
 import { agentKey } from '@once-upon-a-diff/state/queues/backlog/claims';
 import { out } from '../output.ts';
+import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
 import type { Config } from '@once-upon-a-diff/foundation/settings';
 import type { CliOpts, Command } from '../types.ts';
 
@@ -39,6 +40,41 @@ const COLUMN_LABELS: Record<string, string> = {
 const TIME_NOTE =
   'The board may move it further by its PR, its story review and its sessions (columns.ts): the page has the final column.';
 
+/** `--pr N`: a PR number, or none. */
+function typedPrNumber(opts: CliOpts): number | null {
+  const typed = text(opts.pr);
+  if (typed === null) {
+    return null;
+  }
+  const pr = Number(typed);
+  if (!(Number.isInteger(pr) && pr > 0)) {
+    throw new Error('--pr must be a PR number');
+  }
+  return pr;
+}
+
+/** The PR's head branch, which must fit the card and any typed --branch: a PR is another card's when it is on a different branch. */
+async function headOfPr(item: BacklogItem, pr: number, typedBranch: string | null) {
+  if (!item.repo) {
+    throw new Error(
+      `${item.id} has no repo: once-upon backlog edit ${item.id} --repo owner/name first`,
+    );
+  }
+  const head = await prHeadBranch(item.repo, pr);
+  if (!head) {
+    throw new Error(`#${pr} in ${item.repo} has no head branch`);
+  }
+  if (typedBranch && typedBranch !== head) {
+    throw new Error(
+      `#${pr} is on ${head}, not ${typedBranch}: --branch must be the PR's head branch`,
+    );
+  }
+  if (item.branch && item.branch !== head) {
+    throw new Error(`#${pr} is on ${head}, not ${item.branch}: it is another card's PR`);
+  }
+  return head;
+}
+
 /** `card link`: the facts typed are written onto the stored card, once. A PR is checked: GitHub's head branch for it must be the card's branch (or give the card one). */
 async function link(home: string, id: string, opts: CliOpts) {
   const store = new BacklogStore(home);
@@ -46,32 +82,18 @@ async function link(home: string, id: string, opts: CliOpts) {
   if (!item) {
     throw new Error(`no card ${id}`);
   }
-  const typedPr = text(opts.pr);
-  const pr = typedPr === null ? null : Number(typedPr);
-  if (typedPr !== null && !(Number.isInteger(pr) && (pr as number) > 0)) {
-    throw new Error('--pr must be a PR number');
-  }
-  let branch = text(opts.branch);
+  const pr = typedPrNumber(opts);
+  const typedBranch = text(opts.branch);
   // a card's branch moves with its runs: backlog branch does both, so link never rewrites one
-  if (branch && item.branch && branch !== item.branch) {
+  if (typedBranch && item.branch && typedBranch !== item.branch) {
     throw new Error(
-      `${id} is on ${item.branch}: once-upon backlog branch ${id} ${branch} moves it, and its runs`,
+      `${id} is on ${item.branch}: once-upon backlog branch ${id} ${typedBranch} moves it, and its runs`,
     );
   }
+  // a PR gives the card its head branch, unless the card has one already
+  const head = pr === null ? null : await headOfPr(item, pr, typedBranch);
+  let branch = typedBranch;
   if (pr !== null) {
-    if (!item.repo) {
-      throw new Error(`${id} has no repo: once-upon backlog edit ${id} --repo owner/name first`);
-    }
-    const head = await prHeadBranch(item.repo, pr);
-    if (!head) {
-      throw new Error(`#${pr} in ${item.repo} has no head branch`);
-    }
-    if (branch && branch !== head) {
-      throw new Error(`#${pr} is on ${head}, not ${branch}: --branch must be the PR's head branch`);
-    }
-    if (item.branch && item.branch !== head) {
-      throw new Error(`#${pr} is on ${head}, not ${item.branch}: it is another card's PR`);
-    }
     branch = item.branch ? null : head;
   }
   const linked = store.link(id, {
@@ -90,14 +112,10 @@ async function link(home: string, id: string, opts: CliOpts) {
   return out(`${id} linked: ${facts.join(', ') || 'nothing to link'}`);
 }
 
-async function card(home: string, _cfg: Config, opts: CliOpts) {
-  const [verb, id] = opts._ || [];
-  if (verb === 'link' && id) {
-    return link(home, id, opts);
-  }
-  if (verb !== 'status' || !id) {
-    throw new Error(USAGE);
-  }
+type Phase = ReturnType<typeof cardPhase>;
+
+/** What `card status` reports on: the card (stored or implicit), the stored record behind it, its runs and the run-decided phase. */
+async function statusOf(home: string, id: string) {
   // a self run whose session is gone is closed first, so the column below is the stored one (the board shows the same)
   const registry = runRegistry(home);
   registry.sweep({
@@ -113,90 +131,126 @@ async function card(home: string, _cfg: Config, opts: CliOpts) {
   if (!item) {
     throw new Error(`no card ${id}`);
   }
-  const nowMs = Date.now();
   const runs = runsOf(item, agents);
-  const phase = cardPhase(
-    item,
-    runs,
-    nowMs,
-    undefined,
-    !!repoSettings(readSettings(home), item.repo).skips_review,
+  const skipsReview = !!repoSettings(readSettings(home), item.repo).skips_review;
+  return { item, stored, runs, phase: cardPhase(item, runs, Date.now(), undefined, skipsReview) };
+}
+
+type Status = Awaited<ReturnType<typeof statusOf>>;
+
+function statusJson({ item, stored, runs, phase }: Status): string {
+  return JSON.stringify(
+    {
+      id: item.id,
+      title: item.title,
+      state: item.state,
+      repo: item.repo,
+      branch: item.branch,
+      claim: item.claim,
+      hold: item.hold,
+      someday: item.someday,
+      source: stored?.source ?? null,
+      worktree: stored?.worktree ?? null,
+      pr: stored?.pr ?? null,
+      story: stored?.story ?? null,
+      session: stored?.session ?? null,
+      column: phase?.column ?? null,
+      row: phase?.row ?? null,
+      rule: phase ? PHASE_ROWS[phase.row] : null,
+      tried: phase?.tried ?? false,
+      runs: runs.map((run) => ({
+        id: agentKey(run),
+        run: run.run,
+        kind: run.kind,
+        state: run.state,
+        started: run.started?.toISOString() ?? null,
+        ended: run.ended?.toISOString() ?? null,
+      })),
+    },
+    null,
+    2,
   );
-  const column = phase ? (COLUMN_LABELS[phase.column] ?? phase.column) : null;
-  if (opts.json) {
-    return out(
-      JSON.stringify(
-        {
-          id: item.id,
-          title: item.title,
-          state: item.state,
-          repo: item.repo,
-          branch: item.branch,
-          claim: item.claim,
-          hold: item.hold,
-          someday: item.someday,
-          source: stored?.source ?? null,
-          worktree: stored?.worktree ?? null,
-          pr: stored?.pr ?? null,
-          story: stored?.story ?? null,
-          session: stored?.session ?? null,
-          column: phase?.column ?? null,
-          row: phase?.row ?? null,
-          rule: phase ? PHASE_ROWS[phase.row] : null,
-          tried: phase?.tried ?? false,
-          runs: runs.map((run) => ({
-            id: agentKey(run),
-            run: run.run,
-            kind: run.kind,
-            state: run.state,
-            started: run.started?.toISOString() ?? null,
-            ended: run.ended?.toISOString() ?? null,
-          })),
-        },
-        null,
-        2,
-      ),
-    );
-  }
+}
+
+function stateLine(item: BacklogItem): string {
   const where = [item.repo, item.branch].filter(Boolean).join(' ');
   const marks = [item.hold && 'hold', item.someday && 'someday'].filter(Boolean);
-  const lines = [
+  const state = item.landed_at && item.state !== 'dropped' ? 'done' : item.state;
+  return `state: ${state}${marks.length ? ` (${marks.join(', ')})` : ''}${where ? `  ${where}` : ''}`;
+}
+
+function claimLine(item: BacklogItem, home: string): string {
+  if (!item.claim) {
+    return 'claim: none';
+  }
+  const session = item.claim.sid ? ` (session ${item.claim.sid})` : '';
+  return `claim: ${item.claim.agent}${session}, ${formatTime(item.claim.at, home)}`;
+}
+
+/** The stored record's own facts, none when the card is only its runs. */
+function recordLines(stored: BacklogItem | undefined): string[] {
+  if (!stored) {
+    return [];
+  }
+  const facts = [
+    stored.worktree && `worktree ${stored.worktree}`,
+    stored.pr && `pr #${stored.pr}`,
+    stored.story && `story ${stored.story}`,
+    stored.session && `session ${stored.session}`,
+  ]
+    .filter(Boolean)
+    .map((fact) => `, ${fact}`);
+  return [`record: source ${stored.source}${facts.join('')}`];
+}
+
+/** The column the runs decide, and the rule row that decided it. */
+function columnLines(phase: Phase): string[] {
+  if (phase === undefined) {
+    return ['column: Backlog (no run decides it: the card keeps its own state)'];
+  }
+  if (phase === null) {
+    return ['column: off the board (past its Done hour)'];
+  }
+  const column = COLUMN_LABELS[phase.column] ?? phase.column;
+  return [
+    `column: ${column}${phase.tried ? ' (tried: sent back by a failed or stopped run)' : ''}`,
+    `rule: ${phase.row} ${PHASE_ROWS[phase.row]} (state/src/queues/backlog/phase.ts, ADR-25)`,
+  ];
+}
+
+function statusText(home: string, { item, stored, runs, phase }: Status): string {
+  return [
     `${item.id}  ${item.title}`,
-    `state: ${item.landed_at && item.state !== 'dropped' ? 'done' : item.state}${marks.length ? ` (${marks.join(', ')})` : ''}${where ? `  ${where}` : ''}`,
-    item.claim
-      ? `claim: ${item.claim.agent}${item.claim.sid ? ` (session ${item.claim.sid})` : ''}, ${formatTime(item.claim.at, home)}`
-      : 'claim: none',
-    ...(stored
-      ? [
-          `record: source ${stored.source}${[
-            stored.worktree && `worktree ${stored.worktree}`,
-            stored.pr && `pr #${stored.pr}`,
-            stored.story && `story ${stored.story}`,
-            stored.session && `session ${stored.session}`,
-          ]
-            .filter(Boolean)
-            .map((fact) => `, ${fact}`)
-            .join('')}`,
-        ]
-      : []),
+    stateLine(item),
+    claimLine(item, home),
+    ...recordLines(stored),
     runs.length ? 'runs, oldest first:' : 'runs: none',
     ...runs.map(
       (run) =>
         `  ${agentKey(run)}\t${run.kind}\t${run.state}${run.ended ? `\tended ${formatTime(run.ended.toISOString(), home)}` : ''}`,
     ),
-  ];
-  if (phase === undefined) {
-    lines.push('column: Backlog (no run decides it: the card keeps its own state)');
-  } else if (phase === null) {
-    lines.push('column: off the board (past its Done hour)');
-  } else {
-    lines.push(
-      `column: ${column}${phase.tried ? ' (tried: sent back by a failed or stopped run)' : ''}`,
-      `rule: ${phase.row} ${PHASE_ROWS[phase.row]} (state/src/queues/backlog/phase.ts, ADR-25)`,
-    );
+    ...columnLines(phase),
+    TIME_NOTE,
+  ].join('\n');
+}
+
+async function status(home: string, id: string, opts: CliOpts) {
+  const found = await statusOf(home, id);
+  return out(opts.json ? statusJson(found) : statusText(home, found));
+}
+
+/** `card VERB ID`: one function per verb. */
+const VERBS: Record<string, (home: string, id: string, opts: CliOpts) => Promise<unknown>> = {
+  link,
+  status,
+};
+
+async function card(home: string, _cfg: Config, opts: CliOpts) {
+  const [verb, id] = opts._ || [];
+  if (!id || !Object.hasOwn(VERBS, verb ?? '')) {
+    throw new Error(USAGE);
   }
-  lines.push(TIME_NOTE);
-  return out(lines.join('\n'));
+  return VERBS[verb](home, id, opts);
 }
 
 export const cardCommands: Command[] = [

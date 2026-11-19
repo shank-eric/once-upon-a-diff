@@ -42,195 +42,240 @@ const USAGE =
 
 const text = (value: unknown): string | null => (typeof value === 'string' && value ? value : null);
 
-async function agent(home: string, _cfg: Config, opts: CliOpts) {
-  const [verb, first, ...rest] = opts._ || [];
-  let name = first;
-  let words = rest;
-  // the caller already wrote the progress line (the caller echoes the progress line itself): the event is all this call adds
-  const mirror = opts['no-mirror'] ? 'none' : 'both';
-  const registry = runRegistry(home, mirror);
-  const warn = (line: string) => process.stderr.write(line + '\n');
-  let sid = text(opts.sid);
-  const run = text(opts.run);
-  // a subagent's own session breaks a tie between two sessions' open runs of one name (its sid is unknown to it otherwise)
-  const prefer = ownSession()?.slice(0, 8) ?? null;
-  const who = text(opts.by);
-  if (verb === 'sweep') {
-    // runs silent for a day that owe beats are closed (registry.ts `sweep`); `agent start` does the same as it writes
-    const swept = registry.sweep({
-      dryRun: !!opts['dry-run'],
-      liveSids: await trustedLiveSids(home),
-      lastWrite: await liveWrites(home, registry.agents()),
+/** One call of `agent VERB`: what every verb reads, with the name and words a self run has already resolved. */
+interface Call {
+  home: string;
+  opts: CliOpts;
+  registry: ReturnType<typeof runRegistry>;
+  /** the caller already wrote the progress line (the caller echoes the progress line itself): the event is all this call adds */
+  mirror: 'none' | 'both';
+  warn: (line: string) => void;
+  sid: string | null;
+  run: string | null;
+  /** a subagent's own session breaks a tie between two sessions' open runs of one name (its sid is unknown to it otherwise) */
+  prefer: string | null;
+  who: string | null;
+  name: string;
+  words: string[];
+}
+
+type Verb = (call: Call) => unknown;
+
+/** `agent sweep`: runs silent for a day that owe beats are closed (registry.ts `sweep`); `agent start` does the same as it writes. */
+async function sweep({ home, opts, registry }: Call) {
+  const dry = !!opts['dry-run'];
+  const swept = registry.sweep({
+    dryRun: dry,
+    liveSids: await trustedLiveSids(home),
+    lastWrite: await liveWrites(home, registry.agents()),
+  });
+  // the day-old status line files of gone sessions go here too, not on the board's read
+  const lines = dry ? [] : await sweepStatusLines(home);
+  const said = [
+    ...swept.map(
+      (one) =>
+        `${agentKey(one)} ${dry ? 'would be stopped' : 'stopped'}: silent since ${lastActivity(one)?.toISOString() ?? 'its start'}`,
+    ),
+    ...(lines.length ? [`${lines.length} status line file(s) of gone sessions removed`] : []),
+  ];
+  return out(said.length ? said.join('\n') : 'Nothing to sweep.');
+}
+
+/** `agent auto-finish`: the SubagentStop hook calls this on every subagent that stops: it never fails, and says nothing unless it ended a run. */
+function autoFinish({ home, opts }: Call) {
+  try {
+    const ended = autoFinishRun(home, {
+      transcript: text(opts.transcript),
+      session: text(opts.session),
     });
-    // the day-old status line files of gone sessions go here too, not on the board's read
-    const lines = opts['dry-run'] ? [] : await sweepStatusLines(home);
-    const said = [
-      ...swept.map(
-        (one) =>
-          `${agentKey(one)} ${opts['dry-run'] ? 'would be stopped' : 'stopped'}: silent since ${lastActivity(one)?.toISOString() ?? 'its start'}`,
-      ),
-      ...(lines.length ? [`${lines.length} status line file(s) of gone sessions removed`] : []),
-    ];
-    return out(said.length ? said.join('\n') : 'Nothing to sweep.');
+    return ended ? out(`${ended} auto-finished`) : undefined;
+  } catch {
+    return undefined;
   }
-  if (verb === 'auto-finish') {
-    // the SubagentStop hook calls this on every subagent that stops: it never fails, and says nothing unless it ended a run
-    try {
-      const ended = autoFinishRun(home, {
-        transcript: text(opts.transcript),
-        session: text(opts.session),
-      });
-      return ended ? out(`${ended} auto-finished`) : undefined;
-    } catch {
-      return undefined;
-    }
+}
+
+/** One line of `agent list`: id, kind, state, beat, minutes since its last sign, task. */
+function listLine(one: ReturnType<ReturnType<typeof runRegistry>['agents']>[number], now: number) {
+  const beat = one.beat ? `${one.beat.n}/${one.beat.of} ${one.beat.step}` : '-';
+  const last = lastActivity(one);
+  const quiet = last ? `${Math.round((now - last.getTime()) / 60000)}m ago` : '-';
+  return [agentId(one.sid, one.name), one.kind, one.state, beat, quiet, one.task].join('\t');
+}
+
+function list({ opts, registry }: Call) {
+  const agents = registry
+    .agents()
+    .filter((one) => opts.all || ['running', 'waiting', 'plan', 'fixing'].includes(one.state));
+  if (opts.json) {
+    return out(JSON.stringify(agents, null, 2));
   }
-  if (verb === 'list') {
-    const now = Date.now();
-    const agents = registry
-      .agents()
-      .filter((one) => opts.all || ['running', 'waiting', 'plan', 'fixing'].includes(one.state));
-    if (opts.json) {
-      return out(JSON.stringify(agents, null, 2));
-    }
-    return out(
-      agents.length
-        ? agents
-            .map((one) => {
-              const beat = one.beat ? `${one.beat.n}/${one.beat.of} ${one.beat.step}` : '-';
-              const last = lastActivity(one);
-              const quiet = last ? `${Math.round((now - last.getTime()) / 60000)}m ago` : '-';
-              return [agentId(one.sid, one.name), one.kind, one.state, beat, quiet, one.task].join(
-                '\t',
-              );
-            })
-            .join('\n')
-        : 'No registered agents.',
+  const now = Date.now();
+  return out(
+    agents.length ? agents.map((one) => listLine(one, now)).join('\n') : 'No registered agents.',
+  );
+}
+
+function ack({ registry, name, sid, who }: Call) {
+  const { run: acked, acked: wrote } = registry.ack(name, { sid, by: who });
+  return out(`${agentKey(acked)} ${wrote ? 'acknowledged' : 'was already acknowledged'}`);
+}
+
+async function start({ home, opts, mirror, warn, sid, who, name, words }: Call) {
+  const started = await startRun(
+    home,
+    {
+      name,
+      self: !!opts.self,
+      sid,
+      session: ownSession(),
+      kind: opts.kind === undefined ? undefined : (text(opts.kind) ?? ''), // a bare --kind still counts as typed
+      role: text(opts.role),
+      // absent carries over from the earlier run; `--standing` or `--standing true` sets it, `--standing false` clears it
+      standing: opts.standing === undefined ? undefined : opts.standing !== 'false',
+      task: text(opts.task) ?? words.join(' '),
+      model: text(opts.model),
+      effort: text(opts.effort),
+      repo: text(opts.repo),
+      branch: text(opts.branch),
+      pr: text(opts.pr),
+      cwd: path.resolve(text(opts.cwd) ?? process.cwd()),
+      card: text(opts.card),
+      newCard: !!opts['new-card'],
+      replaces: text(opts.replaces),
+      lane: text(opts.lane),
+      notes: text(opts.notes),
+      by: who,
+      slots: opts.slots,
+    },
+    { warn, mirror },
+  );
+  // the day-old status line files of gone sessions go with a start that was accepted (housekeeping, not part of the run)
+  await sweepStatusLines(home);
+  // an implicit card's id is printed beside the run's, so a later run on the same work (a critic of it) can pass --card; so is
+  // the card a start joined, whatever its id
+  const line = `${started.id} ${started.run}${isImplicitCard(started.card) || started.joined ? ` ${started.card}` : ''}`;
+  return out(
+    started.joined
+      ? `${line}\njoined ${started.joined.card} (${started.joined.title}): the open card on ${started.joined.branch}. --new-card starts another.`
+      : line,
+  );
+}
+
+function state({ opts, registry, warn, name, sid, run, prefer, who }: Call) {
+  registry.state(
+    name,
+    {
+      state: text(opts.state) as 'running',
+      outcome: text(opts.outcome),
+      findings: text(opts.findings),
+      notes: text(opts.notes),
+      sid,
+      run,
+      prefer,
+      by: who,
+    },
+    warn,
+  );
+  return out(`${name} ${text(opts.state)}`);
+}
+
+function beat({ registry, warn, name, words, sid, run, prefer, who }: Call) {
+  const [step, label, ...note] = words;
+  const [done, total] = (step ?? '').split('/');
+  registry.beat(
+    name,
+    { n: done, of: total, step: label, note: note.join(' '), sid, run, prefer, by: who },
+    warn,
+  );
+  return out(`${name} ${step} ${label}`);
+}
+
+function finish({ home, opts, mirror, warn, name, sid, run, prefer, who }: Call) {
+  const finished = finishRun(
+    home,
+    name,
+    {
+      state: (text(opts.state) ?? undefined) as 'done' | undefined,
+      outcome: text(opts.outcome),
+      result: {
+        commit: text(opts.commit),
+        pr: text(opts.pr),
+        branch: text(opts.branch),
+        card: text(opts.card),
+      },
+      findings: text(opts.findings),
+      notes: text(opts.notes),
+      sid,
+      run,
+      prefer,
+      by: who,
+    },
+    { warn, mirror },
+  );
+  // a fixer's commit on an approved story's card keeps the approval (carry-approval.ts)
+  const carried = carryApproval(home, finished);
+  const approval = carried
+    ? `, approval carried ${shortSha(carried.from)} -> ${shortSha(carried.to)}${carried.via ? ` (${carried.via})` : ''}`
+    : '';
+  return out(`${name} finished${approval}`);
+}
+
+/** The verbs that take no run's name. */
+const UNNAMED: Record<string, Verb> = { sweep, 'auto-finish': autoFinish, list };
+
+/** The verbs on one run, by its name. */
+const NAMED: Record<string, Verb> = { ack, start, state, beat, finish };
+
+/**
+ * --self: a parent session's own run. `start` mints its name (a NAME typed beside it is the refusal's to name); the others find
+ * the session's newest open run of its own, so the first word is the next argument's, not a name.
+ */
+function ownRun(call: Call, first: string | undefined, rest: string[]): Call {
+  const mine = ownSession()?.slice(0, 8);
+  if (!mine) {
+    throw new Error('--self needs a Claude session (CLAUDE_CODE_SESSION_ID is not set)');
+  }
+  const open = openSelfRun(call.registry.agents(), mine, call.run);
+  if (!open) {
+    throw new Error(
+      'no open self run for this session: start one with once-upon agent start --self --role author|research|helper',
     );
   }
-  // --self: a parent session's own run. `start` mints its name (a NAME typed beside it is the refusal's to name); the others find
-  // the session's newest open run of its own, so the first word is the next argument's, not a name
-  if (opts.self && verb && ['state', 'beat', 'finish'].includes(verb)) {
-    const mine = ownSession()?.slice(0, 8);
-    if (!mine) {
-      throw new Error('--self needs a Claude session (CLAUDE_CODE_SESSION_ID is not set)');
-    }
-    const open = openSelfRun(registry.agents(), mine, run);
-    if (!open) {
-      throw new Error(
-        'no open self run for this session: start one with once-upon agent start --self --role author|research|helper',
-      );
-    }
-    words = first === undefined ? rest : [first, ...rest];
-    name = open.name;
-    sid = open.sid;
+  return {
+    ...call,
+    name: open.name,
+    sid: open.sid,
+    words: first === undefined ? rest : [first, ...rest],
+  };
+}
+
+const isOwnRunVerb = (verb: string | undefined) => ['state', 'beat', 'finish'].includes(verb ?? '');
+
+async function agent(home: string, _cfg: Config, opts: CliOpts) {
+  const [verb = '', first, ...rest] = opts._ || [];
+  const mirror = opts['no-mirror'] ? 'none' : 'both';
+  const call: Call = {
+    home,
+    opts,
+    registry: runRegistry(home, mirror),
+    mirror,
+    warn: (line) => process.stderr.write(line + '\n'),
+    sid: text(opts.sid),
+    run: text(opts.run),
+    prefer: ownSession()?.slice(0, 8) ?? null,
+    who: text(opts.by),
+    name: first ?? '',
+    words: rest,
+  };
+  if (Object.hasOwn(UNNAMED, verb)) {
+    return UNNAMED[verb](call);
   }
-  if (!name && !(opts.self && verb === 'start')) {
+  const named = opts.self && isOwnRunVerb(verb) ? ownRun(call, first, rest) : call;
+  const mintsName = opts.self && verb === 'start';
+  if (!Object.hasOwn(NAMED, verb) || !(named.name || mintsName)) {
     throw new Error(USAGE);
   }
-  if (verb === 'ack') {
-    const { run: acked, acked: wrote } = registry.ack(name, { sid, by: who });
-    return out(`${agentKey(acked)} ${wrote ? 'acknowledged' : 'was already acknowledged'}`);
-  }
-  if (verb === 'start') {
-    const started = await startRun(
-      home,
-      {
-        name: name ?? '',
-        self: !!opts.self,
-        sid,
-        session: ownSession(),
-        kind: opts.kind === undefined ? undefined : (text(opts.kind) ?? ''), // a bare --kind still counts as typed
-        role: text(opts.role),
-        // absent carries over from the earlier run; `--standing` or `--standing true` sets it, `--standing false` clears it
-        standing: opts.standing === undefined ? undefined : opts.standing !== 'false',
-        task: text(opts.task) ?? words.join(' '),
-        model: text(opts.model),
-        effort: text(opts.effort),
-        repo: text(opts.repo),
-        branch: text(opts.branch),
-        pr: text(opts.pr),
-        cwd: path.resolve(text(opts.cwd) ?? process.cwd()),
-        card: text(opts.card),
-        newCard: !!opts['new-card'],
-        replaces: text(opts.replaces),
-        lane: text(opts.lane),
-        notes: text(opts.notes),
-        by: who,
-        slots: opts.slots,
-      },
-      { warn, mirror },
-    );
-    // the day-old status line files of gone sessions go with a start that was accepted (housekeeping, not part of the run)
-    await sweepStatusLines(home);
-    // an implicit card's id is printed beside the run's, so a later run on the same work (a critic of it) can pass --card; so is
-    // the card a start joined, whatever its id
-    const line = `${started.id} ${started.run}${isImplicitCard(started.card) || started.joined ? ` ${started.card}` : ''}`;
-    return out(
-      started.joined
-        ? `${line}\njoined ${started.joined.card} (${started.joined.title}): the open card on ${started.joined.branch}. --new-card starts another.`
-        : line,
-    );
-  }
-  if (verb === 'state') {
-    registry.state(
-      name,
-      {
-        state: text(opts.state) as 'running',
-        outcome: text(opts.outcome),
-        findings: text(opts.findings),
-        notes: text(opts.notes),
-        sid,
-        run,
-        prefer,
-        by: who,
-      },
-      warn,
-    );
-    return out(`${name} ${text(opts.state)}`);
-  }
-  if (verb === 'beat') {
-    const [step, label, ...note] = words;
-    const [done, total] = (step ?? '').split('/');
-    registry.beat(
-      name,
-      { n: done, of: total, step: label, note: note.join(' '), sid, run, prefer, by: who },
-      warn,
-    );
-    return out(`${name} ${step} ${label}`);
-  }
-  if (verb === 'finish') {
-    const finished = finishRun(
-      home,
-      name,
-      {
-        state: (text(opts.state) ?? undefined) as 'done' | undefined,
-        outcome: text(opts.outcome),
-        result: {
-          commit: text(opts.commit),
-          pr: text(opts.pr),
-          branch: text(opts.branch),
-          card: text(opts.card),
-        },
-        findings: text(opts.findings),
-        notes: text(opts.notes),
-        sid,
-        run,
-        prefer,
-        by: who,
-      },
-      { warn, mirror },
-    );
-    // a fixer's commit on an approved story's card keeps the approval (carry-approval.ts)
-    const carried = carryApproval(home, finished);
-    return out(
-      `${name} finished` +
-        (carried
-          ? `, approval carried ${shortSha(carried.from)} -> ${shortSha(carried.to)}${carried.via ? ` (${carried.via})` : ''}`
-          : ''),
-    );
-  }
-  throw new Error(USAGE);
+  return NAMED[verb](named);
 }
 
 export const agentCommands: Command[] = [

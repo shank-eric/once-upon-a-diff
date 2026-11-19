@@ -10,53 +10,65 @@ import { currentHead } from '@once-upon-a-diff/core/features/review/freshness';
 import { isRebuild } from '@once-upon-a-diff/stories/rebuild';
 import { parsePrRef } from '@once-upon-a-diff/terms/ids';
 import { out } from '../output.ts';
+import type { Build } from '@once-upon-a-diff/state/queues/requests/builds';
 import type { Config } from '@once-upon-a-diff/foundation/settings';
 import type { CliOpts, Command } from '../types.ts';
 
-async function builds(home: string, cfg: Config, opts: CliOpts) {
-  const requests = new Builds(home);
-  if (opts.begin) {
-    // an agent builds a story with no panel click: file the PR's request, already claimed, so the page shows Building
-    const pr = parsePrRef(String(opts.begin));
-    if (!pr || typeof opts.consumer !== 'string') {
-      throw new Error(
-        'usage: once-upon builds --begin <owner/repo#N | PR url> --consumer <your name>',
-      );
-    }
-    const stories = new StoryStore({ home });
-    const hit = stories.find(pr.repo, pr.number);
-    const dir = hit ? stories.dirOf(hit.id) : null;
-    const told = dir ? readMeta(dir).head_oid || null : null;
-    // the PR's head, to tell an update (it moved) from a re-tell (it didn't); gh can't say, so a re-tell
-    const head = hit ? await currentHead(pr.repo, pr.number).catch(() => null) : null;
-    const build = requests.begin(pr.repo, pr.number, {
-      consumer: opts.consumer,
-      story: hit ? { id: hit.id, dir, head_oid: told } : null,
-      head,
-    });
-    out(`${build.id} building (${build.repo}#${build.number})`);
-    if (build.mode) {
-      // not a plain Build story: what it asks, and the part of the skill that tells it
-      const rebuild = isRebuild(build);
-      out(
-        `${rebuild ? 'Rebuild' : 'Update'} request, not a new story: ${buildText(build, readerOf(home))}`,
-      );
-      out(
-        `Follow the skill's "${rebuild ? 'Rebuilding a story' : 'Updating a story'}" section for it.`,
-      );
-    }
-    return;
-  }
-  if (opts.start) {
-    // wait already claimed it; on a long build this keeps the claim fresh, so it isn't handed out again
-    const build = requests.claim(String(opts.start), (opts.consumer as string | undefined) || null);
-    if (!build) {
-      throw new Error(`no pending build request ${opts.start}`);
-    }
-    return out(
-      `${build.id} building (${build.number ? `${build.repo}#${build.number}` : build.story})`,
+/** The stored story for a PR and the PR's head, to tell an update (it moved) from a re-tell (it didn't). */
+async function storyOf(home: string, pr: NonNullable<ReturnType<typeof parsePrRef>>) {
+  const stories = new StoryStore({ home });
+  const hit = stories.find(pr.repo, pr.number);
+  const dir = hit ? stories.dirOf(hit.id) : null;
+  const told = dir ? readMeta(dir).head_oid || null : null;
+  // gh can't say where the story left off, so a re-tell
+  const head = hit ? await currentHead(pr.repo, pr.number).catch(() => null) : null;
+  return { story: hit ? { id: hit.id, dir, head_oid: told } : null, head };
+}
+
+/** `--begin`: an agent builds a story with no panel click: file the PR's request, already claimed, so the page shows Building. */
+async function begin(home: string, requests: Builds, opts: CliOpts) {
+  const pr = parsePrRef(String(opts.begin));
+  if (!pr || typeof opts.consumer !== 'string') {
+    throw new Error(
+      'usage: once-upon builds --begin <owner/repo#N | PR url> --consumer <your name>',
     );
   }
+  const build = requests.begin(pr.repo, pr.number, {
+    consumer: opts.consumer,
+    ...(await storyOf(home, pr)),
+  });
+  out(`${build.id} building (${build.repo}#${build.number})`);
+  if (build.mode) {
+    // not a plain Build story: what it asks, and the part of the skill that tells it
+    const rebuild = isRebuild(build);
+    out(
+      `${rebuild ? 'Rebuild' : 'Update'} request, not a new story: ${buildText(build, readerOf(home))}`,
+    );
+    out(
+      `Follow the skill's "${rebuild ? 'Rebuilding a story' : 'Updating a story'}" section for it.`,
+    );
+  }
+}
+
+/** `--start`: wait already claimed it; on a long build this keeps the claim fresh, so it isn't handed out again. */
+function refreshClaim(requests: Builds, opts: CliOpts) {
+  const build = requests.claim(String(opts.start), (opts.consumer as string | undefined) || null);
+  if (!build) {
+    throw new Error(`no pending build request ${opts.start}`);
+  }
+  return out(
+    `${build.id} building (${build.number ? `${build.repo}#${build.number}` : build.story})`,
+  );
+}
+
+/** One pending request, a line of the list (and the update it asks beneath it). */
+function pendingLine(home: string, requests: Builds, build: Build): string {
+  const update = build.mode ? `\n\t${updateOf(build, readerOf(home))}` : '';
+  const what = build.number ? `${build.repo}#${build.number}` : `story ${build.story}`;
+  return `${build.id}\t${requests.stateOf(build)}\t${what}\t${formatTime(build.requested_at)}\t${build.url || build.story_dir || ''}${update}`;
+}
+
+function listPending(home: string, requests: Builds, opts: CliOpts) {
   const pending = requests.pending();
   if (opts.json) {
     return out(
@@ -71,12 +83,19 @@ async function builds(home: string, cfg: Config, opts: CliOpts) {
     return out('No pending build requests.');
   }
   for (const build of pending) {
-    const update = build.mode ? `\n\t${updateOf(build, readerOf(home))}` : '';
-    const what = build.number ? `${build.repo}#${build.number}` : `story ${build.story}`;
-    out(
-      `${build.id}\t${requests.stateOf(build)}\t${what}\t${formatTime(build.requested_at)}\t${build.url || build.story_dir || ''}${update}`,
-    );
+    out(pendingLine(home, requests, build));
   }
+}
+
+async function builds(home: string, cfg: Config, opts: CliOpts) {
+  const requests = new Builds(home);
+  if (opts.begin) {
+    return begin(home, requests, opts);
+  }
+  if (opts.start) {
+    return refreshClaim(requests, opts);
+  }
+  return listPending(home, requests, opts);
 }
 
 function done(home: string, cfg: Config, opts: CliOpts) {
