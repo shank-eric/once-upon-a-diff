@@ -242,12 +242,14 @@ export interface RepoSettings {
   deploy?: 'local' | 'pr';
   /** Clean up never deletes this repo's branches */
   keep_branches?: boolean;
+  /** the repo's deploy runs the full gate (suite, whole-repo typecheck, lint), so an author's brief defers them to it */
+  deploy_gate?: boolean;
 }
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
 
-const REPO_FLAGS = ['skips_review', 'stories', 'keep_branches'] as const;
+const REPO_FLAGS = ['skips_review', 'stories', 'keep_branches', 'deploy_gate'] as const;
 
 /** One repo's entry, with every field of the wrong type dropped. */
 function readRepoEntry(entry: Record<string, unknown>): RepoSettings {

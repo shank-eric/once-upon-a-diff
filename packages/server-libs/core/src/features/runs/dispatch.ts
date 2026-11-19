@@ -223,6 +223,7 @@ function briefOf(home: string, input: DispatchInput, launching: Launching, now: 
     fromNotes: optional(input.fromNotes),
     fanOut: !!input.fanOut,
     prDraft: shipsByPr(repoSettings(readSettings(home), item.repo)),
+    deployGate: !!repoSettings(readSettings(home), item.repo).deploy_gate,
     dir: optional(input.dir),
     key: optional(input.key),
     story: optional(input.story),
