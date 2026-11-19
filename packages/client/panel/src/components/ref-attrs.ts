@@ -12,7 +12,7 @@ function titleOf(
   line: LineRef | null | undefined,
   moved: boolean | undefined,
 ): string {
-  const where = line ? ` line ${line.start}${line.end !== line.start ? `–${line.end}` : ''}` : '';
+  const where = line ? ` line ${line.start}${line.end === line.start ? '' : `–${line.end}`}` : '';
   return `Scroll to ${rel}${where}${moved ? ' (may have moved: the code there changed since this story was told)' : ''}`;
 }
 

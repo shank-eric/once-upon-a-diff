@@ -174,7 +174,7 @@ export function createDrafts(context: PanelContext) {
     const key = keyOf(step, index);
     const model = models.get(key);
     const general = !comment.line || /^\(/.test(comment.path || '');
-    const rel = !general ? context.refs.fileOf(comment.path) : null;
+    const rel = general ? null : context.refs.fileOf(comment.path);
     let name;
     if (rel) {
       const line = {
@@ -254,7 +254,7 @@ export function createDrafts(context: PanelContext) {
       );
       return html`<div class="ou-cgroup" data-group=${group.step}><h3 class="ou-cgh"><${LinkButton} data-goto=${group.step} onClick=${() => context.navigation.go(group.step)}>${name}</${LinkButton}>: ${title}</h3>${comments}</div>`;
     });
-    const open = state.allCommentsOpen != null ? state.allCommentsOpen : total <= ALL_COMMENTS_OPEN;
+    const open = state.allCommentsOpen == null ? total <= ALL_COMMENTS_OPEN : state.allCommentsOpen;
     const onToggle = (event: Event) => {
       state.allCommentsOpen = (event.currentTarget as HTMLDetailsElement).open;
     };

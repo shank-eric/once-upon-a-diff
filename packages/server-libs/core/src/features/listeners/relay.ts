@@ -23,7 +23,7 @@ export function relayMessage(
   cli: string = cliCommand(),
 ): string {
   const where = [
-    question.chapter || (question.step != null ? `step ${question.step}` : ''),
+    question.chapter || (question.step == null ? '' : `step ${question.step}`),
     question.file,
   ]
     .filter(Boolean)

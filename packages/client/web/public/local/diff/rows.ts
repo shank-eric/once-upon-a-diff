@@ -97,13 +97,7 @@ export function baseRows(file: LocalFile, split: boolean): Base {
       key: 'm',
       text: 'Only whitespace changes, hidden. Turn off Hide whitespace to see them.',
     });
-  } else if (!file.hunks.length) {
-    rows.push({
-      kind: 'message',
-      key: 'm',
-      text: file.kind === 'renamed' ? 'Renamed without changes' : 'No changed lines',
-    });
-  } else {
+  } else if (file.hunks.length) {
     const above = new Map(gapsOf(file.hunks).map((gap) => [gap.index, gap.hidden ?? 0]));
     file.hunks.forEach((hunk, hunkIndex) => {
       rows.push({
@@ -176,6 +170,12 @@ export function baseRows(file: LocalFile, split: boolean): Base {
           rows.push({ kind: 'info', key, text: line.slice(1), hunkIndex });
         }
       });
+    });
+  } else {
+    rows.push({
+      kind: 'message',
+      key: 'm',
+      text: file.kind === 'renamed' ? 'Renamed without changes' : 'No changed lines',
     });
   }
   const base = { rows, anchors };

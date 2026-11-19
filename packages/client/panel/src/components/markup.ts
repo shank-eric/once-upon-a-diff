@@ -22,13 +22,13 @@ export function createMarkup(context: PanelContext) {
         if (props['data-rel'] !== undefined) {
           const rel = String(props['data-rel']);
           const line =
-            props['data-start'] !== undefined
-              ? {
+            props['data-start'] === undefined
+              ? null
+              : {
                   side: String(props['data-side'] || 'R') as Side,
                   start: +String(props['data-start']),
                   end: +String(props['data-end']) || +String(props['data-start']),
-                }
-              : null;
+                };
           props.onClick = context.refs.jumpClick(rel, line);
         }
       },

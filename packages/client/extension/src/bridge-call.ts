@@ -103,9 +103,9 @@ export function createBridgeCaller({ fetch, getSettings, crypto }: BridgeCallDep
         signal,
         headers: {
           Authorization: `Bearer ${token}`,
-          ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+          ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
         },
-        body: body !== undefined ? JSON.stringify(body) : undefined,
+        body: body === undefined ? undefined : JSON.stringify(body),
       });
       const text = await res.text();
       let json: { error?: string } | null = null;

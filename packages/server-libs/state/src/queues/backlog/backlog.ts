@@ -842,7 +842,7 @@ export function backlogCards(
       story: null,
       building: null,
       sessions: [],
-      agents: column !== 'backlog' ? itemViews : [],
+      agents: column === 'backlog' ? [] : itemViews,
       parent: null,
       focus_session: null,
       can_focus: false,

@@ -44,7 +44,7 @@ function prChips(pr: PrInfo) {
   }
   if (pr.required !== null || pr.approvals > 0) {
     const text =
-      pr.required !== null ? `${pr.approvals}/${pr.required} approved` : `${pr.approvals} approved`;
+      pr.required === null ? `${pr.approvals} approved` : `${pr.approvals}/${pr.required} approved`;
     chips.push({ text, mark: pr.required !== null && pr.approvals < pr.required ? 'warn' : 'ok' });
   }
   if (pr.review === 'changes_requested' && !said('changes')) {

@@ -78,9 +78,7 @@ export function expandHunks(
         problems.push(
           `${where}: hunk ${id} is not in the diff (it has ${entries.length ? `h1-h${entries.length}` : 'no hunks'})`,
         );
-      } else if (!listed.includes(entry.rel)) {
-        problems.push(`${where}: hunk ${id} is in ${entry.rel}, which the chapter does not list`);
-      } else {
+      } else if (listed.includes(entry.rel)) {
         const ref: PlanRef = {
           id,
           path: entry.rel,
@@ -98,6 +96,8 @@ export function expandHunks(
           refs[old] = ref;
         }
         expanded++;
+      } else {
+        problems.push(`${where}: hunk ${id} is in ${entry.rel}, which the chapter does not list`);
       }
     }
     chapter.refs = refs;

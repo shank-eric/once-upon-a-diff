@@ -388,7 +388,7 @@ export function sliceOf(
     ...(refs.length
       ? refs.map(
           (ref) =>
-            `- ${ref.id}: ${ref.path}${ref.start !== undefined ? ` ${ref.side}${ref.start}-${ref.end}` : ''}${ref.label ? ` ${ref.label}` : ''}`,
+            `- ${ref.id}: ${ref.path}${ref.start === undefined ? '' : ` ${ref.side}${ref.start}-${ref.end}`}${ref.label ? ` ${ref.label}` : ''}`,
         )
       : ['(none yet)']),
     '',

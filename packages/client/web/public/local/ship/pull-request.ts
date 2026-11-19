@@ -229,8 +229,8 @@ export function prSpec(story: LocalStoryData): ActionSpec<PrView> {
     fields,
     blocker: blockerOf,
     goLabel: (view) =>
-      view.remote.state !== 'same' ? 'Push and open on GitHub' : 'Open on GitHub',
-    working: (view) => (view.remote.state !== 'same' ? `Pushing ${view.branch}…` : null),
+      view.remote.state === 'same' ? 'Open on GitHub' : 'Push and open on GitHub',
+    working: (view) => (view.remote.state === 'same' ? null : `Pushing ${view.branch}…`),
     go: create,
   };
 }

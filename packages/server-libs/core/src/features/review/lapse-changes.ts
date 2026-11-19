@@ -104,17 +104,15 @@ export function commitChanges(
         subject: commit.subject,
         was: approved[editedFrom]!.sha,
       });
-    } else if (sameAs !== undefined) {
-      if (!kept.has(index)) {
-        all.push({
-          kind: 'reordered',
-          sha: commit.sha,
-          subject: commit.subject,
-          was: approved[sameAs]!.sha,
-        });
-      }
-    } else {
+    } else if (sameAs === undefined) {
       all.push({ kind: 'added', sha: commit.sha, subject: commit.subject });
+    } else if (!kept.has(index)) {
+      all.push({
+        kind: 'reordered',
+        sha: commit.sha,
+        subject: commit.subject,
+        was: approved[sameAs]!.sha,
+      });
     }
   });
   approved.forEach((commit, index) => {

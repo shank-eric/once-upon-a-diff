@@ -455,7 +455,7 @@ export function addNote(
       .trim(),
     done: false,
     ...(fields.draft ? { draft: fields.draft } : {}),
-    ...(fields.chapter != null ? { chapter: fields.chapter } : {}),
+    ...(fields.chapter == null ? {} : { chapter: fields.chapter }),
   };
   locked(home, () => saveNotes(store, story.id, [...readNotes(store, story.id), note]));
   if (inbox) {

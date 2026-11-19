@@ -63,9 +63,9 @@ function Listener(props: { entry: BoardListenerRepo; now: number; api: Api }) {
     ? html`<${MenuButton} data-start-listening=${entry.repo} items=${sessions} onPick=${(id: string) => void typeInto(api, 'listen', id, line, entry.repo)} label=${`Sessions in ${entry.repo}`} title=${title}>Start listening ▾</${MenuButton}>`
     : html`<button type="button" data-start-listening=${entry.repo} disabled=${!entry.candidates.length} onClick=${start} title=${title}>Start listening</button>`;
   // nothing to type into: the line to run by hand in Claude Code, with --keep (a hand-started listener has no idle stop)
-  const copy = !entry.candidates.length
-    ? html` <${CopyButton} text=${`${line} --keep`} class="ou-ui-copy" title=${`Copy: ${line} --keep`} attrs=${{ 'data-copy-listen': entry.repo }}>Copy</${CopyButton}>`
-    : null;
+  const copy = entry.candidates.length
+    ? null
+    : html` <${CopyButton} text=${`${line} --keep`} class="ou-ui-copy" title=${`Copy: ${line} --keep`} attrs=${{ 'data-copy-listen': entry.repo }}>Copy</${CopyButton}>`;
   return html`<li class="ou-board-listener"><strong>${entry.repo}</strong> <span class="ou-local-muted">not listening${seen}</span>${' '}
     ${button}${copy}</li>`;
 }

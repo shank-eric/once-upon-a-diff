@@ -32,7 +32,7 @@ export function mergeSummary(input: {
     case 'BEHIND':
       return { ready: false, text: 'behind base', tone: 'warn' };
     case 'BLOCKED': {
-      const short = required !== null ? required - approvals : 0;
+      const short = required === null ? 0 : required - approvals;
       let text = 'blocked';
       let tone: 'warn' | 'bad' = 'warn';
       if (short > 0) {

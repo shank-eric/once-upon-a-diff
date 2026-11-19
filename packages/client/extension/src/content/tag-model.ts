@@ -113,7 +113,7 @@ export function tagFor(result: StoryStatus | null | undefined, { repo, number }:
   const all = !!readCount && readCount.read >= readCount.total;
   if (result.stale && readCount && readCount.read) {
     const newer = Number.isFinite(result.newer) ? (result.newer as number) : null;
-    const label = `${all ? 'Read' : `${readCount.read} of ${readCount.total} read`} · ${newer != null ? plural(newer, 'new commit') : 'new commits'} · Update`;
+    const label = `${all ? 'Read' : `${readCount.read} of ${readCount.total} read`} · ${newer == null ? 'new commits' : plural(newer, 'new commit')} · Update`;
     return {
       kind: 'button',
       act: 'update',

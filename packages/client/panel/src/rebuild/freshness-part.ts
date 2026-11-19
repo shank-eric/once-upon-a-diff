@@ -132,7 +132,7 @@ export function createFreshness(context: PanelContext) {
     if (!updated) {
       return null;
     }
-    const commits = updated.newer != null ? plural(updated.newer, 'new commit') : 'New commits';
+    const commits = updated.newer == null ? 'New commits' : plural(updated.newer, 'new commit');
     const files = (updated.changed_files || []).length;
     const changed = files
       ? `. They changed ${plural(files, 'file')}${inChapters(updated.chapters_touched || [])}`
@@ -202,7 +202,7 @@ export function createFreshness(context: PanelContext) {
       return null;
     }
     const count = chapter.since.commits;
-    const what = `${count != null ? plural(count, 'commit') : 'The commits'} since you read the story`;
+    const what = `${count == null ? 'The commits' : plural(count, 'commit')} since you read the story`;
     const rest = data.chapters.some((other) => !other.since)
       ? ' The chapters after this one are as you read them.'
       : '';

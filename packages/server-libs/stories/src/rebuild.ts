@@ -80,10 +80,10 @@ function coverageProblems(
   const placed = new Set<string>();
   chapters.forEach((chapter, i) => {
     for (const entry of chapter.files) {
-      if (!diff.has(entry.rel)) {
-        problems.push(`chapter ${i + 1} names ${entry.rel}, which is not in the diff`);
-      } else {
+      if (diff.has(entry.rel)) {
         placed.add(entry.rel);
+      } else {
+        problems.push(`chapter ${i + 1} names ${entry.rel}, which is not in the diff`);
       }
     }
   });

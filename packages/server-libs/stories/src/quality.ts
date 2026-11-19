@@ -269,9 +269,7 @@ function shapeFindings(plan: Plan): Finding[] {
   numbered.forEach(({ chapter, index }, position) => {
     const num = numbers[index];
     const text = chapter.narrative.trim();
-    if (!text) {
-      out.push(fail('shape', NO_NARRATIVE, num, 'unwritten'));
-    } else {
+    if (text) {
       const lines = text.split('\n').map((line) => line.trim());
       const opener = /^#{1,6}\s+Chapter\s+(\d+)\s*:\s*(.*)$/i.exec(lines[0]);
       if (!opener) {
@@ -336,6 +334,8 @@ function shapeFindings(plan: Plan): Finding[] {
           );
         }
       }
+    } else {
+      out.push(fail('shape', NO_NARRATIVE, num, 'unwritten'));
     }
     if (/[.!?]\s+\S/.test(chapter.headline.trim())) {
       out.push(warn('shape', 'the headline is more than one sentence', num, 'headline'));

@@ -117,10 +117,10 @@ export function createPoll<T>({
     timer = setTimeout(() => {
       timer = undefined;
       const shown = document.visibilityState === 'visible';
-      if (shown !== whenHidden) {
-        void refresh();
-      } else {
+      if (shown === whenHidden) {
         schedule();
+      } else {
+        void refresh();
       }
     }, wait);
   }

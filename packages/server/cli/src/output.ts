@@ -25,7 +25,7 @@ export function describe(entry: Printable): string {
   const when = formatTime(entry.at);
   // the fields a question (or a read, or a review comment) has; other entries leave them out
   const about = entry as { step?: number | null; chapter?: unknown; file?: string | null };
-  const step = about.step != null ? `step ${about.step}` : '';
+  const step = about.step == null ? '' : `step ${about.step}`;
   const where = [entry.story, about.chapter || step, about.file].filter(Boolean).join(' · ');
   if (entry.type === 'question') {
     return `[${when}] question ${entry.id} (${where})\n${entry.text}`;
