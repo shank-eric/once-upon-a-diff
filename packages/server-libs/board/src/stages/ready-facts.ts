@@ -7,8 +7,7 @@
  * (`working`); that needs the scanner's fact for the branch, so a branch it does not list (checked out in the main checkout, or
  * a repo not discovered yet, or the scanner off) never moves.
  */
-import { sameRepo } from '@once-upon-a-diff/foundation/repos';
-import type { WorktreeFacts } from '@once-upon-a-diff/state/records/worktrees/worktrees';
+import { findTree, type WorktreeFacts } from '@once-upon-a-diff/state/records/worktrees/worktrees';
 import {
   readyFactsOf,
   UNKNOWN_READY,
@@ -28,7 +27,7 @@ export function readyFactsFor(
   if (!repo || !name) {
     return UNKNOWN_READY;
   }
-  const tree = trees.find((one) => !!one.repo && sameRepo(one.repo, repo) && one.branch === name);
+  const tree = findTree(trees, repo, name);
   if (typedPr) {
     review.kickInfo(repo, typedPr, nowMs);
   }

@@ -134,6 +134,22 @@ test('the default branch is origin’s HEAD, not just main or master', async () 
   assert.match(judged.keep.join(), /default branch/);
 });
 
+test('a worktree on develop or trunk is kept like one on main, even when origin’s default is main', async () => {
+  const repo = fixture();
+  const dir = repo.add('feature');
+  repo.commit(dir, 'feature work');
+  const scanner = await scannerOf(repo.main);
+  const found = one(scanner, dir);
+  assert.equal(found.defaultBranch, 'main');
+  for (const branch of ['main', 'develop', 'trunk']) {
+    const judged = judge(
+      { ...found, branch },
+      { inUse: [], pr: { number: null, state: 'none' }, keepBranches: [], now: LATER() },
+    );
+    assert.match(judged.keep.join(), /on the default branch/, branch);
+  }
+});
+
 test('a detached worktree is removable only when a branch reaches its HEAD', async () => {
   const repo = fixture();
   const onMain = path.join(repo.trees, 'detached-main');

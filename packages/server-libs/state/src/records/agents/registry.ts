@@ -19,7 +19,7 @@ import { agentEventsIn } from './events-file.ts';
 import { appendLine } from '@once-upon-a-diff/adapters/stores/fs/lines';
 import { withLock } from '@once-upon-a-diff/adapters/stores/fs/lock';
 import { checkWrite } from '@once-upon-a-diff/foundation/shared-files';
-import { DEFAULT_BRANCHES } from '@once-upon-a-diff/foundation/settings';
+import { isFeatureBranch } from '@once-upon-a-diff/foundation/settings';
 import { END_STATES, OPEN_STATES } from '@once-upon-a-diff/contracts/files/agent-states';
 import { readAgentEvent } from '@once-upon-a-diff/contracts/files/schemas';
 import { strictAgentEvent } from '@once-upon-a-diff/contracts/files/strict';
@@ -874,9 +874,7 @@ export class AgentRegistry {
       const dir = (agent.card && this.cardFacts(agent.card)?.worktree) || agent.cwd;
       const facts = dir ? worktreeFacts(dir) : null;
       const onItsBranch =
-        !!facts?.branch &&
-        !DEFAULT_BRANCHES.has(facts.branch) &&
-        (!agent.branch || facts.branch === agent.branch);
+        isFeatureBranch(facts?.branch) && (!agent.branch || facts.branch === agent.branch);
       if (dir && facts && onItsBranch) {
         const typed = result.commit;
         if (typed && !isAncestor(dir, typed, facts.head)) {

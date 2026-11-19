@@ -8,8 +8,7 @@
  * out in the main checkout, a repo it has not found yet, the scanner off) never moves. The git look is Lookups.movedPast: in the
  * background, null until it answers, which leaves the card where it was.
  */
-import { sameRepo } from '@once-upon-a-diff/foundation/repos';
-import type { WorktreeFacts } from '@once-upon-a-diff/state/records/worktrees/worktrees';
+import { findTree, type WorktreeFacts } from '@once-upon-a-diff/state/records/worktrees/worktrees';
 import type { BoardCard } from '@once-upon-a-diff/contracts/types';
 import { couldBeReady } from '../columns.ts';
 import type { Lookups } from './types.ts';
@@ -28,9 +27,7 @@ export function movedCards(
     }
     const { story, repo, branch } = card;
     const told = toldHeads.get(story.id)?.toLowerCase();
-    const tree = trees.find(
-      (one) => !!one.repo && sameRepo(one.repo, repo) && one.branch === branch,
-    );
+    const tree = findTree(trees, repo, branch);
     const tip = tree?.head?.toLowerCase();
     if (
       tree &&

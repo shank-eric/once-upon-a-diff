@@ -302,6 +302,10 @@ export function repoSettings(
 /** Branches that are not a unit of work of their own. */
 export const DEFAULT_BRANCHES = new Set(['main', 'master', 'develop', 'development', 'trunk']);
 
+/** Whether a branch can name one piece of work: a feature branch, never a default branch or a detached HEAD (no branch). */
+export const isFeatureBranch = (branch: string | null | undefined): branch is string =>
+  !!branch && !DEFAULT_BRANCHES.has(branch);
+
 /** The names the bridge answers when a reverse proxy forwards them (puma-dev's *.test and *.fidev.net). */
 const DEFAULT_HOSTS = ['once-upon.test', 'once-upon.fidev.net'];
 

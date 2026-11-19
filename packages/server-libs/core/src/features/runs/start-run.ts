@@ -15,7 +15,7 @@ import {
   sameRepo,
   typedRepoNote,
 } from '@once-upon-a-diff/foundation/repos';
-import { DEFAULT_BRANCHES } from '@once-upon-a-diff/foundation/settings';
+import { isFeatureBranch } from '@once-upon-a-diff/foundation/settings';
 import { BACKLOG_NOTE_MAX } from '@once-upon-a-diff/terms/text';
 import { prHeadBranch } from '@once-upon-a-diff/foundation/gh';
 import { canonicalKind, runIsOpen } from '@once-upon-a-diff/state/records/agents/events';
@@ -315,7 +315,7 @@ export async function startRun(
     const repo = startInput.repo;
     const cardRepo = repo && REPO_RE.test(repo) ? repo : null;
     const sessionOk = !!input.session && SESSION_RE.test(input.session);
-    const joinable = !input.newCard && branch && !DEFAULT_BRANCHES.has(branch) ? branch : null;
+    const joinable = !input.newCard && isFeatureBranch(branch) ? branch : null;
     // a stored card that is still open is the work's card: finding it writes nothing, so a start the registry then refuses
     // leaves the card as it was
     const open = joinable

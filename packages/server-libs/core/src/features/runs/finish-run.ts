@@ -6,7 +6,7 @@
  */
 import type { FinishInput } from '@once-upon-a-diff/state/records/agents/registry';
 import type { LedgerAgent } from '@once-upon-a-diff/state/records/agents/ledger';
-import { DEFAULT_BRANCHES } from '@once-upon-a-diff/foundation/settings';
+import { isFeatureBranch } from '@once-upon-a-diff/foundation/settings';
 import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { runRegistry, type Mirror } from './registry.ts';
 
@@ -14,7 +14,7 @@ import { runRegistry, type Mirror } from './registry.ts';
 export const teachCard =
   (home: string, name: string): NonNullable<FinishInput['beforeFinish']> =>
   (agent, result) => {
-    if (!agent.card || !result.branch || DEFAULT_BRANCHES.has(result.branch)) {
+    if (!agent.card || !isFeatureBranch(result.branch)) {
       return;
     }
     const store = new BacklogStore(home);

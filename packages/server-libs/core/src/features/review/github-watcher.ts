@@ -48,7 +48,7 @@ import {
   isGone,
   type RequestedCheck,
 } from '@once-upon-a-diff/state/records/github/github-checks';
-import { DEFAULT_BRANCHES } from '@once-upon-a-diff/foundation/settings';
+import { isFeatureBranch } from '@once-upon-a-diff/foundation/settings';
 import { markStoryDone, markStoryReviewed, storyHasState, type LocalEntry } from './story-lists.ts';
 import type { StoryStore } from '@once-upon-a-diff/stories/store';
 import {
@@ -515,7 +515,7 @@ export class AutoReview {
       if (entry.marked && !entry.approval) {
         continue;
       }
-      const onFeature = story.repo && story.branch && !DEFAULT_BRANCHES.has(story.branch);
+      const onFeature = story.repo && isFeatureBranch(story.branch);
       if ((!entry.marked || entry.approval) && onFeature && entry.repo_path) {
         this.kickBranch(
           story.repo as string,

@@ -5,7 +5,7 @@
  * caller's to ask and pass in: this reads only the stored cards.
  */
 import { withLock } from '@once-upon-a-diff/adapters/stores/fs/lock';
-import { DEFAULT_BRANCHES } from '@once-upon-a-diff/foundation/settings';
+import { isFeatureBranch } from '@once-upon-a-diff/foundation/settings';
 import { sameRepo } from '@once-upon-a-diff/foundation/repos';
 import type { BacklogStore, AddInput } from './backlog.ts';
 import type { BacklogItem, CardSource } from './types.ts';
@@ -21,10 +21,6 @@ export interface EnsureInput extends AddInput {
 
 /** A card the work can still be on: not dropped, not landed. */
 const open = (item: BacklogItem): boolean => item.state !== 'dropped' && !item.landed_at;
-
-/** Whether a branch can name one piece of work: a feature branch, never main or a detached HEAD (no branch). */
-const namesWork = (branch: string | null | undefined): branch is string =>
-  !!branch && !DEFAULT_BRANCHES.has(branch);
 
 /** Which of two open cards on one branch is the work's: one with a story or PR, then a listed (backlog) one, then the oldest. */
 const rank = (item: BacklogItem): number =>
@@ -43,7 +39,7 @@ export function findCard(
     input.repo ? sameRepo(item.repo, input.repo) : !item.repo;
   return (
     (input.pr ? live.find((item) => item.pr === input.pr && sameWork(item)) : undefined) ??
-    (namesWork(input.branch)
+    (isFeatureBranch(input.branch)
       ? live
           .filter((item) => item.branch === input.branch && sameWork(item))
           .reduce<BacklogItem | undefined>(
@@ -67,7 +63,7 @@ export function ensureCard(
 ): { item: BacklogItem; made: boolean; joined: boolean } {
   return withLock(store.file, () => {
     let found = findCard(store.items(), input);
-    const joined = !found && !!input.id && !!input.joinBranch && namesWork(input.branch);
+    const joined = !found && !!input.id && !!input.joinBranch && isFeatureBranch(input.branch);
     if (joined) {
       found = findCard(store.items(), { ...input, id: undefined });
     }
@@ -75,7 +71,7 @@ export function ensureCard(
       return {
         item: store.link(found.id, {
           repo: found.repo ? null : input.repo,
-          branch: found.branch || !namesWork(input.branch) ? null : input.branch,
+          branch: found.branch || !isFeatureBranch(input.branch) ? null : input.branch,
           worktree: found.worktree ? null : input.worktree,
           pr: found.pr ? null : input.pr,
           story: found.story ? null : input.story,
@@ -87,7 +83,7 @@ export function ensureCard(
       };
     }
     return {
-      item: store.add({ ...input, branch: namesWork(input.branch) ? input.branch : null }),
+      item: store.add({ ...input, branch: isFeatureBranch(input.branch) ? input.branch : null }),
       made: true,
       joined: false,
     };

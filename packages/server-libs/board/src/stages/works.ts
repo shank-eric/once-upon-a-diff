@@ -6,7 +6,7 @@
 import { branchKey, branchWorkKey, prWorkKey, storyWorkKey } from '@once-upon-a-diff/terms/ids';
 import { hasRepoAndBranch } from '@once-upon-a-diff/terms/repo-branch';
 import { sameRepo } from '@once-upon-a-diff/foundation/repos';
-import { DEFAULT_BRANCHES } from '@once-upon-a-diff/foundation/settings';
+import { isFeatureBranch } from '@once-upon-a-diff/foundation/settings';
 import {
   localEntries,
   mergedStories,
@@ -199,7 +199,7 @@ export function collectWorks(ctx: BuildContext): CollectedWorks {
   const localStoryList = localEntryList.map((entry) => entry.story);
   const newestLocal = new Map<string, InboxLocalStory>();
   for (const local of localStoryList) {
-    if (local.repo && local.branch && !DEFAULT_BRANCHES.has(local.branch)) {
+    if (local.repo && isFeatureBranch(local.branch)) {
       const key = branchKey(local.repo, local.branch);
       newestLocal.set(key, newestLocal.get(key) ?? local);
     } else if (local.repo) {

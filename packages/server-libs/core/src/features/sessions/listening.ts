@@ -4,7 +4,7 @@
  */
 import path from 'node:path';
 import { sameRepo } from '@once-upon-a-diff/foundation/repos';
-import { DEFAULT_BRANCHES } from '@once-upon-a-diff/foundation/settings';
+import { isFeatureBranch } from '@once-upon-a-diff/foundation/settings';
 import type {
   BoardBuild,
   BoardCard,
@@ -181,7 +181,7 @@ export function reviewFor(
     hasStory(card) ||
     card.pr ||
     !hasRepoAndBranch(card) ||
-    DEFAULT_BRANCHES.has(card.branch) ||
+    !isFeatureBranch(card.branch) ||
     shipped(card.repo, card.branch)
   ) {
     return null;

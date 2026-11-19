@@ -3,7 +3,7 @@
  * (state/src/queues/backlog/backlog.ts) in-process, so nothing goes over HTTP; the board shows the items as its Backlog column.
  */
 import path from 'node:path';
-import { formatTime, DEFAULT_BRANCHES } from '@once-upon-a-diff/foundation/settings';
+import { formatTime, isFeatureBranch } from '@once-upon-a-diff/foundation/settings';
 import { repoOfCheckout, currentBranch, sameRepo } from '@once-upon-a-diff/foundation/repos';
 
 import {
@@ -147,16 +147,15 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
     // work and its card are one card: an implicit card with a run open on this repo and branch is the card this add would make,
     // so it is adopted with this title and note (as `adopt` does) and no second card is written. A card whose runs are all over
     // is earlier work on a reused branch name: this one is its own
-    const live =
-      branch && !DEFAULT_BRANCHES.has(branch)
-        ? implicitCards(new AgentRegistry(home).agents()).find(
-            (one) =>
-              !store.listed().some((item) => item.id === one.id) &&
-              one.runs.some(runIsOpen) &&
-              (repo ? sameRepo(one.repo, repo) : !one.repo) &&
-              one.runs.some((run) => (run.result?.branch ?? run.branch) === branch),
-          )
-        : undefined;
+    const live = isFeatureBranch(branch)
+      ? implicitCards(new AgentRegistry(home).agents()).find(
+          (one) =>
+            !store.listed().some((item) => item.id === one.id) &&
+            one.runs.some(runIsOpen) &&
+            (repo ? sameRepo(one.repo, repo) : !one.repo) &&
+            one.runs.some((run) => (run.result?.branch ?? run.branch) === branch),
+        )
+      : undefined;
     if (live) {
       const joined = adoptStarted(live.id, title, text(opts.note));
       return out(
@@ -234,10 +233,7 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
     const item = found();
     // the branch the session is on, unless it is a default branch (then the work has no branch yet: say which)
     const current = currentBranch(process.cwd());
-    const branch =
-      text(opts.branch) ??
-      item.branch ??
-      (current && !DEFAULT_BRANCHES.has(current) ? current : null);
+    const branch = text(opts.branch) ?? item.branch ?? (isFeatureBranch(current) ? current : null);
     if (!branch) {
       throw new Error('this checkout is not on a work branch: pass --branch NAME');
     }

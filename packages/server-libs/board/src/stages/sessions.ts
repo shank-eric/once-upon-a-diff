@@ -7,7 +7,7 @@
 import { prWorkKey } from '@once-upon-a-diff/terms/ids';
 import path from 'node:path';
 import { sameRepo } from '@once-upon-a-diff/foundation/repos';
-import { DEFAULT_BRANCHES } from '@once-upon-a-diff/foundation/settings';
+import { isFeatureBranch } from '@once-upon-a-diff/foundation/settings';
 import { readAgents } from '@once-upon-a-diff/state/records/agents/read';
 import type { LedgerAgent } from '@once-upon-a-diff/state/records/agents/ledger';
 import type { BlankSessions } from '@once-upon-a-diff/adapters/claude-sessions/blank-sessions';
@@ -376,7 +376,7 @@ export function placeSessions(
     // a registered session with no run open sits on no work's card: its runs say where its work is
     const stray =
       own.registered.has(session.session.slice(0, 8)) && !own.open.has(session.session.slice(0, 8));
-    if (!repo || !branch || DEFAULT_BRANCHES.has(branch) || stray) {
+    if (!repo || !isFeatureBranch(branch) || stray) {
       alone();
       return;
     }

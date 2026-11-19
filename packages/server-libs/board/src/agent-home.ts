@@ -4,7 +4,6 @@
  * card, and the branch and PR its finish event reports), never by its task, name or outcome. An agent whose run names a card
  * (`agent start --card`, ADR-25) is shown on that card (state/src/queues/backlog/phase.ts) and never reaches here.
  */
-import { sameRepo } from '@once-upon-a-diff/foundation/repos';
 import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
 import {
   isCritic,
@@ -12,8 +11,8 @@ import {
   type LedgerAgent,
 } from '@once-upon-a-diff/state/records/agents/ledger';
 import { KEEP_MS as FINISH_KEPT_MS } from '@once-upon-a-diff/adapters/stores/finished-agents';
-import { DEFAULT_BRANCHES } from '@once-upon-a-diff/foundation/settings';
-import type { WorktreeFacts } from '@once-upon-a-diff/state/records/worktrees/worktrees';
+import { isFeatureBranch } from '@once-upon-a-diff/foundation/settings';
+import { findTree, type WorktreeFacts } from '@once-upon-a-diff/state/records/worktrees/worktrees';
 import type { BranchPr } from '@once-upon-a-diff/state/records/github/github-checks';
 import { readyColumn, readyFactsOf } from '@once-upon-a-diff/state/queues/backlog/ready';
 import type { PrInfo } from '@once-upon-a-diff/contracts/types';
@@ -84,12 +83,11 @@ export function pendingReview(
     !since ||
     nowMs - since.getTime() >= FINISH_KEPT_MS ||
     !repo ||
-    !branch ||
-    DEFAULT_BRANCHES.has(branch)
+    !isFeatureBranch(branch)
   ) {
     return null;
   }
-  const tree = trees.find((one) => !!one.repo && sameRepo(one.repo, repo) && one.branch === branch);
+  const tree = findTree(trees, repo, branch);
   const tip = tree?.head?.toLowerCase() ?? '';
   if (
     !tree ||

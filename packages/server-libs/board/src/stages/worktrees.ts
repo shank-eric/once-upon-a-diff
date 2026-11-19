@@ -1,7 +1,7 @@
 /** The worktrees section of the board: what the scanner has, each judged, on the card it belongs to or loose. */
 import { statSync } from 'node:fs';
 import path from 'node:path';
-import { DEFAULT_BRANCHES } from '@once-upon-a-diff/foundation/settings';
+import { isFeatureBranch } from '@once-upon-a-diff/foundation/settings';
 import { sameRepo, seenCheckouts } from '@once-upon-a-diff/foundation/repos';
 import type { LedgerAgent } from '@once-upon-a-diff/state/records/agents/ledger';
 import type { LiveSession } from '@once-upon-a-diff/adapters/claude-sessions/live-sessions';
@@ -86,8 +86,7 @@ export function worktreeSection({
       (one) =>
         (!!one.repo &&
           !!tree.repo &&
-          !!tree.branch &&
-          !DEFAULT_BRANCHES.has(tree.branch) &&
+          isFeatureBranch(tree.branch) &&
           sameRepo(one.repo, tree.repo) &&
           one.branch === tree.branch) ||
         one.sessions.some((session) => inside(session.cwd, tree.path)) ||

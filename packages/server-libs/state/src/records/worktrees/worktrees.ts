@@ -24,6 +24,7 @@ import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { repoOfRemote, sameRepo } from '@once-upon-a-diff/foundation/repos';
+import { DEFAULT_BRANCHES } from '@once-upon-a-diff/foundation/settings';
 import { readJson, writeJsonAtomic } from '@once-upon-a-diff/adapters/stores/fs/json-file';
 import type { BoardWorktree } from '@once-upon-a-diff/contracts/types';
 import { type RunResult, type Runner, runCommand } from '@once-upon-a-diff/adapters/os';
@@ -98,8 +99,6 @@ const SIZE_TTL_MS = 60 * 60 * 1000;
 /** a worktree made this lately is never offered for cleanup */
 const NEW_MS = 60 * 60 * 1000;
 const MAX_CHERRY = 300;
-
-const DEFAULT_BRANCHES = new Set(['main', 'master']);
 
 /** Folders and files that are ignored because they are rebuilt (caches, build output, dependencies): not worth naming. */
 const REGENERABLE_FOLDERS = new Set([
@@ -837,6 +836,15 @@ interface RegisteredAgent {
 const OPEN_AGENT: AgentRunState[] = ['running', 'waiting', 'plan', 'fixing'];
 const inside = (dir: string, parent: string): boolean =>
   dir === parent || dir.startsWith(parent + path.sep);
+
+/** The worktree on a repo's branch, if any. */
+export function findTree<T extends { repo: string | null; branch: string | null }>(
+  trees: T[],
+  repo: string,
+  branch: string,
+): T | undefined {
+  return trees.find((one) => !!one.repo && sameRepo(one.repo, repo) && one.branch === branch);
+}
 
 /**
  * Who is working in a worktree: live sessions whose folder is in it, and open registered agents whose cwd is in it or
