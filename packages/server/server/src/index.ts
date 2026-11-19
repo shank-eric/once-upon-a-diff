@@ -35,6 +35,7 @@ import {
   retireBridge,
   writeExtensionSeen,
 } from '@once-upon-a-diff/core/orchestration/bridge/bridge';
+import { convertReviewFiles } from '@once-upon-a-diff/core/orchestration/bridge/convert-review-files';
 import { Board } from '@once-upon-a-diff/board/board';
 import { BoardError } from '@once-upon-a-diff/foundation/errors';
 import { codeOfStatus } from '@once-upon-a-diff/terms/error-code';
@@ -164,6 +165,8 @@ export function createBridge({
   if (!token) {
     throw new Error('the bridge needs a token');
   }
+  // stories from before review.json read as not reviewed until their old reviewed.json and approved.json are folded in
+  convertReviewFiles(home);
   const stories = new StoryStore({ home });
   const inbox = new Inbox(home);
   const autoReview = new AutoReview(stories, checkPr, undefined, checkBranch, checkRequested, home);

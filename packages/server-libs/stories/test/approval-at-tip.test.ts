@@ -8,7 +8,7 @@ import { approvalAtTip, forgetTips } from '../src/approval.ts';
 import { StoryStore } from '../src/store.ts';
 
 /** An approval at the repo's HEAD, and the story meta that names it. */
-function approved(carried?: { from: string }, legacy = false) {
+function approved(carried?: { from: string }) {
   const { repo } = localRepo();
   const head = git(repo, 'rev-parse', 'HEAD').trim();
   const home = tmp('approval-at-tip');
@@ -18,11 +18,7 @@ function approved(carried?: { from: string }, legacy = false) {
     base_oid: null,
     ...(carried && { carried: { ...carried, at: new Date().toISOString(), run: 'fix-x' } }),
   };
-  if (legacy) {
-    writeJson(path.join(home, 'state', 's1', 'approved.json'), { ...approval, marked: true });
-  } else {
-    writeJson(path.join(home, 'state', 's1', 'review.json'), { approval });
-  }
+  writeJson(path.join(home, 'state', 's1', 'review.json'), { approval });
   const stories = new StoryStore({ home });
   const meta = { head_oid: head, head: 'HEAD', repo_path: repo };
   return { stories, meta, repo, head };
@@ -73,13 +69,4 @@ test('a carried approval counts while the ref sits at the commit it was first gi
   git(repo, 'reset', '-q', '--hard', head);
   forgetTips();
   assert.equal(approvalAtTip(stories, 's1', pinned)?.head_oid, head, 'back at the approved commit');
-});
-
-test('a story folder that still has approved.json (before its first write) counts the same way', () => {
-  forgetTips();
-  const { stories, meta, repo, head } = approved(undefined, true);
-  assert.equal(approvalAtTip(stories, 's1', meta)?.head_oid, head);
-  git(repo, 'commit', '-q', '--allow-empty', '--amend', '-m', 'amended');
-  forgetTips();
-  assert.equal(approvalAtTip(stories, 's1', meta), null);
 });

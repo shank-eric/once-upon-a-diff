@@ -80,13 +80,9 @@ async function world(
     head_oid: HEAD,
   });
   writeJson(path.join(home, id, 'chapters.json'), { title: 'dot-prop', chapters: [] });
-  writeJson(path.join(home, 'state', id, 'approved.json'), {
-    at: built,
-    head_oid: HEAD,
-    base_oid: null,
-    marked: true,
+  writeJson(path.join(home, 'state', id, 'review.json'), {
+    approval: { at: built, head_oid: HEAD, base_oid: null },
   });
-  writeJson(path.join(home, 'state', id, 'reviewed.json'), { at: built, by: 'approved' });
   if (prStory) {
     writeJson(path.join(home, 'pr-3092', 'meta.json'), {
       kind: 'github',

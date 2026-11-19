@@ -3,52 +3,12 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import '@once-upon-a-diff/test-kit/env';
 import { tmp, writeJson } from '@once-upon-a-diff/test-kit/files';
-import {
-  REVIEW_FILE,
-  isDecided,
-  markOf,
-  readReviewRecord,
-  recordFromLegacy,
-} from '../src/review-record.ts';
+import { REVIEW_FILE, isDecided, markOf, readReviewRecord } from '../src/review-record.ts';
 import { approvalOf } from '../src/approval.ts';
 import { StoryStore } from '../src/store.ts';
 
 const WHEN = '2026-11-01T10:00:00.000Z';
 const approval = { at: WHEN, head_oid: 'a'.repeat(40), base_oid: null };
-
-test('a legacy reviewed.json is the mark, a hand unmark stays an unmark, a plain object reads manual', () => {
-  assert.deepEqual(recordFromLegacy({ at: WHEN, by: 'review' }, null), {
-    mark: { at: WHEN, by: 'review' },
-  });
-  assert.deepEqual(recordFromLegacy({ at: WHEN }, null), { mark: { at: WHEN, by: 'manual' } });
-  assert.deepEqual(recordFromLegacy({ at: null, by: 'manual' }, null), {
-    mark: { at: null, by: 'manual' },
-  });
-});
-
-test('legacy: the mark Approve wrote is no mark of its own, unless the story had been unmarked before approving', () => {
-  const legacy = { ...approval, marked: true };
-  assert.deepEqual(recordFromLegacy({ at: WHEN, by: 'approved' }, legacy), { approval });
-  assert.deepEqual(recordFromLegacy({ at: WHEN, by: 'approved' }, { ...legacy, unmarked: true }), {
-    approval,
-    mark: { at: null, by: 'manual' },
-  });
-  // a hand mark kept under an approval keeps its by
-  assert.deepEqual(recordFromLegacy({ at: WHEN, by: 'review' }, { ...approval, marked: false }), {
-    approval,
-    mark: { at: WHEN, by: 'review' },
-  });
-  // lapsed and carried ride along; marked and unmarked do not
-  const carried = { from: 'b'.repeat(40), at: WHEN, run: 'fix-x', via: 'rebase' as const };
-  assert.deepEqual(recordFromLegacy(null, { ...approval, marked: true, lapsed: true, carried }), {
-    approval: { ...approval, lapsed: true, carried },
-  });
-});
-
-test('legacy: a stale approved mark with no approved.json is nothing, and no files is no record', () => {
-  assert.equal(recordFromLegacy({ at: WHEN, by: 'approved' }, null), null);
-  assert.equal(recordFromLegacy(null, null), null);
-});
 
 function store(files: Record<string, unknown>) {
   const home = tmp('review-record');
@@ -58,47 +18,15 @@ function store(files: Record<string, unknown>) {
   return new StoryStore({ home });
 }
 
-test('review.json is read, and a missing or null one reads the legacy pair, without writing anything', () => {
+test('review.json is read, a missing or null one is no record, and a read writes nothing', () => {
   const now = store({ [REVIEW_FILE]: { mark: { at: WHEN, by: 'all viewed' }, approval } });
   assert.deepEqual(readReviewRecord(now, 's1'), {
     mark: { at: WHEN, by: 'all viewed' },
     approval,
   });
-  const legacy = store({
-    'reviewed.json': { at: WHEN, by: 'pr' },
-    'approved.json': { ...approval, marked: false },
-  });
-  assert.deepEqual(readReviewRecord(legacy, 's1'), { mark: { at: WHEN, by: 'pr' }, approval });
   const nulled = store({ [REVIEW_FILE]: null, 'reviewed.json': { at: WHEN, by: 'pr' } });
-  assert.deepEqual(readReviewRecord(nulled, 's1'), { mark: { at: WHEN, by: 'pr' } });
-  assert.equal(legacy.readState('s1', REVIEW_FILE, null), null, 'a read writes nothing');
+  assert.equal(readReviewRecord(nulled, 's1'), null, 'the old files are not read');
   assert.equal(readReviewRecord(store({}), 's1'), null);
-});
-
-test('a legacy file written after review.json exists (a bridge not yet restarted) overrides its facet only', () => {
-  const stories = store({
-    [REVIEW_FILE]: { mark: { at: WHEN, by: 'manual' }, approval },
-    'reviewed.json': { at: '2026-11-02T00:00:00.000Z', by: 'review' },
-  });
-  assert.deepEqual(readReviewRecord(stories, 's1'), {
-    mark: { at: '2026-11-02T00:00:00.000Z', by: 'review' },
-    approval,
-  });
-  const approved = store({
-    [REVIEW_FILE]: { mark: { at: WHEN, by: 'manual' } },
-    'approved.json': { ...approval, marked: true },
-    'reviewed.json': { at: WHEN, by: 'approved' },
-  });
-  assert.deepEqual(
-    readReviewRecord(approved, 's1'),
-    { mark: { at: WHEN, by: 'manual' }, approval },
-    'the old bridge approving leaves the hand mark in review.json alone',
-  );
-  const unmarked = store({
-    [REVIEW_FILE]: { mark: { at: WHEN, by: 'manual' } },
-    'reviewed.json': { at: null, by: 'manual' },
-  });
-  assert.deepEqual(readReviewRecord(unmarked, 's1'), { mark: { at: null, by: 'manual' } });
 });
 
 test('a damaged review.json reads what it can: no mark.by is manual, a wrong-typed field is absent', () => {

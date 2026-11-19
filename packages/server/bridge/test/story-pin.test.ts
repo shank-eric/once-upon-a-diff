@@ -19,11 +19,11 @@ const commit = (repo: string, name: string) => {
 };
 const diffOf = (dir: string) => readFileSync(path.join(dir, 'local.diff'), 'utf8');
 
-test('a reviewed.json with no `by` was marked by hand: the inbox says manual, not null', () => {
+test('a mark with no `by` was made by hand: the inbox says manual, not null', () => {
   const home = tmp('home');
   githubStory(path.join(home, 'acme-widgets-7'));
-  writeJson(path.join(home, 'state', 'acme-widgets-7', 'reviewed.json'), {
-    at: '2026-10-26T14:00:00Z',
+  writeJson(path.join(home, 'state', 'acme-widgets-7', 'review.json'), {
+    mark: { at: '2026-10-26T14:00:00Z' },
   });
   const store = new StoryStore({ home });
   const [pr] = prStories(store);
@@ -32,11 +32,11 @@ test('a reviewed.json with no `by` was marked by hand: the inbox says manual, no
 
   const { repo, base } = localRepo();
   const { id } = createLocalStory({ home, repo, base, head: 'HEAD' });
-  writeJson(path.join(home, 'state', id, 'reviewed.json'), { at: '2026-10-26T14:00:00Z' });
+  writeJson(path.join(home, 'state', id, 'review.json'), { mark: { at: '2026-10-26T14:00:00Z' } });
   const local = localStories(store).find((one) => one.id === id)!;
   assert.equal(local.reviewed_by, 'manual');
   // an unmarked story still has neither
-  writeJson(path.join(home, 'state', id, 'reviewed.json'), { at: null, by: 'manual' });
+  writeJson(path.join(home, 'state', id, 'review.json'), { mark: { at: null, by: 'manual' } });
   const unmarked = localStories(store).find((one) => one.id === id)!;
   assert.equal(unmarked.reviewed_at, null);
   assert.equal(unmarked.reviewed_by, null);

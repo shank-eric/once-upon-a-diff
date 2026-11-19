@@ -725,7 +725,7 @@ test('the bridge lists local stories beside the PR stories: Mark reviewed, a sto
     'feat/seen',
     {},
     {
-      'reviewed.json': { at: '2026-10-26T14:00:00Z', by: 'manual' },
+      'review.json': { mark: { at: '2026-10-26T14:00:00Z', by: 'manual' } },
     },
   );
   // a story the retired turn capture left carries `turn`, and is not listed

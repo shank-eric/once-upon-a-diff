@@ -128,8 +128,6 @@ test('Approve records the head, marks the story reviewed, tells a listener once,
       'approved',
       'shown as reviewed by the approval',
     );
-    assert.equal(store.readState(id, 'approved.json', null), null);
-    assert.equal(store.readState(id, 'reviewed.json', null), null);
     assert.equal(events().length, 1);
     assert.equal(events()[0].head_sha, head());
     assert.equal(events()[0].branch, 'feature');

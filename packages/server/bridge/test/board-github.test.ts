@@ -400,9 +400,8 @@ test('a PR story whose PR has merged, or closed with its branch deleted, leaves 
   for (const number of [1, 2, 3, 4]) {
     prStory(home, `acme-widgets-${number}`, 'acme/widgets', number);
   }
-  writeJson(path.join(home, 'state', 'acme-widgets-2', 'reviewed.json'), {
-    at: NOW.toISOString(),
-    by: 'manual',
+  writeJson(path.join(home, 'state', 'acme-widgets-2', 'review.json'), {
+    mark: { at: NOW.toISOString(), by: 'manual' },
   });
   const merged = new Set([1, 2]);
   const bridge = await startBridge({

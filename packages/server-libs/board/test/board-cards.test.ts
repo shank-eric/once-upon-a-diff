@@ -95,7 +95,7 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
   prStory(home, 'acme-widgets-14', 'acme/widgets', 14, 'feat/theirs');
   prStory(home, 'acme-widgets-15', 'acme/widgets', 15, 'feat/unknown');
   prStory(home, 'acme-widgets-23', 'acme/widgets', 23, 'feat/their-draft');
-  const byHand = { 'reviewed.json': { at: '2026-10-26T14:00:00Z', by: 'manual' } };
+  const byHand = { 'review.json': { mark: { at: '2026-10-26T14:00:00Z', by: 'manual' } } };
   const opened = { 'position.json': { at: '2099-01-01T00:00:00Z' } }; // you opened the story after it was built
   prStory(home, 'acme-widgets-10', 'acme/widgets', 10, 'feat/ten', { ...byHand, ...opened });
   prStory(home, 'acme-widgets-11', 'acme/widgets', 11, 'feat/eleven', { ...byHand, ...opened });

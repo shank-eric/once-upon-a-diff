@@ -120,7 +120,7 @@ test('the board: a local story puts its branch in Ready for your review, rebuilt
   localStory(home, 'local-feat-new', widgetsMain, 'feat/new');
   const opened = { 'position.json': { at: '2026-10-26T10:00:00Z' } }; // opened before it was built (the file was written now)
   localStory(home, 'local-feat-rebuilt', widgetsMain, 'feat/rebuilt', {}, opened);
-  const byHand = { 'reviewed.json': { at: '2026-10-26T14:00:00Z', by: 'manual' } };
+  const byHand = { 'review.json': { mark: { at: '2026-10-26T14:00:00Z', by: 'manual' } } };
   localStory(
     home,
     'local-feat-done',
@@ -271,15 +271,8 @@ test('a card whose branch has a local story: an open storyteller holds it in Age
     registered.finish('tell-x', { sid: 'abcdef01', state: 'done', at: later(-5) });
     assert.equal(await columnAt(0), 'ready', name);
     // approved for the head
-    writeJson(path.join(home, 'state', 'local-told', 'approved.json'), {
-      at: later(-1).toISOString(),
-      head_oid: 'a'.repeat(40),
-      base_oid: null,
-      marked: true,
-    });
-    writeJson(path.join(home, 'state', 'local-told', 'reviewed.json'), {
-      at: later(-1).toISOString(),
-      by: 'approved',
+    writeJson(path.join(home, 'state', 'local-told', 'review.json'), {
+      approval: { at: later(-1).toISOString(), head_oid: 'a'.repeat(40), base_oid: null },
     });
     assert.equal(await columnAt(0), 'ship', name);
     // a new commit moves the head: back in Ready for your review
@@ -307,15 +300,8 @@ test('a story approved at a head the branch has left is Ready for your review, e
     head_oid: approvedHead,
   });
   const stories = new StoryStore({ home });
-  writeJson(path.join(home, 'state', 'local-told', 'approved.json'), {
-    at: iso(NOW.getTime() - 60000),
-    head_oid: approvedHead,
-    base_oid: null,
-    marked: true,
-  });
-  writeJson(path.join(home, 'state', 'local-told', 'reviewed.json'), {
-    at: iso(NOW.getTime() - 60000),
-    by: 'approved',
+  writeJson(path.join(home, 'state', 'local-told', 'review.json'), {
+    approval: { at: iso(NOW.getTime() - 60000), head_oid: approvedHead, base_oid: null },
   });
   const columnOf = async () => {
     const cards = (
@@ -344,11 +330,8 @@ test('an approved story whose ref git cannot resolve (the branch deleted, the ch
     head_oid: approvedHead,
   });
   const stories = new StoryStore({ home });
-  writeJson(path.join(home, 'state', 'local-gone', 'approved.json'), {
-    at: iso(NOW.getTime() - 60000),
-    head_oid: approvedHead,
-    base_oid: null,
-    marked: true,
+  writeJson(path.join(home, 'state', 'local-gone', 'review.json'), {
+    approval: { at: iso(NOW.getTime() - 60000), head_oid: approvedHead, base_oid: null },
   });
   const approvedAt = () => localEntries(stories, { now: NOW.getTime() })[0].story.approved_head;
   forgetTips();
@@ -362,7 +345,7 @@ test('an approved story whose ref git cannot resolve (the branch deleted, the ch
   assert.equal(approvedAt(), approvedHead, 'the checkout is gone');
 });
 
-test('local stories: a story with no reviewed.json is not reviewed however quiet it has been; a hand mark or unmark is kept', () => {
+test('local stories: a story with no review.json mark is not reviewed however quiet it has been; a hand mark or unmark is kept', () => {
   const home = tmp('local-quiet-days');
   const widgets = checkoutOf('widgets', 'feat/x');
   const now = Date.parse('2026-10-28T15:00:00Z');
@@ -389,7 +372,7 @@ test('local stories: a story with no reviewed.json is not reviewed however quiet
     iso(now - 6 * DAY),
     {},
     {
-      'reviewed.json': { at: null, by: 'manual' },
+      'review.json': { mark: { at: null, by: 'manual' } },
     },
   );
   builtLocal(
@@ -400,7 +383,7 @@ test('local stories: a story with no reviewed.json is not reviewed however quiet
     iso(now - 6 * DAY),
     {},
     {
-      'reviewed.json': { at: iso(now - 5 * DAY), by: 'manual' },
+      'review.json': { mark: { at: iso(now - 5 * DAY), by: 'manual' } },
     },
   );
   const byId = Object.fromEntries(
@@ -436,7 +419,7 @@ test('local stories: a branch with a PR (open or merged) is done by pr, a defaul
     built,
     {},
     {
-      'reviewed.json': { at: null, by: 'manual' },
+      'review.json': { mark: { at: null, by: 'manual' } },
     },
   );
   const asked: string[] = [];
@@ -466,12 +449,12 @@ test('local stories: a branch with a PR (open or merged) is done by pr, a defaul
   assert.equal(reviewedBy(home, 'local-none'), null);
   assert.equal(reviewedBy(home, 'local-main'), null);
   assert.ok(!asked.includes('acme/widgets@main'), 'a default branch has no PR to ask for');
-  const unmarked = stories.readState<{ at: string | null } | null>(
+  const unmarked = stories.readState<{ mark?: { at: string | null } } | null>(
     'local-unmarked',
-    'reviewed.json',
+    'review.json',
     null,
   );
-  assert.equal(unmarked?.at, null, 'an unmark by hand is left alone');
+  assert.equal(unmarked?.mark?.at, null, 'an unmark by hand is left alone');
   assert.ok(!asked.includes('acme/widgets@feat/open2'), 'it is not even asked about');
   const inbox = localStories(stories, { now });
   assert.equal(inbox.find((story) => story.id === 'local-open')?.reviewed_by, 'pr');
@@ -583,7 +566,7 @@ test('the board: a local story rebuilt after you opened it stays in Ready, and o
   const widgets = checkoutOf('widgets', 'main');
   const opened = { 'position.json': { at: '2026-10-26T10:00:00Z' } }; // before it was built (the file is made now)
   const marked = (reason: string) => ({
-    'reviewed.json': { at: '2026-10-26T11:00:00Z', by: reason },
+    'review.json': { mark: { at: '2026-10-26T11:00:00Z', by: reason } },
     ...opened,
   });
   localStory(home, 'local-hand', widgets, 'feat/hand', {}, marked('manual'));
@@ -611,7 +594,7 @@ test('the board: an unread answer keeps a reviewed local story in Ready and send
   const widgets = checkoutOf('widgets', 'main');
   // reviewed by hand and opened long after it was built: no card, but for the answer
   const done = {
-    'reviewed.json': { at: '2026-10-26T14:00:00Z', by: 'manual' },
+    'review.json': { mark: { at: '2026-10-26T14:00:00Z', by: 'manual' } },
     'position.json': { at: '2099-01-01T00:00:00Z' },
   };
   localStory(home, 'local-answered', widgets, 'feat/answered', {}, done);

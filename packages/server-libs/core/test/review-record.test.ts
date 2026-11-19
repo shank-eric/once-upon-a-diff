@@ -13,7 +13,7 @@ import { markStoryReviewed, storyHasState } from '../src/features/review/story-l
 const WHEN = '2026-11-01T10:00:00.000Z';
 const approval = { at: WHEN, head_oid: 'a'.repeat(40), base_oid: null };
 
-/** A home with a story's legacy files (or review.json) in place. */
+/** A home with a story's state files in place. */
 function home(files: Record<string, unknown>) {
   const dir = tmp('review-record-core');
   for (const [name, value] of Object.entries(files)) {
@@ -23,27 +23,14 @@ function home(files: Record<string, unknown>) {
 }
 const file = (dir: string, name: string) => path.join(dir, 'state', 's1', name);
 
-test('the first write on a legacy folder saves review.json and empties the old files', () => {
-  const { dir, stories } = home({
-    'reviewed.json': { at: WHEN, by: 'review' },
-    'approved.json': { ...approval, marked: false },
-  });
+test('a mark is saved to review.json, with the lock let go', () => {
+  const { dir, stories } = home({ 'review.json': { approval } });
   markStoryReviewed(stories, 's1', false);
   assert.deepEqual(stories.readState('s1', 'review.json', null), {
     mark: { at: null, by: 'manual', head_oid: null },
     approval,
   });
-  assert.equal(stories.readState('s1', 'reviewed.json', null), null);
-  assert.equal(stories.readState('s1', 'approved.json', null), null);
   assert.equal(existsSync(`${file(dir, 'review.json')}.lock`), false, 'the lock is let go');
-});
-
-test('a write to a folder with only a stale approved mark leaves no mark behind, and the story is not decided', () => {
-  const { stories } = home({ 'reviewed.json': { at: WHEN, by: 'approved' } });
-  assert.equal(storyHasState(stories, 's1'), false);
-  updateReviewRecord(stories, 's1', () => undefined);
-  assert.equal(stories.readState('s1', 'review.json', null), null);
-  assert.equal(stories.readState('s1', 'reviewed.json', null), null, 'emptied');
 });
 
 test('a mark, then an approval, then a lapse keeps both parts; a lapsed approval is not a decision', () => {
@@ -93,21 +80,6 @@ test('a lapse note is stored with the lapse, and a re-approval or an undo leaves
   });
   assert.equal(clearApproval(stories, 's1', { lapsed: true, lapse: null }), true);
   assert.deepEqual(readReviewRecord(stories, 's1')?.approval, { ...approval, lapsed: true });
-});
-
-test('a legacy file written after review.json exists (an old bridge) is not lost by the next write', () => {
-  const { stories } = home({ 'review.json': { approval } });
-  writeJson(path.join(stories.home, 'state', 's1', 'reviewed.json'), {
-    at: WHEN,
-    by: 'all viewed',
-  });
-  assert.equal(readReviewRecord(stories, 's1')?.mark?.by, 'all viewed');
-  updateReviewRecord(stories, 's1', () => undefined);
-  assert.deepEqual(stories.readState('s1', 'review.json', null), {
-    mark: { at: WHEN, by: 'all viewed' },
-    approval,
-  });
-  assert.equal(stories.readState('s1', 'reviewed.json', null), null);
 });
 
 test('a change that leaves the record as it was writes nothing; an emptied record is saved as null', () => {

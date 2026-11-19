@@ -31,6 +31,7 @@ export const checkCommands: Command[] = [
       '                    (--wait: give a bridge that was just started up to S seconds to answer)',
       '  once-upon doctor --fix [--keep-days N]                        shrink agents.jsonl and inbox.jsonl: runs over N days old (14) on a done or dropped card, and old chapter reads,',
       '                    go; the old logs are kept as <file>.<yyyymmdd>.bak',
+      "                    and folds a story's old reviewed.json and approved.json into review.json",
     ],
     run: runDoctor,
   },

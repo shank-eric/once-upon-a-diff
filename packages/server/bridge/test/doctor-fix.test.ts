@@ -1,11 +1,20 @@
 /*
  * `once-upon doctor --fix` (core/src/orchestration/bridge/compact-logs.ts): agents.jsonl and inbox.jsonl rewritten smaller, the
- * old ones kept, and what the board reads from them unchanged. A plain doctor writes nothing.
+ * old ones kept, and what the board reads from them unchanged. A plain doctor writes nothing. It also folds a story's old
+ * reviewed.json and approved.json into review.json (convert-review-files.ts).
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { appendFileSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmp, runCli } from './helpers.ts';
 import { doctor } from '@once-upon-a-diff/core/orchestration/bridge/doctor';
 import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
@@ -220,4 +229,21 @@ test('a plain doctor warns about a big log and names the fix', async () => {
     lines.join('\n'),
   );
   assert.ok(lines.some((line) => /fix: Run: once-upon doctor --fix/.test(line)));
+});
+
+test('doctor says when a story still has the old review files, and --fix folds them into review.json', async () => {
+  const home = tmp('doctor-fix');
+  const state = path.join(home, 'state', 's1');
+  mkdirSync(state, { recursive: true });
+  writeFileSync(path.join(state, 'reviewed.json'), JSON.stringify({ at: ago(2), by: 'review' }));
+  const plain = (await run(home)).join('\n');
+  assert.match(plain, /WARN\s+Review files: 1 stories still have reviewed\.json/);
+  assert.match(plain, /fix: Run: once-upon doctor --fix/);
+  assert.ok(existsSync(path.join(state, 'reviewed.json')), 'a plain doctor writes nothing');
+  const fixed = (await run(home, { fix: true })).join('\n');
+  assert.match(fixed, /PASS\s+Review files: 1 stories' reviewed\.json and approved\.json folded/);
+  assert.equal(existsSync(path.join(state, 'reviewed.json')), false);
+  assert.equal(JSON.parse(readFileSync(path.join(state, 'review.json'), 'utf8')).mark.by, 'review');
+  assert.match((await run(home, { fix: true })).join('\n'), /Review files: no story has/);
+  assert.doesNotMatch((await run(home)).join('\n'), /Review files/);
 });

@@ -115,15 +115,8 @@ function world(home: string, hub: Fake, { approved = true, check = noPr as PrChe
     });
     writeJson(path.join(home, id, 'chapters.json'), { title: 'dot-prop', chapters: [] });
     if (approved) {
-      writeJson(path.join(home, 'state', id, 'approved.json'), {
-        at: new Date(START - 600000).toISOString(),
-        head_oid: HEAD,
-        base_oid: null,
-        marked: true,
-      });
-      writeJson(path.join(home, 'state', id, 'reviewed.json'), {
-        at: new Date(START - 600000).toISOString(),
-        by: 'approved',
+      writeJson(path.join(home, 'state', id, 'review.json'), {
+        approval: { at: new Date(START - 600000).toISOString(), head_oid: HEAD, base_oid: null },
       });
     }
   }

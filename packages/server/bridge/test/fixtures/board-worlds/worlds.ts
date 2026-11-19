@@ -476,7 +476,7 @@ async function record(
   prStory(home, 'acme-widgets-8', 'acme/widgets', 8, 'feat/z');
   prStory(home, 'acme-widgets-14', 'acme/widgets', 14, 'feat/theirs');
   prStory(home, 'acme-widgets-15', 'acme/widgets', 15, 'feat/unknown');
-  const byHand = { 'reviewed.json': { at: '2026-10-26T14:00:00Z', by: 'manual' } };
+  const byHand = { 'review.json': { mark: { at: '2026-10-26T14:00:00Z', by: 'manual' } } };
   const opened = { 'position.json': { at: '2099-01-01T00:00:00Z' } };
   prStory(home, 'acme-widgets-10', 'acme/widgets', 10, 'feat/ten', { ...byHand, ...opened });
   prStory(home, 'acme-widgets-11', 'acme/widgets', 11, 'feat/eleven', { ...byHand, ...opened });
@@ -530,16 +530,9 @@ async function record(
     widgetsZ,
     'feat/seen',
     {},
-    { 'reviewed.json': { at: '2026-10-26T14:00:00Z', by: 'manual' } },
+    { 'review.json': { mark: { at: '2026-10-26T14:00:00Z', by: 'manual' } } },
   );
-  localStory(
-    home,
-    'local-approved',
-    widgetsZ,
-    'feat/appr',
-    {},
-    { 'approved.json': { at: '2026-10-26T15:00:00Z' } },
-  );
+  localStory(home, 'local-approved', widgetsZ, 'feat/appr');
   localStory(home, 'local-merged-branch', widgetsZ, 'feat/mb');
   // agents on an implicit card with a repo and branch: nested in the work card on that branch (ADR-27). A run that names no card
   // never nests, whatever PR or branch it was registered on: `parked-review`, `fixer` and the runs further down are cards of their own
@@ -1576,7 +1569,6 @@ async function record(
     at: approvedAt,
     head_oid: head,
     base_oid: null,
-    marked: true,
   });
   const landing = (id: string, branch: string, head: string, landedAt: Date) => {
     localStory(
@@ -1585,7 +1577,7 @@ async function record(
       checkoutOf('widgets', branch),
       branch,
       { head_oid: head },
-      { 'approved.json': approved(head) },
+      { 'review.json': { approval: approved(head) } },
     );
     return [
       {
@@ -1650,7 +1642,7 @@ async function record(
     checkoutOf('widgets', 'feat/shipping'),
     'feat/shipping',
     { head_oid: 'd'.repeat(40) },
-    { 'approved.json': approved('d'.repeat(40)) },
+    { 'review.json': { approval: approved('d'.repeat(40)) } },
   );
   events.push(
     {
@@ -1849,7 +1841,6 @@ async function record(
     at: '2026-10-26T15:00:00Z',
     head_oid: head,
     base_oid: null,
-    marked: true,
   });
   const events: Record<string, unknown>[] = [];
   const card = (id: string, branch: string, title: string) =>
@@ -1899,7 +1890,7 @@ async function record(
     'feat/self-landed',
     { head_oid: 'a'.repeat(40) },
     {
-      'approved.json': approved('a'.repeat(40)),
+      'review.json': { approval: approved('a'.repeat(40)) },
     },
   );
   localStory(
@@ -1909,7 +1900,7 @@ async function record(
     'feat/plain-landed',
     { head_oid: 'b'.repeat(40) },
     {
-      'approved.json': approved('b'.repeat(40)),
+      'review.json': { approval: approved('b'.repeat(40)) },
     },
   );
   card('bl_selfruna', 'feat/self-landed', 'Landed by a self run');

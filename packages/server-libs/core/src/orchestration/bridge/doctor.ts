@@ -2,7 +2,8 @@
  * `once-upon doctor`: is everything connected? The Node it runs on, the config and token, the
  * bridge, a Claude session listening, and the extension. Each check prints
  * PASS, WARN or FAIL with what it found and, when it isn't passing, the fix. It writes nothing, except with `fix`
- * (`--fix`), which compacts the logs that only grow and keeps the old ones (compact-logs.ts).
+ * (`--fix`), which compacts the logs that only grow and keeps the old ones (compact-logs.ts) and folds old reviewed.json and
+ * approved.json files into review.json (convert-review-files.ts).
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import os from 'node:os';
@@ -49,6 +50,7 @@ import { readIndex } from '@once-upon-a-diff/stories/placement';
 import { readMeta, stateKeyOf } from '@once-upon-a-diff/stories/meta';
 import { seenCheckoutRepos } from '@once-upon-a-diff/foundation/repos';
 import { bigLogs, compactLogs, DEFAULT_KEEP_DAYS } from './compact-logs.ts';
+import { convertReviewFiles, legacyReviewFolders } from './convert-review-files.ts';
 import { stateKeyForPr } from '@once-upon-a-diff/terms/ids';
 import {
   inboxStoryProblems,
@@ -489,6 +491,27 @@ export async function doctor(
         'Logs',
         `${big.join(', ')}`,
         'Run: once-upon doctor --fix (the old logs are kept beside the new ones)',
+      );
+    }
+  }
+  // stories from before review.json still have reviewed.json and approved.json, which nothing reads any more
+  if (fix) {
+    const converted = convertReviewFiles(home);
+    add(
+      'PASS',
+      'Review files',
+      converted
+        ? `${converted} stories' reviewed.json and approved.json folded into review.json`
+        : 'no story has reviewed.json or approved.json',
+    );
+  } else {
+    const old = legacyReviewFolders(home);
+    if (old.length) {
+      add(
+        'WARN',
+        'Review files',
+        `${old.length} stories still have reviewed.json or approved.json, which are no longer read`,
+        'Run: once-upon doctor --fix',
       );
     }
   }

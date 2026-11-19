@@ -8,17 +8,14 @@
  *     lapse (with what changed on the branch, when it could be compared) and carry bookkeeping (approval.ts says what
  *     counts).
  * This module and core's `review/review-record.ts` (the writer) are the only code that knows the file's name and the
- * story key it lives under. It replaced reviewed.json and approved.json: a story folder that still has them reads as
- * the record they make (recordFromLegacy), and the first write to it saves review.json and empties them.
+ * story key it lives under. It replaced reviewed.json and approved.json, which `once-upon doctor --fix` converts
+ * (core's `orchestration/bridge/convert-review-files.ts`); nothing here reads them.
  */
 import type { LocalLapse, LocalLapseChange } from '@once-upon-a-diff/contracts/types';
 import type { StoryStateReader } from './types.ts';
 
 /** The story's own state file for its review record. */
 export const REVIEW_FILE = 'review.json';
-/** The two files review.json replaced. */
-export const LEGACY_REVIEWED_FILE = 'reviewed.json';
-export const LEGACY_APPROVED_FILE = 'approved.json';
 
 /** What a stored mark can say made it. (`approved` is derived from the approval, never stored.) */
 export type MarkBy = 'manual' | 'review' | 'all viewed' | 'pr' | 'delivered';
@@ -50,13 +47,6 @@ export interface ReviewRecord {
   mark?: ReviewMark;
   approval?: Approval;
 }
-
-/** What reviewed.json and approved.json held (the fields that matter to the conversion). */
-export interface LegacyReviewed {
-  at?: string | null;
-  by?: string;
-}
-export type LegacyApproved = Approval & { marked?: boolean; unmarked?: boolean };
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
@@ -161,8 +151,8 @@ function readApprovalFacet(raw: unknown): Approval | undefined {
 const orNull = (record: ReviewRecord): ReviewRecord | null =>
   record.mark || record.approval ? record : null;
 
-/** A stored review.json as a record (a field it can't read is absent, an unknown one is dropped), or null. */
-function readStored(raw: unknown): ReviewRecord | null {
+/** A stored review.json's value as a record (a field it can't read is absent, an unknown one is dropped), or null. */
+export function parseReviewRecord(raw: unknown): ReviewRecord | null {
   if (!isObject(raw)) {
     return null;
   }
@@ -171,48 +161,9 @@ function readStored(raw: unknown): ReviewRecord | null {
   return orNull({ ...(mark && { mark }), ...(approval && { approval }) });
 }
 
-/** The mark facet of a legacy pair: undefined when the legacy files say nothing about it. */
-function markFromLegacy(
-  reviewed: LegacyReviewed | null,
-  approved: LegacyApproved | null,
-): ReviewMark | undefined {
-  if (reviewed && reviewed.by !== 'approved') {
-    return readMark({ at: reviewed.at ?? null, by: reviewed.by ?? 'manual' }) ?? undefined;
-  }
-  // the mark Approve wrote was the approval's own; a story unmarked by hand before approving keeps that unmark
-  return reviewed && approved?.unmarked ? { at: null, by: 'manual' } : undefined;
-}
-
-/** The record a legacy reviewed.json and approved.json make together, or null when they say nothing. */
-export function recordFromLegacy(
-  reviewed: LegacyReviewed | null,
-  approved: LegacyApproved | null,
-): ReviewRecord | null {
-  const mark = markFromLegacy(reviewed, approved);
-  const approval = approved ? readApprovalFacet(approved) : undefined;
-  return orNull({ ...(approval && { approval }), ...(mark && { mark }) });
-}
-
-/**
- * The story's review record, or null. review.json is read; a legacy file that holds something overrides its facet, so a
- * write by a build that still wrote the old files (a bridge not yet restarted since the update) is not lost: a writer
- * of this version always empties them, so what they hold is newer. Reading writes nothing.
- */
+/** The story's review record, or null. Reading writes nothing. */
 export function readReviewRecord(stories: StoryStateReader, key: string): ReviewRecord | null {
-  const stored = readStored(stories.readState<unknown>(key, REVIEW_FILE, null));
-  const reviewed = stories.readState<LegacyReviewed | null>(key, LEGACY_REVIEWED_FILE, null);
-  const approved = stories.readState<LegacyApproved | null>(key, LEGACY_APPROVED_FILE, null);
-  if (!isObject(reviewed) && !isObject(approved)) {
-    return stored;
-  }
-  const legacyMark = markFromLegacy(
-    isObject(reviewed) ? reviewed : null,
-    isObject(approved) ? (approved as LegacyApproved) : null,
-  );
-  const legacyApproval = isObject(approved) ? readApprovalFacet(approved) : undefined;
-  const mark = legacyMark ?? stored?.mark;
-  const approval = legacyApproval ?? stored?.approval;
-  return orNull({ ...(mark && { mark }), ...(approval && { approval }) });
+  return parseReviewRecord(stories.readState<unknown>(key, REVIEW_FILE, null));
 }
 
 /**
