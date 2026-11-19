@@ -69,11 +69,8 @@ function normalizePath(path: string): string | null {
   return out === '' || out.startsWith('/') || /^[A-Za-z]:/.test(out) ? null : out;
 }
 
-/**
- * A parts file read as JSON, checked: the file, or null when it isn't a valid version 1 file (a bad file shows no strip).
- * Paths are normalized (see normalizePath); an absolute path refuses the file, and `warn` hears why.
- */
-export function parsePartsFile(raw: unknown, warn?: (line: string) => void): PartsFile | null {
+/** The top of a parts file: its groups and its raw parts when the version, counts and groups check out, else null. */
+function readTop(raw: unknown): { groups: string[]; parts: Record<string, unknown>[] } | null {
   if (!raw || typeof raw !== 'object') {
     return null;
   }
@@ -81,47 +78,64 @@ export function parsePartsFile(raw: unknown, warn?: (line: string) => void): Par
   if (version !== 1 || !Array.isArray(groups) || !Array.isArray(parts)) {
     return null;
   }
-  if (parts.length > MAX_PARTS || groups.length > MAX_PARTS) {
-    return null;
-  }
-  if (
-    !groups.every((group) => isText(group, MAX_GROUP)) ||
-    new Set(groups).size !== groups.length
-  ) {
+  const countsOk = parts.length <= MAX_PARTS && groups.length <= MAX_PARTS;
+  const groupsOk =
+    groups.every((group) => isText(group, MAX_GROUP)) && new Set(groups).size === groups.length;
+  return countsOk && groupsOk ? { groups, parts } : null;
+}
+
+/** What each field of a part entry must be: the entry is refused whole when one check fails. */
+function partFieldChecks(
+  groups: string[],
+  ids: Set<string>,
+): Record<keyof PartDef, (value: unknown) => boolean> {
+  return {
+    id: (id) => typeof id === 'string' && ID_RE.test(id) && id !== OTHER_PART_ID && !ids.has(id),
+    name: (name) => isText(name, MAX_NAME),
+    group: (group) => typeof group === 'string' && groups.includes(group),
+    paths: (paths) =>
+      Array.isArray(paths) &&
+      paths.length <= MAX_PATHS &&
+      paths.every((one) => isText(one, MAX_PATH)),
+    note: (note) => note === undefined || isText(note, MAX_NOTE),
+  };
+}
+
+/**
+ * A parts file read as JSON, checked: the file, or null when it isn't a valid version 1 file (a bad file shows no strip).
+ * Paths are normalized (see normalizePath); an absolute path refuses the file, and `warn` hears why.
+ */
+export function parsePartsFile(raw: unknown, warn?: (line: string) => void): PartsFile | null {
+  const top = readTop(raw);
+  if (!top) {
     return null;
   }
   const ids = new Set<string>();
+  const checks = partFieldChecks(top.groups, ids);
   const out: PartDef[] = [];
-  for (const entry of parts as Record<string, unknown>[]) {
+  for (const entry of top.parts) {
     if (!entry || typeof entry !== 'object') {
       return null;
     }
-    const { id, name, group, paths, note } = entry;
-    const idOk = typeof id === 'string' && ID_RE.test(id) && id !== OTHER_PART_ID && !ids.has(id);
-    const groupOk = typeof group === 'string' && groups.includes(group);
-    const pathsOk =
-      Array.isArray(paths) &&
-      paths.length <= MAX_PATHS &&
-      paths.every((one) => isText(one, MAX_PATH));
-    const textsOk = isText(name, MAX_NAME) && (note === undefined || isText(note, MAX_NOTE));
-    if (!idOk || !groupOk || !pathsOk || !textsOk) {
+    if (!Object.entries(checks).every(([field, check]) => check(entry[field]))) {
       return null;
     }
+    const { id, name, group, paths, note } = entry;
     const clean = (paths as string[]).map(normalizePath);
     if (clean.some((one) => one === null)) {
       warn?.(`part "${id}" has an absolute or empty path; paths are relative to the repo root`);
       return null;
     }
-    ids.add(id);
+    ids.add(id as string);
     out.push({
-      id,
-      name,
-      group,
+      id: id as string,
+      name: name as string,
+      group: group as string,
       paths: clean as string[],
-      ...(note === undefined ? {} : { note }),
+      ...(note === undefined ? {} : { note: note as string }),
     });
   }
-  return { version: 1, groups: groups as string[], parts: out };
+  return { version: 1, groups: top.groups, parts: out };
 }
 
 /** The part a file is in: the longest of its parts' paths that matches it, else `other`. */

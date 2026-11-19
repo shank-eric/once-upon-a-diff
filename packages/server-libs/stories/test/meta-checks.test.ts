@@ -93,6 +93,30 @@ test('checkedMeta drops a non-sha oid and an option ref, and refuses a repo_path
   assert.equal(readMeta(dir).kind, 'local');
 });
 
+test('checkedMeta reports the first problem, and still cleans every field', () => {
+  const { dir } = localStory();
+  const good = metaOf(dir);
+  for (const raw of [null, undefined, 'text', ['a'], 7]) {
+    const out = checkedMeta(dir, raw as never);
+    assert.equal(out.problem, 'meta.json is not an object');
+    assert.equal(out.meta.kind, 'github');
+  }
+  const both = checkedMeta(dir, { ...good, kind: 'weird', base: '-x', head: '-y' } as never);
+  assert.match(both.problem as string, /^kind "weird" is not one of github, local$/);
+  assert.equal(both.meta.kind, 'github');
+  assert.equal(both.meta.base, undefined);
+  assert.equal(both.meta.head, undefined);
+  const refs = checkedMeta(dir, { ...good, base: '-x', head: '-y', repo_path: 'relative' });
+  assert.equal(refs.problem, 'base is not a ref');
+  assert.equal(refs.meta.repo_path, undefined);
+  const missing = checkedMeta(dir, { ...good, head: undefined });
+  assert.equal(missing.problem, 'a local story needs base and head');
+  assert.equal(
+    checkedMeta(dir, { kind: 'github', head_ref: 'a b', told_base_oid: 'x' }).problem,
+    null,
+  );
+});
+
 test('a story folder whose kind differs from the one it was made as is not served', () => {
   const { home, repo, store } = localStory();
   const dir = githubStory(home, repo);

@@ -91,58 +91,67 @@ function storyMapIn(narrative: string): boolean {
   return !!before.trim() && /story map/i.test(before);
 }
 
+type RefWhere = { files?: string[]; diff?: Map<string, DiffFile>; owner?: string };
+
+/** Why a ref's path is not good (not one of `files`, none, or not in the diff), or null. */
+function refPathProblem(
+  id: string,
+  path: string,
+  { files, diff, owner = 'the chapter' }: RefWhere,
+): string | null {
+  if (files && !files.includes(path)) {
+    return `ref "${id}" is on ${path || '(no path)'}, which ${owner} does not list`;
+  }
+  if (!path) {
+    return `ref "${id}" has no path`;
+  }
+  return diff && !diff.has(path) ? `ref "${id}" is on ${path}, which is not in the diff` : null;
+}
+
+/** Whether a ref names lines at all: `start` is set. */
+const hasLines = (ref: PlanRef): boolean =>
+  ref.start !== undefined && ref.start !== null && ref.start !== '';
+
+/** Whether lines `start` to `end` are a range of whole numbers from line 1 up. */
+const isLineRange = (start: number, end: number): boolean =>
+  Number.isInteger(start) && Number.isInteger(end) && start >= 1 && end >= start;
+
+/** The problems of a ref's lines (a range of whole numbers) and side (L or R); a ref with no `start` has neither. */
+function refLinesProblems(id: string, ref: PlanRef): string[] {
+  if (!hasLines(ref)) {
+    return [];
+  }
+  const badRange = !isLineRange(Number(ref.start), Number(ref.end || ref.start));
+  const badSide = ref.side !== undefined && ref.side !== 'L' && ref.side !== 'R';
+  return [
+    badRange ? `ref "${id}" has lines ${ref.start}-${ref.end ?? ref.start}, not a range` : null,
+    badSide ? `ref "${id}" has side "${ref.side}", which is L or R` : null,
+  ].filter((line): line is string => line !== null);
+}
+
+/** The problems of one ref; `ids` holds the ids the refs before it used, and takes this one. */
+function refProblems(ref: PlanRef, ids: Set<string>, where: RefWhere): string[] {
+  const id = String(ref.id ?? '');
+  if (!REF_ID.test(id)) {
+    return [`ref "${id}" is not an id (lower-case letters, digits and hyphens)`];
+  }
+  const usedTwice = ids.has(id) ? [`ref "${id}" is used twice`] : [];
+  ids.add(id);
+  const path = refPathProblem(id, String(ref.path ?? ''), where);
+  return [...usedTwice, ...(path ? [path] : []), ...refLinesProblems(id, ref)];
+}
+
 /**
  * The problems of a refs list, as lines: an id that is not a slug or is used twice, a path that is not one of `files`
  * (any file when `files` is not given) or not in the diff, lines that are not a range, a side that is not L or R.
  */
-function refListProblems(
-  refs: PlanRef[],
-  {
-    files,
-    diff,
-    owner = 'the chapter',
-  }: { files?: string[]; diff?: Map<string, DiffFile>; owner?: string } = {},
-): string[] {
-  const problems: string[] = [];
+function refListProblems(refs: PlanRef[], where: RefWhere = {}): string[] {
   const ids = new Set<string>();
-  for (const ref of refs) {
-    const id = String(ref.id ?? '');
-    if (!REF_ID.test(id)) {
-      problems.push(`ref "${id}" is not an id (lower-case letters, digits and hyphens)`);
-      continue;
-    }
-    if (ids.has(id)) {
-      problems.push(`ref "${id}" is used twice`);
-    }
-    ids.add(id);
-    const path = String(ref.path ?? '');
-    if (files && !files.includes(path)) {
-      problems.push(`ref "${id}" is on ${path || '(no path)'}, which ${owner} does not list`);
-    } else if (!path) {
-      problems.push(`ref "${id}" has no path`);
-    } else if (diff && !diff.has(path)) {
-      problems.push(`ref "${id}" is on ${path}, which is not in the diff`);
-    }
-    if (ref.start !== undefined && ref.start !== null && ref.start !== '') {
-      const start = Number(ref.start);
-      const end = Number(ref.end || ref.start);
-      if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end < start) {
-        problems.push(`ref "${id}" has lines ${ref.start}-${ref.end ?? ref.start}, not a range`);
-      }
-      if (ref.side !== undefined && ref.side !== 'L' && ref.side !== 'R') {
-        problems.push(`ref "${id}" has side "${ref.side}", which is L or R`);
-      }
-    }
-  }
-  return problems;
+  return refs.flatMap((ref) => refProblems(ref, ids, where));
 }
 
 /** The problems of refs given with a text that links to them (an answer's, the overview's): bad refs, and links to ids not in the list. */
-function linkedRefProblems(
-  refs: PlanRef[],
-  text: string,
-  where: { files?: string[]; diff?: Map<string, DiffFile>; owner?: string } = {},
-): string[] {
+function linkedRefProblems(refs: PlanRef[], text: string, where: RefWhere = {}): string[] {
   const ids = new Set(refs.map((ref) => String(ref.id ?? '')));
   return [
     ...refListProblems(refs, where),
@@ -170,115 +179,154 @@ export function answerRefs(raw: unknown, text: string, files?: string[]): Chapte
   return raw.map((ref) => refOf(ref as PlanRef));
 }
 
+type PlanRefsOpts = { diff?: Map<string, DiffFile>; served?: Plan | null; pointers?: boolean };
+
+const prefixed = (prefix: string, lines: string[]): string[] =>
+  lines.map((line) => `${prefix}: ${line}`);
+
+/** Whether the served plan has this overview text and refs, so this telling did not touch them. */
+const overviewUnchanged = (plan: Plan, served?: Plan | null): boolean =>
+  !!served &&
+  overviewText(served) === overviewText(plan) &&
+  canonical(served.refs) === canonical(plan.refs);
+
+/** Whether the served plan has this overview text and no refs list, so the overview is kept as it was written. */
+const overviewKeptWithoutList = (plan: Plan, served?: Plan | null): boolean =>
+  !!served && overviewText(served) === overviewText(plan) && !Array.isArray(served.refs);
+
+/** A plan whose overview text links to places needs a refs list, unless the served plan has the same overview. */
+const overviewListProblems = (plan: Plan, served?: Plan | null): string[] =>
+  overviewText(plan) && !Array.isArray(plan.refs) && !overviewKeptWithoutList(plan, served)
+    ? ['the overview has no refs list: give the plan `"refs": []`, or the places its text links to']
+    : [];
+
+/** The problems of the overview's refs and of its links to them, when it has a list or links. */
+const overviewLinkProblems = (plan: Plan, diff?: Map<string, DiffFile>): string[] => {
+  const overview = overviewText(plan);
+  return Array.isArray(plan.refs) || refIdsIn(overview).length
+    ? prefixed('the overview', linkedRefProblems(plan.refs || [], overview, { diff }))
+    : [];
+};
+
+/** The problems of the plan's own text and refs (the overview). */
+function overviewProblems(plan: Plan, { diff, served, pointers = true }: PlanRefsOpts): string[] {
+  const placesChecked = !!diff && pointers && !overviewUnchanged(plan, served);
+  return [
+    ...overviewListProblems(plan, served),
+    ...overviewLinkProblems(plan, diff),
+    ...(placesChecked ? prefixed('the overview', offPageRefs(plan.refs || [], diff!)) : []),
+  ];
+}
+
+/** The problem with a chapter's key (none, or one an earlier chapter has), or null; `byKey` takes a good key. */
+function keyProblem(chapter: PlanChapter, num: number, byKey: Map<string, number>): string | null {
+  const key = keyText(chapter);
+  if (!key) {
+    return `chapter ${num} has no key`;
+  }
+  if (byKey.has(key)) {
+    return `chapters ${byKey.get(key)} and ${num} share the key "${key}"`;
+  }
+  byKey.set(key, num);
+  return null;
+}
+
+/** The ids a chapter's text links to (`ref:<id>`) that its refs do not have, as lines. */
+function unlistedLinkProblems(chapter: PlanChapter, num: number, refs: PlanRef[]): string[] {
+  const ids = new Set(refs.map((ref) => String(ref.id ?? '')));
+  const text = textOf({
+    headline: chapter.headline || '',
+    scenario: chapter.scenario || '',
+    summary: chapter.summary || '',
+    narrative: chapter.narrative || '',
+  });
+  return [...new Set(refIdsIn(text))]
+    .filter((id) => !ids.has(id))
+    .map((id) => `chapter ${num}: the text links to ref:${id}, which the chapter does not have`);
+}
+
+/** The problems of a chapter's refs: the list itself (unless the chapter is kept as served), its places, and the text's links. A kept chapter's places are not checked against the diff. */
+function chapterRefsProblems(
+  chapter: PlanChapter,
+  num: number,
+  isKept: boolean,
+  { diff, pointers = true }: PlanRefsOpts,
+): string[] {
+  const refs = chapter.refs;
+  if (!Array.isArray(refs)) {
+    return isKept
+      ? []
+      : [
+          `chapter ${num} has no refs list: give it \`"refs": []\`, or the places its text links to`,
+        ];
+  }
+  const listed = (chapter.files || []).map((entry) =>
+    typeof entry === 'string' ? entry : entry.rel,
+  );
+  return [
+    ...prefixed(`chapter ${num}`, refListProblems(refs, { files: listed, diff })),
+    ...(diff && pointers && !isKept ? prefixed(`chapter ${num}`, offPageRefs(refs, diff)) : []),
+    ...unlistedLinkProblems(chapter, num, refs),
+  ];
+}
+
+/** Why a comment's path is not one the diff names (the comment says it is a real, mapped one), or null. */
+function commentPathProblem(
+  comment: NonNullable<PlanChapter['comments']>[number],
+  num: number,
+  diff: Map<string, DiffFile>,
+): string | null {
+  const path = String(comment.path || '');
+  const hasNoRealPath = !path || /^\(/.test(path);
+  if (comment.carried || comment.unmapped || hasNoRealPath || diff.has(path)) {
+    return null;
+  }
+  return `chapter ${num}: the comment on ${path}:${comment.line ?? ''} needs the file's full path, as the diff names it`;
+}
+
+/** The problems of a chapter's comments: on lines in no hunk (not for a kept chapter), and on a path the diff does not name. */
+function chapterCommentProblems(
+  chapter: PlanChapter,
+  num: number,
+  isKept: boolean,
+  { diff, pointers = true }: PlanRefsOpts,
+): string[] {
+  if (!diff) {
+    return [];
+  }
+  const comments = chapter.comments || [];
+  const offPage =
+    pointers && !isKept
+      ? offPageComments(comments, diff).map(
+          (place) => `chapter ${num}: the comment on ${place} is on a line that is in no hunk`,
+        )
+      : [];
+  const badPaths = comments.map((comment) => commentPathProblem(comment, num, diff));
+  return [...offPage, ...badPaths.filter((line): line is string => line !== null)];
+}
+
 /**
  * The problems of a plan, as lines naming the chapter. diff: the diff the story tells (comment paths are checked against
  * it). served: the plan already published, whose chapters may stay as they are. pointers: whether a ref or a comment on lines
  * in no hunk is a problem (not for a chapter equal to the served one); the story check reports those itself, so it asks for none.
  */
-export function chapterProblems(
-  plan: Plan,
-  {
-    diff,
-    served,
-    pointers = true,
-  }: { diff?: Map<string, DiffFile>; served?: Plan | null; pointers?: boolean } = {},
-): string[] {
-  const problems: string[] = [];
-  const chapters = plan.chapters || [];
-  const overview = overviewText(plan);
-  const overviewKept = !!served && overviewText(served) === overview && !Array.isArray(served.refs);
-  if (overview && !Array.isArray(plan.refs) && !overviewKept) {
-    problems.push(
-      'the overview has no refs list: give the plan `"refs": []`, or the places its text links to',
-    );
-  }
-  if (Array.isArray(plan.refs) || refIdsIn(overview).length) {
-    problems.push(
-      ...linkedRefProblems(plan.refs || [], overview, { diff }).map(
-        (line) => `the overview: ${line}`,
-      ),
-    );
-  }
-  if (
-    diff &&
-    pointers &&
-    !(
-      !!served &&
-      overviewText(served) === overview &&
-      canonical(served.refs) === canonical(plan.refs)
-    )
-  ) {
-    problems.push(...offPageRefs(plan.refs || [], diff).map((line) => `the overview: ${line}`));
-  }
-  const kept = keptChapters(plan, served);
+export function chapterProblems(plan: Plan, opts: PlanRefsOpts = {}): string[] {
+  const kept = keptChapters(plan, opts.served);
   const byKey = new Map<string, number>();
-  chapters.forEach((chapter, index) => {
+  const perChapter = (plan.chapters || []).flatMap((chapter, index) => {
     const num = index + 1;
-    const key = keyText(chapter);
-    if (!key) {
-      problems.push(`chapter ${num} has no key`);
-    } else if (byKey.has(key)) {
-      problems.push(`chapters ${byKey.get(key)} and ${num} share the key "${key}"`);
-    } else {
-      byKey.set(key, num);
-    }
-    const isKept = !Array.isArray(chapter.refs) && kept[index];
-    if (!Array.isArray(chapter.refs)) {
-      if (!isKept) {
-        problems.push(
-          `chapter ${num} has no refs list: give it \`"refs": []\`, or the places its text links to`,
-        );
-      }
-    } else {
-      const listed = (chapter.files || []).map((entry) =>
-        typeof entry === 'string' ? entry : entry.rel,
-      );
-      const ids = new Set(chapter.refs.map((ref) => String(ref.id ?? '')));
-      problems.push(
-        ...refListProblems(chapter.refs, { files: listed, diff }).map(
-          (line) => `chapter ${num}: ${line}`,
-        ),
-      );
-      if (diff && pointers && !kept[index]) {
-        problems.push(...offPageRefs(chapter.refs, diff).map((line) => `chapter ${num}: ${line}`));
-      }
-      const text = textOf({
-        headline: chapter.headline || '',
-        scenario: chapter.scenario || '',
-        summary: chapter.summary || '',
-        narrative: chapter.narrative || '',
-      });
-      for (const id of new Set(refIdsIn(text))) {
-        if (!ids.has(id)) {
-          problems.push(
-            `chapter ${num}: the text links to ref:${id}, which the chapter does not have`,
-          );
-        }
-      }
-    }
-    if (diff && pointers && !kept[index]) {
-      for (const place of offPageComments(chapter.comments || [], diff)) {
-        problems.push(`chapter ${num}: the comment on ${place} is on a line that is in no hunk`);
-      }
-    }
-    if (diff) {
-      for (const comment of chapter.comments || []) {
-        const path = String(comment.path || '');
-        const hasNoRealPath = !path || /^\(/.test(path);
-        const unchecked = comment.carried || comment.unmapped || hasNoRealPath;
-        if (unchecked || diff.has(path)) {
-          continue;
-        }
-        problems.push(
-          `chapter ${num}: the comment on ${path}:${comment.line ?? ''} needs the file's full path, as the diff names it`,
-        );
-      }
-    }
-    if (storyMapIn(String(chapter.narrative || ''))) {
-      problems.push(`chapter ${num}'s narrative opens with a story map: put it in \`overview\``);
-    }
+    const key = keyProblem(chapter, num, byKey);
+    const isKept = kept[index] ?? false;
+    return [
+      ...(key ? [key] : []),
+      ...chapterRefsProblems(chapter, num, isKept, opts),
+      ...chapterCommentProblems(chapter, num, isKept, opts),
+      ...(storyMapIn(String(chapter.narrative || ''))
+        ? [`chapter ${num}'s narrative opens with a story map: put it in \`overview\``]
+        : []),
+    ];
   });
-  return problems;
+  return [...overviewProblems(plan, opts), ...perChapter];
 }
 
 /**

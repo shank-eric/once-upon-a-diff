@@ -1,0 +1,62 @@
+{
+  "clean": [],
+  "no diff": [],
+  "keys": ["chapter 1 has no key", "chapters 2 and 3 share the key \"k\""],
+  "no refs lists": [
+    "the overview has no refs list: give the plan `\"refs\": []`, or the places its text links to",
+    "chapter 1 has no refs list: give it `\"refs\": []`, or the places its text links to"
+  ],
+  "kept without a refs list": [],
+  "overview links": [
+    "the overview: ref \"z\" is on nope.js, which is not in the diff",
+    "the overview: the text links to ref:y, which has no ref"
+  ],
+  "overview off page": [
+    "the overview: ref \"x\" (src/a.js:400-410) is on lines that are in no hunk"
+  ],
+  "overview unchanged": [],
+  "overview served without a list": [],
+  "bad refs": [
+    "chapter 1: ref \"Bad Id\" is not an id (lower-case letters, digits and hyphens)",
+    "chapter 1: ref \"x\" is used twice",
+    "chapter 1: ref \"x\" is on (no path), which the chapter does not list",
+    "chapter 1: ref \"y\" is on zz.js, which the chapter does not list",
+    "chapter 1: ref \"w\" has lines 0-12, not a range",
+    "chapter 1: ref \"v\" has lines 5-2, not a range",
+    "chapter 1: ref \"u\" has lines a-12, not a range",
+    "chapter 1: ref \"t\" has side \"Q\", which is L or R",
+    "chapter 1: ref \"r\" has lines 1.5-12, not a range",
+    "chapter 1: ref \"v\" (src/a.js:5-2) is on lines that are in no hunk",
+    "chapter 1: ref \"u\" (src/a.js:a-12) is on lines that are in no hunk",
+    "chapter 1: ref \"q\" (src/a.js:3-3) is on lines that are in no hunk"
+  ],
+  "text links missing": ["chapter 1: the text links to ref:b, which the chapter does not have"],
+  "off page refs and comments": [
+    "chapter 1: ref \"x\" has lines 400-12, not a range",
+    "chapter 1: ref \"x\" (src/a.js:400-12) is on lines that are in no hunk",
+    "chapter 1: the comment on src/a.js:400 is on a line that is in no hunk"
+  ],
+  "pointers off": ["chapter 1: ref \"x\" has lines 400-12, not a range"],
+  "kept chapter skips pointers": ["chapter 1: ref \"x\" has lines 400-12, not a range"],
+  "comment paths": [
+    "chapter 1: the comment on other.js:3 needs the file's full path, as the diff names it"
+  ],
+  "story map": ["chapter 1's narrative opens with a story map: put it in `overview`"],
+  "file entries as objects": [
+    "chapter 1: ref \"x\" is on src/b.js, which the chapter does not list"
+  ],
+  "empty plan": [],
+  "answer: good": [
+    {
+      "id": "x",
+      "path": "src/a.js",
+      "side": "R",
+      "start": 10,
+      "end": 12
+    }
+  ],
+  "answer: duplicate id and missing link": "throws: refs:\n  - ref \"x\" is used twice",
+  "answer: path not in files": "throws: refs:\n  - ref \"x\" is on q.js, which the story does not list",
+  "answer: bad range, any file": "throws: refs:\n  - ref \"x\" has lines 0-12, not a range",
+  "answer: not a list": "throws: the refs file must hold a JSON list: [{\"id\": \"load\", \"path\": \"src/a.js\", \"start\": 40, \"end\": 58}]"
+}

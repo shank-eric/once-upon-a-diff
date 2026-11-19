@@ -91,27 +91,29 @@ export const isStoredLapseChange = (item: unknown): item is StoredLapseChange =>
   return hasKnownKind && hasCommit && hasSubject;
 };
 
+/** A stored lapse change as the record keeps it: the kind, commit and subject, and `was` when it is text. */
+const lapseChangeOf = (item: StoredLapseChange): LocalLapseChange => ({
+  kind: item.kind as LocalLapseChange['kind'],
+  sha: item.sha,
+  subject: item.subject,
+  ...(typeof item.was === 'string' && { was: item.was }),
+});
+
+/** How many more changes a lapse note says there were: a whole number above zero, else 0. */
+const moreOf = (value: unknown): number =>
+  typeof value === 'number' && value > 0 ? Math.floor(value) : 0;
+
 /** A stored lapse note, or undefined when it is malformed or names no change. */
 function readLapse(raw: unknown): LocalLapse | undefined {
   if (!isObject(raw) || typeof raw.at !== 'string' || typeof raw.tip !== 'string') {
     return undefined;
   }
-  const changes: LocalLapseChange[] = [];
-  for (const item of Array.isArray(raw.changes) ? raw.changes.slice(0, MAX_LAPSE_CHANGES) : []) {
-    if (isStoredLapseChange(item)) {
-      changes.push({
-        kind: item.kind as LocalLapseChange['kind'],
-        sha: item.sha,
-        subject: item.subject,
-        ...(typeof item.was === 'string' && { was: item.was }),
-      });
-    }
-  }
-  if (!changes.length) {
-    return undefined;
-  }
-  const more = typeof raw.more === 'number' && raw.more > 0 ? Math.floor(raw.more) : 0;
-  return { at: raw.at, tip: raw.tip, changes, ...(more && { more }) };
+  const stored: unknown[] = Array.isArray(raw.changes)
+    ? raw.changes.slice(0, MAX_LAPSE_CHANGES)
+    : [];
+  const changes = stored.filter(isStoredLapseChange).map(lapseChangeOf);
+  const more = moreOf(raw.more);
+  return changes.length ? { at: raw.at, tip: raw.tip, changes, ...(more && { more }) } : undefined;
 }
 
 /** Whether a stored value is a commit id or the absence of one (null or missing). */

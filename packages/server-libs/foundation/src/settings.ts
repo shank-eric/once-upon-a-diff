@@ -248,26 +248,31 @@ export interface RepoSettings {
   keep_branches?: boolean;
 }
 
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === 'object' && !Array.isArray(value);
+
+const REPO_FLAGS = ['skips_review', 'stories', 'keep_branches'] as const;
+
+/** One repo's entry, with every field of the wrong type dropped. */
+function readRepoEntry(entry: Record<string, unknown>): RepoSettings {
+  const settings: RepoSettings = {};
+  for (const field of REPO_FLAGS) {
+    if (typeof entry[field] === 'boolean') {
+      settings[field] = entry[field];
+    }
+  }
+  if (entry.deploy === 'local' || entry.deploy === 'pr') {
+    settings.deploy = entry.deploy;
+  }
+  return settings;
+}
+
 const readRepos = (value: unknown): Record<string, RepoSettings> => {
   const repos: Record<string, RepoSettings> = {};
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return repos;
-  }
-  for (const [key, raw] of Object.entries(value)) {
-    if (!key.trim() || !raw || typeof raw !== 'object' || Array.isArray(raw)) {
-      continue;
+  for (const [key, raw] of Object.entries(isPlainObject(value) ? value : {})) {
+    if (key.trim() && isPlainObject(raw)) {
+      repos[key.trim().toLowerCase()] = readRepoEntry(raw);
     }
-    const entry = raw as Record<string, unknown>;
-    const settings: RepoSettings = {};
-    for (const field of ['skips_review', 'stories', 'keep_branches'] as const) {
-      if (typeof entry[field] === 'boolean') {
-        settings[field] = entry[field];
-      }
-    }
-    if (entry.deploy === 'local' || entry.deploy === 'pr') {
-      settings.deploy = entry.deploy;
-    }
-    repos[key.trim().toLowerCase()] = settings;
   }
   return repos;
 };
@@ -308,6 +313,80 @@ export const isFeatureBranch = (branch: string | null | undefined): branch is st
 
 /** The names the bridge answers when a reverse proxy forwards them (puma-dev's *.test and *.fidev.net). */
 const DEFAULT_HOSTS = ['once-upon.test', 'once-upon.fidev.net'];
+
+/** The strings of a list setting that pass `keep` (nothing when the setting is not a list). */
+const stringsOf = (value: unknown, keep: (item: string) => boolean): string[] =>
+  Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string' && keep(item))
+    : [];
+
+/** A setting that is a string with something in it, else null. */
+const text = (value: unknown): string | null => (typeof value === 'string' && value ? value : null);
+
+/** A setting that is a string with something in it besides spaces, trimmed, else null. */
+const trimmedText = (value: unknown): string | null =>
+  typeof value === 'string' && value.trim() ? value.trim() : null;
+
+/** A setting that is a number above zero, else null. */
+const positiveNumber = (value: unknown): number | null =>
+  typeof value === 'number' && value > 0 ? value : null;
+
+const expand = (dirPath: string): string =>
+  dirPath.startsWith('~/') ? path.join(os.homedir(), dirPath.slice(2)) : dirPath;
+
+/** A setting that names a file or folder (a leading `~/` is the home folder), else null. */
+const pathSetting = (value: unknown): string | null => {
+  const named = text(value);
+  return named === null ? null : expand(named);
+};
+
+/** Claude Code's own folder (`name` inside $CLAUDE_CONFIG_DIR or ~/.claude), unless the setting names another. */
+const claudeDirSetting = (value: unknown, name: string): string =>
+  pathSetting(value) ??
+  path.join(process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'), name);
+
+const HOST_RE = /^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/;
+
+/** The allowed name the Open board button uses: the one asked for when it is allowed, else the first; null when asked for none. */
+const publicHostOf = (wanted: string | null, allowed: string[]): string | null =>
+  wanted === '' || wanted === 'none'
+    ? null
+    : ((wanted && allowed.includes(wanted) ? wanted : allowed[0]) ?? null);
+
+/** The names the bridge answers, the one the extension's Open board button opens, and whether config.json named it. */
+function readHosts(cfg: Record<string, unknown>) {
+  const named = Array.isArray(cfg.allowed_hosts)
+    ? stringsOf(cfg.allowed_hosts, (name) => HOST_RE.test(name))
+    : DEFAULT_HOSTS;
+  const allowedHosts = named.map((name) => name.toLowerCase());
+  const wanted = typeof cfg.public_host === 'string' ? cfg.public_host.trim().toLowerCase() : null;
+  const publicHost = publicHostOf(wanted, allowedHosts);
+  // named in config.json, so used as set; unset, the default name is used only where it resolves to this machine
+  const publicHostSet = !!wanted && wanted !== 'none' && publicHost === wanted;
+  return { allowedHosts, publicHost, publicHostSet };
+}
+
+/** The board's settings: `repos` is read already, since a repo's `keep_branches` joins the `board_keep_branches` list. */
+function readBoard(cfg: Record<string, unknown>, repos: Record<string, RepoSettings>) {
+  const keepNames = stringsOf(cfg.board_keep_branches, (name) => !!name.trim()).map((name) =>
+    name.trim().toLowerCase(),
+  );
+  const keptByRepo = Object.entries(repos)
+    .filter(([, entry]) => entry.keep_branches)
+    .map(([key]) => key);
+  return {
+    it2Path: pathSetting(cfg.board_it2_path),
+    sessionsDir: claudeDirSetting(cfg.board_sessions_dir, 'sessions'),
+    projectsDir: claudeDirSetting(cfg.board_projects_dir, 'projects'),
+    ledgerFile: pathSetting(cfg.board_ledger_file),
+    progressFile: pathSetting(cfg.board_progress_file),
+    larmorDir: pathSetting(cfg.board_larmor_dir),
+    doneHours: positiveNumber(cfg.board_done_hours) ?? 1,
+    finishedWaitMinutes: positiveNumber(cfg.board_finished_wait_minutes) ?? 30,
+    worktrees: cfg.board_worktrees !== false,
+    keepBranches: [...new Set([...keepNames, ...keptByRepo])],
+  };
+}
 
 /**
  * Optional personal settings in config.json, all off or neutral by default:
@@ -359,115 +438,25 @@ const DEFAULT_HOSTS = ['once-upon.test', 'once-upon.fidev.net'];
  */
 export function readSettings(home = homeDir()) {
   const cfg = readJson<Record<string, unknown>>(path.join(home, 'config.json'), {}) || {};
-  const expand = (dirPath: string) =>
-    dirPath.startsWith('~/') ? path.join(os.homedir(), dirPath.slice(2)) : dirPath;
-  const dirs = Array.isArray(cfg.checkout_dirs)
-    ? cfg.checkout_dirs.filter((dir): dir is string => typeof dir === 'string' && !!dir).map(expand)
-    : [];
-  const hostNames = Array.isArray(cfg.allowed_hosts)
-    ? cfg.allowed_hosts.filter(
-        (name): name is string =>
-          typeof name === 'string' && /^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/.test(name),
-      )
-    : DEFAULT_HOSTS;
   const repos = readRepos(cfg.repos);
-  const allowedHosts = hostNames.map((name) => name.toLowerCase());
-  const wantedHost =
-    typeof cfg.public_host === 'string' ? cfg.public_host.trim().toLowerCase() : null;
-  const publicHost =
-    wantedHost === '' || wantedHost === 'none'
-      ? null
-      : ((wantedHost && allowedHosts.includes(wantedHost) ? wantedHost : allowedHosts[0]) ?? null);
   return {
-    displayName:
-      typeof cfg.display_name === 'string' && cfg.display_name.trim()
-        ? cfg.display_name.trim()
-        : null,
-    timeZone: typeof cfg.time_zone === 'string' && cfg.time_zone ? cfg.time_zone : undefined,
+    displayName: trimmedText(cfg.display_name),
+    timeZone: text(cfg.time_zone) ?? undefined,
     timeZoneLabel: typeof cfg.time_zone_label === 'string' ? cfg.time_zone_label : null,
-    checkoutDirs: checkoutDirsOf(dirs),
+    checkoutDirs: checkoutDirsOf(stringsOf(cfg.checkout_dirs, (dir) => !!dir).map(expand)),
     openCommand:
       Array.isArray(cfg.open_command) && cfg.open_command.length
         ? cfg.open_command.map(String)
         : null,
     unsetGithubToken: cfg.gh_unset_github_token === true,
-    repoListenerIdleMinutes:
-      typeof cfg.listen_idle_minutes === 'number' && cfg.listen_idle_minutes > 0
-        ? cfg.listen_idle_minutes
-        : null,
-    storyListenerIdleMinutes:
-      typeof cfg.story_listener_idle_minutes === 'number' && cfg.story_listener_idle_minutes > 0
-        ? cfg.story_listener_idle_minutes
-        : null,
-    allowedHosts,
-    publicHost,
-    // named in config.json, so used as set; unset, the default name is used only where it resolves to this machine
-    publicHostSet:
-      wantedHost !== null &&
-      wantedHost !== '' &&
-      wantedHost !== 'none' &&
-      publicHost === wantedHost,
-    board: {
-      it2Path:
-        typeof cfg.board_it2_path === 'string' && cfg.board_it2_path
-          ? expand(cfg.board_it2_path)
-          : null,
-      sessionsDir:
-        typeof cfg.board_sessions_dir === 'string' && cfg.board_sessions_dir
-          ? expand(cfg.board_sessions_dir)
-          : path.join(
-              process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'),
-              'sessions',
-            ),
-      projectsDir:
-        typeof cfg.board_projects_dir === 'string' && cfg.board_projects_dir
-          ? expand(cfg.board_projects_dir)
-          : path.join(
-              process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'),
-              'projects',
-            ),
-      ledgerFile:
-        typeof cfg.board_ledger_file === 'string' && cfg.board_ledger_file
-          ? expand(cfg.board_ledger_file)
-          : null,
-      progressFile:
-        typeof cfg.board_progress_file === 'string' && cfg.board_progress_file
-          ? expand(cfg.board_progress_file)
-          : null,
-      larmorDir:
-        typeof cfg.board_larmor_dir === 'string' && cfg.board_larmor_dir
-          ? expand(cfg.board_larmor_dir)
-          : null,
-      doneHours:
-        typeof cfg.board_done_hours === 'number' && cfg.board_done_hours > 0
-          ? cfg.board_done_hours
-          : 1,
-      finishedWaitMinutes:
-        typeof cfg.board_finished_wait_minutes === 'number' && cfg.board_finished_wait_minutes > 0
-          ? cfg.board_finished_wait_minutes
-          : 30,
-      worktrees: cfg.board_worktrees !== false,
-      keepBranches: [
-        ...new Set([
-          ...(Array.isArray(cfg.board_keep_branches)
-            ? cfg.board_keep_branches
-                .filter((name): name is string => typeof name === 'string' && !!name.trim())
-                .map((name) => name.trim().toLowerCase())
-            : []),
-          ...Object.entries(repos)
-            .filter(([, entry]) => entry.keep_branches)
-            .map(([key]) => key),
-        ]),
-      ],
-    },
+    repoListenerIdleMinutes: positiveNumber(cfg.listen_idle_minutes),
+    storyListenerIdleMinutes: positiveNumber(cfg.story_listener_idle_minutes),
+    ...readHosts(cfg),
+    board: readBoard(cfg, repos),
     repos,
     extensionIds: [
       UNPACKED_EXTENSION_ID,
-      ...(Array.isArray(cfg.extension_ids)
-        ? cfg.extension_ids.filter(
-            (id): id is string => typeof id === 'string' && EXTENSION_ID.test(id),
-          )
-        : []),
+      ...stringsOf(cfg.extension_ids, (id) => EXTENSION_ID.test(id)),
     ],
   };
 }

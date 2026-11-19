@@ -50,6 +50,76 @@ export const isSafeRef = (value: unknown): value is string =>
   !value.endsWith('.') &&
   value.split('/').every((part) => part !== '' && !part.startsWith('.') && !part.endsWith('.lock'));
 
+/** The meta.json as an object, or null when it is anything else. */
+const plainObject = (raw: Partial<StoryMeta> | null | undefined): Partial<StoryMeta> | null =>
+  raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : null;
+
+/** Why a story's `kind` is not one of STORY_KINDS, or null. */
+const kindProblem = (kind: unknown): string | null =>
+  typeof kind === 'string' && STORY_KINDS.includes(kind)
+    ? null
+    : `kind ${JSON.stringify(kind)} is not one of ${STORY_KINDS.join(', ')}`;
+
+const OID_FIELDS = ['base_oid', 'head_oid', 'told_head_oid', 'told_base_oid'] as const;
+const OPTIONAL_REF_FIELDS = ['head_ref', 'branch'] as const;
+const REQUIRED_REF_FIELDS = ['base', 'head'] as const;
+
+/** Each oid the meta names that is not a full sha becomes null. */
+function dropBadOids(meta: StoryMeta): void {
+  for (const field of OID_FIELDS) {
+    if (
+      meta[field] != null &&
+      !(typeof meta[field] === 'string' && FULL_SHA_RE.test(meta[field]))
+    ) {
+      meta[field] = null;
+    }
+  }
+}
+
+/** Each `head_ref` or `branch` the meta names that is not a safe ref becomes null. */
+function dropBadRefs(meta: StoryMeta): void {
+  for (const field of OPTIONAL_REF_FIELDS) {
+    if (meta[field] != null && !isSafeRef(meta[field])) {
+      meta[field] = null;
+    }
+  }
+}
+
+/** Drops a `base` or `head` that is not a safe ref, and says so. */
+function dropRequiredRef(
+  meta: StoryMeta,
+  field: (typeof REQUIRED_REF_FIELDS)[number],
+): string | null {
+  if (meta[field] === undefined || isSafeRef(meta[field])) {
+    return null;
+  }
+  delete meta[field];
+  return `${field} is not a ref`;
+}
+
+/** Why a local story's `repo_path` is not to be trusted (it is dropped), or null: an absolute path, the checkout that holds the folder. */
+function repoPathProblem(meta: StoryMeta, dir: string, home: string): string | null {
+  if (typeof meta.repo_path !== 'string' || !path.isAbsolute(meta.repo_path)) {
+    delete meta.repo_path;
+    return 'repo_path is not a folder';
+  }
+  const held = inCheckout(dir, home);
+  const holder = held ? realPathOf(path.dirname(path.dirname(dir))) : null;
+  if (held && (!holder || realPathOf(meta.repo_path) !== holder)) {
+    delete meta.repo_path;
+    return "repo_path is not the checkout that holds the story's folder";
+  }
+  return null;
+}
+
+/** What is wrong with a local story's own fields, in the order they are checked. */
+function localProblems(meta: StoryMeta, dir: string, home: string): (string | null)[] {
+  return [
+    repoPathProblem(meta, dir, home),
+    meta.base && meta.head ? null : 'a local story needs base and head',
+  ];
+}
+
 /**
  * What a meta.json may be trusted to say. A folder in a checkout's .once-upon/ can be overwritten by a branch that tracks
  * files there, so its meta.json is checked before any field reaches git: an oid must be a full sha and a ref or branch
@@ -65,49 +135,20 @@ export function checkedMeta(
   raw: Partial<StoryMeta> | null | undefined,
   home: string = homeDir(),
 ): { meta: StoryMeta; problem: string | null } {
-  const isObject = !!raw && typeof raw === 'object' && !Array.isArray(raw);
-  const meta: StoryMeta = { ...(isObject ? raw : {}), kind: 'github' };
-  const kind = (isObject && raw.kind) || 'github';
-  let problem: string | null = isObject ? null : 'meta.json is not an object';
-  if (typeof kind === 'string' && STORY_KINDS.includes(kind)) {
-    meta.kind = kind as StoryMeta['kind'];
-  } else {
-    problem = problem || `kind ${JSON.stringify(kind)} is not one of ${STORY_KINDS.join(', ')}`;
-  }
-  for (const field of ['base_oid', 'head_oid', 'told_head_oid', 'told_base_oid'] as const) {
-    if (
-      meta[field] != null &&
-      !(typeof meta[field] === 'string' && FULL_SHA_RE.test(meta[field]))
-    ) {
-      meta[field] = null;
-    }
-  }
-  for (const field of ['head_ref', 'branch'] as const) {
-    if (meta[field] != null && !isSafeRef(meta[field])) {
-      meta[field] = null;
-    }
-  }
-  for (const field of ['base', 'head'] as const) {
-    if (meta[field] !== undefined && !isSafeRef(meta[field])) {
-      delete meta[field];
-      problem = problem || `${field} is not a ref`;
-    }
-  }
-  if (meta.kind === 'local') {
-    const held = inCheckout(dir, home);
-    const holder = held ? realPathOf(path.dirname(path.dirname(dir))) : null;
-    if (typeof meta.repo_path !== 'string' || !path.isAbsolute(meta.repo_path)) {
-      delete meta.repo_path;
-      problem = problem || 'repo_path is not a folder';
-    } else if (held && (!holder || realPathOf(meta.repo_path) !== holder)) {
-      delete meta.repo_path;
-      problem = problem || "repo_path is not the checkout that holds the story's folder";
-    }
-    if (!meta.base || !meta.head) {
-      problem = problem || 'a local story needs base and head';
-    }
-  }
-  return { meta, problem };
+  const fields = plainObject(raw);
+  const kind = fields?.kind || 'github';
+  const badKind = kindProblem(kind);
+  const meta: StoryMeta = { ...fields, kind: badKind ? 'github' : (kind as StoryMeta['kind']) };
+  dropBadOids(meta);
+  dropBadRefs(meta);
+  // every check runs, since each cleans its fields; the first problem found is the one reported
+  const problems = [
+    fields ? null : 'meta.json is not an object',
+    badKind,
+    ...REQUIRED_REF_FIELDS.map((field) => dropRequiredRef(meta, field)),
+    ...(meta.kind === 'local' ? localProblems(meta, dir, home) : []),
+  ];
+  return { meta, problem: problems.find(Boolean) ?? null };
 }
 
 /**

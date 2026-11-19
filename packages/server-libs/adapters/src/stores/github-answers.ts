@@ -64,45 +64,57 @@ function branchPrOf(value: unknown): StoredBranchPr | null | undefined {
   return isStoredBranchPr(value) ? value : undefined;
 }
 
-/** What was kept, without the entries older than a week at `now`. */
-export function readGithubAnswers(home: string, now = Date.now()): GithubAnswers {
-  const out: GithubAnswers = { branches: {}, prs: {}, requested: null };
-  const stored = readJson<unknown>(file(home));
-  if (!isRecord(stored) || stored.version !== VERSION) {
-    return out;
-  }
-  const fresh = (when: unknown): when is number => typeof when === 'number' && now - when < KEEP_MS;
-  if (isRecord(stored.branches)) {
-    for (const [key, entry] of Object.entries(stored.branches)) {
-      const pr = isRecord(entry) ? branchPrOf(entry.pr) : undefined;
-      if (isRecord(entry) && fresh(entry.at) && pr !== undefined) {
-        out.branches[key] = { at: Math.min(entry.at, now), pr };
-      }
+/** Whether a stored time is a number and still inside the week at `now`. */
+const isFresh = (when: unknown, now: number): when is number =>
+  typeof when === 'number' && now - when < KEEP_MS;
+
+/** The branch answers that are of the right shape and still fresh; a time ahead of `now` reads as `now`. */
+function readBranches(stored: unknown, now: number): GithubAnswers['branches'] {
+  const out: GithubAnswers['branches'] = {};
+  for (const [key, entry] of Object.entries(isRecord(stored) ? stored : {})) {
+    const pr = isRecord(entry) ? branchPrOf(entry.pr) : undefined;
+    if (isRecord(entry) && isFresh(entry.at, now) && pr !== undefined) {
+      out[key] = { at: Math.min(entry.at, now), pr };
     }
-  }
-  if (isRecord(stored.prs)) {
-    for (const [key, entry] of Object.entries(stored.prs)) {
-      const info = isRecord(entry) ? entry.info : undefined;
-      if (isRecord(entry) && fresh(entry.at) && isStoredPrInfo(info)) {
-        out.prs[key] = { at: Math.min(entry.at, now), info: info as unknown as PrInfo };
-      }
-    }
-  }
-  const asked = stored.requested;
-  if (
-    isRecord(asked) &&
-    fresh(asked.at) &&
-    Array.isArray(asked.list) &&
-    asked.list.every(
-      (pr) => isRecord(pr) && typeof pr.repo === 'string' && typeof pr.number === 'number',
-    )
-  ) {
-    out.requested = {
-      at: Math.min(asked.at, now),
-      list: asked.list as { repo: string; number: number }[],
-    };
   }
   return out;
+}
+
+/** The PR answers that are of the right shape and still fresh; a time ahead of `now` reads as `now`. */
+function readPrs(stored: unknown, now: number): GithubAnswers['prs'] {
+  const out: GithubAnswers['prs'] = {};
+  for (const [key, entry] of Object.entries(isRecord(stored) ? stored : {})) {
+    const info = isRecord(entry) ? entry.info : undefined;
+    if (isRecord(entry) && isFresh(entry.at, now) && isStoredPrInfo(info)) {
+      out[key] = { at: Math.min(entry.at, now), info: info as unknown as PrInfo };
+    }
+  }
+  return out;
+}
+
+/** Whether a stored value is one `{ repo, number }` of the list of your PRs. */
+const isRequestedPr = (pr: unknown): pr is { repo: string; number: number } =>
+  isRecord(pr) && typeof pr.repo === 'string' && typeof pr.number === 'number';
+
+/** The list of your PRs that was asked for, when it is of the right shape and still fresh. */
+function readRequested(asked: unknown, now: number): GithubAnswers['requested'] {
+  if (!isRecord(asked) || !isFresh(asked.at, now) || !Array.isArray(asked.list)) {
+    return null;
+  }
+  return asked.list.every(isRequestedPr) ? { at: Math.min(asked.at, now), list: asked.list } : null;
+}
+
+/** What was kept, without the entries older than a week at `now`. */
+export function readGithubAnswers(home: string, now = Date.now()): GithubAnswers {
+  const stored = readJson<unknown>(file(home));
+  if (!isRecord(stored) || stored.version !== VERSION) {
+    return { branches: {}, prs: {}, requested: null };
+  }
+  return {
+    branches: readBranches(stored.branches, now),
+    prs: readPrs(stored.prs, now),
+    requested: readRequested(stored.requested, now),
+  };
 }
 
 /** Writes what is kept (entries older than a week at `now` left out). A home that can't be written is not an error: the next start just has nothing to show. */

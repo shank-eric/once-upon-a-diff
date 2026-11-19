@@ -51,6 +51,7 @@ test('a parts file that does not check out is refused whole', () => {
   const part = { id: 'a', name: 'A', group: 'G', paths: ['a/'] };
   const ok = { version: 1, groups: ['G'], parts: [part] };
   assert.ok(parsePartsFile(ok));
+  assert.ok(parsePartsFile({ ...ok, parts: [{ ...part, note: 'n' }] }));
   const bad: unknown[] = [
     null,
     'text',
@@ -66,6 +67,10 @@ test('a parts file that does not check out is refused whole', () => {
     { ...ok, parts: [{ ...part, paths: 'a/' }] },
     { ...ok, parts: [{ ...part, paths: [''] }] },
     { ...ok, parts: [{ ...part, note: 3 }] },
+    { ...ok, parts: [{ ...part, note: 'x'.repeat(201) }] },
+    { ...ok, parts: [{ ...part, name: ' ' }] },
+    { ...ok, parts: [{ ...part, paths: Array.from({ length: 51 }, (_, i) => `p${i}/`) }] },
+    { ...ok, groups: ['x'.repeat(25)], parts: [{ ...part, group: 'x'.repeat(25) }] },
     { ...ok, parts: [null] },
     { ...ok, parts: Array.from({ length: 41 }, (_, i) => ({ ...part, id: `p${i}` })) },
   ];

@@ -191,3 +191,26 @@ test('a lapse note round-trips with its lapsed approval, and a malformed or empt
     },
   );
 });
+
+test('a lapse note keeps its first 30 well-formed changes, drops the rest, and reads `more` as a whole number above zero', () => {
+  const sha = 'c'.repeat(40);
+  const change = (index: number) => ({ kind: 'added', sha, subject: `change ${index}` });
+  const lapsed = { ...approval, lapsed: true };
+  const readLapse = (lapse: object) =>
+    readReviewRecord(store({ [REVIEW_FILE]: { approval: { ...lapsed, lapse } } }), 's1')?.approval
+      ?.lapse;
+  const many = readLapse({
+    at: WHEN,
+    tip: sha,
+    changes: [{ kind: 'added', sha }, ...Array.from({ length: 35 }, (_, index) => change(index))],
+    more: 2.7,
+  });
+  // the malformed first item is skipped but still counts toward the 30 read
+  assert.equal(many?.changes.length, 29);
+  assert.equal(many?.changes[0]?.subject, 'change 0');
+  assert.equal(many?.more, 2);
+  for (const more of [0, -3, '4', null]) {
+    assert.equal(readLapse({ at: WHEN, tip: sha, changes: [change(1)], more })?.more, undefined);
+  }
+  assert.equal(readLapse({ at: WHEN, tip: sha })?.changes, undefined);
+});

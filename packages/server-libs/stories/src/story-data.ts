@@ -6,7 +6,7 @@
 import { approvalAtTip, readApproval } from './approval.ts';
 import path from 'node:path';
 import { pathSha } from './diff.ts';
-import { readPrefs } from '@once-upon-a-diff/foundation/settings';
+import { readPrefs, type Prefs } from '@once-upon-a-diff/foundation/settings';
 import { readJson } from '@once-upon-a-diff/adapters/stores/fs/json-file';
 import { checkedMeta, readMeta, storyVersion, localVersion } from './meta.ts';
 import { chaptersOf, addLeftoverChapter, markUnwritten, refOf } from './chapters.ts';
@@ -21,6 +21,7 @@ import {
   localFilesOf,
 } from './local-diff.ts';
 import type {
+  Chapter,
   DiffFile,
   LocalNote,
   StoryData,
@@ -49,7 +50,12 @@ function relsOf(map: FileMap | null, diff: Map<string, DiffFile> | null): string
   return diff ? [...diff.keys()] : [];
 }
 
-export function storyData(store: StoryStateReader, id: string, dir: string): StoryData {
+/** The story's meta, with a local story's diff brought up to date first; throws when its meta.json is not trusted. */
+function trustedMeta(
+  store: StoryStateReader,
+  id: string,
+  dir: string,
+): ReturnType<typeof readMeta> {
   const refused = checkedMeta(
     dir,
     readJson<LocalMeta>(path.join(dir, 'meta.json'), null),
@@ -58,19 +64,26 @@ export function storyData(store: StoryStateReader, id: string, dir: string): Sto
   if (refused) {
     throw new Error(`story ${id} is not served: its meta.json is not trusted (${refused})`);
   }
-  let meta = readMeta(dir);
-  if (meta.kind === 'local') {
-    refreshLocal(
-      dir,
-      readJson<LocalMeta>(path.join(dir, 'meta.json'), {} as LocalMeta) as LocalMeta,
-    );
-    meta = readMeta(dir);
+  const meta = readMeta(dir);
+  if (meta.kind !== 'local') {
+    return meta;
   }
-  const plan = readJson<Plan>(path.join(dir, 'chapters.json'), {}) || {};
-  const diff = loadDiff(dir, meta);
-  const map = readJson<FileMap>(path.join(dir, 'file-map.json'), null);
-  const rels = relsOf(map, diff);
-  // a story told before refs is read as one that has them (legacy.ts); the files on disk stay as they were
+  refreshLocal(dir, readJson<LocalMeta>(path.join(dir, 'meta.json'), {} as LocalMeta) as LocalMeta);
+  return readMeta(dir);
+}
+
+/**
+ * The plan's chapters as the panel draws them, and the plan upgraded to have refs (legacy.ts; the files on disk stay as
+ * they were). Each leaves its chapters' files out of `rels` when the diff has no such file any more, and adds to `rels`
+ * the files the chapters name that it lacks.
+ */
+function tellChapters(
+  dir: string,
+  meta: ReturnType<typeof readMeta>,
+  plan: Plan,
+  diff: Map<string, DiffFile> | null,
+  rels: string[],
+) {
   const older = upgradePlan(plan, rels);
   const chapters = chaptersOf(older);
   // a local diff is the truth: a file that has left it (say, reverted) leaves its chapters too
@@ -82,47 +95,104 @@ export function storyData(store: StoryStateReader, id: string, dir: string): Sto
   }
   const overviewRefs = (older.refs || []).map(refOf);
   // a local story's refs say when the code at their lines has changed since it was told
-  if (meta.kind === 'local' && diff) {
-    const anchors = readAnchors(dir);
-    if (anchors) {
-      movedRefs(chapters, overviewRefs, anchors, diff);
-    }
+  const anchors = meta.kind === 'local' && diff ? readAnchors(dir) : null;
+  if (anchors && diff) {
+    movedRefs(chapters, overviewRefs, anchors, diff);
   }
-  for (const chapter of chapters) {
-    for (const file of chapter.files) {
-      if (!rels.includes(file.rel)) {
-        rels.push(file.rel);
-      }
-    }
+  const named = chapters.flatMap((chapter) => chapter.files.map((file) => file.rel));
+  rels.push(...new Set(named.filter((rel) => !rels.includes(rel))));
+  return { older, chapters, overviewRefs };
+}
+
+/** The hunks no chapter points at and how many are told thinly: counted from a local story's diff, else from what the build wrote in file-map.json. */
+function hunkCoverage(
+  chapters: Chapter[],
+  diff: Map<string, DiffFile> | null,
+  map: FileMap | null,
+) {
+  if (diff) {
+    return {
+      uncovered: uncoveredHunks(chapters, diff),
+      thin: thinHunks(chapters, diff, { linked: true }).length,
+    };
   }
-  // hunks no chapter points at: a build allowed to publish with them says so in file-map.json, a local story's diff is here
-  const uncovered = diff ? uncoveredHunks(chapters, diff) : (map && map.uncovered_hunks) || [];
-  const thin = diff
-    ? thinHunks(chapters, diff, { linked: true }).length
-    : (map && map.thin_hunks) || 0;
-  addLeftoverChapter(chapters, rels);
-  markUnwritten(chapters, plan);
-  // a chapter first published without its text: Viewed ticks made meanwhile say nothing about it (skeleton.ts)
+  return { uncovered: map?.uncovered_hunks || [], thin: map?.thin_hunks || 0 };
+}
+
+/** A chapter first published without its text: Viewed ticks made meanwhile say nothing about it (skeleton.ts). */
+function markSkeletons(chapters: Chapter[], dir: string): void {
   const skeleton = skeletonKeys(dir);
   for (const chapter of chapters) {
     if (skeleton.has(chapter.key) && !chapter.auto && !chapter.since) {
       chapter.skeleton = true;
     }
   }
+}
+
+/** The local story's own data: its diff and the bridge's state for it (viewed files, notes, approval). */
+function localData(
+  store: StoryStateReader,
+  id: string,
+  dir: string,
+  meta: ReturnType<typeof readMeta>,
+  rels: string[],
+  diff: Map<string, DiffFile> | null,
+  prefs: Prefs,
+): NonNullable<StoryData['local']> {
+  const local = meta as LocalMeta & { title: string };
+  const viewed = store.readState<Record<string, { hash?: string }>>(id, 'viewed.json', {});
+  const shown = prefs.hideWhitespace ? diffIgnoringWhitespace(dir, local) : null;
+  const found = approvalAtTip(store, id, local);
+  const data: NonNullable<StoryData['local']> = {
+    hide_whitespace: !!shown,
+    diff_view: prefs.diffView,
+    repo: local.repo_path,
+    base: local.base,
+    head: local.head,
+    base_oid: local.base_oid as string | null,
+    head_oid: local.head_oid as string | null,
+    branch: local.branch || null,
+    commits: local.commits || [],
+    files: localFilesOf(rels, diff, shown, viewed as Record<string, { hash?: string }>),
+    notes: store.readState<LocalNote[]>(id, 'notes.json', []) as LocalNote[],
+    approved: found ? { at: found.at, head_oid: found.head_oid } : null,
+    moved: movedSince(local),
+    storyless: isStoryless(dir),
+  };
+  // why an approval lapsed, while the story has none that counts
+  const lapsed = data.approved ? null : readApproval(store, id);
+  if (lapsed?.lapsed && lapsed.lapse) {
+    data.lapse = lapsed.lapse;
+  }
+  return data;
+}
+
+/** The PR a story is of, as the panel shows it (nulls for a local story). */
+const prOf = (meta: ReturnType<typeof readMeta>): StoryData['pr'] => ({
+  repo: meta.repo || null,
+  number: meta.number || null,
+  title: meta.pr_title || meta.title,
+  url: meta.url || null,
+});
+
+export function storyData(store: StoryStateReader, id: string, dir: string): StoryData {
+  const meta = trustedMeta(store, id, dir);
+  const plan = readJson<Plan>(path.join(dir, 'chapters.json'), {}) || {};
+  const diff = loadDiff(dir, meta);
+  const map = readJson<FileMap>(path.join(dir, 'file-map.json'), null);
+  const rels = relsOf(map, diff);
+  const { older, chapters, overviewRefs } = tellChapters(dir, meta, plan, diff, rels);
+  // hunks no chapter points at: a build allowed to publish with them says so in file-map.json, a local story's diff is here
+  const { uncovered, thin } = hunkCoverage(chapters, diff, map);
+  addLeftoverChapter(chapters, rels);
+  markUnwritten(chapters, plan);
+  markSkeletons(chapters, dir);
   const prefs = meta.kind === 'local' ? readPrefs(store.home) : null;
   const data: StoryData = {
     id,
     kind: meta.kind,
-    version:
-      meta.kind === 'local'
-        ? localVersion(dir, prefs, movedSince(meta as LocalMeta))
-        : storyVersion(dir),
-    pr: {
-      repo: meta.repo || null,
-      number: meta.number || null,
-      title: meta.pr_title || meta.title,
-      url: meta.url || null,
-    },
+    version: prefs ? localVersion(dir, prefs, movedSince(meta as LocalMeta)) : storyVersion(dir),
+    pr: prOf(meta),
     title: meta.title,
     overview: older.overview || '',
     summary: older.summary || '',
@@ -143,34 +213,8 @@ export function storyData(store: StoryStateReader, id: string, dir: string): Sto
   if (parts) {
     data.parts = parts;
   }
-  if (meta.kind === 'local') {
-    const local = meta as LocalMeta & { title: string };
-    const viewed = store.readState<Record<string, { hash?: string }>>(id, 'viewed.json', {});
-    const shown = prefs!.hideWhitespace ? diffIgnoringWhitespace(dir, local) : null; // a local story has its prefs
-    data.local = {
-      hide_whitespace: !!shown,
-      diff_view: prefs!.diffView,
-      repo: local.repo_path,
-      base: local.base,
-      head: local.head,
-      base_oid: local.base_oid as string | null,
-      head_oid: local.head_oid as string | null,
-      branch: local.branch || null,
-      commits: local.commits || [],
-      files: localFilesOf(rels, diff, shown, viewed as Record<string, { hash?: string }>),
-      notes: store.readState<LocalNote[]>(id, 'notes.json', []) as LocalNote[],
-      approved: (() => {
-        const found = approvalAtTip(store, id, local);
-        return found ? { at: found.at, head_oid: found.head_oid } : null;
-      })(),
-      moved: movedSince(local),
-      storyless: isStoryless(dir),
-    };
-    // why an approval lapsed, while the story has none that counts
-    const lapsed = data.local.approved ? null : readApproval(store, id);
-    if (lapsed?.lapsed && lapsed.lapse) {
-      data.local.lapse = lapsed.lapse;
-    }
+  if (prefs) {
+    data.local = localData(store, id, dir, meta, rels, diff, prefs);
   }
   return data;
 }
