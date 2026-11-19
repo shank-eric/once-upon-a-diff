@@ -96,35 +96,6 @@ test('a second run waits for the first and runs after it', async () => {
   ]);
 });
 
-test('a lock folder as the old shell script left it (pid, who) holds the run until its pid is gone', async () => {
-  const dir = tmp('heavy');
-  const lock = path.join(dir, 'lock');
-  mkdirSync(lock);
-  writeFileSync(path.join(lock, 'pid'), `${process.pid}\n`);
-  writeFileSync(path.join(lock, 'who'), 'old-script (3:40 PM): yarn test\n');
-  let finished = false;
-  const waiting = runCli(home(), ['heavy', 'x', 'echo', 'ran'], lockEnv(lock)).then((run) => {
-    finished = true;
-    return run;
-  });
-  await new Promise((resolve) => setTimeout(resolve, 1500));
-  assert.equal(finished, false, 'the live holder keeps it waiting');
-  writeFileSync(path.join(lock, 'pid'), '999999999\n'); // the holder is gone
-  const run = await waiting;
-  assert.equal(run.stdout.trim(), 'ran');
-  assert.match(run.stderr, /waiting for old-script \(3:40 PM\): yarn test/);
-  assert.equal(existsSync(lock), false);
-});
-
-test('a lock held by a pid that is gone is taken over without a word', async () => {
-  const lock = path.join(tmp('heavy'), 'lock');
-  mkdirSync(lock);
-  writeFileSync(path.join(lock, 'pid'), '999999999');
-  const run = await runCli(home(), ['heavy', 'x', 'echo', 'ran'], lockEnv(lock));
-  assert.equal(run.stdout.trim(), 'ran');
-  assert.equal(run.stderr, '');
-});
-
 test('with no override the lock is ~/.cache/heavy-run.lock, or under XDG_CACHE_HOME', async () => {
   const userHome = tmp('heavy-user');
   const base = { HOME: userHome, ONCE_UPON_HEAVY_LOCK: '', XDG_CACHE_HOME: '' };

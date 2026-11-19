@@ -18,9 +18,7 @@
  * when that is set, else `${XDG_CACHE_HOME:-~/.cache}/heavy-run-browser.lock`. Nothing checks memory: the most that runs at once is one
  * main-lock holder and one browser-lane run.
  *
- * A file or link at the lock path is cleared away once it is over two seconds old. The folder with `pid` and `who` files
- * inside is what the shell script this replaced, and once-upon before the package, made. One at the path is taken over when its pid is gone (or it names none and is over a minute old), and waited for while
- * its pid is alive, so an old run and a new one still take turns. Once no such lock can be about, that step can go.
+ * A file or link at the lock path is cleared away once it is over two seconds old.
  *
  * The command runs in the caller's folder with its stdio. `$ONCE_UPON_PATH`, when set and not empty, is the PATH the command
  * gets (and is not passed on): a caller that must run once-upon under `fnm exec --using=24` passes its own PATH this way, so
@@ -47,7 +45,7 @@ import path from 'node:path';
 import lockfile from 'proper-lockfile';
 import { pidAlive } from './os.ts';
 import { ensureDir } from './stores/fs/files.ts';
-import { clearLeftover, removeLeftover } from './stores/fs/folder-lock.ts';
+import { clearLeftover } from './stores/fs/folder-lock.ts';
 
 const SIGNALS = { SIGINT: 2, SIGTERM: 15, SIGHUP: 1 } as const;
 
@@ -76,9 +74,6 @@ function clock(now: Date): string {
   return `${hours % 12 || 12}:${minutes} ${hours < 12 ? 'AM' : 'PM'}`;
 }
 
-/** A lock folder from before the package with no pid this old was left by a process that died before writing it. */
-const PIDLESS_STALE_MS = 60_000;
-
 /** A lock nobody has touched for this long was left by a crash. The holder touches it every half of this while it runs. */
 const DEFAULT_STALE_MS = 60_000;
 
@@ -86,23 +81,6 @@ const DEFAULT_STALE_MS = 60_000;
 const LEFTOVER_MS = 2_000;
 
 const wait = (millis: number) => new Promise((resolve) => setTimeout(resolve, millis));
-
-/**
- * What a lock folder made before the package holds, if it holds that: `pid` and `who` files. 'gone' when the holder is gone
- * (its pid is dead, or it names none and the folder is over a minute old), 'live' while it runs, null for a folder without
- * them (the package's own lock). The package neither judges nor removes a folder with files in it.
- */
-function oldFormatHolder(lock: string): 'gone' | 'live' | null {
-  const pidText = readFileSafe(path.join(lock, 'pid')).trim();
-  if (!pidText && !readFileSafe(path.join(lock, 'who')).trim()) {
-    return null;
-  }
-  const pid = Number(pidText);
-  if (pid > 0) {
-    return pidAlive(pid) ? 'live' : 'gone';
-  }
-  return ageMs(lock) > PIDLESS_STALE_MS ? 'gone' : 'live';
-}
 
 /** The holder's `<lock>.who`, when it was written for the lock there now (one older than the folder is a crashed holder's). */
 function holderFile(lock: string): string {
@@ -215,17 +193,10 @@ async function take(
       } catch (err) {
         const code = (err as NodeJS.ErrnoException).code;
         const entry = lstatSafe(lock);
-        let old: 'gone' | 'live' | null = null;
-        if (entry?.isDirectory()) {
-          old = oldFormatHolder(lock);
-        } else if (entry && clearLeftover(lock, LEFTOVER_MS)) {
+        if (entry && !entry.isDirectory() && clearLeftover(lock, LEFTOVER_MS)) {
           continue; // a file or a link where the folder belongs
         }
-        if (old === 'gone') {
-          removeLeftover(lock);
-          continue;
-        }
-        if (code !== 'ELOCKED' && !(code === 'ENOTEMPTY' && old === 'live')) {
+        if (code !== 'ELOCKED') {
           throw err;
         }
       }
@@ -240,9 +211,7 @@ async function take(
             waiter = '';
           }
         }
-        waiting(
-          holderOf(lock) || readFileSafe(path.join(lock, 'who')).trim() || 'another heavy run',
-        );
+        waiting(holderOf(lock) || 'another heavy run');
         said = true;
       }
       await wait(pollMs);

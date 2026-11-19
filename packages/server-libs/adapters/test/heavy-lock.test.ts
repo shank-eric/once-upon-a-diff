@@ -159,54 +159,7 @@ test('waiters that queue for one lock at once never run together', async () => {
   }
 });
 
-// What earlier versions left at the lock path.
-
-test('a lock folder as an earlier version made it is taken over when its pid is gone', async () => {
-  const dir = tmp('heavy-lock');
-  const lock = path.join(dir, 'lock');
-  mkdirSync(lock);
-  writeFileSync(path.join(lock, 'pid'), `${deadPid()}\n`);
-  writeFileSync(path.join(lock, 'who'), 'gone (1:00 PM): yarn test\n');
-  assert.equal(await runHeavy('one', ['true'], () => {}, lockEnv(lock)), 0);
-  assert.deepEqual(readdirSync(dir), []);
-});
-
-test('an earlier version’s lock folder with a live pid is waited for, however old, and named', async () => {
-  const dir = tmp('heavy-lock');
-  const lock = path.join(dir, 'lock');
-  mkdirSync(lock);
-  writeFileSync(path.join(lock, 'pid'), `${process.pid}\n`);
-  writeFileSync(path.join(lock, 'who'), 'old holder (1:00 PM): yarn test\n');
-  ageOf(lock, 600);
-  const lines: string[] = [];
-  let finished = false;
-  const run = runHeavy('new', ['true'], (line) => lines.push(line), lockEnv(lock)).then((code) => {
-    finished = true;
-    return code;
-  });
-  await pause(400);
-  assert.equal(finished, false);
-  assert.deepEqual(lines, ['once-upon heavy: waiting for old holder (1:00 PM): yarn test']);
-  rmSync(lock, { recursive: true }); // the old holder lets go
-  assert.equal(await run, 0);
-});
-
-test('an earlier version’s lock folder with a name and no pid is waited for while fresh and taken over once old', async () => {
-  const dir = tmp('heavy-lock');
-  const lock = path.join(dir, 'lock');
-  mkdirSync(lock);
-  writeFileSync(path.join(lock, 'who'), 'died early\n');
-  let finished = false;
-  const run = runHeavy('new', ['true'], () => {}, lockEnv(lock)).then((code) => {
-    finished = true;
-    return code;
-  });
-  await pause(400);
-  assert.equal(finished, false, 'it may be a holder about to write its pid');
-  ageOf(lock, 61);
-  assert.equal(await run, 0);
-  assert.deepEqual(readdirSync(dir), []);
-});
+// What is left at the lock path.
 
 test('a lock folder with no files in it is waited for while fresh and taken over once it is older than the stale age', async () => {
   const dir = tmp('heavy-lock');

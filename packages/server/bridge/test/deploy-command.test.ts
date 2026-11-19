@@ -82,8 +82,7 @@ test('waiting for a busy lock is noted in the log, not on the terminal', async (
   const env = lockEnv();
   const lock = env.ONCE_UPON_HEAVY_LOCK;
   mkdirSync(lock);
-  writeFileSync(path.join(lock, 'pid'), String(process.pid));
-  writeFileSync(path.join(lock, 'who'), 'other (3:40 PM): yarn test');
+  writeFileSync(`${lock}.who`, `other (3:40 PM): yarn test\npid ${process.pid}\n`);
   const home = tmp('deploy-home');
   const run = runCli(home, ['deploy', 'ship', 'echo', 'hi'], env);
   try {
@@ -97,6 +96,7 @@ test('waiting for a busy lock is noted in the log, not on the terminal', async (
     assert.ok(await until(waiting, 20000), 'the run waits for the lock');
   } finally {
     rmSync(lock, { recursive: true, force: true });
+    rmSync(`${lock}.who`, { force: true });
   }
   const done = await run;
   assert.equal(done.code, 0);
