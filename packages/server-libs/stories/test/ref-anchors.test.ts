@@ -9,6 +9,7 @@ import {
   anchorFor,
   anchorsFor,
   lineTextAt,
+  markMovedLines,
   movedRefs,
   readAnchors,
   writeAnchors,
@@ -276,6 +277,41 @@ test('movedRefs marks the file entry’s matching line span, the overview refs, 
   movedRefs(changed, [], anchors, edited);
   assert.equal(changed[0].refs[0].moved, undefined);
   assert.equal(changed[0].files[0].lines?.[0].moved, undefined);
+});
+
+test('markMovedLines marks only the span of the ref’s own file and side, and a ref with no side reads as R', () => {
+  const told = chaptersOf(
+    plan([
+      {
+        ...chapter('one', [
+          { id: 'go', path: 'src/a.js', start: 5, end: 6 },
+          { id: 'other', path: 'src/b.js', start: 5, end: 6 },
+        ]),
+        files: ['src/a.js', 'src/b.js'],
+      },
+    ]),
+  )[0];
+  const spans = (rel: string) => told.files.find((one) => one.rel === rel)?.lines;
+  const spansA = spans('src/a.js')!;
+  const spansB = spans('src/b.js')!;
+  spansA.push(
+    { side: 'L', start: 5, end: 6, label: '' },
+    { side: 'R', start: 5, end: 7, label: '' },
+  );
+  assert.equal(spansA.length, 3);
+  markMovedLines(told, { id: 'go', path: 'src/a.js', start: 5, end: 6 });
+  assert.deepEqual(
+    spansA.map((one) => !!one.moved),
+    [true, false, false],
+    'the R span of the same lines, not the L one or the longer one',
+  );
+  assert.deepEqual(
+    spansB.map((one) => !!one.moved),
+    [false],
+    'another file is left alone',
+  );
+  markMovedLines(told, { id: 'go', path: 'src/a.js', side: 'L', start: 5, end: 6 });
+  assert.equal(spansA[1].moved, true);
 });
 
 test('readAnchors of a missing or garbage file is null, and a written file reads back', () => {

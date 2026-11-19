@@ -132,6 +132,20 @@ export function anchorsFor(
   };
 }
 
+/** Marks the chapter's file entries' `lines` that were made from this ref as moved. */
+export function markMovedLines(chapter: Chapter, ref: ChapterRef): void {
+  for (const file of chapter.files) {
+    if (file.rel !== ref.path) {
+      continue;
+    }
+    for (const lines of file.lines || []) {
+      if (lines.side === (ref.side ?? 'R') && lines.start === ref.start && lines.end === ref.end) {
+        lines.moved = true;
+      }
+    }
+  }
+}
+
 /**
  * Sets `moved` on the refs a story is served with whose anchored line the live diff no longer has there: its text
  * differs, or no hunk shows it. A ref with no anchor, or one for other lines than it has now, is unknown, not moved. It
@@ -162,18 +176,7 @@ export function movedRefs(
         continue;
       }
       ref.moved = true;
-      for (const file of chapter.files) {
-        for (const lines of file.lines || []) {
-          if (
-            file.rel === ref.path &&
-            lines.side === (ref.side ?? 'R') &&
-            lines.start === ref.start &&
-            lines.end === ref.end
-          ) {
-            lines.moved = true;
-          }
-        }
-      }
+      markMovedLines(chapter, ref);
     }
   }
 }

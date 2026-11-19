@@ -5,6 +5,12 @@
  */
 import { cliCommand } from '@once-upon-a-diff/state/records/listeners/listeners';
 import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
+import {
+  relayBinding,
+  touchBinding,
+  type Binding,
+} from '@once-upon-a-diff/state/records/listeners/binding';
+import { noteHanded } from '@once-upon-a-diff/state/queues/requests/conversation';
 import { StoryStore } from '@once-upon-a-diff/stories/store';
 import { isSafeRef, readMeta } from '@once-upon-a-diff/stories/meta';
 import type { QuestionEntry } from '@once-upon-a-diff/state/queues/requests/inbox';
@@ -99,6 +105,50 @@ export function relayStory(entry: {
     return story;
   }
   return null;
+}
+
+/**
+ * The entries of a wait that go on to their story's agent, by entry id: those whose story has a binding that `owner`
+ * (the session this wait runs in) may relay to, and that the agent may take. A used binding is touched so a long
+ * session's does not expire under it.
+ */
+export function relaysOf(
+  home: string,
+  entries: { type: string; id?: unknown; story?: unknown; mode?: unknown }[],
+  owner: string | null,
+): Map<string, Binding> {
+  const relays = new Map<string, Binding>();
+  const bindings = new Map<string, Binding | null>();
+  for (const entry of entries) {
+    const story = relayStory(entry);
+    if (!story) {
+      continue;
+    }
+    if (!bindings.has(story)) {
+      bindings.set(story, relayBinding(home, story, owner));
+    }
+    const bound = bindings.get(story);
+    if (!bound || !mayRelay(home, entry, bound.agent)) {
+      continue;
+    }
+    relays.set(entry.id as string, bound);
+    touchBinding(home, story);
+  }
+  return relays;
+}
+
+/** Notes each relayed question as handed to its story's agent, through the wait's `consumer`. */
+export function noteRelayed(
+  home: string,
+  relays: Map<string, Binding>,
+  questions: { id: string }[],
+  consumer: string,
+): void {
+  for (const [id, bound] of relays) {
+    if (questions.some((question) => question.id === id)) {
+      noteHanded(home, [id], bound.agent, consumer);
+    }
+  }
 }
 
 /** Is `agent` the author of a branch (an author in the agent registry), not a storyteller or another helper? */

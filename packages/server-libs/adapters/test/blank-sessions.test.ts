@@ -4,7 +4,7 @@ import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import '@once-upon-a-diff/test-kit/env';
 import { tmp } from '@once-upon-a-diff/test-kit/files';
-import { BlankSessions, showsUse } from '../src/claude-sessions/blank-sessions.ts';
+import { BlankSessions, chunkShowsUse, showsUse } from '../src/claude-sessions/blank-sessions.ts';
 import { projectFolder } from '../src/claude-sessions/transcripts.ts';
 
 const SESSION = '11111111-aaaa-bbbb-cccc-dddddddddddd';
@@ -228,4 +228,17 @@ test('the answer is kept per session and file size: no second read while it is u
   blank.keep(new Set());
   assert.equal(await blank.isBlank(projects, SESSION, cwd, NOW + 18000), false);
   assert.equal(blank.reads, 4);
+});
+
+test('chunkShowsUse is true when any whole line of the chunk shows use, and skips lines that are not JSON', () => {
+  const prompt = JSON.stringify(user('fix the build'));
+  const clear = JSON.stringify(user('<command-name>/clear</command-name>'));
+  const reply = JSON.stringify({ type: 'assistant', message: { content: [] } });
+  assert.equal(chunkShowsUse([...cleared.map((one) => JSON.stringify(one))].join('\n')), false);
+  assert.equal(chunkShowsUse(`${clear}\n${prompt}`), true);
+  assert.equal(chunkShowsUse(`${clear}\n${reply}`), true);
+  // a line that mentions "user" but is not JSON says nothing, and the scan goes on to the next line
+  assert.equal(chunkShowsUse(`{"type":"user" broken\n${prompt}`), true);
+  assert.equal(chunkShowsUse('{"type":"user" broken'), false);
+  assert.equal(chunkShowsUse(''), false);
 });

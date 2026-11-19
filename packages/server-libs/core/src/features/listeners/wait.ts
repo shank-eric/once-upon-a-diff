@@ -32,12 +32,7 @@ import {
 import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
 import { noteHanded, routeQuestions } from '@once-upon-a-diff/state/queues/requests/conversation';
 import { fixesToHand } from '@once-upon-a-diff/state/queues/requests/fixes';
-import {
-  relayBinding,
-  ownSession,
-  touchBinding,
-  type Binding,
-} from '@once-upon-a-diff/state/records/listeners/binding';
+import { ownSession, type Binding } from '@once-upon-a-diff/state/records/listeners/binding';
 import { beat, listeners, wasStopped } from '@once-upon-a-diff/state/records/listeners/listeners';
 import { StoryStore } from '@once-upon-a-diff/stories/store';
 import {
@@ -48,7 +43,7 @@ import {
   stopReason,
   stopRequested,
 } from './auto-stop.ts';
-import { mayRelay, relayEntryMessage, relayFallback, relayStory } from './relay.ts';
+import { noteRelayed, relayEntryMessage, relayFallback, relaysOf } from './relay.ts';
 import type { Relayable } from './relay.ts';
 import { handOverLines, relayBlock, type Printable, type StopScope } from './hand-over.ts';
 import { repoAt, resolveStory } from './story-ref.ts';
@@ -242,6 +237,70 @@ function itemsFor(
   });
 }
 
+interface HandInput {
+  home: string;
+  consumer: string;
+  scope: WaitScope;
+  /** the inbox entries read this round, for this wait's repo and story */
+  unread: InboxEntry[];
+  questions: QuestionEntry[];
+  /** whether this wait takes fix requests */
+  fixes: boolean;
+  /** the build queue, when this wait takes build requests */
+  builds: Builds | null;
+  repo: string | null;
+  story: string | null;
+}
+
+/** What this round hands over, in order: the questions, the approvals, the other inbox entries, then fix requests and build requests. */
+function entriesToHand(input: HandInput): Printable[] {
+  const { home, consumer, scope, unread, questions } = input;
+  const entries: Printable[] = [
+    ...questions,
+    // (fix requests come from fixes.json, not the inbox file)
+    ...approvalsToTake(
+      home,
+      consumer,
+      scope,
+      unread.filter((entry) => entry.type === 'approved'),
+    ),
+    ...unread.filter(
+      (entry) =>
+        entry.type !== 'question' &&
+        entry.type !== 'approved' &&
+        (entry.type as string) !== 'fix_request',
+    ),
+  ];
+  if (input.fixes) {
+    entries.push(...fixesToHand(home, consumer, scope));
+  }
+  if (input.builds) {
+    entries.push(...input.builds.toHand(consumer, { repo: input.repo, story: input.story }));
+  }
+  return entries;
+}
+
+/** The beat a wait leaves when it hands entries over: handling, or a stopped wait's when this was the catch-up the session won't start again. */
+function beatHanding(
+  home: string,
+  consumer: string,
+  scope: WaitScope,
+  catchUp: boolean,
+  entries: Printable[],
+  questions: QuestionEntry[],
+): void {
+  if (catchUp) {
+    // the session won't start this wait again, so the beat stays one of a stopped wait, never a handling one
+    beat(home, consumer, 'waiting', { ...scope, stopped: true });
+    return;
+  }
+  beat(home, consumer, 'handling', {
+    ...scope,
+    question: entries[0].id,
+    questions: questions.map((question) => question.id),
+  });
+}
+
 /**
  * Waits for the next request this listener takes, and returns it (or why it stopped). Throws for a bad --repo or a --story it
  * can't resolve, before it beats.
@@ -337,74 +396,29 @@ export async function wait(home: string, opts: WaitOptions): Promise<WaitOutcome
         scope,
         unread.filter((entry): entry is QuestionEntry => entry.type === 'question'),
       );
-      let entries: Printable[] = [
-        ...questions,
-        // (fix requests come from fixes.json, not the inbox file)
-        ...approvalsToTake(
-          home,
-          consumer,
-          scope,
-          unread.filter((entry) => entry.type === 'approved'),
-        ),
-        ...unread.filter(
-          (entry) =>
-            entry.type !== 'question' &&
-            entry.type !== 'approved' &&
-            (entry.type as string) !== 'fix_request',
-        ),
-      ];
-      if (takesFixes) {
-        entries = [...entries, ...fixesToHand(home, consumer, scope)];
-      }
-      if (builds) {
-        entries = [
-          ...entries,
-          ...builds.toHand(consumer, {
-            repo: (opts.repo as string | undefined) || null,
-            story: (story as string | undefined) || null,
-          }),
-        ];
-      }
+      const entries = entriesToHand({
+        home,
+        consumer,
+        scope,
+        unread,
+        questions,
+        fixes: takesFixes,
+        builds,
+        repo: (opts.repo as string | undefined) || null,
+        story: (story as string | undefined) || null,
+      });
       if (entries.length) {
         clearInterval(heartbeat);
         // a question of a story built by an agent this session owns goes on to the agent, from any wait here
-        const relays = new Map<string, Binding>();
-        const bindings = new Map<string, Binding | null>();
-        for (const entry of noRelay ? [] : entries) {
-          const relayed = relayStory(entry);
-          if (!relayed) {
-            continue;
-          }
-          if (!bindings.has(relayed)) {
-            bindings.set(relayed, relayBinding(home, relayed, owner));
-          }
-          const bound = bindings.get(relayed);
-          if (bound && mayRelay(home, entry, bound.agent)) {
-            relays.set(entry.id as string, bound);
-            touchBinding(home, relayed); // in use, so a long session's binding doesn't expire under it
-          }
-        }
+        const relays = noRelay ? new Map<string, Binding>() : relaysOf(home, entries, owner);
         const own = questions.filter((question) => !relays.has(question.id));
         noteHanded(
           home,
           own.map((question) => question.id),
           consumer,
         );
-        for (const [id, bound] of relays) {
-          if (questions.some((question) => question.id === id)) {
-            noteHanded(home, [id], bound.agent, consumer);
-          }
-        }
-        if (catchUp) {
-          // the session won't start this wait again, so the beat stays one of a stopped wait, never a handling one
-          beat(home, consumer, 'waiting', { ...scope, stopped: true });
-        } else {
-          beat(home, consumer, 'handling', {
-            ...scope,
-            question: entries[0].id,
-            questions: questions.map((question) => question.id),
-          });
-        }
+        noteRelayed(home, relays, questions, consumer);
+        beatHanding(home, consumer, scope, catchUp, entries, questions);
         return { kind: 'handed', items: itemsFor(entries, relays, consumer) };
       }
       if (Date.now() > deadline) {

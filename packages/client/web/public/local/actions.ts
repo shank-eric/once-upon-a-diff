@@ -12,7 +12,13 @@ import {
   type EditorState,
   type LocalState,
 } from '/assets/local/store.ts';
-import { baseRows, claimsFor, rowKeyFor, rowsFor } from '/assets/local/diff/rows.ts';
+import {
+  baseRows,
+  claimsFor,
+  hiddenKeysOfRun,
+  rowKeyFor,
+  rowsFor,
+} from '/assets/local/diff/rows.ts';
 import { expandHunks, type Direction } from '/assets/local/diff/expand.ts';
 import { highlightFile } from '/assets/local/diff/syntax.ts';
 import type { LocalStoryData } from '/assets/local/page.ts';
@@ -362,10 +368,8 @@ export function reveal(rel: string, side?: Side, start?: number, end?: number) {
       const row = pos === undefined ? undefined : byKey.get(rows[pos].key);
       if (row && row.hidden && row.run && !seen.has(row.run)) {
         seen.add(row.run);
-        for (const other of shown) {
-          if (other.run === row.run && other.hidden) {
-            open[other.key] = true;
-          }
+        for (const key of hiddenKeysOfRun(shown, row.run)) {
+          open[key] = true;
         }
       }
     }

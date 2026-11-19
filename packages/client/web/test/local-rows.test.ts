@@ -286,3 +286,17 @@ test('lines the reviewer expanded are never folded in a step, and a note on one 
   const noted = rowsFor(input({ file: one, notes: [note('n1', 'R', 2)], free, ended: true }));
   assert.deepEqual(kinds(noted).slice(1, 4), ['line:l0:0', 'line:l0:1', 'note:nn1']);
 });
+
+test('hiddenKeysOfRun lists the hidden rows of one run, in order, and nothing for another run', async () => {
+  const { hiddenKeysOfRun } = await import('../public/local/diff/rows.ts');
+  const shown = [
+    { key: 'a', run: 'r1', hidden: true },
+    { key: 'b', run: 'r1', hidden: false },
+    { key: 'c', run: 'r2', hidden: true },
+    { key: 'd', run: 'r1', hidden: true },
+    { key: 'e', hidden: true },
+  ] as never[];
+  assert.deepEqual(hiddenKeysOfRun(shown, 'r1'), ['a', 'd']);
+  assert.deepEqual(hiddenKeysOfRun(shown, 'r2'), ['c']);
+  assert.deepEqual(hiddenKeysOfRun(shown, 'r3'), []);
+});

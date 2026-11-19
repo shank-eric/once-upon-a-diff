@@ -61,6 +61,20 @@ export function showsUse(line: Line): boolean {
 
 const USER_OR_ASSISTANT = /"type"\s*:\s*"(?:user|assistant)"/;
 
+/** Whether any line of a chunk of whole transcript lines shows use. A line that isn't JSON says nothing. */
+export function chunkShowsUse(chunk: string): boolean {
+  return chunk.split('\n').some((text) => {
+    if (!USER_OR_ASSISTANT.test(text)) {
+      return false;
+    }
+    try {
+      return showsUse(JSON.parse(text) as Line);
+    } catch {
+      return false;
+    }
+  });
+}
+
 /** Whether the transcript shows use. A partial last line (still being written) is ignored. */
 async function usedIn(file: string): Promise<boolean> {
   const handle = await open(file, 'r');
@@ -78,17 +92,8 @@ async function usedIn(file: string): Promise<boolean> {
       const end = all.lastIndexOf(0x0a);
       carry = end === -1 ? all : all.subarray(end + 1);
       if (end !== -1) {
-        for (const text of all.subarray(0, end).toString('utf8').split('\n')) {
-          if (!USER_OR_ASSISTANT.test(text)) {
-            continue;
-          }
-          try {
-            if (showsUse(JSON.parse(text) as Line)) {
-              return true;
-            }
-          } catch {
-            /* a line that isn't JSON says nothing */
-          }
+        if (chunkShowsUse(all.subarray(0, end).toString('utf8'))) {
+          return true;
         }
       }
       if (total >= GIVE_UP || carry.length >= GIVE_UP) {

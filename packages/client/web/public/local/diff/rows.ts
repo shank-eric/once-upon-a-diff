@@ -261,6 +261,10 @@ export function claimsFor(chapters: Parameters<typeof claimsOf>[0]): Claims {
   return claims;
 }
 
+/** The keys of the hidden rows in one folded run: what opening the run shows. */
+export const hiddenKeysOfRun = (shown: Shown[], run: string): string[] =>
+  shown.filter((row) => row.run === run && row.hidden).map((row) => row.key);
+
 /** Every row of a file's table, in order, each with whether the step's narrowing hides it. */
 export function rowsFor(input: RowsInput): Shown[] {
   const { file, split, notes, editors, claims, step, opened, free, ended } = input;

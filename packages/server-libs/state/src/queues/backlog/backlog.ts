@@ -715,6 +715,23 @@ export function cardOnBranch(
   );
 }
 
+/** A started item that rides on a card: the card carries its "from backlog" mark and its runs' views, and a work card with no PR or story is titled by the item. */
+export function mergeIntoWork(
+  work: BoardCard,
+  item: Pick<BacklogItem, 'id' | 'title'>,
+  views: BoardAgent[],
+): void {
+  work.from_backlog = [...(work.from_backlog ?? []), { id: item.id, title: item.title }];
+  for (const view of views) {
+    if (!work.agents.some((one) => sameAgentView(one, view))) {
+      work.agents.push(view);
+    }
+  }
+  if (work.kind === 'work' && !work.pr && !work.story) {
+    work.title = item.title;
+  }
+}
+
 /**
  * The cards the Backlog item column shows, and the work cards' "from backlog" marks. Open items are cards in Backlog,
  * except one a work run names (`agent start --card`), which goes where its runs put it (`cardPhase`, phase.ts). A started item is one piece of work, shown once:
@@ -758,15 +775,7 @@ export function backlogCards(
     if (item.state === 'started' && item.branch) {
       const work = cardOnBranch(item, cards);
       if (work) {
-        work.from_backlog = [...(work.from_backlog ?? []), { id: item.id, title: item.title }];
-        for (const view of itemViews) {
-          if (!work.agents.some((one) => sameAgentView(one, view))) {
-            work.agents.push(view);
-          }
-        }
-        if (work.kind === 'work' && !work.pr && !work.story) {
-          work.title = item.title;
-        }
+        mergeIntoWork(work, item, itemViews);
         continue;
       }
     }
