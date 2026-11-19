@@ -13,6 +13,7 @@ import type {
   BoardSession,
 } from '@once-upon-a-diff/contracts/types';
 import { prUrl } from '@once-upon-a-diff/terms/github-urls';
+import { hasRepoAndBranch } from '@once-upon-a-diff/terms/repo-branch';
 
 export interface ListeningInput {
   home: string;
@@ -107,6 +108,11 @@ const safePath = (dir: string): boolean =>
     return char === ' ' || !/\s/u.test(char);
   });
 
+/** Whether the card has a story built (a storyless review counts as none). */
+export function hasStory(card: BoardCard): boolean {
+  return !!card.story && !card.story.storyless;
+}
+
 /**
  * What Build story types into a session for a card, or null when the card has no use for it: a card with a session and a
  * PR or branch, and no story yet (a storyless review counts as none). The line is the once-upon skill's own command:
@@ -119,12 +125,7 @@ export function buildFor(card: BoardCard, idle: Set<string>): BoardBuild | null 
   if (card.kind === 'agent') {
     return authorBuild(card, idle);
   }
-  if (
-    card.kind !== 'work' ||
-    (card.story && !card.story.storyless) ||
-    !card.sessions.length ||
-    !card.repo
-  ) {
+  if (card.kind !== 'work' || hasStory(card) || !card.sessions.length || !card.repo) {
     return null;
   }
   const number = card.pr?.number;
@@ -177,10 +178,9 @@ export function reviewFor(
 ): BoardReview | null {
   if (
     (card.kind !== 'work' && card.kind !== 'session') ||
-    (card.story && !card.story.storyless) ||
+    hasStory(card) ||
     card.pr ||
-    !card.repo ||
-    !card.branch ||
+    !hasRepoAndBranch(card) ||
     DEFAULT_BRANCHES.has(card.branch) ||
     shipped(card.repo, card.branch)
   ) {

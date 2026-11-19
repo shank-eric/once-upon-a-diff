@@ -4,6 +4,7 @@
  * cards.ts; a session on its branch joins it in sessions.ts.
  */
 import { branchKey, branchWorkKey, prWorkKey, storyWorkKey } from '@once-upon-a-diff/terms/ids';
+import { hasRepoAndBranch } from '@once-upon-a-diff/terms/repo-branch';
 import { sameRepo } from '@once-upon-a-diff/foundation/repos';
 import { DEFAULT_BRANCHES } from '@once-upon-a-diff/foundation/settings';
 import {
@@ -39,6 +40,18 @@ export interface CollectedWorks {
   toldHeads: Map<string, string>;
 }
 
+/** A work that is only a branch's local story: no PR, no PR story, not merged, on a repo and branch. */
+export function isBranchWithLocalStory(
+  work: Work,
+): work is Work & { local: InboxLocalStory; repo: string; branch: string } {
+  return !!work.local && !work.number && !work.story && !work.mergedAt && hasRepoAndBranch(work);
+}
+
+/** A local story you have reviewed and not approved: resolved, so GitHub is not asked about its branch. */
+export function isResolved(local: InboxLocalStory): boolean {
+  return !local.approved_at && !!local.reviewed_at;
+}
+
 /**
  * A branch's card with an unresolved local story (approved, or not yet reviewed) and no PR yet takes the PR GitHub says
  * the branch has, whether or not a session is on the branch (sessions.ts does the same for a session's). Without this a
@@ -56,13 +69,10 @@ function linkBranchWorks(
   nowMs: number,
 ): void {
   for (const work of [...works.values()]) {
-    const local = work.local;
-    if (!local || work.number || work.story || work.mergedAt || !work.repo || !work.branch) {
+    if (!isBranchWithLocalStory(work) || isResolved(work.local)) {
       continue;
     }
-    if (!local.approved_at && local.reviewed_at) {
-      continue;
-    }
+    const { local } = work;
     const checkout = checkouts.get(branchKey(work.repo, work.branch));
     if (!checkout) {
       continue;

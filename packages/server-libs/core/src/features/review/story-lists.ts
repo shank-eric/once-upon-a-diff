@@ -117,6 +117,11 @@ export interface LocalEntry {
 export const isAutoDone = (story: Pick<InboxLocalStory, 'reviewed_at' | 'reviewed_by'>): boolean =>
   !!story.reviewed_at && !!story.reviewed_by && AUTO_DONE.includes(story.reviewed_by);
 
+/** A local story, other than one the retired turn capture left. */
+export const isLocalStory = (
+  story: Pick<ReturnType<StoryStore['list']>[number], 'kind' | 'turn'>,
+): boolean => story.kind === 'local' && !story.turn;
+
 /**
  * The local stories (newest first), or only a repo's (owner/name), with what the checks look at. A story left by the
  * retired turn capture is not one.
@@ -128,7 +133,7 @@ export function localEntries(
   const cutoff = now - STORY_DAYS * 24 * 3600 * 1000;
   const found: LocalEntry[] = [];
   for (const story of stories.list()) {
-    if (story.kind !== 'local' || story.turn) {
+    if (!isLocalStory(story)) {
       continue;
     }
     const meta = readMeta(story.dir);

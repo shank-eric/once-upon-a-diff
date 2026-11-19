@@ -1,5 +1,6 @@
 /** The cards: a session that is not on a branch of its own, a work (PR or branch), and where each sits in the columns. */
 import { branchKey, canonicalRepo } from '@once-upon-a-diff/terms/ids';
+import { hasRepoAndBranch } from '@once-upon-a-diff/terms/repo-branch';
 import { isAutoDone } from '@once-upon-a-diff/core/features/review/story-lists';
 import { requestFor } from '@once-upon-a-diff/state/queues/requests/progress';
 import { columnOf } from '../columns.ts';
@@ -220,7 +221,7 @@ function workCard(ctx: BuildContext, facts: CardFacts, work: Work): BoardCard | 
           unread: unreadOf(story),
           unread_answers: facts.unreadById.get(story.id) ?? 0,
           approved_at: 'number' in story ? null : story.approved_at,
-          ...(!('number' in story) && story.storyless ? { storyless: true as const } : {}),
+          ...(isStorylessReview(story) ? { storyless: true as const } : {}),
         }
       : null,
     building,
@@ -235,6 +236,11 @@ function workCard(ctx: BuildContext, facts: CardFacts, work: Work): BoardCard | 
   };
 }
 
+/** A local story that is a storyless review (a by-folder local story): Build story still tells one. */
+export function isStorylessReview(story: InboxLocalStory | InboxStory | null): boolean {
+  return !!story && !('number' in story) && !!story.storyless;
+}
+
 /** A storyless review's card's branch and checkout, so Review can re-pin it when no session is on the branch. */
 function storylessCheckout(
   facts: CardFacts,
@@ -243,11 +249,12 @@ function storylessCheckout(
   repo: string | null,
   branch: string | null,
 ): { review: { branch: string; path: string } } | null {
-  if (!story || 'number' in story || !story.storyless || pr || !repo || !branch) {
+  const where = { repo, branch };
+  if (!isStorylessReview(story) || pr || !hasRepoAndBranch(where)) {
     return null;
   }
-  const local = facts.localCheckouts.get(branchKey(repo, branch));
-  return local ? { review: { branch, path: local.checkout } } : null;
+  const local = facts.localCheckouts.get(branchKey(where.repo, where.branch));
+  return local ? { review: { branch: where.branch, path: local.checkout } } : null;
 }
 
 /** What the card says while a session works on the PR's story. */

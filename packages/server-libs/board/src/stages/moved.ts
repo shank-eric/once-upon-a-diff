@@ -11,6 +11,7 @@
 import { sameRepo } from '@once-upon-a-diff/foundation/repos';
 import type { WorktreeFacts } from '@once-upon-a-diff/state/records/worktrees/worktrees';
 import type { BoardCard } from '@once-upon-a-diff/contracts/types';
+import { couldBeReady } from '../columns.ts';
 import type { Lookups } from './types.ts';
 
 export function movedCards(
@@ -21,20 +22,11 @@ export function movedCards(
 ): Set<BoardCard> {
   const moved = new Set<BoardCard>();
   for (const card of cards) {
-    const { story, repo, branch } = card;
-    // only a card that could be Ready: a local story, no PR, not landed, not approved (that is Ready to ship), not reviewed
-    if (
-      card.kind === 'agent' ||
-      story?.kind !== 'local' ||
-      card.pr ||
-      card.landed ||
-      story.approved_at ||
-      (story.reviewed && !story.unread_answers) ||
-      !repo ||
-      !branch
-    ) {
+    // only a card that could be Ready (columns.ts)
+    if (!couldBeReady(card)) {
       continue;
     }
+    const { story, repo, branch } = card;
     const told = toldHeads.get(story.id)?.toLowerCase();
     const tree = trees.find(
       (one) => !!one.repo && sameRepo(one.repo, repo) && one.branch === branch,

@@ -41,8 +41,10 @@
  * A card in Back to you clears when you mark its story reviewed, open it (the panel records where you stopped and what
  * you read), submit your review on GitHub, or the auto-review rules fire.
  */
+import { hasRepoAndBranch } from '@once-upon-a-diff/terms/repo-branch';
 import type {
   BoardAgent,
+  BoardCard,
   BoardColumn,
   BoardSession,
   PrInfo,
@@ -99,6 +101,48 @@ export function isBackToYou(input: Pick<ColumnInput, 'pr' | 'story'>): boolean {
   return baseline !== null && !Number.isNaN(others) && others > baseline;
 }
 
+/** A card's story that is a local one (no PR story). */
+type LocalStory = NonNullable<BoardCard['story']> & { kind: 'local' };
+
+/**
+ * A card with a local story and no PR: the Mac's side, before GitHub has the work. Whether it is Ready, Ready to ship or Done
+ * is `columnOf`'s call; this is only the shape they share.
+ */
+export function isLocalStoryCard<T extends Pick<BoardCard, 'story' | 'pr'>>(
+  card: T,
+): card is T & { story: LocalStory; pr: null } {
+  return card.story?.kind === 'local' && !card.pr;
+}
+
+/**
+ * A card that could be Ready, which is the cards whose branch can have moved past what you were to review (stages/moved.ts): a
+ * work or session card with a local story and no PR, on a repo and branch, not landed, not approved (that is Ready to ship), and
+ * not reviewed (or reviewed with an answer still unread). `columnOf` has other ways into Ready (an agent's `[review]`, a story
+ * that is unread though reviewed) that are not about a moving branch, so this is the narrower rule, not a copy of it.
+ */
+export function couldBeReady(
+  card: BoardCard,
+): card is BoardCard & { story: LocalStory; pr: null; repo: string; branch: string } {
+  return (
+    card.kind !== 'agent' &&
+    isLocalStoryCard(card) &&
+    !card.landed &&
+    !card.story.approved_at &&
+    (!card.story.reviewed || !!card.story.unread_answers) &&
+    hasRepoAndBranch(card)
+  );
+}
+
+/** A local story whose card landed (`backlog done`) with no PR: Done, approved or not. */
+export function isLandedLocal({ story, pr }: Pick<ColumnInput, 'story' | 'pr'>): boolean {
+  return !!story?.local && !!story.landed && !pr;
+}
+
+/** A local story approved for its current head, with no PR yet: ready to ship. */
+export function isApprovedLocal({ story, pr }: Pick<ColumnInput, 'story' | 'pr'>): boolean {
+  return !!story?.local && !!story.approved && !pr;
+}
+
 export function columnOf(input: ColumnInput): BoardColumn {
   const { sessions, agents, pr, story, building, moved, launched } = input;
   const ready = moved ? 'working' : 'ready';
@@ -125,7 +169,7 @@ export function columnOf(input: ColumnInput): BoardColumn {
   if (sessions.some((session) => session.status === 'working' && session.thinking)) {
     return 'thinking';
   }
-  if (pr?.state === 'merged' || (story?.local && story.landed && !pr)) {
+  if (pr?.state === 'merged' || isLandedLocal(input)) {
     return 'done';
   }
   // a failed agent on the card (nested by its branch, PR or card, or the claimed author) is Error, as its own card is
@@ -133,7 +177,7 @@ export function columnOf(input: ColumnInput): BoardColumn {
   if (agents.some((agent) => agent.state === 'failed')) {
     return 'error';
   }
-  if (story?.local && story.approved && !pr) {
+  if (isApprovedLocal(input)) {
     return 'ship';
   }
   // an answer to a question you asked, unread: back to you on the GitHub side for your own PR, in Ready while there is

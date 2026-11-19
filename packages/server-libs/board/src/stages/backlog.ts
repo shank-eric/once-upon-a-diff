@@ -28,6 +28,7 @@ import type {
   BoardSession,
   BoardStartedLinks,
 } from '@once-upon-a-diff/contracts/types';
+import { isLocalStoryCard } from '../columns.ts';
 import { AGENT_OPEN, forgotten } from './agents.ts';
 import type { BuildContext, PinnedVoice, StoryFacts, Work } from './types.ts';
 import { readyFactsFor } from './ready-facts.ts';
@@ -107,13 +108,16 @@ export function markLandedWorks(
     if (item.state === 'dropped' || !item.branch || !item.landed_at) {
       continue;
     }
-    const card = cardOnBranch(item, cards);
-    if (!card || card.kind !== 'work' || card.pr || card.story?.kind !== 'local') {
+    const found = cardOnBranch(item, cards);
+    if (!found || found.kind !== 'work' || !isLocalStoryCard(found)) {
       continue;
     }
+    // the card as it is, not as narrowed: a long-landed one loses its story below
+    const card: BoardCard = found;
+    const { story } = found;
     const landedMs = Date.parse(item.landed_at);
-    const builtMs = Date.parse(stories.get(card.story.id)?.built_at ?? '');
-    const approvedMs = Date.parse(card.story.approved_at ?? '');
+    const builtMs = Date.parse(stories.get(story.id)?.built_at ?? '');
+    const approvedMs = Date.parse(story.approved_at ?? '');
     // when the card's work began: its start, or its first run when that was earlier (an adopted card is started late)
     const starts = [
       Date.parse(item.started_at ?? ''),
