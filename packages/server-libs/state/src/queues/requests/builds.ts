@@ -29,6 +29,7 @@ import { RequestQueue } from './queue.ts';
 import { listeners } from '../../records/listeners/listeners.ts';
 import { STORY_ID_RE } from '@once-upon-a-diff/terms/patterns';
 import { isRebuild, REBUILD_MODES } from '@once-upon-a-diff/stories/rebuild';
+import { storyRepo } from '@once-upon-a-diff/stories/meta';
 import type { Listener } from '../../records/listeners/listeners.ts';
 import type { StoryMeta } from '@once-upon-a-diff/stories/types';
 import { prUrl } from '@once-upon-a-diff/terms/github-urls';
@@ -462,7 +463,7 @@ export class Builds {
       const note = typeof guidance === 'string' ? guidance.trim().slice(0, MAX_GUIDANCE) : '';
       const build: Build = {
         id: old && old.status === 'pending' ? old.id : newId('b'),
-        repo: github ? meta.repo : meta.repo || null,
+        repo: github ? meta.repo : storyRepo(meta),
         number: github ? Number(meta.number) : null,
         url: github ? prUrl(meta.repo as string, Number(meta.number)) : null,
         requested_at: Number.isFinite(Date.parse(requested_at as string))
@@ -514,7 +515,7 @@ export class Builds {
       }
       const build: Build = {
         id: old && old.status === 'pending' ? old.id : newId('b'),
-        repo: meta.repo || null,
+        repo: storyRepo(meta),
         number: null,
         url: null,
         requested_at: Number.isFinite(Date.parse(requested_at as string))
