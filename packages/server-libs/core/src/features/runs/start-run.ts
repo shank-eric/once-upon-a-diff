@@ -131,12 +131,37 @@ const text = (value: unknown): string | null => (typeof value === 'string' && va
 const worktreeOn = (cwd: string, branch: string | null): string | null =>
   branch && isAbsolute(cwd) && worktreeFacts(cwd)?.branch === branch ? cwd : null;
 
-export async function startRun(
-  home: string,
-  input: RunStartInput,
-  options: RunIo = {},
-): Promise<StartedRun> {
-  const warn = options.warn ?? (() => {});
+type Item = ReturnType<BacklogStore['items']>[number];
+type Stamp = { branch: string; repo: string | null };
+
+/** What every step of a start reads: the input, as typed, and what the steps share of it. */
+interface Start {
+  home: string;
+  input: RunStartInput;
+  warn: (line: string) => void;
+  store: BacklogStore;
+  lookup: ReturnType<typeof cardLookup>;
+  name: string;
+  card: string | null;
+  role: string | null;
+  kind: string | null;
+  typedPr: string | null;
+  typedBranch: string | null;
+  sid: string;
+}
+
+/** A card that is not landed or dropped. */
+const isLive = (item: Item): boolean => item.state !== 'dropped' && !item.landed_at;
+
+/** An open card with no branch yet: a start that names a branch (or a PR with one) stamps the card with it. */
+function needsBranch<T extends { closed?: unknown; branch?: unknown }>(
+  item: T | null | undefined,
+): item is T {
+  return !!item && !item.closed && !item.branch;
+}
+
+/** A name that is a session's own run, or an editor, is refused: those register another way. */
+function refuseOtherRegistration(input: RunStartInput): void {
   if (input.self) {
     const problem = selfProblem(input);
     if (problem) {
@@ -147,268 +172,474 @@ export async function startRun(
       `the name ${input.name} is a session’s own run: register it with agent start --self`,
     );
   }
-  const name = input.self ? `${SELF_PREFIX}${newRunId().slice(2, 8)}` : input.name;
   // an editor is not an agent: it registers through `editor start`, where its slots are required
   if (canonicalKind(text(input.kind)) === 'editor' || input.slots !== undefined) {
     throw new Error('register an editor with: once-upon editor start --slots N');
   }
-  const store = new BacklogStore(home);
-  const lookup = cardLookup(store);
-  const card = text(input.card);
-  const role = text(input.role);
-  const kind = roleKind(role, text(input.kind));
-  const typedPr = text(input.pr);
-  const typedBranch = text(input.branch);
-  // a run on a card takes its repo and branch from the card, and what it does from --role: the typed ones are refused
-  // (ADR-25, the flip), all named at once, before anything is written. An unknown card is the registry's to refuse
-  if (card) {
-    const item = lookup(card);
-    const flags = [
-      ...(input.kind != null ? ['--kind'] : []),
-      ...flagsBesideCard(item ?? { repo: null, branch: null }, {
-        repo: text(input.repo),
-        branch: typedBranch,
-        pr: typedPr,
-        lane: text(input.lane),
-      }),
-    ];
-    if (flags.length) {
-      throw flagsBesideCardError(flags);
-    }
+}
+
+/**
+ * A run on a card takes its repo and branch from the card, and what it does from --role: the typed ones are refused
+ * (ADR-25, the flip), all named at once, before anything is written. An unknown card is the registry's to refuse.
+ */
+function refuseFlagsBesideCard(run: Start): void {
+  const { input, card } = run;
+  if (!card) {
+    return;
   }
-  if (role === 'storyteller' && !card && !typedPr && !typedBranch) {
+  const flags = [
+    ...(input.kind == null ? [] : ['--kind']),
+    ...flagsBesideCard(run.lookup(card) ?? { repo: null, branch: null }, {
+      repo: text(input.repo),
+      branch: run.typedBranch,
+      pr: run.typedPr,
+      lane: text(input.lane),
+    }),
+  ];
+  if (flags.length) {
+    throw flagsBesideCardError(flags);
+  }
+}
+
+/** The roles that need work to read, and the run a story agent's name gives away. */
+function refuseNoWork({ role, card, typedPr, typedBranch, name }: Start): void {
+  // (a storyteller reads a PR or a branch, so either names its work with no card: the board joins it by that)
+  const namesWork = !!(card || typedPr || typedBranch);
+  if (role === 'storyteller' && !namesWork) {
     throw new Error('a storyteller needs --pr N, --branch NAME or --card ID');
   }
-  // (a storyteller reads a PR or a branch, so either names its work with no card: the board joins it by that)
   if ((role === 'critic' || role === 'fixer') && !card) {
     throw new Error(`a ${role} works on a card: pass --card ID`);
   }
   // a story run with no role, PR, branch or card is a card of its own that no PR story can match (the board shows two
   // cards for one PR): the skill names story agents story-<id>, so the shape is caught here, by name
-  const placed = role || card || typedPr || typedBranch;
-  if (!placed && /^story-/.test(name)) {
+  if (!role && !namesWork && /^story-/.test(name)) {
     throw new Error('a story run needs --role storyteller with --pr N (or --branch NAME)');
   }
-  const registry = runRegistry(home, options.mirror);
-  registry.sweep({
-    liveSids: await (options.liveSids ?? (() => trustedLiveSids(home)))(),
-    lastWrite: await liveWrites(home, registry.agents()),
-  });
-  const sid = text(input.sid) ?? input.session?.slice(0, 8) ?? '';
-  // a session's own author claims the card it starts on, as this run, since it has no launcher to do it: a card claimed by
-  // another session is theirs, and the registry's one-author check says the rest. The claim comes before the start, so a
-  // start the registry then refuses leaves a claim, which the next claim of the card replaces
-  if (input.self && role === 'author' && card) {
-    const item = store.listed().find((one) => one.id === card);
-    if (item && item.state !== 'dropped' && !item.landed_at) {
-      const held = item.claim;
-      const own = held && (held.sid ?? held.session?.slice(0, 8)) === sid;
-      // a claim a session's own run took (by 'self') whose run has ended, as one of a gone session does by the sweep above, is stale
-      const stale =
-        !!held &&
-        isSelfName(held.agent) &&
-        !registry.agents().some((one) => one.name === held.agent && runIsOpen(one));
-      if (held && !own && !stale) {
-        throw new Error(
-          `${card} is claimed by ${held.agent}: a --self run does not take another session’s card`,
-        );
-      }
-      // (an open author on the card is the registry's to refuse: it names the run, and the claim stays as it was)
-      const busy = registry
-        .agents()
-        .some((one) => one.card === card && one.kind === 'author' && runIsOpen(one));
-      if (!busy) {
-        store.claim(card, { agent: name, sid, session: input.session, by: 'self' });
-      }
-    }
+}
+
+/** Reads the input into a Start, refusing the shapes that no card or registry could make sense of. */
+function beginStart(home: string, input: RunStartInput, warn: Start['warn']): Start {
+  refuseOtherRegistration(input);
+  const store = new BacklogStore(home);
+  const role = text(input.role);
+  const start: Start = {
+    home,
+    input,
+    warn,
+    store,
+    lookup: cardLookup(store),
+    name: input.self ? `${SELF_PREFIX}${newRunId().slice(2, 8)}` : input.name,
+    card: text(input.card),
+    role,
+    kind: roleKind(role, text(input.kind)),
+    typedPr: text(input.pr),
+    typedBranch: text(input.branch),
+    sid: text(input.sid) ?? input.session?.slice(0, 8) ?? '',
+  };
+  refuseFlagsBesideCard(start);
+  refuseNoWork(start);
+  return start;
+}
+
+/**
+ * Whether a card's claim is another session's: the claim is held by another, and not a stale one (a claim a session's own run
+ * took, by 'self', whose run has ended, as one of a gone session does by the sweep, is stale).
+ */
+function claimedByAnother(item: Item, sid: string, registry: AgentRegistry): boolean {
+  const held = item.claim;
+  if (!held) {
+    return false;
   }
-  // --pr and no --branch: the PR's head branch is the run's branch, and a card that has none gets it too, so the board joins
-  // the run, the card, the PR and the story by one branch. gh being down is no reason to refuse a start, except for a
-  // storyteller: with no branch it has nothing to read
-  let branch = typedBranch;
-  let pr = typedPr;
-  let stamp: { branch: string; repo: string | null } | null = null;
-  if (typedPr && !typedBranch) {
-    const item = card ? lookup(card) : null;
-    const repo = (card ? item?.repo : null) ?? text(input.repo) ?? repoOfCheckout(input.cwd);
-    if (!card || (item && !item.closed && !item.branch)) {
-      try {
-        if (!repo) {
-          throw new Error('no repo to ask about (--repo owner/name)');
-        }
-        const head = await (options.prHead ?? prHeadBranch)(repo, Number(typedPr));
-        if (!head) {
-          throw new Error('it has no head branch');
-        }
-        branch = head;
-        if (card) {
-          // the registry cannot write the backlog: the run starts on the typed branch, and the card is stamped once the
-          // run is accepted, so a refused start leaves the card as it was
-          stamp = { branch: head, repo };
-          pr = null;
-        }
-      } catch (err) {
-        const why = `gh could not read #${typedPr}: ${(err as Error).message}`;
-        if (role === 'storyteller' && !card) {
-          throw new Error(`${why}; pass --branch NAME`);
-        }
-        warn(`once-upon: ${why}`);
-      }
-    }
+  const own = (held.sid ?? held.session?.slice(0, 8)) === sid;
+  const runOpen = registry.agents().some((one) => one.name === held.agent && runIsOpen(one));
+  return !own && !(isSelfName(held.agent) && !runOpen);
+}
+
+/**
+ * A session's own author claims the card it starts on, as this run, since it has no launcher to do it: a card claimed by
+ * another session is theirs, and the registry's one-author check says the rest. The claim comes before the start, so a
+ * start the registry then refuses leaves a claim, which the next claim of the card replaces.
+ */
+function claimSelfAuthor(run: Start, registry: AgentRegistry): void {
+  const { card } = run;
+  if (!run.input.self || run.role !== 'author' || !card) {
+    return;
   }
-  // a typed --branch on an open card with no branch stamps the card too, the same way
-  if (card && typedBranch && !stamp) {
-    const item = lookup(card);
-    if (item && !item.closed && !item.branch) {
-      stamp = {
-        branch: typedBranch,
-        repo: item.repo ?? text(input.repo) ?? repoOfCheckout(input.cwd),
-      };
-    }
+  const item = run.store.listed().find((one) => one.id === card);
+  if (!item || !isLive(item)) {
+    return;
   }
-  // a repo typed on a run that has no card (or whose card has no repo yet, so the typed one is kept) is checked; a run on a card
-  // that has a repo takes the card's, and the registry already says so
-  const typedRepo = text(input.repo);
-  if (typedRepo && !(card && lookup(card)?.repo)) {
-    const note = typedRepoNote(home, typedRepo, {
-      cardRepos: store.listed().map((item) => item.repo),
-      origin: repoOfCheckout(input.cwd),
+  if (claimedByAnother(item, run.sid, registry)) {
+    throw new Error(
+      `${card} is claimed by ${item.claim?.agent}: a --self run does not take another session’s card`,
+    );
+  }
+  // (an open author on the card is the registry's to refuse: it names the run, and the claim stays as it was)
+  const busy = registry
+    .agents()
+    .some((one) => one.card === card && one.kind === 'author' && runIsOpen(one));
+  if (!busy) {
+    run.store.claim(card, {
+      agent: run.name,
+      sid: run.sid,
+      session: run.input.session,
+      by: 'self',
     });
-    if (note) {
-      warn(`once-upon: ${note}`);
-    }
   }
-  const startInput: Parameters<AgentRegistry['start']>[0] = {
-    name,
-    sid,
+}
+
+/** The PR's head branch, or null (with a warning) when gh cannot say; a storyteller with no card has nothing else to read, so it is refused. */
+async function askPrHead(run: Start, repo: string | null, options: RunIo): Promise<string | null> {
+  try {
+    if (!repo) {
+      throw new Error('no repo to ask about (--repo owner/name)');
+    }
+    const head = await (options.prHead ?? prHeadBranch)(repo, Number(run.typedPr));
+    if (!head) {
+      throw new Error('it has no head branch');
+    }
+    return head;
+  } catch (err) {
+    const why = `gh could not read #${run.typedPr}: ${(err as Error).message}`;
+    if (run.role === 'storyteller' && !run.card) {
+      throw new Error(`${why}; pass --branch NAME`);
+    }
+    run.warn(`once-upon: ${why}`);
+    return null;
+  }
+}
+
+/**
+ * --pr and no --branch: the PR's head branch is the run's branch, and a card that has none gets it too, so the board joins
+ * the run, the card, the PR and the story by one branch. gh being down is no reason to refuse a start, except for a
+ * storyteller: with no branch it has nothing to read.
+ */
+async function branchOfPr(
+  run: Start,
+  options: RunIo,
+): Promise<{ branch: string | null; pr: string | null; stamp: Stamp | null }> {
+  const { card } = run;
+  const typed = { branch: run.typedBranch, pr: run.typedPr, stamp: null };
+  if (!run.typedPr || run.typedBranch) {
+    return typed;
+  }
+  const item = card ? run.lookup(card) : null;
+  if (card && !needsBranch(item)) {
+    return typed;
+  }
+  const repo = (card ? item?.repo : null) ?? text(run.input.repo) ?? repoOfCheckout(run.input.cwd);
+  const head = await askPrHead(run, repo, options);
+  if (!head) {
+    return typed;
+  }
+  // the registry cannot write the backlog: the run starts on the typed branch, and the card is stamped once the run is
+  // accepted, so a refused start leaves the card as it was
+  return card
+    ? { branch: head, pr: null, stamp: { branch: head, repo } }
+    : { ...typed, branch: head };
+}
+
+/** A typed --branch on an open card with no branch stamps the card too. */
+function stampOfBranch(run: Start): Stamp | null {
+  const item = run.card ? run.lookup(run.card) : null;
+  if (!run.typedBranch || !needsBranch(item)) {
+    return null;
+  }
+  return {
+    branch: run.typedBranch,
+    repo: item.repo ?? text(run.input.repo) ?? repoOfCheckout(run.input.cwd),
+  };
+}
+
+/**
+ * A repo typed on a run that has no card (or whose card has no repo yet, so the typed one is kept) is checked; a run on a
+ * card that has a repo takes the card's, and the registry already says so.
+ */
+function warnTypedRepo(run: Start): void {
+  const typedRepo = text(run.input.repo);
+  const cardHasRepo = !!(run.card && run.lookup(run.card)?.repo);
+  if (!typedRepo || cardHasRepo) {
+    return;
+  }
+  const note = typedRepoNote(run.home, typedRepo, {
+    cardRepos: run.store.listed().map((item) => item.repo),
+    origin: repoOfCheckout(run.input.cwd),
+  });
+  if (note) {
+    run.warn(`once-upon: ${note}`);
+  }
+}
+
+/** What the registry is asked to start. */
+function startInputOf(
+  run: Start,
+  placed: { branch: string | null; pr: string | null },
+): Parameters<AgentRegistry['start']>[0] {
+  const { input, card } = run;
+  return {
+    name: run.name,
+    sid: run.sid,
     session: input.session,
-    kind: (kind ?? undefined) as AgentKind | undefined,
+    kind: (run.kind ?? undefined) as AgentKind | undefined,
     standing: input.standing,
     task: input.task,
     model: text(input.model),
     effort: text(input.effort),
     // the checkout the agent works in names the repo unless --repo says otherwise; a run on a card takes the card's
     repo: text(input.repo) ?? (card ? null : repoOfCheckout(input.cwd)),
-    branch,
-    pr,
+    branch: placed.branch,
+    pr: placed.pr,
     cwd: input.cwd,
     card,
     newCard: !!input.newCard,
     replaces: text(input.replaces),
-    role: role as NonNullable<Parameters<AgentRegistry['start']>[0]['role']> | null,
+    role: run.role as NonNullable<Parameters<AgentRegistry['start']>[0]['role']> | null,
     lane: text(input.lane),
     notes: text(input.notes),
     by: text(input.by),
   };
-  // a run with no card makes its own (the registry mints its id): the card is stored first, with that id, so the run row and the
-  // card agree. An author with no branch is refused by the registry, so nothing is stored for it. A run on a branch whose card is
-  // still open (a story, a finished author run, a card not landed or dropped) joins that card instead, unless --new-card: the
-  // find and the make are one step in ensureCard, so two starts on one branch make one card
-  let minted: string | null = null;
-  let joined: StartedRun['joined'] = null;
-  let joinLink: Pick<LinkInput, 'repo' | 'branch' | 'worktree' | 'session'> | null = null;
-  let claimOnStart = false;
-  if (registry.wouldMint(startInput) && !(kind === 'author' && !branch)) {
-    minted = newImplicitCardId();
-    const task = input.task.trim();
-    const title = implicitTitle(task) || name;
-    const repo = startInput.repo;
-    const cardRepo = repo && REPO_RE.test(repo) ? repo : null;
-    const sessionOk = !!input.session && SESSION_RE.test(input.session);
-    const joinable = !input.newCard && isFeatureBranch(branch) ? branch : null;
-    // a stored card that is still open is the work's card: finding it writes nothing, so a start the registry then refuses
-    // leaves the card as it was
-    const open = joinable
-      ? findCard(store.items(), { source: 'agent', repo: cardRepo, branch: joinable })
-      : undefined;
-    const legacy =
-      joinable && !open ? legacyCard(registry, store, cardRepo, joinable, Date.now()) : undefined;
-    if (legacy) {
-      joined = { card: legacy.id, title: legacy.title, branch: joinable ?? '' };
-    } else if (open) {
-      joined = { card: open.id, title: open.title, branch: open.branch ?? '' };
-      joinLink = {
-        repo: open.repo ? null : cardRepo,
-        branch: open.branch ? null : joinable,
-        worktree: open.worktree ? null : worktreeOn(input.cwd, branch),
-        session: open.session || !sessionOk ? null : input.session,
-      };
-    } else {
-      const made = ensureCard(store, {
-        id: minted,
-        source: 'agent',
-        title,
-        note: task && task !== title ? task.slice(0, BACKLOG_NOTE_MAX) : null,
-        repo: cardRepo,
-        branch,
-        worktree: worktreeOn(input.cwd, branch),
-        session: sessionOk ? input.session : null,
-        by: name.slice(0, 40),
-        joinBranch: !!joinable,
-      });
-      if (made.joined) {
-        // a start that joined this card between the find above and the make (the card was made meanwhile): it is joined and linked
-        joined = { card: made.item.id, title: made.item.title, branch: made.item.branch ?? '' };
-      }
-    }
-    if (joined) {
-      // the run is on that card: it gives the repo and branch, which the registry refuses beside a card
-      startInput.card = joined.card;
-      startInput.repo = null;
-      startInput.branch = null;
-      startInput.pr = null;
-      // a lane is dropped with a warning, as on a run that makes its card (the registry refuses one beside a card)
-      if (startInput.lane) {
-        warn('once-upon: --lane is ignored: a run’s lane is its repo’s');
-        startInput.lane = null;
-      }
-      // an author takes a card with no claim as its own, since the dispatcher that would claim it is not here; the claim is
-      // written once the registry has accepted the start, so a refused start leaves no claim
-      claimOnStart = kind === 'author' && !legacy && !lookup(joined.card)?.claimed;
-      startInput.claimsOnStart = claimOnStart;
-      minted = null;
-    }
+}
+
+/** The card a start joined, and what to write to it once the start is accepted. */
+interface Join {
+  joined: NonNullable<StartedRun['joined']>;
+  /** what the card lacked, which the join teaches it; null when the card was just made, or is a legacy one */
+  link: Pick<LinkInput, 'repo' | 'branch' | 'worktree' | 'session'> | null;
+  legacy: boolean;
+}
+
+/**
+ * The open card on the branch, which a stored card or a card made before stored cards is: finding it writes nothing, so a
+ * start the registry then refuses leaves the card as it was.
+ */
+function openCardOn(
+  run: Start,
+  registry: AgentRegistry,
+  repo: string | null,
+  branch: string,
+): Join | null {
+  const open = findCard(run.store.items(), { source: 'agent', repo, branch });
+  if (open) {
+    const sessionOk = !!run.input.session && SESSION_RE.test(run.input.session);
+    return {
+      joined: { card: open.id, title: open.title, branch: open.branch ?? '' },
+      link: {
+        repo: open.repo ? null : repo,
+        branch: open.branch ? null : branch,
+        worktree: open.worktree ? null : worktreeOn(run.input.cwd, branch),
+        session: open.session || !sessionOk ? null : run.input.session,
+      },
+      legacy: false,
+    };
   }
-  let started: ReturnType<AgentRegistry['start']>;
+  const legacy = legacyCard(registry, run.store, repo, branch, Date.now());
+  return legacy
+    ? { joined: { card: legacy.id, title: legacy.title, branch }, link: null, legacy: true }
+    : null;
+}
+
+/**
+ * Makes the card this run is the start of. The find above and the make are one step in ensureCard, so two starts on one branch
+ * make one card: a start that joined this card between the find and the make is joined and linked.
+ */
+function makeCard(
+  run: Start,
+  id: string,
+  repo: string | null,
+  branch: string | null,
+  joinable: string | null,
+): Join | null {
+  const task = run.input.task.trim();
+  const title = implicitTitle(task) || run.name;
+  const sessionOk = !!run.input.session && SESSION_RE.test(run.input.session);
+  const made = ensureCard(run.store, {
+    id,
+    source: 'agent',
+    title,
+    note: task && task !== title ? task.slice(0, BACKLOG_NOTE_MAX) : null,
+    repo,
+    branch,
+    worktree: worktreeOn(run.input.cwd, branch),
+    session: sessionOk ? run.input.session : null,
+    by: run.name.slice(0, 40),
+    joinBranch: !!joinable,
+  });
+  return made.joined
+    ? {
+        joined: { card: made.item.id, title: made.item.title, branch: made.item.branch ?? '' },
+        link: null,
+        legacy: false,
+      }
+    : null;
+}
+
+/** A run on the card it joined: the card gives the repo and branch, which the registry refuses beside a card. */
+function runOnJoinedCard(
+  run: Start,
+  startInput: Parameters<AgentRegistry['start']>[0],
+  card: string,
+): void {
+  startInput.card = card;
+  startInput.repo = null;
+  startInput.branch = null;
+  startInput.pr = null;
+  // a lane is dropped with a warning, as on a run that makes its card (the registry refuses one beside a card)
+  if (startInput.lane) {
+    run.warn('once-upon: --lane is ignored: a run’s lane is its repo’s');
+    startInput.lane = null;
+  }
+}
+
+/** The card the start made or joined: `minted` when the registry is to make it, `join` when it joined an open one. */
+interface CardPlan {
+  minted: string | null;
+  join: (Join & { claimOnStart: boolean }) | null;
+}
+
+/**
+ * A run with no card makes its own (the registry mints its id): the card is stored first, with that id, so the run row and
+ * the card agree. An author with no branch is refused by the registry, so nothing is stored for it. A run on a branch whose
+ * card is still open (a story, a finished author run, a card not landed or dropped) joins that card instead, unless
+ * --new-card.
+ */
+function planCard(
+  run: Start,
+  registry: AgentRegistry,
+  startInput: Parameters<AgentRegistry['start']>[0],
+  branch: string | null,
+): CardPlan {
+  if (!registry.wouldMint(startInput) || (run.kind === 'author' && !branch)) {
+    return { minted: null, join: null };
+  }
+  const minted = newImplicitCardId();
+  const repo = startInput.repo;
+  const cardRepo = repo && REPO_RE.test(repo) ? repo : null;
+  const joinable = !run.input.newCard && isFeatureBranch(branch) ? branch : null;
+  const found =
+    (joinable ? openCardOn(run, registry, cardRepo, joinable) : null) ??
+    makeCard(run, minted, cardRepo, branch, joinable);
+  if (!found) {
+    return { minted, join: null };
+  }
+  runOnJoinedCard(run, startInput, found.joined.card);
+  // an author takes a card with no claim as its own, since the dispatcher that would claim it is not here; the claim is
+  // written once the registry has accepted the start, so a refused start leaves no claim
+  const claimOnStart =
+    run.kind === 'author' && !found.legacy && !run.lookup(found.joined.card)?.claimed;
+  startInput.claimsOnStart = claimOnStart;
+  return { minted: null, join: { ...found, claimOnStart } };
+}
+
+/** Asks the registry to start the run; a start that joined a card with an open author says how to make another. */
+function registryStart(
+  run: Start,
+  registry: AgentRegistry,
+  startInput: Parameters<AgentRegistry['start']>[0],
+  plan: CardPlan,
+  branch: string | null,
+): ReturnType<AgentRegistry['start']> {
   try {
-    started = registry.start({ ...startInput, mintedCard: minted }, warn);
+    return registry.start({ ...startInput, mintedCard: plan.minted }, run.warn);
   } catch (err) {
-    if (joined && /already has an open author run/.test((err as Error).message)) {
+    if (plan.join && /already has an open author run/.test((err as Error).message)) {
       throw new Error(
-        `${(err as Error).message} (${branch} already has the open card ${joined.card}; --new-card starts another)`,
+        `${(err as Error).message} (${branch} already has the open card ${plan.join.joined.card}; --new-card starts another)`,
       );
     }
     throw err;
   }
+}
+
+/** Whether the run works in a checkout of its own: an author or a fixer, or a run of the author kind with no role. */
+const worksInWorktree = (role: string | null, kind: string | null): boolean =>
+  ['author', 'fixer'].includes(role ?? '') || (kind === 'author' && !role);
+
+/**
+ * What the run teaches its card: the checkout an author or fixer works in, and a branch or repo the card lacked (a card an
+ * agent made is not started by it: only a backlog card is, `store.start`). Returns the card the run is on.
+ */
+function teachCard(
+  run: Start,
+  started: ReturnType<AgentRegistry['start']>,
+  stamp: Stamp | null,
+  placed: { branch: string | null; repo: string | null },
+): Item | undefined {
+  const onCard = started.card
+    ? run.store.items().find((one) => one.id === started.card)
+    : undefined;
+  if (!onCard || !isLive(onCard) || onCard.source === 'backlog') {
+    return onCard;
+  }
+  run.store.link(onCard.id, {
+    branch: stamp?.branch ?? (onCard.branch ? null : placed.branch),
+    repo: onCard.repo ? null : (stamp?.repo ?? placed.repo),
+    worktree: worksInWorktree(run.role, run.kind)
+      ? worktreeOn(run.input.cwd, onCard.branch ?? stamp?.branch ?? placed.branch)
+      : null,
+    by: text(run.input.by),
+  });
+  return onCard;
+}
+
+/** The run is on a backlog card, or a card an agent made that the run did not find: the stamp starts a backlog card on the branch. */
+function stampBacklogCard(
+  run: Start,
+  stamp: Stamp,
+  started: { id: string },
+  onCard: Item | undefined,
+): void {
+  const { card } = run;
+  if (!card || (onCard && onCard.source !== 'backlog')) {
+    return;
+  }
+  try {
+    run.store.start(card, { ...stamp, by: text(run.input.by) });
+  } catch (err) {
+    throw new Error(
+      `run ${started.id} started, but ${card} could not be stamped with ${stamp.branch} (${(err as Error).message}): once-upon backlog branch ${card} ${stamp.branch} repairs it`,
+    );
+  }
+}
+
+export async function startRun(
+  home: string,
+  input: RunStartInput,
+  options: RunIo = {},
+): Promise<StartedRun> {
+  const run = beginStart(home, input, options.warn ?? (() => {}));
+  const registry = runRegistry(home, options.mirror);
+  registry.sweep({
+    liveSids: await (options.liveSids ?? (() => trustedLiveSids(home)))(),
+    lastWrite: await liveWrites(home, registry.agents()),
+  });
+  claimSelfAuthor(run, registry);
+  const onPr = await branchOfPr(run, options);
+  const { branch, pr } = onPr;
+  const stamp = onPr.stamp ?? stampOfBranch(run);
+  warnTypedRepo(run);
+  const startInput = startInputOf(run, { branch, pr });
+  const plan = planCard(run, registry, startInput, branch);
+  const started = registryStart(run, registry, startInput, plan, branch);
   // the join's writes, now that the start is accepted: what the card lacked, and the claim of an author
-  if (joined && joinLink) {
-    store.link(joined.card, { ...joinLink, by: name.slice(0, 40) });
+  if (plan.join?.link) {
+    run.store.link(plan.join.joined.card, { ...plan.join.link, by: run.name.slice(0, 40) });
   }
-  if (joined && claimOnStart) {
-    store.claim(joined.card, { agent: name, sid, session: input.session, by: 'join' });
-  }
-  // what the run teaches its card: the checkout an author or fixer works in, and a branch or repo the card lacked (a card
-  // an agent made is not started by it: only a backlog card is, `store.start`)
-  const onCard = started.card ? store.items().find((one) => one.id === started.card) : undefined;
-  if (onCard && !onCard.landed_at && onCard.state !== 'dropped' && onCard.source !== 'backlog') {
-    store.link(onCard.id, {
-      branch: stamp?.branch ?? (onCard.branch ? null : branch),
-      repo: onCard.repo ? null : (stamp?.repo ?? startInput.repo),
-      worktree:
-        ['author', 'fixer'].includes(role ?? '') || (kind === 'author' && !role)
-          ? worktreeOn(input.cwd, onCard.branch ?? stamp?.branch ?? branch)
-          : null,
-      by: text(input.by),
+  if (plan.join?.claimOnStart) {
+    run.store.claim(plan.join.joined.card, {
+      agent: run.name,
+      sid: run.sid,
+      session: input.session,
+      by: 'join',
     });
   }
-  if (card && stamp && (!onCard || onCard.source === 'backlog')) {
-    try {
-      store.start(card, { ...stamp, by: text(input.by) });
-    } catch (err) {
-      throw new Error(
-        `run ${started.id} started, but ${card} could not be stamped with ${stamp.branch} (${(err as Error).message}): once-upon backlog branch ${card} ${stamp.branch} repairs it`,
-      );
-    }
+  const onCard = teachCard(run, started, stamp, { branch, repo: startInput.repo ?? null });
+  if (stamp) {
+    stampBacklogCard(run, stamp, started, onCard);
   }
-  return { ...started, stamped: card && stamp ? stamp : null, joined };
+  return {
+    ...started,
+    stamped: run.card && stamp ? stamp : null,
+    joined: plan.join?.joined ?? null,
+  };
 }

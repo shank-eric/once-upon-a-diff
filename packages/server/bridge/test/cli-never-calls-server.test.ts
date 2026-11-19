@@ -162,7 +162,7 @@ const ALLOWED: Record<string, string> = {
     'the bridge listening: this process is the server (`serve`)',
   'loopback packages/server-libs/core/src/orchestration/bridge/doctor.ts :: : `nothing is listening on 127.0.0.1:${port}`,':
     "the doctor's message",
-  "loopback packages/server-libs/core/src/orchestration/bridge/doctor.ts :: `running on 127.0.0.1:${port}, version ${health.body.version}${proc ? `, pid ${proc.pid}` : ''}`,":
+  "loopback packages/server-libs/core/src/orchestration/bridge/doctor.ts :: detail: `running on 127.0.0.1:${port}, version ${health.body.version}${proc ? `, pid ${proc.pid}` : ''}`,":
     "the doctor's message",
   "loopback packages/server-libs/state/src/records/page-links/address.ts :: const LOOPBACK = new Set(['127.0.0.1', '::1']);":
     'a set of names to recognise, not an address to reach',

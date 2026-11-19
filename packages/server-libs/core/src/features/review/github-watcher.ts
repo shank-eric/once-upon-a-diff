@@ -78,6 +78,10 @@ interface Check {
   applied: Set<string>;
 }
 
+/** A merged PR whose last commit is the head, or has the head among its commits (GitHub added one since): it shipped that head. */
+const mergedWith = (pr: BranchPr, head: string): boolean =>
+  pr.state === 'merged' && (pr.head_oid === head || !!pr.shipped?.includes(head));
+
 export class AutoReview {
   /** One check per PR: when it was asked, what it found (null when GitHub couldn't say), and the stories it has been applied to. */
   private checked = new Map<string, Check>();
@@ -391,14 +395,7 @@ export class AutoReview {
   ): boolean {
     const { repo, number } = input;
     const branch = input.branch || null;
-    const lower = repoKey(repo);
-    const branchPrefix = branchKeyPrefix(repo);
-    const prPrefix = prKeyPrefix(repo);
-    const follows =
-      [...this.branches.keys()].some((key) => key.startsWith(branchPrefix)) ||
-      [...this.known.keys(), ...this.checked.keys()].some((key) => key.startsWith(prPrefix)) ||
-      !!this.asked?.list.some((pr) => repoKey(pr.repo) === lower);
-    if (!follows) {
+    if (!this.followsRepo(repo)) {
       return false;
     }
     for (const [key, when] of this.refreshedAt) {
@@ -411,32 +408,13 @@ export class AutoReview {
       return false;
     }
     this.refreshedAt.set(gapKey, now);
-    const numbers = new Set<number>(number ? [number] : []);
-    let named = branch;
+    const named = branch ?? (number ? this.branchOfKnownPr(repo, number) : null);
+    const numbers = new Set<number>([
+      ...(number ? [number] : []),
+      ...(named ? this.markBranchStaleFor(repo, named) : []),
+    ]);
     if (number) {
-      named = named ?? this.known.get(prKey(repo, number))?.info.branch ?? null;
-    }
-    if (named) {
-      const found = this.branches.get(branchKey(repo, named));
-      if (found) {
-        this.markBranchStale(branchKey(repo, named), found);
-        if (found.pr) {
-          numbers.add(found.pr.number);
-        }
-      }
-      for (const [key, { info }] of this.known) {
-        if (key.startsWith(prKeyPrefix(repo)) && info.branch === named) {
-          numbers.add(info.number);
-        }
-      }
-    }
-    if (number) {
-      // a PR the branch check found, whose branch this ping didn't name
-      for (const [key, found] of this.branches) {
-        if (key.startsWith(branchKeyPrefix(repo)) && found.pr?.number === number) {
-          this.markBranchStale(key, found);
-        }
-      }
+      this.markBranchesOfPrStale(repo, number);
     }
     for (const one of numbers) {
       this.checked.delete(prKey(repo, one));
@@ -449,6 +427,50 @@ export class AutoReview {
       this.askedSeq++;
     }
     return true;
+  }
+
+  /** Whether the board follows anything in a repo: a branch or a PR of it was asked about, or one of its PRs is on a list. */
+  private followsRepo(repo: string): boolean {
+    const branchPrefix = branchKeyPrefix(repo);
+    const prPrefix = prKeyPrefix(repo);
+    const lower = repoKey(repo);
+    return (
+      [...this.branches.keys()].some((key) => key.startsWith(branchPrefix)) ||
+      [...this.known.keys(), ...this.checked.keys()].some((key) => key.startsWith(prPrefix)) ||
+      !!this.asked?.list.some((pr) => repoKey(pr.repo) === lower)
+    );
+  }
+
+  /** The branch a PR's last answer said it was on, when the ping named only the PR. */
+  private branchOfKnownPr(repo: string, number: number): string | null {
+    return this.known.get(prKey(repo, number))?.info.branch ?? null;
+  }
+
+  /** Marks a branch's answer stale, and returns the numbers of the PRs on it (the branch's own answer's, and those listed for it). */
+  private markBranchStaleFor(repo: string, named: string): number[] {
+    const numbers: number[] = [];
+    const found = this.branches.get(branchKey(repo, named));
+    if (found) {
+      this.markBranchStale(branchKey(repo, named), found);
+      if (found.pr) {
+        numbers.push(found.pr.number);
+      }
+    }
+    for (const [key, { info }] of this.known) {
+      if (key.startsWith(prKeyPrefix(repo)) && info.branch === named) {
+        numbers.push(info.number);
+      }
+    }
+    return numbers;
+  }
+
+  /** A PR the branch check found, whose branch this ping didn't name. */
+  private markBranchesOfPrStale(repo: string, number: number): void {
+    for (const [key, found] of this.branches) {
+      if (key.startsWith(branchKeyPrefix(repo)) && found.pr?.number === number) {
+        this.markBranchStale(key, found);
+      }
+    }
   }
 
   /** Marks a branch's answer stale. An ask already out started before what you did, so it counts as an older one and can't clear the mark. */
@@ -506,68 +528,87 @@ export class AutoReview {
    */
   kickLocal(list: LocalEntry[], now: number): void {
     for (const entry of list) {
-      const { story } = entry;
-      if (entry.approval) {
-        this.checkApproval(entry, now);
-      }
-      // a story you marked or unmarked by hand is left alone, but an approved one still gets the delivered check: pushing
-      // it (Push on its page) is what ships it, and its card should clear then
-      if (entry.marked && !entry.approval) {
-        continue;
-      }
-      const onFeature = story.repo && isFeatureBranch(story.branch);
-      if ((!entry.marked || entry.approval) && onFeature && entry.repo_path) {
-        this.kickBranch(
-          story.repo as string,
-          story.branch as string,
-          entry.repo_path,
-          now,
-          [entry.head_oid, entry.approval?.head_oid].filter((oid): oid is string => !!oid),
-        );
-        // a loaded answer (from before this start) is shown, not acted on: marks are permanent
-        const found = this.loadedBranches.has(
-          branchKey(story.repo as string, story.branch as string),
-        )
-          ? undefined
-          : this.branchPr(story.repo as string, story.branch as string);
-        if (found && entry.approval) {
-          // a squash merge leaves the approved head in no branch of the default one, so the merged PR is what shows it shipped:
-          // the PR's last commit is the approved head, or the approved head is among its commits (GitHub added one since). An
-          // open PR leaves the approval for the card to follow the PR.
-          if (
-            found.state === 'merged' &&
-            (found.head_oid === entry.approval.head_oid ||
-              found.shipped?.includes(entry.approval.head_oid))
-          ) {
-            this.markDelivered(story.id, entry.approval.head_oid, 'pr');
-            continue;
-          }
-        } else if (found) {
-          this.markLocal(story.id, 'pr', entry.head_oid);
-          continue;
-        }
-      }
-      const head = entry.head_oid;
-      if (!entry.repo_path || !head || head === entry.base_oid || !FULL_SHA_RE.test(head)) {
-        continue;
-      }
-      const key = `${story.id}@${head}`;
-      const last = this.delivered.get(key);
-      if (last !== undefined && now - last < this.cacheMs) {
-        continue;
-      }
-      this.delivered.set(key, now);
-      const checkout = entry.repo_path;
-      const base = entry.base_oid && FULL_SHA_RE.test(entry.base_oid) ? entry.base_oid : null;
-      const job = inDefaultBranch(checkout, head, { rewrittenFrom: onFeature ? null : base })
-        .then((yes) => {
-          if (yes) {
-            this.markDelivered(story.id, head);
-          }
-        })
-        .finally(() => this.running.delete(job));
-      this.running.add(job);
+      this.kickLocalStory(entry, now);
     }
+  }
+
+  private kickLocalStory(entry: LocalEntry, now: number): void {
+    const { story } = entry;
+    if (entry.approval) {
+      this.checkApproval(entry, now);
+    }
+    // a story you marked or unmarked by hand is left alone, but an approved one still gets the delivered check: pushing
+    // it (Push on its page) is what ships it, and its card should clear then
+    if (entry.marked && !entry.approval) {
+      return;
+    }
+    const onFeature = story.repo && isFeatureBranch(story.branch);
+    if (onFeature && entry.repo_path && this.markedByPr(entry, entry.repo_path, now)) {
+      return;
+    }
+    this.kickDelivered(entry, now, !!onFeature);
+  }
+
+  /**
+   * Asks about the story's branch's PR and marks the story from it: a PR, open or merged, is done; for an approved story a
+   * squash merge leaves the approved head in no branch of the default one, so the merged PR is what shows it shipped (the PR's
+   * last commit is the approved head, or the approved head is among its commits: GitHub added one since). An open PR leaves
+   * the approval for the card to follow the PR. True when the story was marked.
+   */
+  private markedByPr(entry: LocalEntry, checkout: string, now: number): boolean {
+    const { story, approval } = entry;
+    const [repo, branch] = [story.repo as string, story.branch as string];
+    this.kickBranch(
+      repo,
+      branch,
+      checkout,
+      now,
+      [entry.head_oid, approval?.head_oid].filter((oid): oid is string => !!oid),
+    );
+    // a loaded answer (from before this start) is shown, not acted on: marks are permanent
+    const found = this.loadedBranches.has(branchKey(repo, branch))
+      ? undefined
+      : this.branchPr(repo, branch);
+    if (!found) {
+      return false;
+    }
+    if (!approval) {
+      this.markLocal(story.id, 'pr', entry.head_oid);
+      return true;
+    }
+    if (!mergedWith(found, approval.head_oid)) {
+      return false;
+    }
+    this.markDelivered(story.id, approval.head_oid, 'pr');
+    return true;
+  }
+
+  /** Whether an ask for this key was made lately; when it was not, records it (so the next one is). */
+  private askedLately(key: string, now: number): boolean {
+    const last = this.delivered.get(key);
+    if (last !== undefined && now - last < this.cacheMs) {
+      return true;
+    }
+    this.delivered.set(key, now);
+    return false;
+  }
+
+  /** Asks whether the story's head is in the default branch, which marks it done. `onFeature` stories take the base as it is. */
+  private kickDelivered(entry: LocalEntry, now: number, onFeature: boolean): void {
+    const { repo_path: checkout, head_oid: head, base_oid: baseOid } = entry;
+    const hasNewHead = !!checkout && !!head && head !== baseOid && FULL_SHA_RE.test(head);
+    if (!hasNewHead || this.askedLately(`${entry.story.id}@${head}`, now)) {
+      return;
+    }
+    const base = baseOid && FULL_SHA_RE.test(baseOid) ? baseOid : null;
+    const job = inDefaultBranch(checkout, head, { rewrittenFrom: onFeature ? null : base })
+      .then((yes) => {
+        if (yes) {
+          this.markDelivered(entry.story.id, head);
+        }
+      })
+      .finally(() => this.running.delete(job));
+    this.running.add(job);
   }
 
   /**
@@ -581,11 +622,9 @@ export class AutoReview {
       return;
     }
     const key = `approval:${entry.story.id}@${approval.head_oid}`;
-    const last = this.delivered.get(key);
-    if (last !== undefined && now - last < this.cacheMs) {
+    if (this.askedLately(key, now)) {
       return;
     }
-    this.delivered.set(key, now);
     const job = runGitAsync(checkout, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`], {
       timeout: 10000,
     })

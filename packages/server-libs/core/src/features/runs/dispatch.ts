@@ -88,22 +88,27 @@ const runRole = (role: DispatchRole): string =>
 const localDate = (now: Date): string =>
   `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-export async function dispatchRun(
-  home: string,
-  input: DispatchInput,
-  options: RunIo & { now?: Date } = {},
-): Promise<Dispatched> {
-  const role = input.role;
-  if (!DISPATCH_ROLES.includes(role)) {
+type Item = ReturnType<BacklogStore['listed']>[number];
+type RunStart = Parameters<typeof startRun>[1];
+
+/** A text that is there, or undefined: what the brief takes for an optional part. */
+const optional = (value: unknown): string | undefined => text(value) ?? undefined;
+
+/** The shape of a launch: its role and the author's two shapes, a plan and a build. */
+function refuseBadShape(input: DispatchInput): void {
+  if (!DISPATCH_ROLES.includes(input.role)) {
     throw new Error(`the role must be one of ${DISPATCH_ROLES.join(', ')}`);
   }
   if (input.plan && input.fromNotes) {
     throw new Error('--plan and --from-notes are two shapes of an author: pass one');
   }
-  if ((input.plan || input.fromNotes) && role !== 'author') {
+  if ((input.plan || input.fromNotes) && input.role !== 'author') {
     throw new Error('--plan and --from-notes are for --role author');
   }
-  const store = new BacklogStore(home);
+}
+
+/** The card, when a run can be launched for it: one that is there and neither dropped, landed, nor (for an author) held. */
+function launchableCard(store: BacklogStore, input: DispatchInput): Item {
   const item = store.listed().find((one) => one.id === input.card);
   if (!item) {
     throw new Error(`no backlog item ${input.card}`);
@@ -114,64 +119,231 @@ export async function dispatchRun(
   if (item.landed_at) {
     throw new Error(`${item.id} already landed (done)`);
   }
-  if (role === 'author' && item.hold) {
+  if (input.role === 'author' && item.hold) {
     throw new Error(
       `${item.id} is held (it lands by hand): release it with once-upon backlog hold ${item.id} --off to launch an author`,
     );
   }
+  return item;
+}
+
+/** The branch the work is on: the card's, or the one typed for a card with none. */
+function branchOf(item: Item, input: DispatchInput): string {
   const branch = item.branch ?? text(input.branch);
   if (!branch) {
     throw new Error(`${item.id} has no branch: pass --branch NAME (the branch the work is on)`);
   }
+  return branch;
+}
+
+/** The author's plan has no success check; an author that builds and a fixer have one. */
+function refuseNoCheck(input: DispatchInput): void {
+  const { role } = input;
   const needsCheck = role === 'author' ? !input.plan : role === 'fixer';
   if (needsCheck && !text(input.check)) {
     throw new Error(
       `a${role === 'author' ? 'n' : ''} ${role} needs --check TEXT, its success check`,
     );
   }
-  let shape: Shape = role;
-  if (role === 'author' && input.plan) {
-    shape = 'plan';
-  } else if (role === 'author' && input.fromNotes) {
-    shape = 'build';
-  }
-  const name =
-    text(input.name) ??
-    (shape === 'build'
-      ? `${flat(branch)}-build`
-      : {
-          author: flat(branch),
-          plan: flat(branch),
-          build: flat(branch),
-          fixer: `fix-${flat(branch)}`,
-          critic: `review-${flat(branch)}`,
-          storyteller: `story-${flat(branch)}`,
-          helper: `check-${flat(branch)}`,
-          writer: `fw-${flat(branch)}-${text(input.key) ?? 'x'}`,
-          finisher: `finish-${flat(branch)}`,
-        }[shape]);
-  if (role === 'writer' && (!text(input.key) || !text(input.dir))) {
+}
+
+/** A chapter writer and a finisher read a story folder, which they are told by flags. */
+function refuseNoStory(input: DispatchInput): void {
+  if (input.role === 'writer' && (!text(input.key) || !text(input.dir))) {
     throw new Error('a chapter writer needs --key KEY and --dir DIR (the story folder)');
   }
-  if (role === 'finisher' && (!text(input.story) || !text(input.dir))) {
+  if (input.role === 'finisher' && (!text(input.story) || !text(input.dir))) {
     throw new Error('a finisher needs --story ID and --dir DIR (the story folder)');
   }
+}
+
+/** An author's plan and build are shapes of the author role; every other role is its own shape. */
+function shapeOf(input: DispatchInput): Shape {
+  if (input.role !== 'author') {
+    return input.role;
+  }
+  if (input.plan) {
+    return 'plan';
+  }
+  return input.fromNotes ? 'build' : 'author';
+}
+
+/** The run's name: the branch's, with the prefix its shape gives it. */
+function nameOf(input: DispatchInput, shape: Shape, branch: string): string {
+  const flatBranch = flat(branch);
+  const names: Record<Shape, string> = {
+    author: flatBranch,
+    plan: flatBranch,
+    build: `${flatBranch}-build`,
+    fixer: `fix-${flatBranch}`,
+    critic: `review-${flatBranch}`,
+    storyteller: `story-${flatBranch}`,
+    helper: `check-${flatBranch}`,
+    writer: `fw-${flatBranch}-${text(input.key) ?? 'x'}`,
+    finisher: `finish-${flatBranch}`,
+  };
+  return text(input.name) ?? names[shape];
+}
+
+/**
+ * The claim is the one write the registry cannot refuse: a card another agent is working is never taken over. A claim with no
+ * run of its own, made by this same launcher, is its own refused start: it is replaced, not waited out.
+ */
+function refuseLiveClaim(
+  item: Item,
+  name: string,
+  input: DispatchInput,
+  registry: ReturnType<typeof runRegistry>,
+  now: Date,
+): void {
+  const claim = item.claim;
+  if (!claim || claim.agent === name) {
+    return;
+  }
+  const theirs = registry.agents().filter((one) => one.name === claim.agent);
+  const ownRefused = !theirs.length && !!input.session && claim.session === input.session;
+  const live = theirs.length
+    ? theirs.some(runIsOpen)
+    : !ownRefused && !!liveClaim(item, null, now.getTime());
+  if (live) {
+    throw new Error(
+      `${item.id} is claimed by ${claim.agent}, whose run is still going: finish it first (once-upon handback ${claim.agent})`,
+    );
+  }
+}
+
+/** The brief's facts that a launch settles: the card's, the paths, and the names. */
+interface Launching {
+  item: Item;
+  shape: Shape;
+  name: string;
+  sid: string;
+  branch: string;
+  main: string;
+  worktree: string;
+  notes: string;
+  /** the user's own lines for every brief (`<home>/editor/brief-extra.md`) */
+  extra: string | null;
+  /** launched as general-purpose, so the brief carries the lean type's standing rules */
+  general: boolean;
+}
+
+/** The brief the editor hands to the Agent call. */
+function briefOf(home: string, input: DispatchInput, launching: Launching, now: Date): string {
+  const { item, shape, branch, main } = launching;
+  const reviewFile = path.join(
+    home,
+    'reviews',
+    `${localDate(now)}-${flat(branch)}-agent-review.md`,
+  );
+  return renderBrief({
+    shape,
+    name: launching.name,
+    sid: launching.sid,
+    card: item.id,
+    title: item.title,
+    note: item.note,
+    checkout: main,
+    worktree: launching.worktree,
+    notes: launching.notes,
+    branch,
+    base: text(input.base) ?? defaultBranch(main),
+    check: optional(input.check),
+    task: optional(input.task),
+    out: text(input.out) ?? reviewFile,
+    findingsFrom: optional(input.findingsFrom),
+    fromNotes: optional(input.fromNotes),
+    fanOut: !!input.fanOut,
+    prDraft: shipsByPr(repoSettings(readSettings(home), item.repo)),
+    dir: optional(input.dir),
+    key: optional(input.key),
+    story: optional(input.story),
+    failed: optional(input.failed),
+    // a general-purpose agent gets none of agents/*.md, so its prompt carries them
+    rules: launching.general ? agentRules(LAUNCH[shape].type) : null,
+    extra: launching.extra,
+  });
+}
+
+/** An author or a fixer takes the card before the registry starts it; a fixer's worktree is where the card's work is (ADR-29). */
+function claimCard(store: BacklogStore, input: DispatchInput, launching: Launching): void {
+  const { item, name } = launching;
+  const fixer = input.role === 'fixer';
+  store.claim(item.id, {
+    agent: name,
+    sid: launching.sid,
+    session: input.session,
+    worktree: fixer ? launching.worktree : null,
+    by: text(input.by) ?? name,
+  });
+  if (fixer) {
+    store.link(item.id, { worktree: launching.worktree, by: text(input.by) ?? name });
+  }
+}
+
+/** A start the registry refused leaves the claim naming a run that never existed: the earlier claim is put back. */
+function refusedStart(
+  store: BacklogStore,
+  launching: Launching,
+  earlier: Item['claim'],
+  err: Error,
+): never {
+  const { item, name } = launching;
+  if (earlier && earlier.agent !== name) {
+    store.claim(item.id, {
+      agent: earlier.agent,
+      sid: earlier.sid,
+      session: earlier.session,
+      worktree: earlier.worktree,
+      by: earlier.by,
+    });
+    throw new Error(`${err.message} (${item.id} is claimed by ${earlier.agent} again)`);
+  }
+  throw new Error(
+    `${err.message} (${item.id} stays claimed by ${name}, which has no run: dispatch again, under any name, from this session)`,
+  );
+}
+
+/** The run's start: a run of the card, on its branch, with the model and effort its shape launches with. */
+function startOf(input: DispatchInput, launching: Launching): RunStart {
+  const { item, branch } = launching;
+  const launch = LAUNCH[launching.shape];
+  return {
+    name: launching.name,
+    sid: launching.sid,
+    session: input.session,
+    role: runRole(input.role),
+    task: (text(input.task) ?? `${input.role} of ${item.title}`).split('\n')[0].slice(0, 200),
+    model: launch.model,
+    effort: launch.effort,
+    cwd: launching.main,
+    card: item.id,
+    branch: item.branch ? null : branch,
+    notes: launching.notes,
+    by: text(input.by),
+  };
+}
+
+export async function dispatchRun(
+  home: string,
+  input: DispatchInput,
+  options: RunIo & { now?: Date } = {},
+): Promise<Dispatched> {
+  const { role } = input;
+  const now = options.now ?? new Date();
+  refuseBadShape(input);
+  const store = new BacklogStore(home);
+  const item = launchableCard(store, input);
+  const branch = branchOf(item, input);
+  refuseNoCheck(input);
+  const shape = shapeOf(input);
+  const name = nameOf(input, shape, branch);
+  refuseNoStory(input);
   const sid = text(input.sid) ?? input.session?.slice(0, 8) ?? '';
   const registry = runRegistry(home, options.mirror);
   const claims = role === 'author' || role === 'fixer';
-  // the claim is the one write the registry cannot refuse: a card another agent is working is never taken over
-  if (claims && item.claim && item.claim.agent !== name) {
-    const theirs = registry.agents().filter((one) => one.name === item.claim?.agent);
-    // a claim with no run of its own, made by this same launcher, is its own refused start: it is replaced, not waited out
-    const ownRefused = !theirs.length && !!input.session && item.claim.session === input.session;
-    const live = theirs.length
-      ? theirs.some(runIsOpen)
-      : !ownRefused && !!liveClaim(item, null, (options.now ?? new Date()).getTime());
-    if (live) {
-      throw new Error(
-        `${item.id} is claimed by ${item.claim.agent}, whose run is still going: finish it first (once-upon handback ${item.claim.agent})`,
-      );
-    }
+  if (claims) {
+    refuseLiveClaim(item, name, input, registry, now);
   }
   const main = mainCheckout(input.cwd);
   const { worktree, notes } = workPaths(main, branch);
@@ -181,109 +353,44 @@ export async function dispatchRun(
       throw new Error(`${problem}: recreate the worktree before a fixer starts`);
     }
   }
-  const base = text(input.base) ?? defaultBranch(main);
   const extra = text(readLogText(path.join(home, 'editor', 'brief-extra.md')).trim());
-  const launch = LAUNCH[shape];
-  // a general-purpose agent gets none of agents/*.md, so its prompt carries them; the user's relay line asks for it too
+  // the user's relay line asks for a general-purpose agent too
   const general = !!input.general || !!extra;
-  const out =
-    text(input.out) ??
-    path.join(
-      home,
-      'reviews',
-      `${localDate(options.now ?? new Date())}-${flat(branch)}-agent-review.md`,
-    );
-  const prompt = renderBrief({
+  const launching: Launching = {
+    item,
     shape,
     name,
     sid,
-    card: item.id,
-    title: item.title,
-    note: item.note,
-    checkout: main,
+    branch,
+    main,
     worktree,
     notes,
-    branch,
-    base,
-    check: text(input.check) ?? undefined,
-    task: text(input.task) ?? undefined,
-    out,
-    findingsFrom: text(input.findingsFrom) ?? undefined,
-    fromNotes: text(input.fromNotes) ?? undefined,
-    fanOut: !!input.fanOut,
-    prDraft: shipsByPr(repoSettings(readSettings(home), item.repo)),
-    dir: text(input.dir) ?? undefined,
-    key: text(input.key) ?? undefined,
-    story: text(input.story) ?? undefined,
-    failed: text(input.failed) ?? undefined,
-    rules: general ? agentRules(launch.type) : null,
     extra,
-  });
+    general,
+  };
+  const prompt = briefOf(home, input, launching, now);
   const earlier = item.claim;
   if (claims) {
-    store.claim(item.id, {
-      agent: name,
-      sid,
-      session: input.session,
-      worktree: role === 'fixer' ? worktree : null,
-      by: text(input.by) ?? name,
-    });
-    if (role === 'fixer') {
-      // the worktree verified above is where the card's work is (ADR-29)
-      store.link(item.id, { worktree, by: text(input.by) ?? name });
-    }
+    claimCard(store, input, launching);
   }
+  const launch = LAUNCH[shape];
   let started;
   try {
-    started = await startRun(
-      home,
-      {
-        name,
-        sid,
-        session: input.session,
-        role: runRole(role),
-        task: (text(input.task) ?? `${role} of ${item.title}`).split('\n')[0].slice(0, 200),
-        model: launch.model,
-        effort: launch.effort,
-        cwd: main,
-        card: item.id,
-        branch: item.branch ? null : branch,
-        notes,
-        by: text(input.by),
-      },
-      options,
-    );
+    started = await startRun(home, startOf(input, launching), options);
   } catch (err) {
     if (!claims) {
       throw err;
     }
-    // the claim named a run that never existed: put the earlier one back
-    if (earlier && earlier.agent !== name) {
-      store.claim(item.id, {
-        agent: earlier.agent,
-        sid: earlier.sid,
-        session: earlier.session,
-        worktree: earlier.worktree,
-        by: earlier.by,
-      });
-      throw new Error(
-        `${(err as Error).message} (${item.id} is claimed by ${earlier.agent} again)`,
-      );
-    }
-    throw new Error(
-      `${(err as Error).message} (${item.id} stays claimed by ${name}, which has no run: dispatch again, under any name, from this session)`,
-    );
+    refusedStart(store, launching, earlier, err as Error);
   }
   // a general-purpose agent carries the relay line the user's brief-extra asks for: the lean types have no SendMessage
-  const subagentType = general ? 'general-purpose' : launch.type;
-  const description = `${name}: ${role} for ${item.id}`;
   return {
     name,
     role,
-    subagentType,
+    subagentType: general ? 'general-purpose' : launch.type,
     model: launch.model,
     effort: launch.effort,
-    description,
+    description: `${name}: ${role} for ${item.id}`,
     prompt,
     run: started.run,
     claimed: claims,
