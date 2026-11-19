@@ -8,14 +8,42 @@
       {
         "cards": [
           {
-            "agents": [],
-            "branch": "main",
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": null,
+                "gate": null,
+                "key": "<PID:24>:ou-held",
+                "kind": "author",
+                "model": null,
+                "name": "ou-held",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "<PID:24>",
+                "stale": false,
+                "started_at": "2026-10-26T18:40:00.000Z",
+                "state": "running",
+                "status": "working",
+                "summary": null,
+                "task": "Build the dispatched feature from the plan file"
+              }
+            ],
+            "branch": "feat/dispatched",
             "build": null,
             "building": null,
             "can_focus": false,
             "column": "working",
             "detail": "1 agent running: ou-held",
             "focus_session": "<PID:24>-aaaa-bbbb-cccc-dddddddddddd",
+            "from_backlog": [
+              {
+                "id": "bl_dispatch1",
+                "title": "Dispatched feature"
+              }
+            ],
             "id": "<PID:24>-aaaa-bbbb-cccc-dddddddddddd",
             "kind": "session",
             "lane": "acme/widgets",
@@ -119,75 +147,6 @@
             "since": "2026-10-26T18:45:00.000Z",
             "story": null,
             "title": "lookup-done"
-          },
-          {
-            "agents": [
-              {
-                "beat": null,
-                "clears_at": null,
-                "editor": null,
-                "ended_at": null,
-                "gate": null,
-                "key": "<PID:24>:ou-held",
-                "kind": "author",
-                "model": null,
-                "name": "ou-held",
-                "notes": null,
-                "outcome": null,
-                "review": false,
-                "sid": "<PID:24>",
-                "stale": false,
-                "started_at": "2026-10-26T18:40:00.000Z",
-                "state": "running",
-                "status": "working",
-                "summary": null,
-                "task": "Build the dispatched feature from the plan file"
-              }
-            ],
-            "backlog": {
-              "added_by": "cli",
-              "agent": null,
-              "claim": null,
-              "id": "bl_dispatch1",
-              "start_line": "once-upon backlog start bl_dispatch1 --branch feat/dispatched",
-              "started": {
-                "at": "2026-10-26T13:01:00.000Z",
-                "branch": "feat/dispatched",
-                "links": {
-                  "active": true,
-                  "agent": {
-                    "beat": null,
-                    "ended_at": null,
-                    "name": "ou-held",
-                    "outcome": null,
-                    "state": "running"
-                  },
-                  "merged": false,
-                  "merged_at": null,
-                  "sessions": [],
-                  "worktrees": []
-                },
-                "on": null
-              }
-            },
-            "branch": "feat/dispatched",
-            "build": null,
-            "building": null,
-            "can_focus": false,
-            "column": "working",
-            "detail": null,
-            "focus_session": null,
-            "id": "backlog:bl_dispatch1",
-            "kind": "backlog",
-            "lane": "acme/widgets",
-            "listening": null,
-            "parent": null,
-            "pr": null,
-            "repo": "acme/widgets",
-            "sessions": [],
-            "since": "2026-10-26T13:01:00.000Z",
-            "story": null,
-            "title": "Dispatched feature"
           }
         ],
         "key": "acme/widgets",

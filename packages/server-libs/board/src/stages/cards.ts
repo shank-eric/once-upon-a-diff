@@ -20,19 +20,24 @@ import type { BuildContext, SessionView, StoryFacts, Work } from './types.ts';
 import type { Launched } from './dispatching.ts';
 import { prUrl } from '@once-upon-a-diff/terms/github-urls';
 
-/** A card for a session that is not on a branch of its own. */
+/**
+ * A card for a session that is not on a branch of its own. `placed` is the repo and branch its runs' card is on, when they
+ * name one: the card sits there (so that card's started item and runs ride on it) while the session's view keeps its checkout.
+ */
 export function sessionCard(
   session: LiveSession,
   view: SessionView,
   repo: string | null,
+  placed?: { repo: string | null; branch: string },
 ): BoardCard {
+  const where = placed ?? { repo, branch: view.card.branch };
   return {
     id: session.session,
     kind: 'session',
     title: view.card.title,
-    repo,
-    branch: view.card.branch,
-    lane: laneOf(session.cwd, repo),
+    repo: where.repo,
+    branch: where.branch,
+    lane: laneOf(session.cwd, where.repo),
     column: 'idle',
     detail: null,
     since: null,

@@ -1,7 +1,7 @@
 /**
  * The live sessions: what the registry, the status source and the transcripts say of them, and which card
- * each goes on. A session on a branch of its own joins that branch's work (works.ts); a session standing alone is a card
- * of its own (cards.ts); the voice session is pinned above the columns; an editor's session is in
+ * each goes on. A session on a branch of its own, or whose runs name a card on one, joins that branch's work (works.ts); a
+ * session standing alone is a card of its own (cards.ts); the voice session is pinned above the columns; an editor's session is in
  * the editors strip alone; a session that only listens is shown in the Listeners lane; one with no prompt yet is a chip in the Blank strip.
  */
 import { prWorkKey } from '@once-upon-a-diff/terms/ids';
@@ -10,6 +10,7 @@ import { sameRepo } from '@once-upon-a-diff/foundation/repos';
 import { isFeatureBranch } from '@once-upon-a-diff/foundation/settings';
 import { readAgents } from '@once-upon-a-diff/state/records/agents/read';
 import type { LedgerAgent } from '@once-upon-a-diff/state/records/agents/ledger';
+import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
 import type { BlankSessions } from '@once-upon-a-diff/adapters/claude-sessions/blank-sessions';
 import type { SubagentLiveness } from '@once-upon-a-diff/adapters/claude-sessions/subagent-liveness';
 import type { SessionTitles } from '@once-upon-a-diff/adapters/claude-sessions/titles';
@@ -39,7 +40,13 @@ import {
 } from '@once-upon-a-diff/adapters/claude-sessions/live-sessions';
 import type { BuildContext, PinnedVoice, SessionView, Work } from './types.ts';
 import { branchOfWork, startWork } from './works.ts';
-import { endGoneSelfRuns, openSessions, selfSessions } from './self-runs.ts';
+import {
+  endGoneSelfRuns,
+  openSessions,
+  selfSessions,
+  sessionHomes,
+  type SessionHome,
+} from './self-runs.ts';
 import { endDeadRuns, runsToJudge } from './dead-runs.ts';
 import { liveEditors } from './editors.ts';
 import { launchedBy, type Launched } from './dispatching.ts';
@@ -253,7 +260,9 @@ export interface PlacedSessions {
 }
 
 /**
- * Sorts the live sessions: one on a branch of its own joins that branch's work, the rest are cards of their own.
+ * Sorts the live sessions: one on a branch of its own joins that branch's work, the rest are cards of their own. A session
+ * whose runs name a card (open ones, else the latest within the finished-run wait) goes where that card's branch is instead
+ * of where its own checkout is (`sessionHomes`), which is how a session in a main checkout joins the work it launched agents on.
  * `works` is changed: a session on a branch GitHub has an open PR for starts that work when none has it, a work with a
  * local story takes the PR number (or merge) GitHub reports for its branch, and the session is added to its work's
  * `sessions`. `seen` is what the last build knew of each session's status, and the answer carries what the next needs.
@@ -264,6 +273,7 @@ export function placeSessions(
   facts: SessionFacts,
   works: Map<string, Work>,
   seen: Map<string, SeenSession>,
+  items: BacklogItem[],
 ): PlacedSessions {
   const { nowMs } = ctx;
   const researchMs = ctx.settings.finishedWaitMinutes * 60 * 1000;
@@ -273,6 +283,7 @@ export function placeSessions(
   const blankViews: { lane: string; view: BoardSession }[] = [];
   // sessions: one on a branch of its own joins that branch's work, the rest are cards of their own
   const sessionCards: BoardCard[] = [];
+  const joinedCards = new Set<BoardCard>();
   const repoBySession = new Map<string, string | null>();
   const next = new Map<string, SeenSession>();
   // an editor's own session is in the editors strip, busy or not: never a card or a listener
@@ -285,6 +296,8 @@ export function placeSessions(
   const withRun = openSessions(agents);
   // a session that launched agents is never in Research: its agents are its work, and its card is Working while one runs
   const launched = launchedBy(agents, nowMs);
+  // where each session's runs say its work is, computed once; an unsound scan changes nothing
+  const homes = trusted ? sessionHomes(agents, items, nowMs, researchMs) : new Map();
   live.forEach((session, index) => {
     const extra = known.get(session.session);
     const status: BoardStatus = extra?.status || (session.status === 'busy' ? 'working' : 'idle');
@@ -350,6 +363,11 @@ export function placeSessions(
       };
       return;
     }
+    // the card its runs name puts it on that card's branch, not its checkout's
+    const joined: SessionHome | undefined = homes.get(session.session.slice(0, 8));
+    const placeRepo = joined ? (joined.repo ?? repo) : repo;
+    const placeBranch = joined ? joined.branch : branch;
+    const placed = joined && { repo: placeRepo, branch: joined.branch };
     // a session standing alone is a card of its own, unless it has had no prompt yet: then it is a chip in the Blank strip
     const alone = () => {
       if (trusted && status === 'working' && !withRun.has(session.session.slice(0, 8))) {
@@ -370,13 +388,30 @@ export function placeSessions(
       if (blankIds.has(session.session)) {
         blankViews.push({ lane: laneOf(session.cwd, repo), view: view.card });
       } else {
-        sessionCards.push(sessionCard(session, view, repo));
+        const made = sessionCard(session, view, repo, placed);
+        // a session joined to a card whose branch has no work, and another session checked out on that branch, are one card
+        const same = sessionCards.find(
+          (card) =>
+            (placed || joinedCards.has(card)) &&
+            card.branch === made.branch &&
+            sameRepo(card.repo, made.repo),
+        );
+        if (same) {
+          same.sessions.push(view.card);
+        } else {
+          sessionCards.push(made);
+          if (placed) {
+            joinedCards.add(made);
+          }
+        }
       }
     };
-    // a registered session with no run open sits on no work's card: its runs say where its work is
+    // a registered session with no run open sits on no work's card: its runs say where its work is (unless a recent run names one)
     const stray =
-      own.registered.has(session.session.slice(0, 8)) && !own.open.has(session.session.slice(0, 8));
-    if (!repo || !isFeatureBranch(branch) || stray) {
+      !joined &&
+      own.registered.has(session.session.slice(0, 8)) &&
+      !own.open.has(session.session.slice(0, 8));
+    if (!placeRepo || !isFeatureBranch(placeBranch) || stray) {
       alone();
       return;
     }
@@ -387,25 +422,31 @@ export function placeSessions(
       (!candidate.number ||
         !candidate.repo ||
         (ctx.review.info(candidate.repo, candidate.number)?.state ?? 'open') === 'open');
+    // GitHub is asked from the session's own folder, so only for a branch of the repo it is in
+    const kick = () => {
+      if (!joined || sameRepo(placeRepo, repo)) {
+        ctx.review.kickBranch(placeRepo, placeBranch, session.cwd, nowMs);
+      }
+    };
     let work = [...works.values()].find(
       (candidate) =>
         candidate.repo &&
-        sameRepo(candidate.repo, repo) &&
-        branchOfWork(ctx.review, candidate) === branch &&
+        sameRepo(candidate.repo, placeRepo) &&
+        branchOfWork(ctx.review, candidate) === placeBranch &&
         isOpen(candidate) &&
         (candidate.number || candidate.story || candidate.local),
     );
     if (!work) {
-      const found = ctx.review.branchPr(repo, branch);
-      ctx.review.kickBranch(repo, branch, session.cwd, nowMs);
+      const found = ctx.review.branchPr(placeRepo, placeBranch);
+      kick();
       if (found && found.state === 'open') {
-        const key = prWorkKey(repo, found.number);
+        const key = prWorkKey(placeRepo, found.number);
         if (!works.has(key)) {
           startWork(works, {
             key,
-            repo,
+            repo: placeRepo,
             number: found.number,
-            branch,
+            branch: placeBranch,
             story: null,
             mergedAt: null,
             title: null,
@@ -417,9 +458,9 @@ export function placeSessions(
     }
     if (work && !work.number && work.local) {
       // a branch with a local story and no PR yet, until GitHub says it has one
-      const found = ctx.review.branchPr(repo, branch);
-      ctx.review.kickBranch(repo, branch, session.cwd, nowMs);
-      if (found && found.state === 'open' && !works.has(prWorkKey(repo, found.number))) {
+      const found = ctx.review.branchPr(placeRepo, placeBranch);
+      kick();
+      if (found && found.state === 'open' && !works.has(prWorkKey(placeRepo, found.number))) {
         work.number = found.number;
       } else if (found?.state === 'merged') {
         // the branch's PR merged: its local story is done, so a session still on the branch is a card of its own
@@ -428,6 +469,8 @@ export function placeSessions(
       }
     }
     if (work && isOpen(work)) {
+      // thinking marks a session card of its own (a work's column would read it as Thinking)
+      delete view.card.thinking;
       work.sessions.push(view);
     } else {
       alone();

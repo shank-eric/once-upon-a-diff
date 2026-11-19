@@ -6,7 +6,9 @@
  */
 import { isSelfName } from '@once-upon-a-diff/terms/ids';
 import { runIsOpen } from '@once-upon-a-diff/state/records/agents/events';
-import type { LedgerAgent } from '@once-upon-a-diff/state/records/agents/ledger';
+import { implicitCards } from '@once-upon-a-diff/state/records/agents/implicit';
+import { lastActivity, type LedgerAgent } from '@once-upon-a-diff/state/records/agents/ledger';
+import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
 
 /** The sessions (first 8 of the id) that have registered a run of their own, and those with one open now. */
 export function selfSessions(agents: LedgerAgent[]): {
@@ -63,4 +65,75 @@ export function endGoneSelfRuns(agents: LedgerAgent[], liveSids: string[]): Ledg
         }
       : agent,
   );
+}
+
+/** Where a session's work is: the card its runs name, and that card's repo and branch. */
+export interface SessionHome {
+  card: string;
+  repo: string | null;
+  branch: string;
+}
+
+/**
+ * Where each session (first 8 of the id) does its work, by the cards its runs name, so a session in a checkout on the default
+ * branch (or on a branch with no work) is placed with its card's branch instead of its own. The card is the one the session's
+ * open runs name (any kind, a parked one too: every carded run counts, and an uncarded one is ignored); with none open, the one
+ * its most recent carded run named, while that run's last sign of life is within `cutoffMs` (runs are seconds long, so a session
+ * between them has none open). Open runs on two cards that give a place give no entry, and the session keeps its own branch; a card that is
+ * dropped, landed, or has no branch gives no place and is not counted. An implicit card has no stored item: its repo and branch come from its runs. Pure.
+ */
+export function sessionHomes(
+  agents: LedgerAgent[],
+  items: BacklogItem[],
+  nowMs: number,
+  cutoffMs: number,
+): Map<string, SessionHome> {
+  const open = new Map<string, Set<string>>();
+  const latest = new Map<string, { card: string; time: number }[]>();
+  for (const agent of agents) {
+    if (agent.card && runIsOpen(agent)) {
+      open.set(agent.sid, (open.get(agent.sid) ?? new Set()).add(agent.card));
+    }
+    for (const run of [...(agent.earlier ?? []), agent]) {
+      if (run.card) {
+        const time = lastActivity(run)?.getTime() ?? 0;
+        latest.set(run.sid, [...(latest.get(run.sid) ?? []), { card: run.card, time }]);
+      }
+    }
+  }
+  const stored = new Map(items.map((item) => [item.id, item]));
+  let implicit: ReturnType<typeof implicitCards> | null = null;
+  const placeOf = (card: string): SessionHome | null => {
+    const item = stored.get(card);
+    if (item) {
+      return item.state === 'dropped' || item.landed_at || !item.branch
+        ? null
+        : { card, repo: item.repo, branch: item.branch };
+    }
+    implicit ??= implicitCards(agents);
+    const made = implicit.find((one) => one.id === card);
+    return made?.branch ? { card, repo: made.repo, branch: made.branch } : null;
+  };
+  const homes = new Map<string, SessionHome>();
+  for (const sid of new Set([...open.keys(), ...latest.keys()])) {
+    // only a card that gives a place counts: a branchless helper's implicit card, or a dropped one, is no second card
+    const placed = [...(open.get(sid) ?? [])].map(placeOf).filter((home) => home !== null);
+    if (placed.length > 0) {
+      if (placed.length === 1) {
+        homes.set(sid, placed[0]);
+      }
+      continue;
+    }
+    let newest: { home: SessionHome; time: number } | undefined;
+    for (const { card, time } of latest.get(sid) ?? []) {
+      const home = placeOf(card);
+      if (home && time > (newest?.time ?? -1)) {
+        newest = { home, time };
+      }
+    }
+    if (newest && newest.time + cutoffMs > nowMs) {
+      homes.set(sid, newest.home);
+    }
+  }
+  return homes;
 }
