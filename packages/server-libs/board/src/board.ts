@@ -140,6 +140,10 @@ export class Board {
     movedPast?: typeof branchMovedPastAsync;
     /** runs the worktree scan's git and du (tests count calls or hold one up) */
     worktreeRun?: Runner;
+    /** runs `git worktree list` (tests answer with a timeout or a failure without git) */
+    worktreeListRun?: typeof runGitAsync;
+    /** how long `git worktree list` may run before the last good list is kept (default 3000; a test on a loaded machine gives it longer) */
+    worktreeListMs?: number;
     /** how a started card's merged PR is found; with none, nothing is asked and nothing lands (createBridge passes the real one) */
     checkMerged?: MergedCheck;
   };
@@ -169,6 +173,8 @@ export class Board {
       aheadOf?: typeof aheadOf;
       movedPast?: typeof branchMovedPastAsync;
       worktreeRun?: Runner;
+      worktreeListMs?: number;
+      worktreeListRun?: typeof runGitAsync;
       checkMerged?: MergedCheck;
     } = {},
   ) {
@@ -408,14 +414,25 @@ export class Board {
     return branch;
   }
 
-  /** The worktrees of a checkout's repo (every checkout of it, this one included), kept a few seconds; none when it isn't a repo. */
+  /** The worktrees of a checkout's repo (every checkout of it, this one included), kept a few seconds; none when it isn't a repo; the last good list when the call times out. */
   private async worktreesOf(cwd: string, now: number): Promise<Worktree[]> {
     const kept = this.trees.get(cwd);
     if (kept && now - kept.at < BRANCH_CACHE_MS) {
       return kept.list;
     }
-    const out = await runGitAsync(cwd, ['worktree', 'list', '--porcelain'], { timeout: 3000 });
-    const list = out.code === 0 ? parseWorktrees(out.stdout) : [];
+    const out = await (this.options.worktreeListRun || runGitAsync)(
+      cwd,
+      ['worktree', 'list', '--porcelain'],
+      { timeout: this.options.worktreeListMs ?? 3000 },
+    );
+    // a list that timed out under load keeps the last good one, so a card does not lose its worktree for a few seconds;
+    // any other failure (git's 128 for a deleted folder or a non-repo) is no list
+    let list: Worktree[] = [];
+    if (out.code === 0) {
+      list = parseWorktrees(out.stdout);
+    } else if (out.killed) {
+      list = kept?.list ?? [];
+    }
     this.trees.set(cwd, { at: now, list });
     return list;
   }

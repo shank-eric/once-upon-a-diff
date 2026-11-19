@@ -57,14 +57,14 @@ export const gitVia = (
 ): Promise<RunResult> => run('git', ['-C', cwd, ...GIT_FLAGS, ...args], timeoutMs);
 
 /**
- * Runs git in a checkout without blocking the bridge: resolves to {code, stdout, stderr}, never rejects. It never
- * prompts (GIT_TERMINAL_PROMPT=0), so a missing credential fails instead of hanging.
+ * Runs git in a checkout without blocking the bridge: resolves to {code, stdout, stderr, killed}, never rejects
+ * (`killed` is true when it ran past `timeout`). It never prompts (GIT_TERMINAL_PROMPT=0), so a missing credential fails instead of hanging.
  */
 export function runGitAsync(
   repo: string,
   args: string[],
   { timeout = 20000 } = {},
-): Promise<{ code: number; stdout: string; stderr: string }> {
+): Promise<{ code: number; stdout: string; stderr: string; killed?: boolean }> {
   return new Promise((resolve) => {
     execFile(
       'git',
@@ -79,7 +79,12 @@ export function runGitAsync(
         if (err) {
           code = typeof err.code === 'number' ? err.code : 1;
         }
-        resolve({ code, stdout, stderr: stderr || (err ? err.message : '') });
+        resolve({
+          code,
+          stdout,
+          stderr: stderr || (err ? err.message : ''),
+          killed: err?.killed === true,
+        });
       },
     );
   });

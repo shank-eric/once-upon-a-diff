@@ -5,6 +5,7 @@ import path from 'node:path';
 import '@once-upon-a-diff/test-kit/env';
 import { tmp, writeJson } from '@once-upon-a-diff/test-kit/files';
 import { git } from '@once-upon-a-diff/test-kit/git';
+import type { runGitAsync } from '@once-upon-a-diff/adapters/git';
 import { registerRuns } from '@once-upon-a-diff/state/test/helpers';
 import { repoOfCheckout } from '@once-upon-a-diff/foundation/repos';
 import { Board, noPrWatcher } from '../src/board.ts';
@@ -119,6 +120,8 @@ test('the board finds a started card’s worktree from its agent’s task path, 
       // the board gives a repo lookup 500 ms before it goes on without it (board.ts REPO_WAIT_MS), and a loaded machine can take
       // longer than that to run git: this reads the same origin with no wait, so what is checked is the task path, not git's speed
       repoOf: async (dir) => repoOfCheckout(dir),
+      // `git worktree list` gets 20 s, not its 3 s limit (board.ts worktreesOf), so a loaded machine does not lose the worktree
+      worktreeListMs: 20000,
     });
     const card = (await board.snapshot()).lanes
       .flatMap((lane) => lane.cards)
@@ -129,4 +132,30 @@ test('the board finds a started card’s worktree from its agent’s task path, 
   // from a file under it too
   assert.deepEqual(await worktreesOf(`edit ${path.join(tree, 'a.txt')}`), ['folder-x']);
   assert.deepEqual(await worktreesOf(null), [], 'without that, the checkout is not known');
+});
+
+test('worktreesOf keeps the last good list when git times out, and gives none for any other failure', async () => {
+  const home = tmp('board-trees');
+  let clock = Date.parse('2026-10-26T19:00:00Z');
+  let answer: Awaited<ReturnType<typeof runGitAsync>> = {
+    code: 0,
+    stdout: 'worktree /d/widgets\nHEAD abc\nbranch refs/heads/main\n\n',
+    stderr: '',
+    killed: false,
+  };
+  const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
+    worktreeListRun: async () => answer,
+  });
+  const listed = async () => {
+    clock += 60000; // past the few seconds a list is kept
+    const trees = await board['worktreesOf']('/d/widgets', clock);
+    return trees.map((one) => one.path);
+  };
+  assert.deepEqual(await listed(), ['/d/widgets']);
+  answer = { code: 1, stdout: '', stderr: 'timed out', killed: true };
+  assert.deepEqual(await listed(), ['/d/widgets'], 'a timeout keeps the last good list');
+  answer = { code: 128, stdout: '', stderr: 'fatal: not a git repository', killed: false };
+  assert.deepEqual(await listed(), [], 'git saying it is not a repo is no list');
+  answer = { code: 1, stdout: '', stderr: 'timed out', killed: true };
+  assert.deepEqual(await listed(), [], 'and a timeout after that has nothing to keep');
 });
