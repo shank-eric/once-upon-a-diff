@@ -125,13 +125,9 @@ function readConfigObject(home: string): Partial<Config> | null {
   return cfg && typeof cfg === 'object' && !Array.isArray(cfg) ? (cfg as Partial<Config>) : null;
 }
 
-/** A token an older config.json still holds (before `loadConfig` moved it to the token file), else ''. */
-const legacyTokenOf = (cfg: Partial<Config> | null): string =>
-  typeof cfg?.token === 'string' ? cfg.token.trim() : '';
-
 /**
  * What the config says now, for a command that only reads: the port defaults to DEFAULT_PORT and the token is '' when there
- * is none. The token is the token file's, else (a home `loadConfig` has not migrated yet) the one still in config.json.
+ * is none. The token is the token file's, never config.json's.
  * A missing, unparseable or non-object config.json reads as empty. Writes, makes and changes the mode of nothing:
  * `loadConfig` is the writer, for the commands that hand out or use the token.
  */
@@ -139,14 +135,10 @@ export function readConfig(home = homeDir()): Config {
   const saved = readConfigObject(home) ?? {};
   return {
     ...saved,
-    token: readTokenFile(home) || legacyTokenOf(saved),
+    token: readTokenFile(home),
     port: saved.port || DEFAULT_PORT,
   };
 }
-
-/** Whether config.json still holds a token key (an older layout, or a hand edit): `loadConfig` takes it out. */
-export const configHoldsToken = (home = homeDir()): boolean =>
-  readConfigObject(home) !== null && 'token' in (readConfigObject(home) as object);
 
 /** Every setting config.json holds, with the port defaulted and the token left out (it is not a setting: `readConfig` has it). */
 export function readConfigValues(home = homeDir()): Record<string, unknown> {
@@ -188,9 +180,8 @@ function claimToken(token: string, home: string): string {
 
 /**
  * Reads the config, making what is missing: the token file with a fresh random token the first time, and config.json with the
- * port. A token an older config.json still holds moves to the token file (written first and then dropped from config.json, so
- * a crash leaves both and the next run cleans up, never neither); the token file wins when both hold one. The writer: a
- * read-only command uses `readConfig`.
+ * port. A token key in config.json is never read: it is taken out, and with no token file a new token is made (with a note on
+ * stderr). The writer: a read-only command uses `readConfig`.
  */
 export function loadConfig(home = homeDir()): Config {
   ownerOnly(home);
@@ -212,7 +203,12 @@ export function loadConfig(home = homeDir()): Config {
       restrictFile(tokenFile(home), 0o600);
     }
   } else {
-    token = claimToken(legacyTokenOf(cfg) || newToken(), home);
+    if (cfg && 'token' in cfg) {
+      console.error(
+        `once-upon: ${tokenFile(home)} was missing and ${file} held a token, which is no longer read. Made a new token (once-upon token, in a terminal, shows it); paste it into the extension.`,
+      );
+    }
+    token = claimToken(newToken(), home);
   }
   if (!cfg || 'token' in cfg || !cfg.port) {
     // read it again just before the rewrite, and take out only the token: a hand edit made since is kept

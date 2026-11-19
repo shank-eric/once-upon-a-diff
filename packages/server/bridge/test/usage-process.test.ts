@@ -22,7 +22,8 @@ const TOKEN = 'usage-process-token-0123456789';
 /** A real `once-upon serve` in its own temp home on a free port (never 4823), capturing as the live bridge does. */
 async function serve(home: string) {
   const port = 20000 + Math.floor(Math.random() * 20000);
-  writeJson(path.join(home, 'config.json'), { port, token: TOKEN });
+  writeJson(path.join(home, 'config.json'), { port });
+  writeFileSync(path.join(home, 'token'), `${TOKEN}\n`, { mode: 0o600 });
   const child = spawn(process.execPath, [BIN, 'serve', '--port', String(port)], {
     env: { ...process.env, ONCE_UPON_HOME: home, ONCE_UPON_USAGE: 'force' },
     stdio: ['ignore', 'ignore', 'pipe'],

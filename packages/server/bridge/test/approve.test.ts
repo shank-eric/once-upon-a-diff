@@ -393,7 +393,8 @@ test('approving a story whose branch was amended with the same subject but other
 test('once-upon approve approves at the current head, tells a story listener only, and --undo clears it', async () => {
   const { home, id, bridge, head, store, repo } = await setup();
   try {
-    writeJson(path.join(home, 'config.json'), { port: 1, token: TOKEN });
+    writeJson(path.join(home, 'config.json'), { port: 1 });
+    writeFileSync(path.join(home, 'token'), `${TOKEN}\n`, { mode: 0o600 });
     const done = await runCli(home, ['approve', id]);
     assert.equal(done.code, 0, done.stderr);
     assert.match(done.stdout, /approved at/);
@@ -433,7 +434,8 @@ test('once-upon approve approves at the current head, tells a story listener onl
 test('approve --undo writes no review.json, and says so when there was no approval to clear', async () => {
   const { home, id, bridge, store } = await setup();
   try {
-    writeJson(path.join(home, 'config.json'), { port: 1, token: TOKEN });
+    writeJson(path.join(home, 'config.json'), { port: 1 });
+    writeFileSync(path.join(home, 'token'), `${TOKEN}\n`, { mode: 0o600 });
     const undone = await runCli(home, ['approve', id, '--undo']);
     assert.equal(undone.code, 0, undone.stderr);
     assert.match(undone.stdout, /has no approval to clear/);

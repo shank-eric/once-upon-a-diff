@@ -491,7 +491,7 @@ The reason: some machines run endpoint security that SIGKILLs a `node` process (
 
 ### Personal settings
 
-`~/.once-upon/config.json` holds the port, and can also hold a few optional settings (the token is in `~/.once-upon/token`, so the file is safe to print; `once-upon config get <key>` prints one setting). An older `config.json` that still holds a token is migrated by the first command that makes the config (`setup`, `token`, `serve`, `local`, `page`): the token moves to its own file, with the same value. All of them default to something neutral, so a fresh install needs none:
+`~/.once-upon/config.json` holds the port, and can also hold a few optional settings (the token is in `~/.once-upon/token`, so the file is safe to print; `once-upon config get <key>` prints one setting). A token key in `config.json` is never read: the first command that makes the config (`setup`, `token`, `serve`, `local`, `page`) drops it, and makes a new token if there is no token file (it says so on stderr). All of them default to something neutral, so a fresh install needs none:
 
 | Key | What it does | Default |
 |---|---|---|

@@ -14,7 +14,6 @@ import {
   listenHookWired,
 } from '../../features/sessions/hook-setup.ts';
 import {
-  configHoldsToken,
   formatTime,
   modeOfFile,
   readSettings,
@@ -189,29 +188,11 @@ export async function doctor(
       ...(mode && mode !== '600' ? [cfgFile] : []),
       ...(tokenMode && tokenMode !== '600' ? [tokenPath] : []),
     ];
-    const legacy = !tokenMode && configHoldsToken(home);
-    if (legacy) {
-      add(
-        'WARN',
-        'Config and token',
-        `${cfgFile} still holds the token, port ${port}`,
-        'Run any once-upon command that makes the config (once-upon setup): it moves the token to its own file',
-      );
-    } else {
-      add(
-        wide.length ? 'WARN' : 'PASS',
-        'Config and token',
-        `${tokenPath} (mode ${tokenMode}), ${cfgFile} (mode ${mode}), port ${port}`,
-        wide.length ? `chmod 600 ${wide.join(' ')}` : null,
-      );
-    }
-  }
-  if (tokenMode && configHoldsToken(home)) {
     add(
-      'WARN',
-      'Token in config.json',
-      `${cfgFile} still holds a token as well as ${tokenPath}`,
-      'Run any once-upon command that makes the config (once-upon setup): the token file wins and the old one is dropped',
+      wide.length ? 'WARN' : 'PASS',
+      'Config and token',
+      `${tokenPath} (mode ${tokenMode}), ${cfgFile} (mode ${mode}), port ${port}`,
+      wide.length ? `chmod 600 ${wide.join(' ')}` : null,
     );
   }
 

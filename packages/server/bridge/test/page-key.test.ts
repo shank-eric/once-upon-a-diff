@@ -52,7 +52,8 @@ test("the local page carries no token: its key comes in the link's fragment", as
     assert.ok(!page.text.includes(TOKEN), 'not the bridge token');
     assert.ok(!page.text.includes(pageKey(TOKEN, id)), 'not the page key either');
 
-    writeJson(path.join(home, 'config.json'), { port: 1, token: TOKEN });
+    writeJson(path.join(home, 'config.json'), { port: 1 });
+    writeFileSync(path.join(home, 'token'), `${TOKEN}\n`, { mode: 0o600 });
     const printed = await runCli(home, ['page', '--story', id, '--no-open']);
     assert.equal(printed.code, 0, printed.stderr);
     // what a command prints (a pipe, so a session's report) has no key; --with-key prints the keyed link

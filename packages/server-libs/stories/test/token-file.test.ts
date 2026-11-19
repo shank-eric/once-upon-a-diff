@@ -21,46 +21,55 @@ const tokenOf = (home: string) => readFileSync(path.join(home, 'token'), 'utf8')
 const configOf = (home: string) =>
   readJson<Record<string, unknown>>(path.join(home, 'config.json'))!;
 
-test('a legacy home: the token moves to the token file and config.json keeps every other setting, in order', () => {
+/** Runs `run` with console.error captured, and returns the lines it printed. */
+const stderrOf = (run: () => void): string => {
+  const errors: string[] = [];
+  const was = console.error;
+  console.error = (line: string) => errors.push(line);
+  try {
+    run();
+  } finally {
+    console.error = was;
+  }
+  return errors.join('\n');
+};
+
+test('a token key in config.json is not read: a new token is made, the key leaves, every other setting stays in order, and the note never prints a token', () => {
   const home = tmp('token-legacy');
   writeJson(path.join(home, 'config.json'), {
     port: 4900,
     house_rules: 'be brief',
     token: LEGACY,
     checkout_dirs: ['/x'],
+    repos: { widgets: { keep_branches: true } },
   });
-  const cfg = loadConfig(home);
-  assert.equal(cfg.token, LEGACY);
-  assert.equal(tokenOf(home), `${LEGACY}\n`);
+  let cfg: ReturnType<typeof loadConfig> | undefined;
+  const note = stderrOf(() => {
+    cfg = loadConfig(home);
+  });
+  assert.notEqual(cfg!.token, LEGACY);
+  assert.equal(tokenOf(home), `${cfg!.token}\n`);
   assert.equal(modeOf(path.join(home, 'token')), '600');
   assert.deepEqual(Object.entries(configOf(home)), [
     ['port', 4900],
     ['house_rules', 'be brief'],
     ['checkout_dirs', ['/x']],
-  ]);
-  assert.equal(modeOf(path.join(home, 'config.json')), '600');
-  assert.ok(!readFileSync(path.join(home, 'config.json'), 'utf8').includes(LEGACY));
-  // a second load changes neither file and never mints a new token
-  const before = [tokenOf(home), readFileSync(path.join(home, 'config.json'), 'utf8')];
-  assert.equal(loadConfig(home).token, LEGACY);
-  assert.deepEqual([tokenOf(home), readFileSync(path.join(home, 'config.json'), 'utf8')], before);
-});
-
-test('migrating a config.json with a "repos" block keeps that block, and the settings still read it', () => {
-  const home = tmp('token-repos');
-  const repos = {
-    widgets: { keep_branches: true },
-    'acme/gadgets': { keep_branches: false },
-  };
-  writeJson(path.join(home, 'config.json'), { port: 4903, token: LEGACY, repos, house_rules: 'x' });
-  assert.equal(loadConfig(home).token, LEGACY);
-  assert.deepEqual(Object.entries(configOf(home)), [
-    ['port', 4903],
-    ['repos', repos],
-    ['house_rules', 'x'],
+    ['repos', { widgets: { keep_branches: true } }],
   ]);
   assert.deepEqual(readSettings(home).repos['widgets'], { keep_branches: true });
-  assert.deepEqual(readSettings(home).repos['acme/gadgets'], { keep_branches: false });
+  assert.equal(modeOf(path.join(home, 'config.json')), '600');
+  assert.ok(!readFileSync(path.join(home, 'config.json'), 'utf8').includes(LEGACY));
+  assert.match(note, /no longer read/);
+  assert.ok(!note.includes(LEGACY) && !note.includes(cfg!.token));
+  // a second load changes neither file, mints no new token and says nothing
+  const before = [tokenOf(home), readFileSync(path.join(home, 'config.json'), 'utf8')];
+  assert.equal(
+    stderrOf(() => {
+      assert.equal(loadConfig(home).token, cfg!.token);
+    }),
+    '',
+  );
+  assert.deepEqual([tokenOf(home), readFileSync(path.join(home, 'config.json'), 'utf8')], before);
 });
 
 test('a fresh home: the token file and a config.json with the port only', () => {
@@ -73,7 +82,7 @@ test('a fresh home: the token file and a config.json with the port only', () => 
   assert.equal(loadConfig(home).token, cfg.token);
 });
 
-test('the token file wins when both hold one, and the stale one leaves config.json', () => {
+test('a stray token key leaves config.json and the token file is untouched', () => {
   const home = tmp('token-both');
   writeFileSync(path.join(home, 'token'), 'file-token-bbbbbbbbbbbbbbbbbbbbbb\n', { mode: 0o600 });
   writeJson(path.join(home, 'config.json'), { port: 4901, token: LEGACY });
@@ -82,13 +91,15 @@ test('the token file wins when both hold one, and the stale one leaves config.js
   assert.deepEqual(configOf(home), { port: 4901 });
 });
 
-test('an empty or whitespace token file counts as missing', () => {
+test('an empty or whitespace token file counts as missing: a new token replaces it, never the one in config.json', () => {
   const home = tmp('token-empty');
   writeFileSync(path.join(home, 'token'), '  \n', { mode: 0o600 });
   writeJson(path.join(home, 'config.json'), { port: 4902, token: LEGACY });
-  assert.equal(readConfig(home).token, LEGACY);
-  assert.equal(loadConfig(home).token, LEGACY);
-  assert.equal(tokenOf(home), `${LEGACY}\n`);
+  assert.equal(readConfig(home).token, '');
+  const token = loadConfig(home).token;
+  assert.notEqual(token, LEGACY);
+  assert.match(token, /^[A-Za-z0-9_-]{20,}$/);
+  assert.equal(tokenOf(home), `${token}\n`);
 });
 
 test('loadConfig tightens a wide token file, readConfig leaves it alone', () => {
@@ -101,11 +112,11 @@ test('loadConfig tightens a wide token file, readConfig leaves it alone', () => 
   assert.equal(modeOf(path.join(home, 'token')), '600');
 });
 
-test('readConfig on a legacy home returns the token and writes nothing', () => {
+test('readConfig on a home whose token is only in config.json returns no token and writes nothing', () => {
   const home = tmp('token-readonly');
   writeJson(path.join(home, 'config.json'), { port: 4903, token: LEGACY });
   const before = readFileSync(path.join(home, 'config.json'), 'utf8');
-  assert.equal(readConfig(home).token, LEGACY);
+  assert.equal(readConfig(home).token, '');
   assert.equal(readFileSync(path.join(home, 'config.json'), 'utf8'), before);
   assert.deepEqual(readdirSync(home), ['config.json']);
   // and a home with neither reads as no token
@@ -125,7 +136,7 @@ test('saveConfig never writes a token, and saveToken changes only the token file
   assert.equal(loadConfig(home).token, 'rotated-token-cccccccccccccccccccc');
 });
 
-test('the migration drops only the token: a setting edited since the first read is kept', () => {
+test('dropping a token key leaves every other setting: a setting edited since the first read is kept', () => {
   const home = tmp('token-reread');
   writeJson(path.join(home, 'config.json'), { port: 4904, token: LEGACY, a: 1 });
   loadConfig(home);

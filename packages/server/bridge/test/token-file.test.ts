@@ -63,7 +63,7 @@ test('config get prints one setting, refuses the token, and exits 1 for a settin
     assert.equal(run.stdout, '', `${args.join(' ')} printed to stdout`);
     assert.ok(!run.stderr.includes(TOKEN));
   }
-  // a legacy home that still has the token in config.json never prints it either
+  // a home that has a token in config.json (a hand edit) never prints it either
   const legacy = tmp('config-get-legacy');
   writeJson(path.join(legacy, 'config.json'), { port: 1, token: TOKEN });
   const run = await runCli(legacy, ['config', 'get', 'token']);
@@ -110,7 +110,7 @@ test('a migrated home still authenticates: the bridge accepts the key the CLI pr
   }
 });
 
-test('doctor warns for a token still in config.json, a wide token file, and fails with none', async () => {
+test('doctor fails for a home with a token only in config.json, warns for a wide token file, and fails with none', async () => {
   const run = async (home: string) => {
     const lines: string[] = [];
     await doctor(home, readConfig(home), { out: (line) => lines.push(line) });
@@ -119,12 +119,9 @@ test('doctor warns for a token still in config.json, a wide token file, and fail
   const legacy = tmp('doctor-legacy');
   writeJson(path.join(legacy, 'config.json'), { port: 1, token: TOKEN });
   chmodSync(path.join(legacy, 'config.json'), 0o600);
-  assert.match(await run(legacy), /WARN\s+Config and token: .*still holds the token/);
-
-  const both = tmp('doctor-both');
-  seed(both);
-  writeJson(path.join(both, 'config.json'), { port: 1, token: 'stale' });
-  assert.match(await run(both), /WARN\s+Token in config\.json/);
+  const legacyText = await run(legacy);
+  assert.match(legacyText, /FAIL\s+Token: .*has no token/);
+  assert.ok(!legacyText.includes(TOKEN));
 
   const wide = tmp('doctor-wide');
   seed(wide);
@@ -135,7 +132,7 @@ test('doctor warns for a token still in config.json, a wide token file, and fail
   assert.match(await run(tmp('doctor-none')), /FAIL\s+Token: .*token has no token/);
 });
 
-test("deploy-local.sh reads the token from the home's token file, else from an old config.json", () => {
+test("deploy-local.sh reads the token from the home's token file only, never from config.json", () => {
   const lib = new URL('../../../../scripts/lib/read-token.sh', import.meta.url).pathname;
   const read = (home: string) =>
     execFileSync('bash', ['-c', `. "${lib}"; read_token`], {
@@ -147,7 +144,7 @@ test("deploy-local.sh reads the token from the home's token file, else from an o
   assert.equal(read(migrated), TOKEN);
   const legacy = tmp('deploy-token-old');
   writeJson(path.join(legacy, 'config.json'), { port: 1, token: 'old-token-value' });
-  assert.equal(read(legacy), 'old-token-value');
+  assert.equal(read(legacy), '');
   const both = tmp('deploy-token-both');
   writeFileSync(path.join(both, 'token'), `${TOKEN}\n`, { mode: 0o600 });
   writeJson(path.join(both, 'config.json'), { port: 1, token: 'stale' });
