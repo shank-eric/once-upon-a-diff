@@ -888,10 +888,11 @@ describe('wait', { concurrency: 2 }, () => {
 
   describe('wait: timing', () => {
     test('a question that arrives mid-wait is handed over within a moment of arriving: the file watcher, not the 2 s poll', async () => {
-      // a wait that only polled would answer anywhere from 0 to 2 s after the question: five waits, each asked at another moment
-      // in its poll, all inside 800 ms is the watcher (the poll would manage that about once in a hundred runs)
+      // a wait that only polled would answer anywhere from 0 to 2 s after the question: seven waits, each asked at another moment
+      // in its poll. The watcher hands over in tens of ms, so the median under 300 ms is the watcher (a poll would manage that
+      // about once in a hundred runs); the median, not every wait, because one wait on a loaded machine can be held up for a second
       const latencies = await Promise.all(
-        [0, 1, 2, 3, 4].map(async (index) => {
+        [0, 1, 2, 3, 4, 5, 6].map(async (index) => {
           const { home, inbox } = homeWith();
           inbox.setCursor('repo-acme-widgets', 0);
           const running = cli(home, [...REPO_WAIT, '--timeout', '20'], { env: PRODUCTION_POLL });
@@ -907,9 +908,10 @@ describe('wait', { concurrency: 2 }, () => {
           return run.startedAt + run.firstMs! - asked;
         }),
       );
+      const median = [...latencies].sort((first, second) => first - second)[3];
       assert.ok(
-        latencies.every((latency) => latency < 800),
-        `handed over ${latencies.join(', ')} ms after the question arrived`,
+        median < 300,
+        `median ${median} ms: handed over ${latencies.join(', ')} ms after the question arrived`,
       );
     });
 

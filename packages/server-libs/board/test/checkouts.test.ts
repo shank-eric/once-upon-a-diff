@@ -6,6 +6,7 @@ import '@once-upon-a-diff/test-kit/env';
 import { tmp, writeJson } from '@once-upon-a-diff/test-kit/files';
 import { git } from '@once-upon-a-diff/test-kit/git';
 import { registerRuns } from '@once-upon-a-diff/state/test/helpers';
+import { repoOfCheckout } from '@once-upon-a-diff/foundation/repos';
 import { Board, noPrWatcher } from '../src/board.ts';
 import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import {
@@ -115,6 +116,9 @@ test('the board finds a started card’s worktree from its agent’s task path, 
     const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
       source: registrySource,
       now: () => new Date('2026-10-26T19:00:00Z'),
+      // the board gives a repo lookup 500 ms before it goes on without it (board.ts REPO_WAIT_MS), and a loaded machine can take
+      // longer than that to run git: this reads the same origin with no wait, so what is checked is the task path, not git's speed
+      repoOf: async (dir) => repoOfCheckout(dir),
     });
     const card = (await board.snapshot()).lanes
       .flatMap((lane) => lane.cards)
