@@ -4,6 +4,7 @@ import { MenuButton } from '/assets/ui-kit/components/menu.ts';
 import type { BoardBlankSession, BoardData } from '/assets/types.ts';
 import { compactAge } from '/assets/terms/time.ts';
 import { FocusButton, focusSession, type Api } from '/assets/board/shared.ts';
+import { SubagentList } from '/assets/ui-kit/components/subagents.ts';
 
 /** One place's chip in the Blank strip: a session's tab to the front, or for several in one place a menu of them. */
 function BlankChip(props: { group: { name: string; sessions: BoardBlankSession[] }; api: Api }) {
@@ -29,5 +30,7 @@ function BlankChip(props: { group: { name: string; sessions: BoardBlankSession[]
 /** The Blank strip at the bottom of the Idle lane: sessions that have had no prompt yet, one chip per place. */
 export function Blank(props: { blank: BoardData['blank']; count: number; api: Api }) {
   const { blank, count, api } = props;
-  return html`<div class="ou-board-blank" role="group" aria-label="Blank sessions"><strong>Blank</strong> <span class="ou-local-muted">${count}</span>${blank.map((group) => html`<${BlankChip} key=${group.name} group=${group} api=${api} />`)}<span class="ou-local-muted">no prompt yet</span></div>`;
+  // a blank session has had no prompt, so it rarely has subagents; one that does is not lost
+  const running = blank.flatMap((group) => group.sessions).filter((session) => session.subagents);
+  return html`<div class="ou-board-blank" role="group" aria-label="Blank sessions"><strong>Blank</strong> <span class="ou-local-muted">${count}</span>${blank.map((group) => html`<${BlankChip} key=${group.name} group=${group} api=${api} />`)}<span class="ou-local-muted">no prompt yet</span>${running.map((session) => html`<${SubagentList} key=${session.id} subagents=${session.subagents} now=${Date.now()} />`)}</div>`;
 }

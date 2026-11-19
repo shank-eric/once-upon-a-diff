@@ -4,7 +4,7 @@
  */
 
 import type { StoryRequest } from '../panel/types.ts';
-import type { BoardAgent, BoardBeat, BoardStatus } from './agent-types.ts';
+import type { BoardAgent, BoardBeat, BoardStatus, BoardSubagents } from './agent-types.ts';
 
 /** The board's columns, in the order the work moves through them: `thinking`, `research` and `error` show only when a card is in them, and idle cards are a lane of their own. */
 export type BoardColumn =
@@ -105,6 +105,8 @@ export interface BoardCard {
   pr: PrInfo | null;
   /** set only when true: GitHub has not answered about this PR (so `pr` is a stub) or not within the last 15 minutes, so `pr` may be out of date */
   pr_unconfirmed?: true;
+  /** set only when it has some: the subagents of its sessions that nobody registered (light rows; no card of their own, no part in its column) */
+  subagents?: BoardSubagents;
   /** the built story, when there is one (a PR story, else a local story of the branch: no url, its page link is asked for): reviewed, and `unread` when it was built after you last opened or reviewed it */
   story: {
     id: string;

@@ -42,6 +42,7 @@ import { branchOfWork, startWork } from './works.ts';
 import { endGoneSelfRuns, openSessions, selfSessions } from './self-runs.ts';
 import { endDeadRuns, runsToJudge } from './dead-runs.ts';
 import { liveEditors } from './editors.ts';
+import { launchedBy, type Launched } from './dispatching.ts';
 
 /** What the registry and the status source say of the live sessions and the agents. */
 export interface LiveFacts {
@@ -247,6 +248,8 @@ export interface PlacedSessions {
   repoBySession: Map<string, string | null>;
   /** when each session entered its status, kept for the next build */
   seen: Map<string, SeenSession>;
+  /** the agents each session launched, by the first 8 of its id (dispatching.ts) */
+  launched: Map<string, Launched>;
 }
 
 /**
@@ -280,6 +283,8 @@ export function placeSessions(
   // it would be a card of its own anyway (self-runs.ts); one on a work card stays there. Both only on a sound scan.
   const own = selfSessions(agents);
   const withRun = openSessions(agents);
+  // a session that launched agents is never in Research: its agents are its work, and its card is Working while one runs
+  const launched = launchedBy(agents, nowMs);
   live.forEach((session, index) => {
     const extra = known.get(session.session);
     const status: BoardStatus = extra?.status || (session.status === 'busy' ? 'working' : 'idle');
@@ -357,7 +362,8 @@ export function placeSessions(
         trusted &&
         restedAt !== null &&
         restedAt + researchMs > nowMs &&
-        !withRun.has(session.session.slice(0, 8))
+        !withRun.has(session.session.slice(0, 8)) &&
+        !launched.has(session.session.slice(0, 8))
       ) {
         view.card.researched = true;
       }
@@ -435,5 +441,6 @@ export function placeSessions(
     pin: pin.found,
     repoBySession,
     seen: next,
+    launched,
   };
 }

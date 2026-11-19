@@ -53,6 +53,28 @@ const CLAIM_WHILE_RUNNING = '2026-10-26T18:35:00Z';
 const holders = (cards: BoardCard[], name: string) =>
   cards.filter((card) => card.agents.some((agent) => agent.name === name));
 
+test('a session that launched running agents is Working below a question: waiting wins, a busy thinking session is Working, none running changes nothing', () => {
+  const none = { sessions: [], agents: [], pr: null, story: null };
+  const idle = { status: 'idle' as const };
+  assert.equal(columnOf({ ...none, sessions: [idle], launched: { running: 1 } }), 'working');
+  assert.equal(columnOf({ ...none, sessions: [idle], launched: { running: 0 } }), 'idle');
+  assert.equal(columnOf({ ...none, sessions: [idle] }), 'idle');
+  assert.equal(
+    columnOf({ ...none, sessions: [{ status: 'waiting' }], launched: { running: 2 } }),
+    'waiting',
+  );
+  assert.equal(
+    columnOf({
+      ...none,
+      sessions: [{ status: 'working', thinking: true }],
+      launched: { running: 1 },
+    }),
+    'working',
+  );
+  // a session with no launched agents keeps its Research mark
+  assert.equal(columnOf({ ...none, sessions: [{ status: 'idle', researched: true }] }), 'research');
+});
+
 test('columns follow the work to merge: waiting and working first, then merged, ready, back to you, PR open', () => {
   const none = { sessions: [], agents: [], pr: null, story: null };
   const open = prInfo(1);

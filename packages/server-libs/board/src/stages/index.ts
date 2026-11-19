@@ -62,6 +62,7 @@ import { placeSessions, readLive, readSessionFacts, type SeenSession } from './s
 import { blankStrip, voiceOf } from './strips.ts';
 import type { BuildContext, StoryFacts } from './types.ts';
 import { movedCards } from './moved.ts';
+import { addSubagentRows } from './subagents.ts';
 import { collectWorks } from './works.ts';
 import { worktreeSection } from './worktrees.ts';
 
@@ -185,6 +186,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
       settings.worktrees ? state.scanner.read().items : [],
       ctx.lookups.movedPast,
     ),
+    placed.launched,
   );
 
   const { listening, sessionViews } = markListening(ctx, cards, {
@@ -283,5 +285,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
     worktrees,
     usage: statusLines.usage,
   };
+  // the subagents nobody registered, as light rows on their session's card or strip entry (subagents.ts)
+  await addSubagentRows(ctx, state.liveness, data, [...read.agents, ...read.editors]);
   return { data, listening, seen: placed.seen };
 }

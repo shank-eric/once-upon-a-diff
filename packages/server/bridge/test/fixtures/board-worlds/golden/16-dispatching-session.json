@@ -1,0 +1,216 @@
+{
+  "board": {
+    "at": "2026-10-26T19:00:00.000Z",
+    "blank": [],
+    "editors": [],
+    "helpers": [],
+    "lanes": [
+      {
+        "cards": [
+          {
+            "agents": [],
+            "branch": "main",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "working",
+            "detail": "1 agent running: ou-held",
+            "focus_session": "<PID:24>-aaaa-bbbb-cccc-dddddddddddd",
+            "id": "<PID:24>-aaaa-bbbb-cccc-dddddddddddd",
+            "kind": "session",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/widgets",
+            "sessions": [
+              {
+                "branch": "main",
+                "context": null,
+                "cwd": "<WORK>/checkout-52",
+                "detail": null,
+                "focus": false,
+                "id": "<PID:24>-aaaa-bbbb-cccc-dddddddddddd",
+                "rested_at": "2026-10-26T18:50:00.000Z",
+                "since": "2026-10-26T18:50:00.000Z",
+                "source": "registry",
+                "status": "idle",
+                "title": "furnace-f3"
+              }
+            ],
+            "since": "2026-10-26T18:40:00.000Z",
+            "story": null,
+            "subagents": {
+              "older": 0,
+              "rows": [
+                {
+                  "agent_type": "Explore",
+                  "description": "look up the retry docs",
+                  "ended_at": null,
+                  "key": "<PID:24>:agent-running1",
+                  "name": null,
+                  "started_at": "<created>",
+                  "state": "running"
+                },
+                {
+                  "agent_type": "general-purpose",
+                  "description": "fetch the release notes",
+                  "ended_at": "2026-10-26T18:50:00.000Z",
+                  "key": "<PID:24>:agent-done1",
+                  "name": null,
+                  "started_at": "<created>",
+                  "state": "done"
+                },
+                {
+                  "agent_type": "general-purpose",
+                  "description": "read the old config",
+                  "ended_at": "2026-10-26T18:20:00.000Z",
+                  "key": "<PID:24>:agent-killed1",
+                  "name": null,
+                  "started_at": "<created>",
+                  "state": "done"
+                }
+              ]
+            },
+            "title": "furnace-f3"
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": "2026-10-26T19:15:00.000Z",
+                "editor": null,
+                "ended_at": "2026-10-26T18:45:00.000Z",
+                "gate": null,
+                "key": "<PID:24>:lookup-done",
+                "kind": "helper",
+                "model": null,
+                "name": "lookup-done",
+                "notes": null,
+                "outcome": "found it",
+                "review": false,
+                "sid": "<PID:24>",
+                "stale": false,
+                "started_at": "2026-10-26T18:30:00.000Z",
+                "state": "done",
+                "status": "done",
+                "summary": {
+                  "did": "look something up",
+                  "why": "done"
+                },
+                "task": "look something up"
+              }
+            ],
+            "branch": null,
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "done",
+            "detail": "found it",
+            "focus_session": "<PID:24>-aaaa-bbbb-cccc-dddddddddddd",
+            "id": "agent:<PID:24>:lookup-done",
+            "kind": "agent",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": "furnace-f3",
+            "pr": null,
+            "repo": null,
+            "sessions": [],
+            "since": "2026-10-26T18:45:00.000Z",
+            "story": null,
+            "title": "lookup-done"
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": null,
+                "gate": null,
+                "key": "<PID:24>:ou-held",
+                "kind": "author",
+                "model": null,
+                "name": "ou-held",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "<PID:24>",
+                "stale": false,
+                "started_at": "2026-10-26T18:40:00.000Z",
+                "state": "running",
+                "status": "working",
+                "summary": null,
+                "task": "Build the dispatched feature from the plan file"
+              }
+            ],
+            "backlog": {
+              "added_by": "cli",
+              "agent": null,
+              "claim": null,
+              "id": "bl_dispatch1",
+              "start_line": "once-upon backlog start bl_dispatch1 --branch feat/dispatched",
+              "started": {
+                "at": "2026-10-26T13:01:00.000Z",
+                "branch": "feat/dispatched",
+                "links": {
+                  "active": true,
+                  "agent": {
+                    "beat": null,
+                    "ended_at": null,
+                    "name": "ou-held",
+                    "outcome": null,
+                    "state": "running"
+                  },
+                  "merged": false,
+                  "merged_at": null,
+                  "sessions": [],
+                  "worktrees": []
+                },
+                "on": null
+              }
+            },
+            "branch": "feat/dispatched",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "working",
+            "detail": null,
+            "focus_session": null,
+            "id": "backlog:bl_dispatch1",
+            "kind": "backlog",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/widgets",
+            "sessions": [],
+            "since": "2026-10-26T13:01:00.000Z",
+            "story": null,
+            "title": "Dispatched feature"
+          }
+        ],
+        "key": "acme/widgets",
+        "name": "widgets"
+      }
+    ],
+    "listeners": [],
+    "phone": null,
+    "status_source": "registry",
+    "usage": null,
+    "voice": null,
+    "voice_paused": false,
+    "voice_start": null,
+    "warning": null,
+    "worktrees": {
+      "at": null,
+      "items": [],
+      "on_cards": 0,
+      "prunable": [],
+      "removable": 0,
+      "scanning": true,
+      "size_kb": "<kb>",
+      "total": 0
+    }
+  }
+}

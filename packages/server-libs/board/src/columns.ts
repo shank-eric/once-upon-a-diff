@@ -7,7 +7,8 @@
  *             findings being fixed): the
  *             launching session is the next actor, not you. Above working, because the session is busy exactly while it
  *             checks the plan or fixes the findings, and a running critic is a running agent
- *   working   a session or agent on it is busy, or a session is building, rebuilding or fixing its story
+ *   working   a session or agent on it is busy, or a session is building, rebuilding or fixing its story, or (a session's own
+ *             card) an agent it launched is running, wherever that agent sits
  *   done      the PR merged, or its card landed (`once-upon backlog done`) with no PR: a local story whose work reached the
  *             default branch some other way than a merge you can see (a cherry-pick). The board drops it an hour later
  *   ship      a local story you approved for its current head: ready to ship, with no PR yet and still on this Mac (a new
@@ -29,7 +30,7 @@
  *             work card is never in it)
  *   research  a finished research agent with no card to sit in and no result (set by stages/agents.ts on an agent's own card;
  *             a work card is never in it), or a session that was Thinking and went idle within the finished-agent timer (its
- *             `researched` flag, set where the sessions are placed)
+ *             `researched` flag, set where the sessions are placed; never one that launched agents)
  *   error     a session whose tab says error
  *   idle      nothing is happening and there is no PR: a session at its prompt (a lane along the bottom of the page)
  *
@@ -76,6 +77,8 @@ export interface ColumnInput {
   } | null;
   /** a session is building, rebuilding or fixing for it */
   building?: boolean;
+  /** a session's own card: how many agents it launched are running now (stages/dispatching.ts), which keep it Working below a question or a gate */
+  launched?: { running: number };
   /** the branch has moved past the commit the story was told over (stages/moved.ts): a card that would be Ready is Working */
   moved?: boolean;
 }
@@ -97,7 +100,7 @@ export function isBackToYou(input: Pick<ColumnInput, 'pr' | 'story'>): boolean {
 }
 
 export function columnOf(input: ColumnInput): BoardColumn {
-  const { sessions, agents, pr, story, building, moved } = input;
+  const { sessions, agents, pr, story, building, moved, launched } = input;
   const ready = moved ? 'working' : 'ready';
   if (
     sessions.some((session) => session.status === 'waiting') ||
@@ -110,6 +113,7 @@ export function columnOf(input: ColumnInput): BoardColumn {
   }
   if (
     building ||
+    (launched?.running ?? 0) > 0 ||
     sessions.some((session) => session.status === 'working' && !session.thinking) ||
     // a storyteller silent for an hour is dead: it is not working, and holds no gate (stages/agents.ts)
     agents.some(

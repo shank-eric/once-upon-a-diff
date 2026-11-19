@@ -5,6 +5,7 @@ import { plural } from '/assets/terms/text.ts';
 import { SessionLink, type Api } from '/assets/board/shared.ts';
 import { agentMark, stateNote } from '/assets/board/columns/agent.ts';
 import { since } from '/assets/terms/time.ts';
+import { SubagentList } from '/assets/ui-kit/components/subagents.ts';
 
 /**
  * The editors strip, above the columns: a row for each editor (a session running a repo's queue) with its lane, its slots
@@ -27,6 +28,7 @@ export function Editors(props: { editors: BoardEditor[]; now: number; api: Api }
               html`<li key=${author.key} data-author=${author.name} title=${author.task || ''}><span class="ou-board-mark" aria-hidden="true">${agentMark(author)}</span> ${author.name} <span class="ou-local-muted">${author.beat && author.state === 'running' ? `${author.beat.n}/${author.beat.of} ${author.beat.step}` : stateNote(author)}</span></li>`,
           )}</ul>`
         }
+        ${editor.subagents && html`<${SubagentList} subagents=${editor.subagents} now=${now} />`}
       </li>`,
   )}</ul></section>`;
 }

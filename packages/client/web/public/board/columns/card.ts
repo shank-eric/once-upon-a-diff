@@ -17,6 +17,7 @@ import { AgentList, AgentNotes } from '/assets/board/columns/agent.ts';
 import { answerBits } from '/assets/board/columns/story-answers.ts';
 import { ContextMeter } from '/assets/ui-kit/components/meter.ts';
 import { Chips } from '/assets/ui-kit/components/chip.ts';
+import { SubagentList } from '/assets/ui-kit/components/subagents.ts';
 import { CopyButton } from '/assets/ui-kit/components/copy-button.ts';
 import { ActionButton } from '/assets/ui-kit/components/action-button.ts';
 
@@ -258,6 +259,7 @@ export function Card(props: { card: BoardCard; now: number; api: Api }) {
     ${card.kind === 'session' && card.sessions[0] && html`<div class="ou-local-muted">${card.sessions[0].status}${card.sessions[0].branch ? ` on ${card.sessions[0].branch}` : ''}</div>`}
     ${card.kind === 'work' && card.sessions.length > 0 && html`<ul class="ou-board-sessions">${card.sessions.map((session) => html`<${Session} key=${session.id} session=${session} now=${now} />`)}</ul>`}
     ${card.agents.length > 0 && !brief && html`<${AgentList} agents=${card.agents} now=${now} api=${api} byEditor=${card.kind !== 'agent'} />`}
+    ${card.subagents && card.kind !== 'agent' && html`<${SubagentList} subagents=${card.subagents} now=${now} />`}
     <${CardTrees} card=${card} now=${now} api=${api} />
     <div class="ou-board-actions">
       ${card.build && html`<${Build} card=${card} api=${api} />`}

@@ -85,17 +85,29 @@ const droppedCard = (agent: LedgerAgent, items: BacklogItem[]): boolean =>
   !!agent.card &&
   items.some((item) => item.id === agent.card && item.state === 'dropped');
 
+/**
+ * Still open (running, or at a gate) with no sign of life for longer than it may be silent: left behind, holding nothing.
+ * Its last sign of life is its latest event, a beat included.
+ */
+function isStale(agent: LedgerAgent, now: number): boolean {
+  const open = agent.state === 'running' || agent.state === 'plan' || agent.state === 'fixing';
+  const began = lastActivity(agent);
+  return open && !!began && now - began.getTime() > staleAfterMs(agent);
+}
+
+/** Open (running, or at a gate) and not stale: work going on now. The one test the agent's own row and a session's launched agents share. */
+export function isRunning(agent: LedgerAgent, now: number): boolean {
+  const open = agent.state === 'running' || agent.state === 'plan' || agent.state === 'fixing';
+  return open && !isStale(agent, now);
+}
+
 function agentOf(
   agent: LedgerAgent,
   now: number,
   clearsAt: Date | null = null,
   editor: BoardAgentEditor | null = null,
 ): BoardAgent {
-  // still open: running, or at a gate (when it began is the line's time, not the original start)
-  const open = agent.state === 'running' || agent.state === 'plan' || agent.state === 'fixing';
-  // its last sign of life is its latest event, a beat included
-  const began = lastActivity(agent);
-  const stale = open && !!began && now - began.getTime() > staleAfterMs(agent);
+  const stale = isStale(agent, now);
   return {
     key: agentKey(agent),
     sid: agent.sid,

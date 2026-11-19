@@ -408,6 +408,9 @@ const results: Record<string, unknown> = {};
 /** commits whose sha shows in a golden: made at run time, so normalized like the pids */
 const shasSeen: string[] = [];
 // every world's board, for the stored-card gate below (storedCardsChangeNothing)
+type BoardLike = {
+  lanes: { cards: { subagents?: { rows: { started_at: string | null }[] } }[] }[];
+};
 const worldBoards: { name: string; board: any; home: string }[] = [];
 
 async function record(
@@ -2142,6 +2145,101 @@ async function record(
     (board as any).invalidate();
   }
   await record('15-ready-moved', board);
+}
+
+// ---- 16. a session that dispatches agents (furnace-f3 on main): its card is Working while an agent it launched runs, wherever that agent
+// sits (here a running author held by a backlog card), never Research; and the subagents nobody registered are light rows on it: one
+// running, one done, one killed (no finished mark, quiet 40 minutes), while two Claude subagents that ARE registered runs (one by its
+// description's name, one by its description against the run's task) are not shown twice
+{
+  const home = tmp('home');
+  const sessions = tmp('sessions');
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
+  const et = (hour: number, minute: number) => new Date(Date.UTC(2026, 9, 26, hour + 4, minute));
+  const furnace = liveChild();
+  const furnaceCwd = checkoutOf('widgets', 'main');
+  registry(sessions, furnace, { cwd: furnaceCwd, name: 'furnace-f3' });
+  const events = [
+    {
+      op: 'add',
+      id: 'bl_dispatch1',
+      title: 'Dispatched feature',
+      note: null,
+      repo: 'acme/widgets',
+      branch: 'feat/dispatched',
+      by: 'cli',
+      at: et(9, 0).toISOString(),
+    },
+    {
+      op: 'start',
+      id: 'bl_dispatch1',
+      branch: 'feat/dispatched',
+      repo: 'acme/widgets',
+      by: 'cli',
+      at: et(9, 1).toISOString(),
+    },
+  ];
+  writeFileSync(
+    path.join(home, 'backlog.jsonl'),
+    events.map((event) => JSON.stringify(event)).join('\n') + '\n',
+  );
+  const runs = new AgentRegistry(home);
+  runs.start({
+    sid: sid(furnace),
+    name: 'ou-held',
+    kind: 'author',
+    task: 'Build the dispatched feature from the plan file',
+    card: 'bl_dispatch1',
+    at: et(14, 40),
+  });
+  runs.start({
+    sid: sid(furnace),
+    name: 'lookup-done',
+    kind: 'helper',
+    task: 'look something up',
+    at: et(14, 30),
+  });
+  runs.finish('lookup-done', { sid: sid(furnace), outcome: 'found it', at: et(14, 45) });
+  // Claude's subagent transcripts for the session, each last written some minutes before NOW
+  // (the worlds' projects folder, beside the session's own transcript: CLAUDE_CONFIG_DIR is the world's)
+  const folder = path.join(
+    process.env.CLAUDE_CONFIG_DIR as string,
+    'projects',
+    furnaceCwd.replace(/[^A-Za-z0-9]/g, '-'),
+    fullId(furnace.pid),
+    'subagents',
+  );
+  mkdirSync(folder, { recursive: true });
+  const subagent = (id: string, meta: Record<string, unknown>, minutesAgo: number) => {
+    writeFileSync(path.join(folder, `agent-${id}.jsonl`), '{"type":"user"}\n');
+    writeFileSync(path.join(folder, `agent-${id}.meta.json`), JSON.stringify(meta));
+    const when = new Date(NOW.getTime() - minutesAgo * 60000);
+    utimesSync(path.join(folder, `agent-${id}.jsonl`), when, when);
+  };
+  subagent('running1', { agentType: 'Explore', description: 'look up the retry docs' }, 1);
+  subagent(
+    'done1',
+    { agentType: 'general-purpose', description: 'fetch the release notes', finished: true },
+    10,
+  );
+  subagent('killed1', { agentType: 'general-purpose', description: 'read the old config' }, 40);
+  subagent('reg-name', { description: 'lookup-done: look something up', finished: true }, 15);
+  subagent('reg-task', { description: 'Build the dispatched feature from the plan' }, 2);
+  const { watcher } = fakeWatcher([], {});
+  const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
+    source: sourceSaying({}),
+    now: () => NOW,
+    repoOf,
+  });
+  await record('16-dispatching-session', board);
+  // a transcript's creation time is the machine's, not the fixture's: a golden keeps the rows, not that clock
+  for (const lane of (results['16-dispatching-session'] as { board: BoardLike }).board.lanes) {
+    for (const card of lane.cards) {
+      for (const row of card.subagents?.rows ?? []) {
+        row.started_at = '<created>';
+      }
+    }
+  }
 }
 
 // ---- normalize paths and pids

@@ -9,6 +9,7 @@ import { SessionLink, type Api } from '/assets/board/shared.ts';
 import { act, typeInto } from '/assets/board/columns/actions.ts';
 import { listenPlan } from '/assets/ui-kit/listen.ts';
 import { CopyButton } from '/assets/ui-kit/components/copy-button.ts';
+import { SubagentList } from '/assets/ui-kit/components/subagents.ts';
 
 /** One listener row: who listens (with Stop), or when it last did (with Start). */
 function Listener(props: { entry: BoardListenerRepo; now: number; api: Api }) {
@@ -33,7 +34,8 @@ function Listener(props: { entry: BoardListenerRepo; now: number; api: Api }) {
           )
         : undefined;
     return html`<li class="ou-board-listener"><strong>${entry.repo}</strong> <span class="ou-board-voice-status">Listening</span> <span class="ou-local-muted"><${SessionLink} bridge=${api.bridge} session=${active.session} canFocus=${active.can_focus} name=${active.title || active.consumer} title="Bring the listening session to the front" /> · ${parts.join(' · ')}</span>${' '}
-      <${ActionButton} attrs=${{ 'data-stop-listening': entry.repo }} onClick=${stop}>Stop listening</${ActionButton}></li>`;
+      <${ActionButton} attrs=${{ 'data-stop-listening': entry.repo }} onClick=${stop}>Stop listening</${ActionButton}>
+      ${active.subagents && html`<${SubagentList} subagents=${active.subagents} now=${now} />`}</li>`;
   }
   const seen = entry.last_seen ? ` · last listened ${since(entry.last_seen, now)} ago` : '';
   // one obvious session (the only one, or clearly the freshest): the button uses it; else it opens a menu of them, freshest first

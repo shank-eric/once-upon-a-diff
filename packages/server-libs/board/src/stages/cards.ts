@@ -10,12 +10,13 @@ import type {
   InboxStory,
   PrInfo,
 } from '@once-upon-a-diff/contracts/types';
-import { gateText } from '@once-upon-a-diff/terms/text';
+import { gateText, plural } from '@once-upon-a-diff/terms/text';
 import type { LiveSession } from '@once-upon-a-diff/adapters/claude-sessions/live-sessions';
 import { laneOf } from './lanes.ts';
 import { MERGED_HOURS } from './works.ts';
 import { NO_PARENT } from './agents.ts';
 import type { BuildContext, SessionView, StoryFacts, Work } from './types.ts';
+import type { Launched } from './dispatching.ts';
 import { prUrl } from '@once-upon-a-diff/terms/github-urls';
 
 /** A card for a session that is not on a branch of its own. */
@@ -269,7 +270,12 @@ function focusOf(sessions: BoardSession[]): { focus_session: string | null; can_
 }
 
 /** Sets a session or work card's column, detail and `since`, once its agents are on it. */
-function placeCard(card: BoardCard, byStory: Map<string, StoryFacts>, moved: boolean): void {
+function placeCard(
+  card: BoardCard,
+  byStory: Map<string, StoryFacts>,
+  moved: boolean,
+  launched: Launched | undefined,
+): void {
   const built = card.story ? byStory.get(card.story.id) : undefined;
   // an auto-mark carries the time the bridge noticed, so only a mark by hand counts as your activity
   const manual =
@@ -291,6 +297,7 @@ function placeCard(card: BoardCard, byStory: Map<string, StoryFacts>, moved: boo
       : null,
     building: !!card.building,
     moved,
+    launched: launched && { running: launched.running.length },
   });
   const asking = card.sessions.find((session) => session.status === 'waiting');
   const waitingAgent = card.agents.find((agent) => agent.state === 'waiting' && !agent.review);
@@ -324,9 +331,10 @@ function placeCard(card: BoardCard, byStory: Map<string, StoryFacts>, moved: boo
     case 'working':
       card.detail = card.building
         ? BUILDING_TEXT[card.building.kind]
-        : busy?.detail || (moved ? MOVED_TEXT : null);
+        : busy?.detail || (moved ? MOVED_TEXT : null) || launchedText(launched);
       card.since = earliest([
         card.building?.since,
+        ...(launched?.running ?? []).map((one) => one.started?.toISOString()),
         ...card.sessions.filter((one) => one.status === 'working').map((one) => one.since),
         ...card.agents.filter((one) => one.state === 'running').map((one) => one.started_at),
       ]);
@@ -370,21 +378,38 @@ export function buildCards(
   return cards;
 }
 
+/** What a session's card says when it is Working only because agents it launched run: how many, and the first few by name. */
+function launchedText(launched: Launched | undefined): string | null {
+  const running = launched?.running ?? [];
+  if (!running.length) {
+    return null;
+  }
+  const names = running.slice(0, 3).map((one) => one.name);
+  return `${plural(running.length, 'agent')} running: ${names.join(', ')}${running.length > 3 ? ', …' : ''}`;
+}
+
 /** What a card says when it is Working only because its branch moved past its story (stages/moved.ts). */
 const MOVED_TEXT = 'branch moved past its story';
 
 /**
  * Sets each session or work card's column, detail and `since`, once its agents are on it. `moved` holds the cards whose branch
- * moved past their story's told commit (stages/moved.ts).
+ * moved past their story's told commit (stages/moved.ts); `launched` the agents each session launched (stages/dispatching.ts).
  */
 export function placeCards(
   cards: BoardCard[],
   byStory: Map<string, StoryFacts>,
   moved: Set<BoardCard> = new Set(),
+  launched: Map<string, Launched> = new Map(),
 ): void {
   for (const card of cards) {
     if (card.kind !== 'agent') {
-      placeCard(card, byStory, moved.has(card));
+      // only a session's own card counts the agents it launched: a work card has its agents nested in it already
+      placeCard(
+        card,
+        byStory,
+        moved.has(card),
+        card.kind === 'session' ? launched.get(card.id.slice(0, 8)) : undefined,
+      );
     }
   }
 }

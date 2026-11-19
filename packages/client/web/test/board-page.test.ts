@@ -376,6 +376,53 @@ test('a PR card GitHub has not answered lately carries an "unconfirmed" chip; on
   }
 });
 
+test('a session card shows its unregistered subagents as light rows, finished ones folded; a card without them, and the subagents themselves, add no card', async () => {
+  const subagent = (key: string, state: 'running' | 'done', description: string) => ({
+    key,
+    name: null,
+    description,
+    agent_type: null,
+    state,
+    started_at: new Date(Date.now() - 4 * 60000).toISOString(),
+    ended_at: state === 'done' ? new Date(Date.now() - 2 * 60000).toISOString() : null,
+  });
+  try {
+    answer = () =>
+      withCards(
+        card({
+          id: 'with-rows',
+          kind: 'session',
+          column: 'working',
+          subagents: {
+            rows: [
+              subagent('a', 'running', 'look at the logs'),
+              subagent('b', 'done', 'fetch the page'),
+            ],
+            older: 2,
+          },
+        }),
+        card({ id: 'without-rows', kind: 'session', column: 'working' }),
+      );
+    await pollNow();
+    const rows = (id: string) =>
+      [...document.querySelectorAll(`[data-card="${id}"] .ou-ui-subagent`)].map((one) =>
+        one.textContent?.replace(/\s+/g, ' ').trim(),
+      );
+    assert.deepEqual(rows('with-rows'), ['● look at the logs running · 4m']);
+    const toggle = $('[data-card="with-rows"] [data-subagents-toggle]') as HTMLElement;
+    assert.match(toggle.textContent as string, /3 finished \(2 older not shown\)/);
+    assert.equal(
+      document.querySelectorAll('[data-card="without-rows"] [data-subagents]').length,
+      0,
+    );
+    const ids = all('[data-card]').map((one) => one.getAttribute('data-card'));
+    assert.ok(!ids.includes('a') && !ids.includes('b'), 'no card of their own');
+  } finally {
+    answer = () => board();
+    await pollNow();
+  }
+});
+
 test('Research shows only with a card in it, sits right after Waiting, and is not counted as on you', async () => {
   const headings = () =>
     all('.ou-board-groups .ou-board-col').map((one) => one.getAttribute('aria-label'));

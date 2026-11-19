@@ -13,6 +13,33 @@ export interface BoardBeat {
   note: string;
 }
 
+/**
+ * A subagent Claude Code ran for a session that nobody registered with `once-upon agent start` (a quick lookup, a web fetch),
+ * read from the session's subagent transcripts. A light row on the card or strip entry of the session that launched it: never a
+ * card, and it never moves a column.
+ */
+export interface BoardSubagent {
+  /** `sid:agent-<id>`: the first 8 of the launching session's id and the transcript's name */
+  key: string;
+  /** the Agent tool's name or the description's `<name>:` prefix, when it has one */
+  name: string | null;
+  /** its description (else its agent type, else "subagent") */
+  description: string;
+  agent_type: string | null;
+  /** running: its transcript is still being written; done: it finished (or went quiet) */
+  state: 'running' | 'done';
+  started_at: string | null;
+  /** its last write, when done */
+  ended_at: string | null;
+}
+
+/** The rows a session's unregistered subagents make, with how many finished ones past the cap are left out of `rows`. */
+export interface BoardSubagents {
+  rows: BoardSubagent[];
+  /** finished ones kept out of `rows` (the newest few are shown), so none is lost silently */
+  older: number;
+}
+
 /** A background agent (a subagent) from the agent registry, inside its parent session's card or on a card of its own. */
 export interface BoardAgent {
   /** the session id's first 8 characters the agent is registered under (the first half of `key`) */
@@ -72,6 +99,8 @@ export interface BoardEditor extends BoardAgentEditor {
   /** the slots in use: its authors that are working (running, at its plan check, or fixing findings). One at a question or a story review holds none */
   in_use: number;
   since: string | null;
+  /** its session's unregistered subagents, as a card's session has them (set only when it has some) */
+  subagents?: BoardSubagents;
   authors: {
     /** `sid:name`, the agent's key */
     key: string;

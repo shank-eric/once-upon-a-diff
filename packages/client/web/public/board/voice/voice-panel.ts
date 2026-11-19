@@ -14,6 +14,7 @@ import { remember, stored } from '/assets/local/stored.ts';
 import { ActionButton } from '/assets/ui-kit/components/action-button.ts';
 import { ResizeGrip } from '/assets/ui-kit/components/resize-grip.ts';
 import { ContextMeter } from '/assets/ui-kit/components/meter.ts';
+import { SubagentList } from '/assets/ui-kit/components/subagents.ts';
 import { createDrag } from '/assets/ui-kit/drag.ts';
 import type { BoardVoice, BoardVoiceLine } from '/assets/types.ts';
 import { repoName } from '/assets/terms/text.ts';
@@ -244,6 +245,7 @@ export function VoicePanel(props: VoicePanelProps) {
         <span class="ou-board-voice-status"><span class="ou-board-voice-dot" aria-hidden="true"></span>${status}</span><${ContextMeter} context=${voice.context} />${pauseButton}
       </div>
       <div class="ou-local-muted">${agents ? `agents: ${agents}` : 'no agents running'}</div>
+      ${voice.subagents && html`<${SubagentList} subagents=${voice.subagents} now=${Date.now()} />`}
       ${
         voice.lines.length > 0
           ? html`<ol class="ou-board-voice-lines" aria-label="Conversation, newest last" ref=${lines} onScroll=${(

@@ -3,7 +3,7 @@
  * helpers, usage and blank sessions. Types only: nothing here runs.
  */
 
-import type { BoardEditor } from './agent-types.ts';
+import type { BoardEditor, BoardSubagents } from './agent-types.ts';
 import type { BoardCard, BoardListening, BoardWorktree } from './card-types.ts';
 
 /** GET /api/board: lanes (one per repo), each with its cards. */
@@ -79,6 +79,8 @@ export interface BoardVoice {
   context: number | null;
   /** its last few lines, oldest first: what it said aloud and what you said to it */
   lines: BoardVoiceLine[];
+  /** its unregistered subagents (set only when it has some) */
+  subagents?: BoardSubagents;
 }
 
 /** The sessions Start voice may type /larmor into. */
@@ -106,6 +108,8 @@ export interface BoardListenerRepo {
         since: string | null;
         /** the last request (question, build or fix) it was handed */
         last_handled_at: string | null;
+        /** its session's unregistered subagents (set only when it has some) */
+        subagents?: BoardSubagents;
       })
     | null;
   last_seen: string | null;
@@ -146,6 +150,8 @@ export interface BoardBlankSession {
   /** its iTerm tab is known, so `POST /api/board/focus` can bring it to the front */
   can_focus: boolean;
   since: string | null;
+  /** its unregistered subagents (set only when it has some) */
+  subagents?: BoardSubagents;
 }
 
 /** What a remove of a worktree from the board says (POST /api/board/worktree/clean). */

@@ -196,7 +196,7 @@ test('a busy session with a run open under its sid is not Thinking', async () =>
   assert.equal(busyCard?.sessions[0].thinking, undefined);
 });
 
-test('a busy session whose only open run under its sid is a research or helper run is Thinking', async () => {
+test('a busy session whose only open run under its sid is a research or helper run is marked Thinking, and Working while that run runs', async () => {
   for (const kind of ['research', 'helper'] as const) {
     const { busyCard } = await thinkingWorld({
       prep: (home, sid) => {
@@ -208,8 +208,10 @@ test('a busy session whose only open run under its sid is a research or helper r
         });
       },
     });
-    assert.equal(busyCard?.column, 'thinking', kind);
+    // its own turn is thinking (the flag), but an agent it launched is running, so the card is Working and says so
     assert.equal(busyCard?.sessions[0].thinking, true, kind);
+    assert.equal(busyCard?.column, 'working', kind);
+    assert.equal(busyCard?.detail, `1 agent running: ou-${kind}`, kind);
   }
 });
 
@@ -355,7 +357,7 @@ function restingWorld(prep?: (home: string, sid: string, voiceDir: string) => vo
       { cwd, name: 'side-tab', status, statusUpdatedAt: when.getTime() },
       child.procStart,
     );
-  const says: Record<string, { status: 'working' | 'done'; detail: null }> = {
+  const says: Record<string, { status: 'working' | 'done' | 'waiting'; detail: string | null }> = {
     [sid]: { status: 'working', detail: null },
   };
   let now = NOW;
@@ -381,6 +383,10 @@ function restingWorld(prep?: (home: string, sid: string, voiceDir: string) => vo
     // the tab's status reads `done` while the registry still says busy
     tabDone: () => {
       says[sid] = { status: 'done', detail: null };
+    },
+    // the status hook's Waiting: its last line asks you something
+    tabWaiting: () => {
+      says[sid] = { status: 'waiting', detail: 'which one?' };
     },
     rest: (when: Date) => {
       delete says[sid];
@@ -502,4 +508,75 @@ test('the voice session that goes idle stays pinned, never Research', async () =
     data.lanes.flatMap((lane) => lane.cards).some((one) => one.column === 'research'),
     false,
   );
+});
+
+/** A side-tab session that dispatched `runs` (finished or not) before it went idle, a minute after NOW. */
+async function dispatchingWorld(
+  runs: (sid: string) => Parameters<typeof registerRuns>[1][],
+  after = (world: ReturnType<typeof restingWorld>) => world.rest(minutesAfter(1)),
+) {
+  const world = restingWorld((home, sid) => registerRuns(home, ...runs(sid)));
+  // seen busy first, as the board must have for it to rest into Research
+  assert.equal((await world.look(NOW)).card?.sessions[0].thinking, true);
+  after(world);
+  return world;
+}
+
+test('a Thinking session that dispatched research runs, all finished, is idle once it rests: never Research', async () => {
+  const world = await dispatchingWorld((sid) => [
+    {
+      sid,
+      name: 'scout',
+      kind: 'research',
+      started: minutesAfter(-20),
+      now: { state: 'done', at: minutesAfter(-10), outcome: 'found it' },
+    },
+  ]);
+  const { card } = await world.look(minutesAfter(2));
+  assert.equal(card?.column, 'idle');
+  assert.equal(card?.sessions[0].researched, undefined);
+});
+
+test('a session whose launched helper is running is Working, naming the agent and since it started, whether it is busy or at rest', async () => {
+  const world = await dispatchingWorld((sid) => [
+    { sid, name: 'lookup-one', kind: 'helper', started: minutesAfter(0.5) },
+    { sid, name: 'lookup-two', kind: 'research', started: minutesAfter(0.6) },
+  ]);
+  const { card } = await world.look(minutesAfter(2));
+  assert.equal(card?.column, 'working');
+  assert.equal(card?.detail, '2 agents running: lookup-one, lookup-two');
+  assert.equal(card?.since, minutesAfter(0.5).toISOString());
+  assert.equal(card?.sessions[0].researched, undefined);
+  // the card stays: nothing hides the session
+  assert.equal(card?.kind, 'session');
+});
+
+test('a dispatching session waiting on you is Waiting, not Working, while its agent runs', async () => {
+  const world = await dispatchingWorld(
+    (sid) => [{ sid, name: 'lookup-one', kind: 'helper', started: minutesAfter(0.5) }],
+    (one) => one.tabWaiting(),
+  );
+  assert.equal((await world.look(minutesAfter(2))).card?.column, 'waiting');
+});
+
+test('an agent that went silent past its limit holds nothing: the session rests as Idle', async () => {
+  const world = await dispatchingWorld(
+    (sid) => [{ sid, name: 'lost-one', kind: 'helper', started: minutesAfter(-3 * 24 * 60) }],
+    (one) => one.rest(minutesAfter(1)),
+  );
+  const { card } = await world.look(minutesAfter(2));
+  assert.equal(card?.column, 'idle');
+});
+
+test('a session with only a self run of its own is still Research after a thinking turn', async () => {
+  const world = await dispatchingWorld((sid) => [
+    {
+      sid,
+      name: `self-${sid.slice(0, 6)}`,
+      kind: 'research',
+      started: minutesAfter(-20),
+      now: { state: 'done', at: minutesAfter(-10), outcome: 'ok' },
+    },
+  ]);
+  assert.equal((await world.look(minutesAfter(2))).card?.column, 'research');
 });
