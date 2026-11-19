@@ -454,7 +454,7 @@ if [ "$REUSED" = 0 ]; then
   TIP="$(git -C "$WT" rev-parse HEAD)"
 
   quiet "yarn install" bash -c "cd '$WT' && yarn install --immutable"
-  quiet "lint" bash -c "cd '$WT' && yarn lint"
+  quiet "lint" bash -c "cd '$WT' && yarn lint:gate"
   quiet "typecheck" bash -c "cd '$WT' && yarn typecheck"
   quiet "format:check" bash -c "cd '$WT' && yarn format:check"
   quiet "test" bash -c "cd '$WT' && yarn test"

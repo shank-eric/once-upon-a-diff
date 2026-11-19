@@ -10,6 +10,7 @@ import { defineConfig, globalIgnores } from 'eslint/config';
 import importPlugin from 'eslint-plugin-import';
 import nodePlugin from 'eslint-plugin-n';
 import promisePlugin from 'eslint-plugin-promise';
+import sonarjs from 'eslint-plugin-sonarjs';
 import eslintPrettierConfig from 'eslint-config-prettier';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
@@ -112,6 +113,16 @@ export default defineConfig(
     // the fake gh the tests point ONCE_UPON_GH at is run as a program, so it keeps its shebang
     files: ['packages/server/bridge/test/fixtures/*.{ts,mjs}'],
     rules: { 'n/hashbang': 'off' },
+  },
+  {
+    // readability measures, warnings only for now (a measuring pass, not a gate yet)
+    plugins: { sonarjs },
+    rules: {
+      'sonarjs/cognitive-complexity': ['warn', 15],
+      complexity: ['warn', 10],
+      'max-depth': ['warn', 4],
+      'no-negated-condition': 'warn',
+    },
   },
   // side effects (only adapters run programs, write files or reach the network): last, so nothing above loosens them
   ...sideEffects,
