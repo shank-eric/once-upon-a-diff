@@ -3,12 +3,9 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { tmp, writeJson, githubStory, startBridge, runCli } from './helpers.ts';
 import { answerRefs, chapterProblems } from '@once-upon-a-diff/stories/validate';
-import { upgradePlan } from '@once-upon-a-diff/stories/legacy';
 import type { Plan } from '@once-upon-a-diff/stories/chapters';
 import type { QuestionEntry } from '@once-upon-a-diff/state/queues/requests/inbox';
 import type { StoryData } from '@once-upon-a-diff/contracts/types';
-
-const RELS = ['src/a.js', 'src/b.js'];
 
 test("an answer's refs are checked like a chapter's, and every ref: link in its text must be one of them", () => {
   assert.deepEqual(
@@ -44,31 +41,12 @@ test("the overview, summary and plan link by the plan's own refs, which may be o
   assert.deepEqual(chapterProblems(plan), []);
 });
 
-test("an older story's overview is upgraded too: its backticked names link among every file of the story", () => {
-  const plan = upgradePlan(
-    {
-      overview: 'It starts in `src/a.js:3-9`, and `b.js` follows. `nothing.js` is not a file.',
-      chapters: [{ title: 'Chapter 1', files: ['src/a.js'] }],
-    },
-    RELS,
-  );
-  assert.equal(
-    plan.overview,
-    'It starts in [`src/a.js:3-9`](ref:t1), and [`b.js`](ref:t2) follows. `nothing.js` is not a file.',
-  );
-  assert.deepEqual(plan.refs, [
-    { id: 't1', path: 'src/a.js', side: 'R', start: 3, end: 9, text: true },
-    { id: 't2', path: 'src/b.js', text: true },
-  ]);
-});
-
-test('a plan told with refs has no overview upgrade, and one with overview text needs its refs list', () => {
+test('a plan with overview text needs its refs list', () => {
   const plan: Plan = {
     overview: 'It starts in `src/a.js:3-9`.',
     refs: [],
     chapters: [{ key: 'one', title: 'Chapter 1', files: ['src/a.js'], refs: [] }],
   };
-  assert.equal(upgradePlan(plan, RELS), plan, 'its backticks stay code');
   assert.deepEqual(chapterProblems({ ...plan, refs: undefined }), [
     'the overview has no refs list: give the plan `"refs": []`, or the places its text links to',
   ]);

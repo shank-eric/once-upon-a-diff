@@ -10,7 +10,6 @@ import { readPrefs, type Prefs } from '@once-upon-a-diff/foundation/settings';
 import { readJson } from '@once-upon-a-diff/adapters/stores/fs/json-file';
 import { checkedMeta, readMeta, storyVersion, localVersion } from './meta.ts';
 import { chaptersOf, addLeftoverChapter, markUnwritten, refOf } from './chapters.ts';
-import { upgradePlan } from './legacy.ts';
 import { movedRefs, readAnchors } from './anchors.ts';
 import { thinHunks, uncoveredHunks } from './hunk-coverage.ts';
 import {
@@ -73,8 +72,7 @@ function trustedMeta(
 }
 
 /**
- * The plan's chapters as the panel draws them, and the plan upgraded to have refs (legacy.ts; the files on disk stay as
- * they were). Each leaves its chapters' files out of `rels` when the diff has no such file any more, and adds to `rels`
+ * The plan's chapters and overview refs as the panel draws them. Each leaves its chapters' files out of `rels` when the diff has no such file any more, and adds to `rels`
  * the files the chapters name that it lacks.
  */
 function tellChapters(
@@ -84,8 +82,7 @@ function tellChapters(
   diff: Map<string, DiffFile> | null,
   rels: string[],
 ) {
-  const older = upgradePlan(plan, rels);
-  const chapters = chaptersOf(older);
+  const chapters = chaptersOf(plan);
   // a local diff is the truth: a file that has left it (say, reverted) leaves its chapters too
   if (diff) {
     for (const chapter of chapters) {
@@ -93,7 +90,7 @@ function tellChapters(
       chapter.refs = chapter.refs.filter((ref) => diff.has(ref.path));
     }
   }
-  const overviewRefs = (older.refs || []).map(refOf);
+  const overviewRefs = (plan.refs || []).map(refOf);
   // a local story's refs say when the code at their lines has changed since it was told
   const anchors = meta.kind === 'local' && diff ? readAnchors(dir) : null;
   if (anchors && diff) {
@@ -101,7 +98,7 @@ function tellChapters(
   }
   const named = chapters.flatMap((chapter) => chapter.files.map((file) => file.rel));
   rels.push(...new Set(named.filter((rel) => !rels.includes(rel))));
-  return { older, chapters, overviewRefs };
+  return { chapters, overviewRefs };
 }
 
 /** The hunks no chapter points at and how many are told thinly: counted from a local story's diff, else from what the build wrote in file-map.json. */
@@ -181,7 +178,7 @@ export function storyData(store: StoryStateReader, id: string, dir: string): Sto
   const diff = loadDiff(dir, meta);
   const map = readJson<FileMap>(path.join(dir, 'file-map.json'), null);
   const rels = relsOf(map, diff);
-  const { older, chapters, overviewRefs } = tellChapters(dir, meta, plan, diff, rels);
+  const { chapters, overviewRefs } = tellChapters(dir, meta, plan, diff, rels);
   // hunks no chapter points at: a build allowed to publish with them says so in file-map.json, a local story's diff is here
   const { uncovered, thin } = hunkCoverage(chapters, diff, map);
   addLeftoverChapter(chapters, rels);
@@ -194,9 +191,9 @@ export function storyData(store: StoryStateReader, id: string, dir: string): Sto
     version: prefs ? localVersion(dir, prefs, movedSince(meta as LocalMeta)) : storyVersion(dir),
     pr: prOf(meta),
     title: meta.title,
-    overview: older.overview || '',
-    summary: older.summary || '',
-    plan: older.plan || '',
+    overview: plan.overview || '',
+    summary: plan.summary || '',
+    plan: plan.plan || '',
     overview_refs: overviewRefs,
     files: rels.map((rel) => ({ rel, sha: pathSha(rel) })),
     chapters,

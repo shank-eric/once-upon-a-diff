@@ -33,8 +33,6 @@ export interface ChapterRef {
   start?: number;
   end?: number;
   label?: string;
-  /** made by the bridge from the text of a story told before refs: it links, but is not a pointer a chapter chose to make (hunk coverage, a file's line list) */
-  text?: boolean;
   /** made from a hunk id in the chapter's `hunks` (hunk-ids.ts): the chapter named the hunk, so it counts as linked */
   hunk?: boolean;
   /** set when the story is served, never stored: the line text the story was told over is not what the diff has at the ref's lines now, so the link may point at the wrong lines (anchors.ts) */
@@ -48,8 +46,6 @@ export interface ChapterFile {
   note: string | null;
   /** this chapter tells all of the file's hunks */
   whole?: boolean;
-  /** an older story only: not listed, its text pointed at this file's lines (the bridge adds these when it reads one) */
-  ref?: boolean;
   /** derived by the bridge from the chapter's `refs` on this file: the lines this chapter shows of it */
   lines?: ChapterLines[];
 }

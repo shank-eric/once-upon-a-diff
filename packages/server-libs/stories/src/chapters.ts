@@ -22,8 +22,6 @@ export interface PlanRef {
   start?: number | string;
   end?: number | string;
   label?: string;
-  /** an older story's text reference, made by legacy.ts */
-  text?: boolean;
   /** made by expandHunks from a hunk id the chapter lists */
   hunk?: boolean;
 }
@@ -101,9 +99,6 @@ export function entryOf(entry: PlanFile): ChapterFile {
     return { rel: entry, partial: false, note: null };
   }
   const out: ChapterFile = { rel: entry.rel, partial: !!entry.partial, note: entry.note || null };
-  if (entry.ref) {
-    out.ref = true; // an older story: not listed, its text pointed at lines of it (legacy.ts)
-  }
   if (entry.whole) {
     out.whole = true; // this chapter tells all of the file's hunks (hunk-coverage.ts)
   }
@@ -131,9 +126,6 @@ export function refOf(ref: PlanRef): ChapterRef {
   if (ref.label) {
     out.label = String(ref.label);
   }
-  if (ref.text) {
-    out.text = true;
-  }
   if (ref.hunk) {
     out.hunk = true;
   }
@@ -142,12 +134,8 @@ export function refOf(ref: PlanRef): ChapterRef {
 
 /** The line ranges of refs that name lines of `rel`, as a chapter's file entry shows them (`lines`). */
 function linesOf(refs: ChapterRef[], entry: ChapterFile): ChapterFile['lines'] {
-  // an older story's text references only gave lines to a file its text pointed at without listing it
   return refs
-    .filter(
-      (ref) =>
-        ref.path === entry.rel && ref.start !== undefined && (!ref.text || entry.ref === true),
-    )
+    .filter((ref) => ref.path === entry.rel && ref.start !== undefined)
     .map((ref) => ({
       side: toSide(ref.side),
       start: ref.start as number,
@@ -158,8 +146,7 @@ function linesOf(refs: ChapterRef[], entry: ChapterFile): ChapterFile['lines'] {
 
 /**
  * chapters.json's chapters, normalized. Each file entry's `lines` are its chapter's refs on that file, so the panel's file
- * list and the local page's narrowing read ranges from one place. A plan with chapters that have no `refs` is an older
- * story: upgrade it first (legacy.ts upgradePlan).
+ * list and the local page's narrowing read ranges from one place.
  */
 export function chaptersOf(plan: Plan): Chapter[] {
   return (plan.chapters || []).map((chapter) => {

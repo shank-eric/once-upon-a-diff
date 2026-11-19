@@ -9,7 +9,6 @@ import { expandHunks } from '../src/hunk-ids.ts';
 import { thinHunks, uncoveredHunks } from '../src/hunk-coverage.ts';
 import { rebuildProblems } from '../src/rebuild.ts';
 import { storyFindings } from '../src/quality.ts';
-import { unfinishedPartials } from '../src/gate.ts';
 import { chapterProblems } from '../src/validate.ts';
 
 /** A modified file's diff with one hunk per [newStart, added] pair, a line of context on either side. */
@@ -272,25 +271,6 @@ test('the story check leaves a kept chapter alone, and fails the same chapter wh
   const changed = structuredClone(unlinked);
   changed.chapters![0].narrative = 'It was told differently.';
   assert.equal(fail(changed).length, 1, 'a chapter that differs from the served one is checked');
-});
-
-test("an older story's text-pointer entry is no listing, so it is never an unfinished partial", () => {
-  const chapters = chaptersOf(
-    planOf(
-      chapter({ files: [{ rel: 'src/a.js', partial: false }], refs: [] }),
-      chapter({
-        key: 'b',
-        title: 'Chapter 2: B',
-        files: [{ rel: 'src/a.js', partial: true, note: 'pointed at', ref: true }],
-        refs: [],
-      }),
-    ),
-  );
-  assert.deepEqual(unfinishedPartials(chapters, diff), []);
-  const listed = chaptersOf(
-    planOf(chapter({ files: [{ rel: 'src/a.js', partial: true, note: 'some' }], refs: [] })),
-  );
-  assert.deepEqual(unfinishedPartials(listed, diff), [{ rel: 'src/a.js', index: 0 }]);
 });
 
 test('the story check warns about a thin hunk and fails an unlinked one', () => {

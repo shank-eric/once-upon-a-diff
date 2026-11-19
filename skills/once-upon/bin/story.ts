@@ -377,7 +377,7 @@ async function cmdBrief(opts: CliOpts) {
  * Where each file is told and finished, by the panel's own rules: a chapter tells a file by listing it, and finishes it
  * when it's the last chapter to list it or the newest "Since you read it" chapter that lists it (finishedInOf). Pointing
  * at a file's lines is a ref (`refs`), which needs the file listed: it moves nothing. A chapter an older story kept
- * as it was is read as it is on the panel (legacy.ts).
+ * as it was is read as it is on the panel.
  */
 function buildMap(plan: Plan, diff: Map<string, DiffFile>, served?: Plan | null) {
   const rels = [...diff.keys()];

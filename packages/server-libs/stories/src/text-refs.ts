@@ -1,8 +1,7 @@
 /*
  * Text that looks like a reference, which no longer links anything. A chapter's narrative links to a place by id
- * (`[text](ref:<id>)`, to an entry of the chapter's `refs`), never by a file name or a line in backticks. Two things read
- * the old forms: legacy.ts, which upgrades a story told before refs, and lintTextRefs here, which warns an author whose
- * new narrative still writes `` `path:45` `` or `` `name.ts` `` where a link was meant.
+ * (`[text](ref:<id>)`, to an entry of the chapter's `refs`), never by a file name or a line in backticks. lintTextRefs warns an author whose
+ * narrative still writes `` `path:45` `` or `` `name.ts` `` where a link was meant.
  */
 import { parseLineRef } from '@once-upon-a-diff/terms/line-refs';
 import type { Chapter } from '@once-upon-a-diff/contracts/types';

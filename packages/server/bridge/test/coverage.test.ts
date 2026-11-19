@@ -13,7 +13,6 @@ import {
   type Plan,
   type PlanChapter,
 } from '@once-upon-a-diff/stories/chapters';
-import { upgradePlan } from '@once-upon-a-diff/stories/legacy';
 import type { FileMap } from '@once-upon-a-diff/stories/story-data';
 import type { StoryData } from '@once-upon-a-diff/contracts/types';
 import { uncoveredHunks, SMALL_FILE_LINES } from '@once-upon-a-diff/stories/hunk-coverage';
@@ -265,37 +264,5 @@ test('build gives chapters their keys and writes them back, and refuses a chapte
       assert.match(err.stderr, /chapter 2 has no refs list/);
       return true;
     },
-  );
-});
-
-test("an older story's text references do not change what its hunks need: the same as before refs", () => {
-  const two = parseUnifiedDiff(
-    [
-      ...modified('src/two.js', [
-        [10, 2],
-        [50, 2],
-      ]),
-      '',
-    ].join('\n'),
-  );
-  // a chapter as an older story wrote it: no `refs` list
-  const told = (fields: PlanChapter) =>
-    chaptersOf(
-      upgradePlan({ chapters: [{ title: 'Chapter', files: ['src/two.js'], ...fields }] }, [
-        ...two.keys(),
-      ]),
-    );
-  // listed and small: covered by the listing, and a text reference to one hunk does not take that away
-  assert.deepEqual(uncoveredHunks(told({ narrative: 'See `two.js:11`.' }), two), []);
-  const [text] = told({ narrative: 'See `two.js:11`.' });
-  assert.equal(text.files[0].lines, undefined, 'and gives the file no lines of its own');
-  assert.equal(text.refs[0].text, true);
-  // a `lines` range is a pointer the author chose, as it was: the other hunk then needs pointing at
-  const lines = told({
-    files: [{ rel: 'src/two.js', lines: [{ side: 'R', start: 11, end: 12 }] }],
-  });
-  assert.deepEqual(
-    uncoveredHunks(lines, two).map((file) => file.hunks.map((hunk) => hunk.start)),
-    [[50]],
   );
 });

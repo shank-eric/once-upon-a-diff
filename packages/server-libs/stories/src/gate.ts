@@ -4,7 +4,6 @@
 import type { Chapter, DiffFile, UncoveredFile } from '@once-upon-a-diff/contracts/types';
 import { finishedInOf } from '@once-upon-a-diff/terms/chapters';
 import { chaptersOf, type Plan } from './chapters.ts';
-import { upgradePlan } from './legacy.ts';
 import { keptChapters } from './validate.ts';
 import { SMALL_FILE_LINES, uncoveredHunks } from './hunk-coverage.ts';
 
@@ -19,8 +18,7 @@ export function unfinishedPartials(
   const finishedIn = finishedInOf(chapters);
   const out: { rel: string; index: number }[] = [];
   for (const [rel, step] of Object.entries(finishedIn)) {
-    // an older story's text pointer (legacy.ts) is no listing: the chapter never named the file, so it is no partial
-    const entries = chapters[step - 1].files.filter((entry) => entry.rel === rel && !entry.ref);
+    const entries = chapters[step - 1].files.filter((entry) => entry.rel === rel);
     if (diff.has(rel) && entries.length && entries[entries.length - 1].partial) {
       out.push({ rel, index: step - 1 });
     }
@@ -41,7 +39,7 @@ export function partialProblems(chapters: Chapter[], diff: Map<string, DiffFile>
 
 /**
  * The build's placement problems for a story over `diff`: a chapter naming a file the diff does not have, a file in no
- * chapter, and a file left partial. `chapters` are chapters.json's, normalized (chaptersOf, after upgradePlan).
+ * chapter, and a file left partial. `chapters` are chapters.json's, normalized (chaptersOf).
  */
 export function placementProblems(chapters: Chapter[], diff: Map<string, DiffFile>): string[] {
   const placed = new Set<string>();
@@ -80,7 +78,7 @@ export function hunksNotCovered(uncovered: UncoveredFile[]): string {
  * published (`served`) counts every ref, as the rebuild's vet does. `chapters` and `kept` go on to the build's map.
  */
 export function gateCheck(plan: Plan, diff: Map<string, DiffFile>, served?: Plan | null) {
-  const chapters = chaptersOf(upgradePlan(plan, [...diff.keys()]));
+  const chapters = chaptersOf(plan);
   const kept = keptChapters(plan, served);
   return {
     chapters,

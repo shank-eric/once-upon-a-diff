@@ -2,7 +2,7 @@
  * How a story's text points at lines. A story links by data: a chapter's `refs` entry has an id, and the text links to
  * it as `[text](ref:<id>)` (refLinkId, refIdsIn). A link to a file's diff with a line anchor (#diff-<sha256>R45) names
  * its file by an exact id, so it jumps too (parseDiffLink). The backticked `path:45`, `path:40-58`, `path:L12` and bare
- * `:45` forms (parseLineRef) link nothing: only the bridge reads them, to upgrade an older story and to lint a new one.
+ * `:45` forms (parseLineRef) link nothing: only the bridge reads them, to lint a new story.
  */
 
 /** A side of a file's diff: 'L' the old lines, 'R' the new. */

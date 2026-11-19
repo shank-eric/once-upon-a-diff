@@ -21,7 +21,6 @@
 import { chaptersOf, entryOf, refOf } from './chapters.ts';
 import { chapterKeyOf } from '@once-upon-a-diff/terms/chapters';
 import { plural, sameSha } from '@once-upon-a-diff/terms/text';
-import { upgradePlan } from './legacy.ts';
 import { canonical, keptChapters, withoutKey } from './validate.ts';
 import { uncoveredHunks, sidesOf } from './hunk-coverage.ts';
 import type { DiffFile } from '@once-upon-a-diff/contracts/types';
@@ -76,7 +75,7 @@ function coverageProblems(
   { allowUncovered = false } = {},
 ): string[] {
   const rels = [...diff.keys()];
-  const chapters = chaptersOf(upgradePlan(after, rels));
+  const chapters = chaptersOf(after);
   const problems: string[] = [];
   const placed = new Set<string>();
   chapters.forEach((chapter, i) => {
@@ -266,8 +265,7 @@ export function carryDrafts(
   if (!(after.chapters || []).length || (after.chapters as PlanChapter[]).length < from) {
     return counts;
   }
-  // the drafts of a story told before refs name their file by a path suffix; read it as a new one, with full paths
-  for (const chapter of (upgradePlan(before, rels).chapters || []).slice(from - 1)) {
+  for (const chapter of (before.chapters || []).slice(from - 1)) {
     for (const comment of chapter.comments || []) {
       const id = commentId(comment);
       if (present.has(id)) {

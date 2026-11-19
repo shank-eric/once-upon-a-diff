@@ -94,9 +94,8 @@ function countedRefs(chapter: Chapter, index: number, options: CoverageOptions):
     return chapter.refs;
   }
   const linked = new Set(refIdsIn(textOf(chapter)));
-  // an older story's text reference (legacy.ts) is read as it was told, with no link to follow
   // a hunk the chapter lists by id (`hunks`) was named by the chapter, so it counts without a link
-  return chapter.refs.filter((ref) => ref.text || ref.hunk || linked.has(ref.id));
+  return chapter.refs.filter((ref) => ref.hunk || linked.has(ref.id));
 }
 
 /** What the chapters point at, per file: the entries that tell all of it, and the line ranges of the pointers. */
@@ -117,17 +116,12 @@ function pointersOf(chapters: Chapter[], diff: Map<string, DiffFile>, options: C
       if (!file) {
         continue;
       }
-      if (!entry.ref) {
-        listed.add(entry.rel);
-      }
-      // a text reference of an older story covers hunks (below) but never made a listed file need pointing at
-      const pointed = refs.some(
-        (ref) => ref.path === entry.rel && ref.start !== undefined && !ref.text,
-      );
-      if (!entry.ref && entry.whole) {
+      listed.add(entry.rel);
+      const pointed = refs.some((ref) => ref.path === entry.rel && ref.start !== undefined);
+      if (entry.whole) {
         marked.add(entry.rel);
       }
-      if (!entry.ref && (entry.whole || (!pointed && coveredByListing(file, entry, chapter)))) {
+      if (entry.whole || (!pointed && coveredByListing(file, entry, chapter))) {
         whole.add(entry.rel);
       }
     }
@@ -153,7 +147,7 @@ function pointersOf(chapters: Chapter[], diff: Map<string, DiffFile>, options: C
 
 /**
  * The hunks no chapter covers: [{rel, hunks: [{side, start, end, ref}]}] in diff order. chapters are chapters.json's,
- * normalized (chaptersOf; an older story is upgraded first, legacy.ts).
+ * normalized (chaptersOf).
  */
 export function uncoveredHunks(
   chapters: Chapter[],

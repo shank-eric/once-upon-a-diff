@@ -24,7 +24,6 @@ import {
   thinHunks,
   uncoveredHunks,
 } from './hunk-coverage.ts';
-import { upgradePlan } from './legacy.ts';
 import { lintTextRefs } from './text-refs.ts';
 import { chapterProblems, keptChapters } from './validate.ts';
 import { expandHunks } from './hunk-ids.ts';
@@ -132,7 +131,7 @@ const named = (num: number | undefined) =>
 function placementFindings(plan: Plan, diff: Map<string, DiffFile>): Finding[] {
   const out: Finding[] = [];
   const rels = [...diff.keys()];
-  const chapters = chaptersOf(upgradePlan(plan, rels));
+  const chapters = chaptersOf(plan);
   const numbers = panelNumbers(chapters);
   const placed = new Set<string>();
   chapters.forEach((chapter, index) => {
@@ -162,8 +161,7 @@ function pointerFindings(plan: Plan, diff: Map<string, DiffFile>): Finding[] {
       out.push(fail('refs', `${owner}: ${line}`, chapter));
     }
   };
-  const rels = [...diff.keys()];
-  const chapters = chaptersOf(upgradePlan(plan, rels));
+  const chapters = chaptersOf(plan);
   const numbers = panelNumbers(chapters);
   refFindings(plan.refs || [], 'the overview');
   (plan.chapters || []).forEach((chapter, index) =>
@@ -181,7 +179,7 @@ function pointerFindings(plan: Plan, diff: Map<string, DiffFile>): Finding[] {
 
 function lengthFindings(plan: Plan, diff: Map<string, DiffFile>): Finding[] {
   const out: Finding[] = [];
-  const chapters = chaptersOf(upgradePlan(plan, [...diff.keys()]));
+  const chapters = chaptersOf(plan);
   const journey = (plan.mode || 'journey') !== 'chronological';
   const numbers = panelNumbers(chapters);
   chapters.forEach((chapter, index) => {
@@ -261,9 +259,9 @@ function lengthFindings(plan: Plan, diff: Map<string, DiffFile>): Finding[] {
 }
 
 /** The chapters as the panel numbers them: a "Since you read it" chapter has no number. */
-function shapeFindings(plan: Plan, diff: Map<string, DiffFile>): Finding[] {
+function shapeFindings(plan: Plan): Finding[] {
   const out: Finding[] = [];
-  const chapters = chaptersOf(upgradePlan(plan, [...diff.keys()]));
+  const chapters = chaptersOf(plan);
   const numbered = chapters
     .map((chapter, index) => ({ chapter, index }))
     .filter(({ chapter }) => !chapter.since && !chapter.auto);
@@ -394,8 +392,7 @@ export function storyFindings(
   // a chapter's `hunks` ids are read as the refs they become at build (a copy: this only reads)
   const plan = structuredClone(given);
   const hunked = expandHunks(plan, diff);
-  const rels = [...diff.keys()];
-  const chapters = chaptersOf(upgradePlan(plan, rels));
+  const chapters = chaptersOf(plan);
   const kept = keptChapters(plan, served);
   const findings: Finding[] = [
     ...placementFindings(plan, diff),
@@ -424,7 +421,7 @@ export function storyFindings(
     ...chapterProblems(plan, { diff, served, pointers: false }).map((line) => fail('plan', line)),
     ...pointerFindings(plan, diff),
     ...lengthFindings(plan, diff),
-    ...shapeFindings(plan, diff),
+    ...shapeFindings(plan),
     ...lintTextRefs(plan).map((line) => warn('links', line)),
   ];
   return [

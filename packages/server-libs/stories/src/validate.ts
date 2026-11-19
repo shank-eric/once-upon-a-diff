@@ -1,5 +1,5 @@
 /*
- * What a chapters.json must be to be published (a plan told now; older stories are upgraded when read, legacy.ts):
+ * What a chapters.json must be to be published (a plan told now):
  *
  *   key       every chapter has one, unique in the story. The bridge assigns it when a chapter has none (assignKeys), from
  *             its title as the panel always derived it, and the author keeps it from then on.
