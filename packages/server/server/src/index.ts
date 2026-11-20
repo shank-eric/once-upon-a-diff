@@ -75,6 +75,7 @@ import { boardRoutes } from './routes/board.ts';
 import { githubRoutes } from './routes/github.ts';
 import { AutoReview } from '@once-upon-a-diff/core/features/review/github-watcher';
 import { CardKeeper } from '@once-upon-a-diff/core/features/cards/card-keeper';
+import { backfillCards, backfillLine } from '@once-upon-a-diff/core/features/runs/service';
 import {
   ghBranchCheck,
   ghPrCheck,
@@ -194,6 +195,18 @@ export function createBridge({
   }
   // stories from before review.json read as not reviewed until their old reviewed.json and approved.json are folded in
   convertReviewFiles(home);
+  // the cards of runs made before stored cards (`ic_` ids) are stored before the board's first build, so the card keeper never
+  // stores a second card on their branch. Stored ids only (not --cardless: that moves runs on the board, which `card backfill` does by hand)
+  if (keeper) {
+    try {
+      const counts = backfillCards(home);
+      if (counts.added) {
+        log(backfillLine(counts, false));
+      }
+    } catch (error) {
+      log(`card backfill failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
   const stories = new StoryStore({ home });
   const inbox = new Inbox(home);
   const autoReview = new AutoReview(stories, checkPr, undefined, checkBranch, checkRequested, home);

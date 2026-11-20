@@ -14,8 +14,8 @@ export const STORY_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$/;
 export const SESSION_RE = /^[A-Za-z0-9._-]{1,100}$/;
 
 /**
- * A card's id: `bl_` for a backlog item, `ic_` for an implicit card (a run that did not start in the backlog is its own card,
- * `implicitCardId` in ids.ts). One regex, because an adopted implicit card is a backlog item that keeps its `ic_` id.
+ * A card's id: `bl_` for a stored card, `ic_` for an old run's card (minted before stored cards; `card backfill` stores it
+ * under that id). One regex, because such a card keeps its `ic_` id.
  */
 export const BACKLOG_ID_RE = /^(?:bl|ic)_[a-z0-9]{6,24}$/;
 

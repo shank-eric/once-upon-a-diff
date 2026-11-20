@@ -5,7 +5,7 @@
  * log line to it, so those files stay logs written by this command, for people and scripts (the board never reads them).
  * `--no-mirror` skips those lines, for a caller that writes the progress line itself, so one beat is one line. It goes after the words: a flag takes the next word.
  */
-import { agentId, isImplicitCard } from '@once-upon-a-diff/terms/ids';
+import { agentId } from '@once-upon-a-diff/terms/ids';
 import path from 'node:path';
 import { ownSession } from '@once-upon-a-diff/core/features/listeners/service';
 import { sweepStatusLines } from '@once-upon-a-diff/core/features/sessions/status-lines';
@@ -151,9 +151,9 @@ async function start({ home, opts, mirror, warn, sid, who, name, words }: Call) 
   );
   // the day-old status line files of gone sessions go with a start that was accepted (housekeeping, not part of the run)
   await sweepStatusLines(home);
-  // an implicit card's id is printed beside the run's, so a later run on the same work (a critic of it) can pass --card; so is
-  // the card a start joined, whatever its id
-  const line = `${started.id} ${started.run}${isImplicitCard(started.card) || started.joined ? ` ${started.card}` : ''}`;
+  // the card a start made is printed beside the run's id, so a later run on the same work (a critic of it) can pass --card; so is
+  // the card a start joined. A start that named its card prints nothing extra
+  const line = `${started.id} ${started.run}${started.card && (!opts.card || started.joined) ? ` ${started.card}` : ''}`;
   return out(
     started.joined
       ? `${line}\njoined ${started.joined.card} (${started.joined.title}): the open card on ${started.joined.branch}. --new-card starts another.`
@@ -285,7 +285,7 @@ export const agentCommands: Command[] = [
     usage: [
       '  once-upon agent start NAME --kind author|critic|helper|research|storyteller --task TEXT   register an agent the board shows (its sid comes from the session; prints its id and run)',
       "                                                                                   --card ID: the card it works on, which gives it its repo and branch (a critic, fixer or storyteller needs one; --role says which, and --kind, --lane and a --repo, --branch or --pr the card already answers are refused, claim the card before an author starts); --pr or --branch on a card with no branch becomes the card's branch. --lane is ignored without a card",
-      '                                                                                   no --card: the run is its own card (an implicit card, in the registry only: its id is printed after the run id, for a critic of the work to pass as --card); a restart of the same name stays on it, --new-card starts another',
+      '                                                                                   no --card: the run is its own card (a card is stored for it: its id is printed after the run id, for a critic of the work to pass as --card); a restart of the same name stays on it, --new-card starts another',
       '                                                                                   --standing: a long-lived helper (the backlog clerk), in the Helpers row, never a card; put it before another flag. A restart of the same name may leave out --kind and --standing: they carry over (--standing false clears it)',
       '                                                                                   --replaces NAME: the earlier run of this session this one retries (a deploy run after a failed one): once this one finishes done, the failed one leaves the board',
       '  once-upon agent state NAME --state running|waiting|review|plan|fixing            move it: a plan to check, a question, parked on a story review, fixing findings',

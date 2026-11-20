@@ -4,7 +4,6 @@ import {
   RUN_ID_RE,
   agentId,
   agentWorkKey,
-  implicitCardId,
   isImplicitCard,
   branchKey,
   branchKeyPrefix,
@@ -254,7 +253,6 @@ test('repoProblem: a repo on a known lane is not noted, in any case; a repo on n
 });
 
 test('an implicit card id is an ic_ card id, minted from a fresh suffix, and a backlog id is not one', () => {
-  assert.equal(implicitCardId('k3j9x2abc'), 'ic_k3j9x2abc');
   assert.equal(isImplicitCard('ic_k3j9x2abc'), true);
   assert.equal(isImplicitCard('bl_k3j9x2abc'), false);
   assert.equal(isImplicitCard(null), false);

@@ -10,19 +10,17 @@ import {
   BacklogStore,
   cardLookup,
   claimHint,
+  isListed,
 } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { dropRunsProblem, runsOf } from '@once-upon-a-diff/state/queues/backlog/phase';
 import { claimWorktreeProblem } from '@once-upon-a-diff/state/queues/backlog/claim-worktree';
 import { moveBranch } from '@once-upon-a-diff/core/features/runs/service';
 import { ownSession } from '@once-upon-a-diff/core/features/listeners/service';
 import { landItems, recordedTips } from '@once-upon-a-diff/state/queues/backlog/landing';
-import { implicitCards } from '@once-upon-a-diff/state/records/agents/implicit';
-import { implicitItems, liveImplicitIds } from '@once-upon-a-diff/state/queues/backlog/implicit';
-import { runIsOpen } from '@once-upon-a-diff/state/records/agents/events';
+import { liveCardIds } from '@once-upon-a-diff/state/queues/backlog/implicit';
 import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
 import { out } from '../output.ts';
 import { warnTypedRepo } from '../typed-repo.ts';
-import type { ImplicitCard } from '@once-upon-a-diff/state/records/agents/implicit';
 import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
 import type { Config } from '@once-upon-a-diff/foundation/settings';
 import type { CliOpts, Command } from '../types.ts';
@@ -82,16 +80,16 @@ interface Call {
   words: string[];
   store: BacklogStore;
   who: string | null;
-  /** the stored card the first word names (an implicit card is refused with the way to adopt it) */
+  /** the listed card the first word names (a card an agent made is refused with the way to adopt it) */
   found(): BacklogItem;
-  /** the implicit cards (ADR-27) are the registry's runs: they are in no backlog file until adopted */
+  /** the cards agents made (ADR-27, ADR-29): stored, but not listed in the backlog until adopted */
   implicit(): BacklogItem[];
   adoptCard(id: string | undefined, title: string | null, note?: string | null): AdoptedCard;
   adoptStarted(id: string | undefined, title: string | null, note?: string | null): BacklogItem;
 }
 
 type AdoptedCard = {
-  card: ImplicitCard;
+  card: BacklogItem;
   adopted: BacklogItem;
 };
 
@@ -100,7 +98,11 @@ type Verb = (call: Call) => unknown;
 function callOf(home: string, opts: CliOpts, words: string[]): Call {
   const store = new BacklogStore(home);
   const who = text(opts.by);
-  const implicit = () => implicitItems(new AgentRegistry(home).agents(), store.listed());
+  const implicit = () =>
+    store
+      .items()
+      .filter((one) => one.source === 'agent' && !isListed(one) && one.state !== 'dropped')
+      .map((one) => ({ ...one, implicit: true as const }));
   const found = () => {
     const item = store.listed().find((one) => one.id === words[0]);
     if (item) {
@@ -108,34 +110,23 @@ function callOf(home: string, opts: CliOpts, words: string[]): Call {
     }
     if (implicit().some((one) => one.id === words[0])) {
       throw new Error(
-        `${words[0]} is an implicit card (a run that did not start in the backlog): once-upon backlog adopt ${words[0]} first`,
+        `${words[0]} is a card an agent made (not listed in the backlog): once-upon backlog adopt ${words[0]} first`,
       );
     }
     throw new Error(`no backlog item ${words[0] || ''}`.trim());
   };
-  // an implicit card written into the backlog under its own id, as `adopt` and `drop` need it
+  // a card an agent made, listed in the backlog under its own id, as `adopt` and `drop` need it
   const adoptCard = (id: string | undefined, title: string | null, note?: string | null) => {
     if (store.listed().some((one) => one.id === id)) {
       throw new Error(`${id} is already a card`);
     }
-    const card = implicitCards(new AgentRegistry(home).agents()).find((one) => one.id === id);
+    const card = implicit().find((one) => one.id === id);
     if (!card) {
       throw new Error(
-        `no such card ${id ?? ''}: only an implicit card (ic_...) can be adopted`.trim(),
+        `no such card ${id ?? ''}: only a card an agent made (backlog list --implicit) can be adopted`.trim(),
       );
     }
-    // an agent's card the start already stored (ADR-29) is listed, not added a second time
-    const adder = who ?? card.agent;
-    const adopted = store.items().some((one) => one.id === card.id)
-      ? store.adopt(card.id, { title, note, by: adder })
-      : store.add({
-          id: card.id,
-          title: title ?? card.title,
-          note: note ?? (card.task && card.task !== card.title ? card.task : null),
-          repo: card.repo,
-          branch: card.branch,
-          by: adder,
-        });
+    const adopted = store.adopt(card.id, { title, note, by: who ?? card.added_by });
     return { card, adopted };
   };
   // a card with a branch is started on it, as `claim --branch` does, so it reads as work done or under way: no Assign while its
@@ -146,15 +137,20 @@ function callOf(home: string, opts: CliOpts, words: string[]): Call {
   const adoptStarted = (id: string | undefined, title: string | null, note?: string | null) => {
     const { card, adopted } = adoptCard(id, title, note);
     if (card.branch) {
-      store.start(adopted.id, { branch: card.branch, repo: card.repo, by: who ?? card.agent });
-      store.claim(adopted.id, { agent: card.agent, sid: card.sid, by: who ?? card.agent });
+      const first = runsOf(card, new AgentRegistry(home).agents())[0];
+      const adder = who ?? first?.name ?? card.added_by;
+      store.start(adopted.id, { branch: card.branch, repo: card.repo, by: adder });
+      // a card an author started already carries the claim its start wrote
+      if (!card.claim && first) {
+        store.claim(adopted.id, { agent: first.name, sid: first.sid, by: adder });
+      }
     }
     return adopted;
   };
   return { home, opts, words, store, who, found, implicit, adoptCard, adoptStarted };
 }
 
-/** `adopt`: an implicit card becomes a backlog card, with its own id: its runs already name it. */
+/** `adopt`: a card an agent made becomes a backlog card, with its own id: its runs already name it. */
 function adopt({ opts, words, adoptStarted }: Call) {
   const adopted = adoptStarted(words[0], text(opts.title));
   return out(`${adopted.id} adopted: ${adopted.title}`);
@@ -169,18 +165,20 @@ function titleOf(opts: CliOpts, words: string[]): string {
   return flagged ?? words.join(' ');
 }
 
-/** The implicit card an `add` on this repo and branch would make: it is not stored yet, a run of it is open, and one ran on the branch. */
+/** The card an agent made that an `add` on this repo and branch would make: not listed yet, a run of it is open, and it is on the branch. */
 function liveCardOn(call: Call, repo: string | null, branch: string | null) {
   if (!isFeatureBranch(branch)) {
     return undefined;
   }
-  const isStored = (card: ImplicitCard) => call.store.listed().some((item) => item.id === card.id);
-  const inRepo = (card: ImplicitCard) => (repo ? sameRepo(card.repo, repo) : !card.repo);
-  const ranOnBranch = (card: ImplicitCard) =>
-    card.runs.some((run) => (run.result?.branch ?? run.branch) === branch);
-  return implicitCards(new AgentRegistry(call.home).agents()).find(
-    (card) => !isStored(card) && card.runs.some(runIsOpen) && inRepo(card) && ranOnBranch(card),
-  );
+  const live = liveCardIds(new AgentRegistry(call.home).agents(), Date.now());
+  return call
+    .implicit()
+    .find(
+      (card) =>
+        live.has(card.id) &&
+        card.branch === branch &&
+        (repo ? sameRepo(card.repo, repo) : !card.repo),
+    );
 }
 
 function add(call: Call) {
@@ -190,7 +188,7 @@ function add(call: Call) {
   // the checkout the command runs in names the repo unless --repo says otherwise
   const repo = text(opts.repo) ?? repoOfCheckout(process.cwd());
   const branch = text(opts.branch);
-  // work and its card are one card: an implicit card with a run open on this repo and branch is the card this add would make,
+  // work and its card are one card: a card an agent made with a run open on this repo and branch is the card this add would make,
   // so it is adopted with this title and note (as `adopt` does) and no second card is written. A card whose runs are all over
   // is earlier work on a reused branch name: this one is its own
   const live = liveCardOn(call, repo, branch);
@@ -209,7 +207,7 @@ const numbered = (items: BacklogItem[], home: string): string[] =>
 
 /** `list --implicit`: only the implicit cards, the live ones (a run open), or every one with --all. */
 function listImplicit({ home, opts, implicit }: Call) {
-  const live = liveImplicitIds(new AgentRegistry(home).agents(), Date.now());
+  const live = liveCardIds(new AgentRegistry(home).agents(), Date.now());
   const cards = implicit().filter((item) => opts.all || live.has(item.id));
   if (opts.json) {
     return out(JSON.stringify(cards, null, 2));

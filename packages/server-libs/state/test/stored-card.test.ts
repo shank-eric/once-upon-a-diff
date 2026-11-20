@@ -265,6 +265,7 @@ test('cardLookup answers for a stored agent card as it did for the implicit one:
     branch: 'feat-a',
     claimed: true,
     worktree: null,
+    agentMade: true,
   });
   assert.equal(lookup(backlog.id)?.claimed, false);
   assert.equal(lookup('ic_nothere1111'), null);

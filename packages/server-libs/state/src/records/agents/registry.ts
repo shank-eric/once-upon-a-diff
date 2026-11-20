@@ -13,7 +13,7 @@ import {
 import { SHA_RE } from '@once-upon-a-diff/terms/text';
 import { REPO_RE } from '@once-upon-a-diff/foundation/repos';
 import { agentId, isImplicitCard, isSelfName } from '@once-upon-a-diff/terms/ids';
-import { newImplicitCardId, newRunId } from '@once-upon-a-diff/foundation/ids';
+import { newRunId } from '@once-upon-a-diff/foundation/ids';
 import { appendAgentEvent } from '@once-upon-a-diff/adapters/stores/agents-file';
 import { agentEventsIn } from './events-file.ts';
 import { appendLine } from '@once-upon-a-diff/adapters/stores/fs/lines';
@@ -38,7 +38,6 @@ import {
   runIsOpen,
   type AgentEvent,
 } from './events.ts';
-import { implicitCards } from './implicit.ts';
 import {
   commitOf,
   defaultBranchOf,
@@ -83,9 +82,9 @@ export interface StartInput extends Target {
   pr?: number | string | null;
   cwd?: string | null;
   card?: string | null;
-  /** with a card checked (ADR-25): no card named and none to carry over mints an implicit card, unless this says not to (ADR-27) */
+  /** with a card checked (ADR-25): no card named and none to carry over needs a card stored first (`mintedCard`), unless this says not to (ADR-27) */
   newCard?: boolean;
-  /** the id of the card the caller already stored for the run this start would mint (ADR-29); used in place of a fresh `ic_` id */
+  /** the id of the card the caller already stored for the run this start would mint (ADR-29); required when the start mints */
   mintedCard?: string | null;
   /** the caller claims the card for this author once the start is accepted (a start that joined an unclaimed card): the claim check is waived */
   claimsOnStart?: boolean;
@@ -158,11 +157,13 @@ export interface CardFacts {
   claimed: boolean;
   /** the checkout the card's work is in, when a link says (ADR-29): where a finish reads git */
   worktree?: string | null;
+  /** an agent made the card (a start with no card stored it, ADR-29): its runs may name another card on finish */
+  agentMade?: boolean;
 }
 
 /**
  * Whether a start with no card to carry over makes one (ADR-27, ADR-29): a critic, a storyteller and an editor work on cards that
- * exist, a fixer too, and a standing agent is no work. The one rule: the registry mints by it, and the caller that stores the card first asks it.
+ * exist, a fixer too, and a standing agent is no work. The one rule: startRun stores a card by it, and the caller that stores the card first asks it.
  */
 export const mintsCard = (run: {
   cardId: string | null;
@@ -408,17 +409,11 @@ export class AgentRegistry {
   }
 
   /**
-   * The card an id names, as a run on it needs it: the backlog's first (an adopted implicit card is a backlog item that can be
-   * dropped or landed, and then takes no runs), else, for an `ic_` id, the implicit card the registry's own runs made (always
-   * open, its first run's repo and its latest branch). Null when no card has the id, so a made-up `ic_` id is refused.
+   * The card an id names, as a run on it needs it: the stored card with that id (any id; it can be dropped or landed, and then
+   * takes no runs). Null when none stores it, so a made-up or not yet backfilled `ic_` id is refused.
    */
   private cardFacts(id: string): CardFacts | null {
-    const real = this.cards?.(id) ?? null;
-    if (real || !isImplicitCard(id)) {
-      return real;
-    }
-    const card = implicitCards(this.agents()).find((one) => one.id === id);
-    return card ? { id, closed: null, repo: card.repo, branch: card.branch, claimed: true } : null;
+    return this.cards?.(id) ?? null;
   }
 
   /**
@@ -513,7 +508,10 @@ export class AgentRegistry {
       throw new Error('a fixer works on a card: pass --card ID');
     }
     if (mints) {
-      cardId = optional(input.mintedCard, 'the minted card', BACKLOG_ID_RE) ?? newImplicitCardId();
+      cardId = optional(input.mintedCard, 'the minted card', BACKLOG_ID_RE);
+      if (!cardId) {
+        throw new Error('a run with no card needs its card stored first (startRun does it)');
+      }
     }
     if (this.cards && kind === 'critic' && !cardId) {
       throw new Error(
@@ -528,7 +526,7 @@ export class AgentRegistry {
     }
     // a card the caller stored for this start has no runs, unless a start that joined it got in first: two authors on one card
     // are the same refusal there
-    if (mints && cardId && kind === 'author' && input.mintedCard) {
+    if (mints && cardId && kind === 'author') {
       this.refuseSecondAuthor(cardId, sid, name, input.at);
     }
     if (this.cards && cardId && !mints) {
@@ -847,9 +845,15 @@ export class AgentRegistry {
     const pr = count(given.pr, 'the PR number');
     const branch = optional(given.branch, 'the branch', CARD_BRANCH_RE);
     const card = optional(given.card, 'the card', BACKLOG_ID_RE);
-    // a run that started on a card finishes on it. One that started with none, or on an implicit card (it made its own, ADR-27),
+    // a run that started on a card finishes on it. One that started with none, or on a card an agent made for it (ADR-27, ADR-29),
     // may name its card here, and nothing is said.
-    if (card && agent.card && !isImplicitCard(agent.card) && card !== agent.card) {
+    if (
+      card &&
+      agent.card &&
+      !isImplicitCard(agent.card) &&
+      !this.cardFacts(agent.card)?.agentMade &&
+      card !== agent.card
+    ) {
       warn?.(`once-upon: --card ${card} is not the card ${name} started on (${agent.card})`);
     } else if (card && this.cards && !this.cardFacts(card)) {
       warn?.(`once-upon: --card ${card} is not a backlog card`);

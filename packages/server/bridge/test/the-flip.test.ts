@@ -159,7 +159,7 @@ test('an author with no card needs --branch, which mints its implicit card; a fi
     'b',
   );
   assert.equal(named.code, 0, named.stderr);
-  assert.match(named.stdout.trim().split(' ')[2], /^ic_/);
+  assert.match(named.stdout.trim().split(' ')[2], /^bl_/);
 });
 
 test('an author on a card with no claim is refused: the claim comes first, then the start, then a fix round', async () => {

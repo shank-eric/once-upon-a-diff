@@ -135,13 +135,13 @@ describe('fixed --sha records the fix as a run on the branch’s card', () => {
     assert.equal(readFixes(fixture.home)[fixture.request].run, fixture.runs()[0].run);
   });
 
-  test('a branch with no open card gets an implicit one for the run, and the line says so', async () => {
+  test('a branch with no open card gets a bl_ card for the run, and the line says so', async () => {
     const fixture = scene({ card: false });
     const sha = fixture.commit('fix.txt');
     const done = await fixture.cli('fixed', '--request', fixture.request, '--sha', sha);
     assert.equal(done.code, 0, done.stderr);
     assert.match(done.stdout, /no open card on feature: made it/);
-    assert.match(fixture.runs()[0].card ?? '', /^ic_/);
+    assert.match(fixture.runs()[0].card ?? '', /^bl_/);
   });
 
   test('--failed records no run, and a sha that is not at or behind HEAD is refused with the request left pending', async () => {
@@ -216,7 +216,7 @@ describe('fixed --sha records the fix as a run on the branch’s card', () => {
     assert.equal(carried?.carried?.from, first);
   });
 
-  test('a card that exists only as runs (an implicit ic_ card, no backlog row) takes the fixer run without a claim error', async () => {
+  test('an old ic_ card that `card backfill` stored takes the fixer run, and no second card is made', async () => {
     const fixture = scene({ card: false });
     const earlier = git(fixture.repo, 'rev-parse', 'HEAD');
     registerRuns(fixture.home, {
@@ -235,6 +235,11 @@ describe('fixed --sha records the fix as a run on the branch’s card', () => {
       },
     });
     assert.equal(fixture.backlog.items().length, 0);
+    assert.equal((await fixture.cli('card', 'backfill')).code, 0);
+    assert.deepEqual(
+      fixture.backlog.items().map((one) => one.id),
+      [IMPLICIT],
+    );
     const sha = fixture.commit('fix.txt');
     const done = await fixture.cli('fixed', '--request', fixture.request, '--sha', sha);
     assert.equal(done.code, 0, done.stderr);

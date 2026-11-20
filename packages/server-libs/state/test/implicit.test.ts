@@ -4,8 +4,7 @@ import assert from 'node:assert/strict';
 import { tmp } from '@once-upon-a-diff/test-kit/files';
 import { AgentRegistry } from '../src/records/agents/registry.ts';
 import { implicitCards } from '../src/records/agents/implicit.ts';
-import { implicitItems } from '../src/queues/backlog/implicit.ts';
-import { BacklogStore } from '../src/queues/backlog/backlog.ts';
+import { liveCardIds } from '../src/queues/backlog/implicit.ts';
 
 const when = (minutes: number) => new Date(Date.UTC(2026, 10, 6, 12, minutes));
 const card = (id: string) => ({ ...({} as object), card: id });
@@ -60,8 +59,8 @@ test('a card is every run that names an ic_ id: title cut at 80 characters, repo
   assert.equal(found.runs.length, 3);
 });
 
-test('an adopted id drops out, and the items carry implicit and are live while a run is open', () => {
-  const home = tmp('implicit-items');
+test('liveCardIds: a card is live while a run on it is open and fresh, earlier runs included', () => {
+  const home = tmp('implicit-live');
   const registry = new AgentRegistry(home);
   registry.start({
     name: 'a',
@@ -80,18 +79,22 @@ test('an adopted id drops out, and the items carry implicit and are live while a
     at: when(1),
   });
   registry.finish('b', { sid: 'aaaaaaaa', at: when(2) });
-  const store = new BacklogStore(home);
-  const items = implicitItems(registry.agents(), store.items());
+  assert.deepEqual([...liveCardIds(registry.agents(), when(3).getTime())], ['ic_one111111']);
   assert.deepEqual(
-    items.map((one) => [one.id, one.implicit, one.state]),
-    [
-      ['ic_one111111', true, 'open'],
-      ['ic_two222222', true, 'open'],
-    ],
+    [...liveCardIds(registry.agents(), when(3).getTime() + 24 * 3600 * 1000)],
+    [],
+    'a run silent past STALE_MS is not live',
   );
-  store.add({ id: 'ic_one111111', title: 'one' });
-  assert.deepEqual(
-    implicitItems(registry.agents(), store.items()).map((one) => one.id),
-    ['ic_two222222'],
+});
+
+test('a minting start with no mintedCard is refused, and a registry with no card lookup never mints', () => {
+  const home = tmp('implicit-nomint');
+  const stored = new AgentRegistry(home, undefined, () => null);
+  assert.throws(
+    () => stored.start({ name: 'a', sid: 'aaaaaaaa', kind: 'helper', task: 'one', at: when(0) }),
+    /needs its card stored first/,
   );
+  const bare = new AgentRegistry(home);
+  bare.start({ name: 'b', sid: 'bbbbbbbb', kind: 'helper', task: 'two', at: when(1) });
+  assert.equal(bare.agents().find((one) => one.name === 'b')?.card ?? null, null);
 });
