@@ -33,9 +33,8 @@
  *
  * An open item is a card in the Backlog column, in its repo's lane. A started item leaves the column and is one piece of
  * work shown once: it rides on the card its work is on (the work card for its repo and branch: "from backlog"), or, with
- * no card, is a card of its own in Working (so a wrong branch name doesn't make
- * it vanish: STARTED_GRACE_HOURS, or as long as a worktree, session or agent is found on it, backlog-links.ts) and then
- * in Done once it merged, landed or its agent finished. That is worked out on read, so a board snapshot never writes.
+ * no card, is a card of its own: in Backlog until a run, a session or a landing says more, then in Done once it merged,
+ * landed or its agent finished. That is worked out on read, so a board snapshot never writes.
  */
 import {
   BACKLOG_ID_RE,
@@ -65,7 +64,6 @@ import type { LedgerAgent } from '../../records/agents/ledger.ts';
 import type { CardLookup } from '../../records/agents/registry.ts';
 import type { BacklogItem, CardSource } from './types.ts';
 
-export const STARTED_GRACE_HOURS = 24;
 export { DONE_HOURS };
 
 const TITLE_MAX = 200;
@@ -767,10 +765,10 @@ export function mergeIntoWork(
  *
  *   on a card    it rides on the work or session card for its repo and branch, with its runs' views in that card's
  *                `agents`; that card's column carries on
- *   no card      it is a card of its own in Working ("started, no session yet" until `links` (backlog-links.ts) finds a
- *                worktree, session or agent), in Done once its work merged or landed (`once-upon backlog done`), and gone
- *                DONE_HOURS after that. Its runs decide the rest (`cardPhase`): finished with a branch, it is
- *                Ready; failed or stopped, it is back in Backlog. An unlinked one is gone after STARTED_GRACE_HOURS
+ *   no card      it is a card of its own: in Backlog ("started, no session yet" until `links` (backlog-links.ts) finds a
+ *                worktree, session or agent) while no run, session or landing says more, in Done once its work merged or
+ *                landed (`once-upon backlog done`), and gone DONE_HOURS after that. Its runs decide the rest (`cardPhase`):
+ *                finished with a branch, it is Ready; failed or stopped, it is back in Backlog
  *
  * A card is one card: the agents whose runs name it have no card of their own (stages/agents.ts holds them out) and show on
  * this one, in `agents` (`views`, by item id). A claim no run names yet is Working, marked pending, for CLAIM_GRACE_HOURS.
@@ -825,8 +823,8 @@ export function backlogCards(
       } else if (placed.when !== null) {
         since = new Date(placed.when).toISOString();
       }
-    } else if (claim?.pending && item.state === 'open') {
-      // claimed, and its agent's first event has not landed yet
+    } else if (claim?.pending && (item.state === 'open' || item.state === 'started')) {
+      // claimed (`backlog claim --branch` starts the card too), and its agent's first event has not landed yet
       column = 'working';
       since = claim.claim.at || since;
     }
@@ -846,17 +844,6 @@ export function backlogCards(
         column = landed.column;
         tried = false;
         since = new Date(landed.when).toISOString();
-      } else if (column === 'backlog' && !tried) {
-        column = 'working';
-        since = item.started_at || item.added_at || null;
-        // work that is linked and not merged stays, whatever the day count says (a worktree, a session or its agent is on it)
-        if (
-          !onSession &&
-          !link?.active &&
-          (Number.isNaN(started) || nowMs - started > STARTED_GRACE_HOURS * 3600 * 1000)
-        ) {
-          continue;
-        }
       }
     }
     shown.push({
@@ -873,7 +860,9 @@ export function backlogCards(
       story: null,
       building: null,
       sessions: [],
-      agents: column === 'backlog' ? [] : itemViews,
+      // a started card no work run names keeps its other runs (a critic, a helper) in view; a card sent back or parked shows none
+      agents:
+        column === 'backlog' && (item.state !== 'started' || phases.has(item.id)) ? [] : itemViews,
       parent: null,
       focus_session: null,
       can_focus: false,

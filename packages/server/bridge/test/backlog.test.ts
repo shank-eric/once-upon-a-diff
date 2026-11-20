@@ -14,7 +14,6 @@ import {
 } from './helpers.ts';
 import {
   BacklogStore,
-  STARTED_GRACE_HOURS,
   DONE_HOURS,
   backlogCards,
   foldBacklog,
@@ -259,19 +258,18 @@ test('order: bad moves are refused, and an unknown target in the file leaves the
   );
 });
 
-test('a started item with no work card stays for a day, then goes; a repo-less one matches a repo-less card', () => {
+test('a started item with no work card is a Backlog card at any age; a repo-less one matches a repo-less card', () => {
   const store = new BacklogStore(tmp('backlog-grace'));
   const item = store.add({ title: 'Wrong branch', repo: 'acme/widgets' });
   store.start(item.id, { branch: 'feat/typo' });
   const startedAt = Date.parse(store.items()[0].started_at as string);
   const hour = 3600 * 1000;
-  const inside = backlogCards(store.items(), [], startedAt + (STARTED_GRACE_HOURS - 1) * hour);
-  assert.equal(inside.length, 1);
-  assert.deepEqual(inside[0].backlog?.started?.branch, 'feat/typo');
-  assert.equal(
-    backlogCards(store.items(), [], startedAt + (STARTED_GRACE_HOURS + 1) * hour).length,
-    0,
-  );
+  for (const age of [1, 25, 24 * 30]) {
+    const shown = backlogCards(store.items(), [], startedAt + age * hour);
+    assert.equal(shown.length, 1);
+    assert.equal(shown[0].column, 'backlog');
+    assert.deepEqual(shown[0].backlog?.started?.branch, 'feat/typo');
+  }
   // the work card exists on another repo only: not a match
   assert.equal(backlogCards(store.items(), [work('acme/other', 'feat/typo')], startedAt).length, 1);
 
@@ -348,7 +346,8 @@ test('a claimed started item is one Working card with its agent on it; with a wo
   const links = new Map([[item.id, linked({ agent: agentLink('running') })]]);
   const views = new Map([[item.id, [view]]]);
   // no card for the agent: the backlog card is the one card, in Working, with the agent in it
-  const shown = backlogCards(store.items(), [], NOW, [], links, views);
+  const phases = phaseFor(store.items()[0], 'running', null, NOW);
+  const shown = backlogCards(store.items(), [], NOW, [], links, views, phases);
   assert.equal(shown.length, 1);
   assert.equal(shown[0].title, 'Hold a spoken line');
   assert.equal(shown[0].column, 'working');
@@ -360,7 +359,7 @@ test('a claimed started item is one Working card with its agent on it; with a wo
     title: 'A PR title',
     pr: { number: 3 } as never,
   });
-  assert.deepEqual(backlogCards(store.items(), [inside], NOW, [], links, views), []);
+  assert.deepEqual(backlogCards(store.items(), [inside], NOW, [], links, views, phases), []);
   assert.equal(inside.title, 'A PR title');
   assert.deepEqual(inside.agents, [view]);
   assert.equal(inside.from_backlog?.length, 1);
@@ -452,12 +451,13 @@ test('a started item with no card is Working until its work ends, then Ready, or
   };
   assert.deepEqual(
     columnOf(undefined, startedAt + hour),
-    ['working'],
-    'no link yet: started, no session',
+    ['backlog'],
+    'no link yet: started, no session, nothing names it: Backlog',
   );
   assert.deepEqual(
     columnOf(linked({ worktrees: [{ path: '/x', name: 'x' }] }), startedAt + 50 * hour),
-    ['working'],
+    ['backlog'],
+    'a worktree alone does not make it Working',
   );
   const ended = new Date(startedAt + 2 * hour).toISOString();
   // finished with a branch and not merged: Ready for review (the repo here is not one that skips review)
@@ -1308,16 +1308,18 @@ test('a someday card whose claimed agent finished: someday while its column is B
   store.claim(item.id, { agent: 'hold-speech' });
   // the claim is old by now, so the store takes the flag
   store.someday(item.id, true, null, [], Date.now() + 3 * 3600 * 1000);
-  const ended = new Date(NOW - 10 * 60 * 1000).toISOString();
+  // the run ends after the someday mark (the mark is stamped now): new work after a park leaves Backlog
+  const later = Date.now() + 5 * 3600 * 1000;
+  const ended = new Date(later - 10 * 60 * 1000).toISOString();
   const cardFor = (state: BoardAgentState) =>
     backlogCards(
       store.items(),
       [],
-      NOW,
+      later,
       [],
       new Map([[item.id, linked({ agent: agentLink(state, ended) })]]),
       new Map(),
-      phaseFor(store.items()[0], state, ended, NOW),
+      phaseFor(store.items()[0], state, ended, later),
     )[0];
   // failed: back in Backlog, tried, and in the Someday section
   assert.equal(cardFor('failed').column, 'backlog');

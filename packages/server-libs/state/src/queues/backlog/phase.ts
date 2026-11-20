@@ -143,6 +143,7 @@ export interface CardPhase {
 /** The rows of the table `cardPhase` reads, one line each: the doc comment below and `once-upon card status` both say it from here. */
 export const PHASE_ROWS = {
   '1': 'a work run is open: waiting (a question) is Waiting, parked on your story review is Ready, plan is Agent checks, running or fixing is Working',
+  '1b': 'parked after its last run: a reopen, hold or someday newer than every run on the card (a beat included) is Backlog; a new run after it ends this',
   '2': 'a critic is open: Agent checks',
   '3': 'the latest work run failed (Error) or stopped (back in Backlog, tried)',
   '3b': 'a storyteller is running: Agent checks',
@@ -161,6 +162,9 @@ const msOf = (date: Date | null | undefined): number | null => (date ? date.getT
  *
  *   1  a work run is open        waiting (a question) is Waiting, parked on your story review (`review`) is Ready; plan is Agent checks (the plan to check); running or fixing is
  *                                Working. A fix round is the card's run, so it is Working here whether or not it was told `fixing`
+ *   1b parked after its runs     a reopen, a hold or a someday (`parked_at`) newer than the last sign of every run on the card: back in Backlog,
+ *                                whatever its runs or story say, until a run, a beat or a rebuilt story comes after the park. Read after row 1
+ *                                (an open work run) and the landed arm, before the critic, failure and built rows
  *   2  a critic is open          Agent checks, in every repo (an open critic with no sign of life for STALE_MS is dead and holds nothing)
  *   3  the latest work run       failed: Error (until `agent ack` clears it or the card is set aside as someday, then as stopped); stopped: back in Backlog, tried
  *   3b a storyteller is open     running with a sign of life in the last hour: Agent checks, in every repo (a failed build is read first; a waiting one, with a question, holds nothing)
@@ -182,7 +186,7 @@ const msOf = (date: Date | null | undefined): number | null => (date ? date.getT
  */
 export function cardPhase(
   item: Pick<BacklogItem, 'state' | 'repo' | 'branch' | 'critic_skipped'> &
-    Partial<Pick<BacklogItem, 'landed_at' | 'someday'>>,
+    Partial<Pick<BacklogItem, 'landed_at' | 'someday' | 'parked_at'>>,
   runs: LedgerAgent[],
   nowMs: number,
   ready: ReadyFacts = UNKNOWN_READY,
@@ -213,6 +217,18 @@ export function cardPhase(
     return nowMs - landedMs > DONE_HOURS * 3600 * 1000
       ? null
       : { column: 'done', when: landedMs, tried: false, row: '7' };
+  }
+  const parkedMs = item.parked_at ? Date.parse(item.parked_at) : NaN;
+  if (
+    !Number.isNaN(parkedMs) &&
+    latestWork &&
+    // a live run of any kind (a critic, a storyteller, a helper) keeps the card on the board with its agents
+    !runs.some(isOpen) &&
+    runs.every((run) => parkedMs > (lastActivity(run)?.getTime() ?? 0))
+  ) {
+    // a parked card whose last work run failed or was stopped stays marked tried, as row 3 marks it
+    const tried = latestWork.state === 'failed' || latestWork.state === 'stopped';
+    return { column: 'backlog', when: parkedMs, tried, row: '1b' };
   }
   if (critics.some(alive)) {
     return { column: 'checks', when: null, tried: false, row: '2' };

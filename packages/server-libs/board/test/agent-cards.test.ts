@@ -894,7 +894,7 @@ test('a session card is titled by the title in its transcript, else the registry
   assert.equal(resting?.rested_at, new Date(NOW.getTime() - 600000).toISOString());
 });
 
-test('a started item on the voice session’s or a listening session’s branch says so, and stays past the day', () => {
+test('a started item on the voice session’s or a listening session’s branch says so, and every started card stays past the day', () => {
   const store = new BacklogStore(tmp('board-backlog-cardless'));
   const onVoice = store.add({ title: 'Voice idea', repo: 'acme/widgets' });
   store.start(onVoice.id, { branch: 'feat/voice' });
@@ -913,8 +913,11 @@ test('a started item on the voice session’s or a listening session’s branch 
   ]);
   assert.deepEqual(
     started(later),
-    [['Voice idea', 'Voice session']],
-    'only the one with no session drops after a day',
+    [
+      ['Voice idea', 'Voice session'],
+      ['Nobody on it', null],
+    ],
+    'a started card with no session stays in Backlog after a day',
   );
 });
 
