@@ -55,6 +55,13 @@ Standing rules for any agent working in Once Upon a Diff. A brief only needs to 
 - No path climbs out of one package into another: reach it by name (an `exports` entry plus a normal import or `import.meta.resolve('@once-upon-a-diff/<pkg>/<path>')`; a package.json script calls another package's script through `yarn workspace @once-upon-a-diff/<pkg> <script>`; a tsconfig keeps its `paths` in the root `configs/tsconfig.assets.json` and names a package's global types in `types`). `packages/server/bridge/test/no-cross-package-paths.test.ts` scans `packages/` and `scripts/` for a `../` path into another package; a path that cannot be a name goes in `configs/cross-package-paths.allow.json` with its reason.
 - Prefer codemods for moves and renames: `git mv` plus ts-morph or sed, then check the diff is only the move.
 
+## Readability
+
+- Name a long or negated guard as a predicate (`isStale(card)`, not `!a || (b && !c) || d || e`). `guards/long-guard` (over four terms), `complexity`, `sonarjs/cognitive-complexity` and `max-depth` (`eslint.config.mjs`) measure the length and nesting; `no-negated-condition` catches only a negated test that has an `else` or is a ternary.
+- Ask the rule that already exists; do not restate it. Call the function that owns a condition (a stage, a status, a term in `terms`) instead of rewriting its test inline.
+- Return early, one reason per guard, and put the reason in the guard's name or a short comment. No `else` after a `return` (advice only, no rule checks it).
+- Keep nesting to four levels (`max-depth`): past that, pull the inner block into a named function.
+
 ## Secrets
 
 - Never print `~/.once-upon/token` or a `#key=page.` link into chat, a report, a note or a test's output: sessions are copied to OneDrive and a key in one stays valid until the token is rotated. Never `cat ~/.once-upon/config.json` either (it holds no token now, but may hold other settings): read one setting with `once-upon config get <key>` or `jq -r '.<key>' ~/.once-upon/config.json`.
