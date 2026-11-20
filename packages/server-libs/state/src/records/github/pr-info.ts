@@ -89,48 +89,58 @@ const AI_REVIEW_MARKER = 'claude-ai-review';
  */
 function actionAt(pr: PrNode, viewer: string): string | null {
   const own = pr.author?.login.toLowerCase() === viewer;
-  const times: (string | undefined)[] = [];
+  const times = [
+    ...(own ? changesRequestedTimes(pr, viewer) : []),
+    ...(pr.reviewThreads?.nodes || []).map((thread) => threadAskedAt(thread, viewer, own)),
+  ];
+  return latest(times);
+}
+
+/** When each standing CHANGES_REQUESTED review by someone else (a person, not a bot) was submitted. */
+function changesRequestedTimes(pr: PrNode, viewer: string): (string | undefined)[] {
   const standing = new Set(
     (pr.latestOpinionatedReviews?.nodes || [])
       .filter((review) => review.state === 'CHANGES_REQUESTED')
       .map((review) => review.author?.login.toLowerCase()),
   );
-  for (const review of own ? pr.reviews.nodes : []) {
-    const login = review.author?.login.toLowerCase();
-    const isOtherHuman = !!login && login !== viewer && !isBotLike(review.author);
-    const standingReviewer = isOtherHuman && standing.has(login);
-    if (review.state === 'CHANGES_REQUESTED' && standingReviewer) {
-      times.push(review.submittedAt);
-    }
+  return pr.reviews.nodes
+    .filter((review) => {
+      const login = review.author?.login.toLowerCase();
+      const isOtherHuman = !!login && login !== viewer && !isBotLike(review.author);
+      return review.state === 'CHANGES_REQUESTED' && isOtherHuman && standing.has(login);
+    })
+    .map((review) => review.submittedAt);
+}
+
+/** When an unresolved thread last asked something of the viewer, undefined when it asks nothing (on someone else's PR, only a thread the viewer is in counts). */
+function threadAskedAt(
+  thread: NonNullable<PrNode['reviewThreads']>['nodes'][number],
+  viewer: string,
+  own: boolean,
+): string | undefined {
+  if (thread.isResolved) {
+    return undefined;
   }
-  for (const thread of pr.reviewThreads?.nodes || []) {
-    if (thread.isResolved) {
-      continue;
-    }
-    const opener = thread.opener?.nodes[0];
-    if (
-      !own &&
-      ![...(opener ? [opener] : []), ...thread.comments.nodes].some(
-        (comment) => comment.author?.login.toLowerCase() === viewer,
-      )
-    ) {
-      continue;
-    }
-    // the newest comment that counts decides: bots and AI-review replies (unless one opened the thread) are passed
-    // over, so they can't hide a person's request, and if that comment is yours nothing is asked
-    const deciding = [...thread.comments.nodes]
-      .reverse()
-      .find(
-        (comment) =>
-          !isBotLike(comment.author) &&
-          (!(comment.body || '').includes(AI_REVIEW_MARKER) ||
-            (opener && opener.createdAt === comment.createdAt)),
-      );
-    if (deciding && deciding.author?.login.toLowerCase() !== viewer) {
-      times.push(deciding.createdAt);
-    }
+  const opener = thread.opener?.nodes[0];
+  const viewerIn = [...(opener ? [opener] : []), ...thread.comments.nodes].some(
+    (comment) => comment.author?.login.toLowerCase() === viewer,
+  );
+  if (!own && !viewerIn) {
+    return undefined;
   }
-  return latest(times);
+  // the newest comment that counts decides: bots and AI-review replies (unless one opened the thread) are passed
+  // over, so they can't hide a person's request, and if that comment is yours nothing is asked
+  const deciding = [...thread.comments.nodes]
+    .reverse()
+    .find(
+      (comment) =>
+        !isBotLike(comment.author) &&
+        (!(comment.body || '').includes(AI_REVIEW_MARKER) ||
+          (opener && opener.createdAt === comment.createdAt)),
+    );
+  return deciding && deciding.author?.login.toLowerCase() !== viewer
+    ? deciding.createdAt
+    : undefined;
 }
 
 /** What the board shows about a PR, from the query's first page. `required` is the strictest of protection and the rulesets, which GitHub enforces together. */
