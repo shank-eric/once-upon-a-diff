@@ -126,38 +126,50 @@ function aheadFor(
 /** How old GitHub's last answer about a PR can be before its card says so (5 x the watcher's 3 minute cache). */
 export const UNCONFIRMED_MS = 15 * 60 * 1000;
 
-/** A card for a work, or null when there is nothing left to show on it (a PR closed, or merged long ago, with no session). */
-function workCard(ctx: BuildContext, facts: CardFacts, work: Work): BoardCard | null {
+/** The PR a work shows from what GitHub last said, a stub while it has not answered, or null for a work with no PR. */
+function prOf(ctx: BuildContext, work: Work): PrInfo | null {
+  if (!work.repo || !work.number) {
+    return null;
+  }
   const { nowMs } = ctx;
-  let pr: PrInfo | null = null;
-  let story: InboxStory | InboxLocalStory | null = work.story ?? work.local;
-  if (work.repo && work.number) {
-    // a merged PR past MERGED_HOURS is dropped below, so GitHub is not asked about it again
-    const mergedMs = work.mergedAt ? Date.parse(work.mergedAt) : NaN;
-    const cached = ctx.review.info(work.repo, work.number);
-    if (cached?.state !== 'closed' && !(nowMs - mergedMs > MERGED_HOURS * 3600 * 1000)) {
-      ctx.review.kickInfo(work.repo, work.number, nowMs);
-    }
-    pr =
-      ctx.review.info(work.repo, work.number) ||
-      (work.mergedAt
-        ? {
-            ...stubPr(work.repo, work.number, work.title || '', work.branch),
-            state: 'merged',
-            merged_at: work.mergedAt,
-          }
-        : stubPr(work.repo, work.number, work.title || `${work.repo}#${work.number}`, work.branch));
+  // a merged PR past MERGED_HOURS is dropped below, so GitHub is not asked about it again
+  const mergedMs = work.mergedAt ? Date.parse(work.mergedAt) : NaN;
+  const cached = ctx.review.info(work.repo, work.number);
+  if (cached?.state !== 'closed' && !(nowMs - mergedMs > MERGED_HOURS * 3600 * 1000)) {
+    ctx.review.kickInfo(work.repo, work.number, nowMs);
   }
-  if (pr?.state === 'merged') {
-    const mergedMs = pr.merged_at ? Date.parse(pr.merged_at) : NaN;
-    if (Number.isNaN(mergedMs) || nowMs - mergedMs > MERGED_HOURS * 3600 * 1000) {
-      pr = null;
-      story = null;
-    }
-  } else if (pr?.state === 'closed') {
-    pr = null;
-    story = null;
+  const known = ctx.review.info(work.repo, work.number);
+  if (known) {
+    return known;
   }
+  if (work.mergedAt) {
+    return {
+      ...stubPr(work.repo, work.number, work.title || '', work.branch),
+      state: 'merged',
+      merged_at: work.mergedAt,
+    };
+  }
+  return stubPr(work.repo, work.number, work.title || `${work.repo}#${work.number}`, work.branch);
+}
+
+/** Whether a PR is closed, or merged longer ago than MERGED_HOURS: nothing of it is shown. */
+function isOver(pr: PrInfo, nowMs: number): boolean {
+  if (pr.state === 'closed') {
+    return true;
+  }
+  if (pr.state !== 'merged') {
+    return false;
+  }
+  const mergedMs = pr.merged_at ? Date.parse(pr.merged_at) : NaN;
+  return Number.isNaN(mergedMs) || nowMs - mergedMs > MERGED_HOURS * 3600 * 1000;
+}
+
+/** What a session is doing for the work's story: building, rebuilding or fixing for it (claimed), or a skeleton still being written. */
+function buildingOf(
+  ctx: BuildContext,
+  work: Work,
+  story: InboxStory | InboxLocalStory | null,
+): BoardCard['building'] {
   // a session is building, rebuilding or fixing for it (claimed): the PR sits in Working, whatever the sessions' branches
   const request =
     work.repo && work.number
@@ -167,70 +179,105 @@ function workCard(ctx: BuildContext, facts: CardFacts, work: Work): BoardCard | 
           story: work.story?.id ?? null,
         })
       : null;
-  const claimed = request?.state === 'building' ? request : null;
-  // a story published as a skeleton is still being written: it is not built until every chapter has its text
-  let building: BoardCard['building'] = null;
-  if (claimed) {
-    building = { kind: claimed.kind, since: claimed.claimed_at, by: claimed.claimed_by };
-  } else if (story && (story.unwritten ?? 0) > 0) {
-    building = { kind: 'write', since: story.built_at, by: null };
+  if (request?.state === 'building') {
+    return { kind: request.kind, since: request.claimed_at, by: request.claimed_by };
   }
+  // a story published as a skeleton is still being written: it is not built until every chapter has its text
+  if (story && (story.unwritten ?? 0) > 0) {
+    return { kind: 'write', since: story.built_at, by: null };
+  }
+  return null;
+}
+
+/** A local story alone (no session, no PR) is a card only while there is something to review in it. */
+function localToReview(
+  facts: CardFacts,
+  work: Work,
+  story: InboxStory | InboxLocalStory | null,
+): boolean {
+  if (!story || story !== work.local) {
+    return false;
+  }
+  return (
+    !story.reviewed_at ||
+    unreadOf(story) ||
+    !!(story as InboxLocalStory).approved_at ||
+    !!facts.unreadById.get(story.id)
+  );
+}
+
+/** The card's view of its story. */
+function storyView(
+  story: InboxStory | InboxLocalStory | null,
+  facts: CardFacts,
+): BoardCard['story'] {
+  if (!story) {
+    return null;
+  }
+  return {
+    id: story.id,
+    kind: 'number' in story ? ('pr' as const) : ('local' as const),
+    url: 'number' in story ? story.url : null,
+    reviewed: !!story.reviewed_at,
+    // built after you last opened or reviewed it (never opened: it is ready for review, not back to you)
+    unread: unreadOf(story),
+    unread_answers: facts.unreadById.get(story.id) ?? 0,
+    approved_at: 'number' in story ? null : story.approved_at,
+    ...(isStorylessReview(story) ? { storyless: true as const } : {}),
+  };
+}
+
+/** Whether the card's PR is old: GitHub never answered about it, or hasn't lately (a loaded answer is judged by its own age). */
+function isUnconfirmed(ctx: BuildContext, work: Work, pr: PrInfo | null): boolean {
+  if (pr?.state !== 'open' || !work.repo || !work.number) {
+    return false;
+  }
+  const answeredAt = ctx.review.infoAt(work.repo, work.number);
+  return (
+    answeredAt !== undefined && (answeredAt === null || ctx.nowMs - answeredAt > UNCONFIRMED_MS)
+  );
+}
+
+/** A card for a work, or null when there is nothing left to show on it (a PR closed, or merged long ago, with no session). */
+function workCard(ctx: BuildContext, facts: CardFacts, work: Work): BoardCard | null {
+  let pr = prOf(ctx, work);
+  let story: InboxStory | InboxLocalStory | null = work.story ?? work.local;
+  if (pr && isOver(pr, ctx.nowMs)) {
+    pr = null;
+    story = null;
+  }
+  const building = buildingOf(ctx, work, story);
   if (pr && !isShown(pr, { story: !!story || work.built, building: !!building })) {
     // someone else's PR with nothing for you in it: not on the board, though a session of yours on its branch still is
     pr = null;
     story = null;
   }
-  // a local story alone (no session, no PR) is a card only while there is something to review in it
-  const localToReview =
-    !!story &&
-    story === work.local &&
-    (!story.reviewed_at ||
-      unreadOf(story) ||
-      !!(story as InboxLocalStory).approved_at ||
-      !!facts.unreadById.get(story.id));
   const known =
     (!!pr && (pr.mine || pr.review_requested || !!story || work.built || !!building)) ||
-    localToReview;
+    localToReview(facts, work, story);
   if (!work.sessions.length && !known) {
     return null;
   }
   const sessions = work.sessions.map((view) => view.card);
   const repo = work.repo;
-  // GitHub never answered about this PR, or hasn't lately (a loaded answer is judged by its own age): what the card shows is old
-  const answeredAt =
-    pr?.state === 'open' && repo && work.number ? ctx.review.infoAt(repo, work.number) : undefined;
-  const unconfirmed =
-    answeredAt !== undefined && (answeredAt === null || nowMs - answeredAt > UNCONFIRMED_MS);
-  const lane = canonicalRepo(repo) ?? NO_PARENT;
+  const branch = work.branch ?? pr?.branch;
   return {
     id: work.key,
     kind: 'work',
     title: pr?.title || story?.title || work.branch || work.key,
     repo,
-    branch: work.branch ?? pr?.branch ?? null,
-    lane,
+    branch: branch ?? null,
+    lane: canonicalRepo(repo) ?? NO_PARENT,
     column: 'idle',
     detail: null,
     since: null,
     pr,
-    ...(unconfirmed ? { pr_unconfirmed: true as const } : {}),
+    ...(isUnconfirmed(ctx, work, pr) ? { pr_unconfirmed: true as const } : {}),
     ahead:
-      pr?.state === 'open' && (work.branch ?? pr.branch) && work.repo
-        ? aheadFor(ctx, facts.localCheckouts, work.repo, (work.branch ?? pr.branch) as string)
+      pr?.state === 'open' && branch && work.repo
+        ? aheadFor(ctx, facts.localCheckouts, work.repo, branch)
         : null,
-    story: story
-      ? {
-          id: story.id,
-          kind: 'number' in story ? ('pr' as const) : ('local' as const),
-          url: 'number' in story ? story.url : null,
-          reviewed: !!story.reviewed_at,
-          // built after you last opened or reviewed it (never opened: it is ready for review, not back to you)
-          unread: unreadOf(story),
-          unread_answers: facts.unreadById.get(story.id) ?? 0,
-          approved_at: 'number' in story ? null : story.approved_at,
-          ...(isStorylessReview(story) ? { storyless: true as const } : {}),
-        }
-      : null,
+    story: storyView(story, facts),
     building,
     sessions,
     agents: [],
@@ -283,18 +330,17 @@ function focusOf(sessions: BoardSession[]): { focus_session: string | null; can_
   return { focus_session: pick?.id ?? null, can_focus: pick?.focus ?? false };
 }
 
-/** Sets a session or work card's column, detail and `since`, once its agents are on it. */
-function placeCard(
+/** What a card's column is worked out from (columns.ts columnOf). */
+function columnInputOf(
   card: BoardCard,
-  byStory: Map<string, StoryFacts>,
+  built: StoryFacts | undefined,
   moved: Moved | undefined,
   launched: Launched | undefined,
-): void {
-  const built = card.story ? byStory.get(card.story.id) : undefined;
+): Parameters<typeof columnOf>[0] {
   // an auto-mark carries the time the bridge noticed, so only a mark by hand counts as your activity
   const manual =
     built?.reviewed_at && built.reviewed_by === 'manual' ? Date.parse(built.reviewed_at) : null;
-  card.column = columnOf({
+  return {
     sessions: card.sessions,
     agents: card.agents,
     pr: card.pr,
@@ -312,46 +358,88 @@ function placeCard(
     building: !!card.building,
     moved: !!moved,
     launched: launched && { running: launched.running.length },
-  });
+  };
+}
+
+/** What a card in Waiting says: the session's question, from when it started waiting. */
+function placeWaiting(card: BoardCard): void {
   const asking = card.sessions.find((session) => session.status === 'waiting');
   const waitingAgent = card.agents.find((agent) => agent.state === 'waiting' && !agent.review);
+  card.detail = asking?.detail || null;
+  card.since = earliest([
+    ...card.sessions.filter((one) => one.status === 'waiting').map((one) => one.since),
+    waitingAgent?.ended_at,
+  ]);
+}
+
+/** A failed agent on the card says which one and since when; a session-only error keeps the session's own line. */
+function placeError(card: BoardCard): void {
   const failedAgent = card.agents.find((agent) => agent.state === 'failed');
+  card.detail = failedAgent ? `${failedAgent.name} failed` : card.sessions[0]?.detail || null;
+  card.since = failedAgent ? failedAgent.ended_at : (card.sessions[0]?.since ?? null);
+}
+
+/** A card in Checks names its gates. */
+function placeChecks(card: BoardCard): void {
+  const gated = card.agents.filter((agent) => agent.gate);
+  card.detail = gated.map(gateText).join(', ');
+  card.since = earliest(
+    gated.map((agent) =>
+      agent.gate?.kind === 'review' || agent.gate?.kind === 'story'
+        ? agent.started_at
+        : agent.ended_at,
+    ),
+  );
+}
+
+/** A card in Working says what is going on: a build, a session's line, the move past its story, or the agents it launched. */
+function placeWorking(
+  card: BoardCard,
+  moved: Moved | undefined,
+  launched: Launched | undefined,
+): void {
   const busy = card.sessions.find((session) => session.status === 'working');
+  card.detail = card.building
+    ? BUILDING_TEXT[card.building.kind]
+    : busy?.detail || (moved ? movedText(moved) : null) || launchedText(launched);
+  card.since = earliest([
+    card.building?.since,
+    ...(launched?.running ?? []).map((one) => one.started?.toISOString()),
+    ...card.sessions.filter((one) => one.status === 'working').map((one) => one.since),
+    ...card.agents.filter((one) => one.state === 'running').map((one) => one.started_at),
+  ]);
+}
+
+/** A card in Ready only because an agent says [review] (no story on it yet) says so, from the agent's line. */
+function placeReady(card: BoardCard, built: StoryFacts | undefined): void {
+  const parked = card.agents.find((agent) => agent.review);
+  card.since = built?.built_at ?? parked?.ended_at ?? null;
+  if (!built && parked) {
+    card.detail = parked.outcome;
+  }
+}
+
+/** Sets a session or work card's column, detail and `since`, once its agents are on it. */
+function placeCard(
+  card: BoardCard,
+  byStory: Map<string, StoryFacts>,
+  moved: Moved | undefined,
+  launched: Launched | undefined,
+): void {
+  const built = card.story ? byStory.get(card.story.id) : undefined;
+  card.column = columnOf(columnInputOf(card, built, moved, launched));
   switch (card.column) {
     case 'waiting':
-      card.detail = asking?.detail || null;
-      card.since = earliest([
-        ...card.sessions.filter((one) => one.status === 'waiting').map((one) => one.since),
-        waitingAgent?.ended_at,
-      ]);
+      placeWaiting(card);
       break;
     case 'error':
-      // a failed agent on the card says which one and since when; a session-only error keeps the session's own line
-      card.detail = failedAgent ? `${failedAgent.name} failed` : card.sessions[0]?.detail || null;
-      card.since = failedAgent ? failedAgent.ended_at : (card.sessions[0]?.since ?? null);
+      placeError(card);
       break;
-    case 'checks': {
-      const gated = card.agents.filter((agent) => agent.gate);
-      card.detail = gated.map(gateText).join(', ');
-      card.since = earliest(
-        gated.map((agent) =>
-          agent.gate?.kind === 'review' || agent.gate?.kind === 'story'
-            ? agent.started_at
-            : agent.ended_at,
-        ),
-      );
+    case 'checks':
+      placeChecks(card);
       break;
-    }
     case 'working':
-      card.detail = card.building
-        ? BUILDING_TEXT[card.building.kind]
-        : busy?.detail || (moved ? movedText(moved) : null) || launchedText(launched);
-      card.since = earliest([
-        card.building?.since,
-        ...(launched?.running ?? []).map((one) => one.started?.toISOString()),
-        ...card.sessions.filter((one) => one.status === 'working').map((one) => one.since),
-        ...card.agents.filter((one) => one.state === 'running').map((one) => one.started_at),
-      ]);
+      placeWorking(card, moved, launched);
       break;
     case 'done':
     case 'ship':
@@ -360,15 +448,9 @@ function placeCard(
     case 'back':
       card.since = card.pr?.others_at ?? null;
       break;
-    case 'ready': {
-      // a card in Ready only because an agent says [review] (no story on it yet) says so, from the agent's line
-      const parked = card.agents.find((agent) => agent.review);
-      card.since = built?.built_at ?? parked?.ended_at ?? null;
-      if (!built && parked) {
-        card.detail = parked.outcome;
-      }
+    case 'ready':
+      placeReady(card, built);
       break;
-    }
     default:
       card.detail = card.sessions[0]?.detail || null;
       card.since = card.sessions[0]?.since ?? null;

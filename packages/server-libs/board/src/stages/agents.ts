@@ -190,7 +190,7 @@ export interface AgentFacts {
   /** the voice session, pinned above the columns, whose agents keep a card of their own */
   pin: PinnedVoice | null;
   /** the editors' sessions, on no card: the parent of an agent launched from one */
-  editorViews?: { lane: string; view: BoardSession }[];
+  editorViews?: EditorView[];
   /** the agents (agentKey) whose run names a card: they have no card of their own, the card shows them */
   held?: Set<string>;
   /** the backlog's items, which an agent's registered `card` points into */
@@ -215,6 +215,325 @@ function withOutside(
   }
   const covered = coveringRun(runsOnBranch(agents, agent.repo, pending.branch), pending.tip, nowMs);
   return covered ? pending : { ...pending, outside: true };
+}
+
+interface Staying {
+  active: Date | null;
+  item: BacklogItem | undefined;
+  pending: PendingReview | null;
+  finishedIn: BoardColumn | null;
+  clearsAt: Date | null;
+}
+
+/**
+ * Where a shown agent stands in its column and when its card clears, or null when it has no card: a finished agent is gone
+ * once its card's Finish cleared it and it has done nothing since, and a finished agent's own card is in its column for a
+ * while (until `clearsAt`, or with no timer while a commit waits on you).
+ */
+function staying(
+  ctx: BuildContext,
+  agent: LedgerAgent,
+  agents: LedgerAgent[],
+  facts: {
+    items: BacklogItem[];
+    cleared: Map<string, number>;
+    pending: PendingReview | null;
+  },
+): Staying | null {
+  const active = lastActivity(agent);
+  const clearedAt = isFinished(agent) ? facts.cleared.get(agentKey(agent)) : undefined;
+  if (clearedAt !== undefined && !!active && active.getTime() <= clearedAt) {
+    return null;
+  }
+  const item = agent.card ? facts.items.find((one) => one.id === agent.card) : undefined;
+  const pending = withOutside(facts.pending, agent, agents, ctx.nowMs);
+  const finishedIn = isFinished(agent)
+    ? finishedColumn(agent, landedFor(agent, item), pending)
+    : null;
+  const waitsOnYou = waitsOnYouIn(finishedIn);
+  const staysMs = staysFor(ctx, agent, finishedIn);
+  const clearsAt =
+    !waitsOnYou && isFinished(agent) && active && active.getTime() + staysMs > ctx.nowMs
+      ? new Date(active.getTime() + staysMs)
+      : null;
+  if (isFinished(agent) && !clearsAt && !waitsOnYou) {
+    return null;
+  }
+  return { active, item, pending, finishedIn, clearsAt };
+}
+
+/** Each card's sessions by the first 8 characters of their id: the parent an agent's `sid` finds. */
+function cardsBySession(cards: BoardCard[]): Map<string, BoardCard> {
+  const bySid = new Map<string, BoardCard>();
+  for (const card of cards) {
+    for (const session of card.sessions) {
+      const sid = session.id.slice(0, 8);
+      bySid.set(sid, bySid.get(sid) || card);
+    }
+  }
+  return bySid;
+}
+
+/** A finished author's commit waiting on your review (read from what the scanner and GitHub already said; asks nothing). */
+function pendingReviews(
+  ctx: BuildContext,
+  agents: LedgerAgent[],
+  trees: WorktreeFacts[],
+): Map<LedgerAgent, PendingReview | null> {
+  const { nowMs } = ctx;
+  return new Map(
+    agents.map((agent) => [
+      agent,
+      pendingReview(
+        agent,
+        trees,
+        (repo, branch) => ctx.review.branchPr(repo, branch),
+        nowMs,
+        // the PR number an author typed at finish counts once GitHub has answered for it (asked only for a finished
+        // author's commit that passed pendingReview's other checks)
+        (repo, number) => {
+          ctx.review.kickInfo(repo, number, nowMs);
+          return ctx.review.info(repo, number);
+        },
+        {
+          past: (tree, commit, tip) =>
+            ctx.lookups.movedPast(tree.path, commit, tip, tree.defaultBranch),
+          carried: (repo, branch, tip) =>
+            agents.some(
+              (other) =>
+                other.kind === 'author' &&
+                !!other.repo &&
+                sameRepo(other.repo, repo) &&
+                (other.result?.branch ?? other.branch) === branch &&
+                (other.result?.commit?.length ?? 0) >= 7 &&
+                tip.startsWith(other.result?.commit?.toLowerCase() ?? ''),
+            ),
+        },
+      ),
+    ]),
+  );
+}
+
+/** Whether an agent is still worth a card: running, at a gate, waiting, or finished recently enough. */
+function isShown(
+  ctx: BuildContext,
+  agent: LedgerAgent,
+  pending: PendingReview | null | undefined,
+): boolean {
+  const { nowMs } = ctx;
+  const waitMs = ctx.settings.finishedWaitMinutes * 60 * 1000;
+  if (
+    agent.state === 'running' ||
+    !!pending ||
+    agent.state === 'plan' ||
+    agent.state === 'fixing'
+  ) {
+    return true;
+  }
+  if (leftUncommitted(agent) && nowMs - (lastActivity(agent)?.getTime() ?? 0) < KEEP_MS) {
+    return true;
+  }
+  if (agent.state === 'waiting' && !forgotten(agent, nowMs)) {
+    return true;
+  }
+  return (
+    (agent.ended?.getTime() ?? 0) >= nowMs - Math.max(ctx.settings.doneHours * 3600 * 1000, waitMs)
+  );
+}
+
+/** The agents the board shows, minus the held ones, a retried run's predecessors, acked runs and dropped cards. */
+function shownAgents(
+  ctx: BuildContext,
+  agents: LedgerAgent[],
+  held: Set<string>,
+  stored: BacklogItem[],
+  pendingOf: Map<LedgerAgent, PendingReview | null>,
+): LedgerAgent[] {
+  return agents.filter(
+    (agent) =>
+      !held.has(agentKey(agent)) &&
+      !replacedByRetry(agent, agents) &&
+      !isAcked(agent) &&
+      !droppedCard(agent, stored) &&
+      isShown(ctx, agent, pendingOf.get(agent)),
+  );
+}
+
+/** How long a finished agent's card stays: an author that failed or made nothing sits for `doneHours` instead. */
+function staysFor(ctx: BuildContext, agent: LedgerAgent, finishedIn: BoardColumn | null): number {
+  const waitMs = ctx.settings.finishedWaitMinutes * 60 * 1000;
+  const madeNothing = !agent.result || Object.keys(agent.result).length === 0;
+  const longer = finishedIn === 'error' || (finishedIn === 'done' && madeNothing);
+  return agent.kind === 'author' && longer
+    ? Math.max(waitMs, ctx.settings.doneHours * 3600 * 1000)
+    : waitMs;
+}
+
+/**
+ * A commit waiting on you (Ready for your review, Ready to ship, PR open) has no timer: it stays until Finish clears it,
+ * the branch merges or moves on.
+ */
+function waitsOnYouIn(finishedIn: BoardColumn | null): boolean {
+  return (
+    finishedIn === 'ready' ||
+    finishedIn === 'working' ||
+    finishedIn === 'ship' ||
+    finishedIn === 'pr_open'
+  );
+}
+
+/** The column of an agent's card, before a gate moves it to Checks. */
+function agentColumn(
+  ctx: BuildContext,
+  agent: LedgerAgent,
+  finishedIn: BoardColumn | null,
+  trees: WorktreeFacts[],
+): BoardColumn {
+  // a story review is asked on committed work: pushed with no PR is Ready to ship, an open PR is PR open, else Ready
+  if (agent.review) {
+    return readyColumn(
+      readyFactsFor(
+        ctx.review,
+        {
+          repo: agent.repo ?? null,
+          branch: agent.result?.branch ?? agent.branch ?? null,
+          typedPr: agent.result?.pr,
+        },
+        trees,
+        ctx.nowMs,
+        { commit: agent.result?.commit, movedPast: ctx.lookups.movedPast },
+      ),
+    );
+  }
+  // a research run still out finding something is Thinking, not Working with the authors (once finished it is Research)
+  if (agent.kind === 'research' && agent.state === 'running') {
+    return 'thinking';
+  }
+  // parked on your story review is Ready, not Waiting. A finished agent's column is finishedColumn's: Done when it made
+  // something or nothing was asked, Research when it only looked, Error when it failed
+  return finishedIn ?? AGENT_COLUMN[agent.state];
+}
+
+/** Where a run goes when it joins a card that is already on the board, or null when it gets a card of its own. */
+interface Landing {
+  heads: Map<string, { card: BoardCard; agent: LedgerAgent; stale: boolean }>;
+  cards: BoardCard[];
+}
+
+/**
+ * Puts a run on the card it belongs to when there is one (and says so): an implicit card whose repo and branch already
+ * have a work (or session) card rides on it, as a backlog card does (cardOnBranch): one piece of work, one card. A
+ * storyteller started with --pr or --branch and no card joins its PR's work card the same way; any other run with no card
+ * never nests. A later run of an implicit card goes on the card of its head, which keeps the head's column unless the head
+ * is over and this run is still going: then it is this run's.
+ */
+function joinExistingCard(
+  { heads, cards }: Landing,
+  agent: LedgerAgent,
+  view: BoardAgent,
+  column: BoardColumn,
+  implicitId: string | null,
+): boolean {
+  const branch = agent.result?.branch ?? agent.branch;
+  const joins = implicitId || (!agent.card && isStoryteller(agent));
+  const home =
+    joins && agent.repo && branch ? cardOnBranch({ repo: agent.repo, branch }, cards) : null;
+  if (home) {
+    home.agents.push(view);
+    return true;
+  }
+  const head = implicitId ? heads.get(implicitId) : undefined;
+  if (!head) {
+    return false;
+  }
+  head.card.agents.push(view);
+  // a run silent for STALE_MS (a storyteller the sweep never closes) never decides the card's column, as the head or
+  // not: a live run takes it from a finished or a silent head, and a finished run takes it from a silent head
+  if (!view.stale && (head.stale || (isFinished(head.agent) && !isFinished(agent)))) {
+    head.card.column = view.gate ? 'checks' : column;
+    head.stale = false;
+  }
+  return true;
+}
+
+type EditorView = { lane: string; view: BoardSession };
+
+interface Parent {
+  card: BoardCard | null;
+  voice: PinnedVoice | null;
+  editor: EditorView | undefined;
+  session: BoardSession | undefined;
+}
+
+/** The session an agent was started from: on a card, the pinned voice session or an editor's. */
+function parentOf(
+  agent: LedgerAgent,
+  cardsBySid: Map<string, BoardCard>,
+  pin: PinnedVoice | null,
+  editorViews: EditorView[],
+): Parent {
+  const card = cardsBySid.get(agent.sid) || null;
+  const voice = pin && pin.view.id.startsWith(agent.sid) ? pin : null;
+  const editor = editorViews.find((one) => one.view.id.startsWith(agent.sid));
+  const session =
+    card?.sessions.find((one) => one.id.startsWith(agent.sid)) ?? voice?.view ?? editor?.view;
+  return { card, voice, editor, session };
+}
+
+/** An agent's own card, for one that did not join another. */
+function agentCard(
+  agent: LedgerAgent,
+  view: BoardAgent,
+  column: BoardColumn,
+  parent: Parent,
+  active: Date | null,
+  finishedIn: BoardColumn | null,
+  pending: PendingReview | null,
+): BoardCard {
+  const lane = parent.card?.lane ?? parent.voice?.lane ?? parent.editor?.lane ?? null;
+  const showsOutcome =
+    agent.state === 'waiting' ||
+    isFinished(agent) ||
+    view.gate?.kind === 'fixing' ||
+    view.gate?.kind === 'plan';
+  return {
+    id: agentWorkKey(agent.sid, agent.name),
+    kind: 'agent',
+    // a parent session's own run has no name worth showing: it is titled by its session
+    title: isSelfName(agent.name) ? (parent.session?.title ?? agent.name) : agent.name,
+    repo: null,
+    branch: null,
+    lane: laneOfAgent(agent, lane),
+    column: view.gate ? 'checks' : column,
+    detail: showsOutcome ? view.outcome : view.task,
+    since: (isFinished(agent) ? active : agent.ended || agent.started)?.toISOString() ?? null,
+    pr: null,
+    story: null,
+    building: null,
+    sessions: [],
+    agents: [view],
+    // the pinned voice session is named for what it is, not by its tab's title
+    parent: parent.voice ? 'Voice session' : (parent.session?.title ?? null),
+    focus_session: parent.session?.id ?? null,
+    can_focus: parent.session?.focus ?? false,
+    listening: null,
+    build: null,
+    // a commit waiting on your review: Review and Build story work on its branch's worktree
+    ...((finishedIn === 'ready' || finishedIn === 'ship') && pending
+      ? { review: { branch: pending.branch, path: pending.path } }
+      : {}),
+    // moved past the commit with no run behind the tip: Record as fix
+    ...(finishedIn === 'working' && pending?.outside && agent.repo
+      ? {
+          outside: {
+            sha: pending.tip,
+            branch: pending.branch,
+            repo: agent.repo,
+            path: pending.path,
+          },
+        }
+      : {}),
+  };
 }
 
 /**
@@ -248,204 +567,35 @@ export function placeAgents(
   }: AgentFacts,
 ): BoardCard[] {
   const { nowMs } = ctx;
-  const waitMs = ctx.settings.finishedWaitMinutes * 60 * 1000;
   const cleared = readFinished(ctx.home);
   const added: BoardCard[] = [];
   // the first agent card of each implicit card (ADR-27): its other runs (a critic of the work) are views on it
-  const heads = new Map<string, { card: BoardCard; agent: LedgerAgent; stale: boolean }>();
-  const cardsBySid = new Map<string, BoardCard>();
-  for (const card of cards) {
-    for (const session of card.sessions) {
-      const sid = session.id.slice(0, 8);
-      cardsBySid.set(sid, cardsBySid.get(sid) || card);
+  const heads: Landing['heads'] = new Map();
+  const cardsBySid = cardsBySession(cards);
+  const pendingOf = pendingReviews(ctx, agents, trees);
+  for (const agent of shownAgents(ctx, agents, held, stored, pendingOf)) {
+    const stay = staying(ctx, agent, agents, {
+      items,
+      cleared,
+      pending: pendingOf.get(agent) ?? null,
+    });
+    if (!stay) {
+      continue;
     }
-  }
-  // a finished author's commit waiting on your review (read from what the scanner and GitHub already said; asks nothing)
-  const pendingOf = new Map(
-    agents.map((agent) => [
-      agent,
-      pendingReview(
-        agent,
-        trees,
-        (repo, branch) => ctx.review.branchPr(repo, branch),
-        nowMs,
-        // the PR number an author typed at finish counts once GitHub has answered for it (asked only for a finished
-        // author's commit that passed pendingReview's other checks)
-        (repo, number) => {
-          ctx.review.kickInfo(repo, number, nowMs);
-          return ctx.review.info(repo, number);
-        },
-        {
-          past: (tree, commit, tip) =>
-            ctx.lookups.movedPast(tree.path, commit, tip, tree.defaultBranch),
-          carried: (repo, branch, tip) =>
-            agents.some(
-              (other) =>
-                other.kind === 'author' &&
-                !!other.repo &&
-                sameRepo(other.repo, repo) &&
-                (other.result?.branch ?? other.branch) === branch &&
-                (other.result?.commit?.length ?? 0) >= 7 &&
-                tip.startsWith(other.result?.commit?.toLowerCase() ?? ''),
-            ),
-        },
-      ),
-    ]),
-  );
-  const shown = agents.filter(
-    (agent) =>
-      !held.has(agentKey(agent)) &&
-      !replacedByRetry(agent, agents) &&
-      !isAcked(agent) &&
-      !droppedCard(agent, stored) &&
-      (agent.state === 'running' ||
-        !!pendingOf.get(agent) ||
-        (leftUncommitted(agent) && nowMs - (lastActivity(agent)?.getTime() ?? 0) < KEEP_MS) ||
-        (agent.state === 'waiting' && !forgotten(agent, nowMs)) ||
-        agent.state === 'plan' ||
-        agent.state === 'fixing' ||
-        (agent.ended?.getTime() ?? 0) >=
-          nowMs - Math.max(ctx.settings.doneHours * 3600 * 1000, waitMs)),
-  );
-  for (const agent of shown) {
-    const active = lastActivity(agent);
-    // a finished agent waits until its card's Finish clears it, or `waitMs` after its last sign of life; an author (kind
-    // author) that failed or finished with no result sits for `doneHours` instead, an hour by default
-    const item = agent.card ? items.find((one) => one.id === agent.card) : undefined;
-    const pending = withOutside(pendingOf.get(agent) ?? null, agent, agents, nowMs);
-    const finishedIn = isFinished(agent)
-      ? finishedColumn(agent, landedFor(agent, item), pending)
-      : null;
-    const madeNothing = !agent.result || Object.keys(agent.result).length === 0;
-    const staysMs =
-      agent.kind === 'author' && (finishedIn === 'error' || (finishedIn === 'done' && madeNothing))
-        ? Math.max(waitMs, ctx.settings.doneHours * 3600 * 1000)
-        : waitMs;
-    // a commit waiting on you (Ready for your review, Ready to ship, PR open) has no timer: it stays until Finish clears it,
-    // the branch merges or moves on
-    const waitsOnYou =
-      finishedIn === 'ready' ||
-      finishedIn === 'working' ||
-      finishedIn === 'ship' ||
-      finishedIn === 'pr_open';
-    const clearsAt =
-      !waitsOnYou && isFinished(agent) && active && active.getTime() + staysMs > nowMs
-        ? new Date(active.getTime() + staysMs)
-        : null;
+    const { active, item, pending, finishedIn, clearsAt } = stay;
     const view = agentOf(agent, nowMs, clearsAt, editorOf(agent));
-    const parent = cardsBySid.get(agent.sid) || null;
-    const voiceParent = pin && pin.view.id.startsWith(agent.sid) ? pin : null;
-    const editorParent = editorViews.find((one) => one.view.id.startsWith(agent.sid));
-    const parentSession =
-      parent?.sessions.find((one) => one.id.startsWith(agent.sid)) ??
-      voiceParent?.view ??
-      editorParent?.view;
-    // a finished agent is gone once its card's Finish cleared it and it has done nothing since, wherever it would sit
-    const clearedAt = isFinished(agent) ? cleared.get(agentKey(agent)) : undefined;
-    const wasCleared = clearedAt !== undefined && !!active && active.getTime() <= clearedAt;
-    if (wasCleared) {
-      continue;
-    }
-    // a finished agent's own card is in its column for a while
-    if (isFinished(agent) && !clearsAt && !waitsOnYou) {
-      continue;
-    }
-    // parked on your story review is Ready, not Waiting. A finished agent's column is finishedColumn's: Done when it made
-    // something or nothing was asked, Research when it only looked, Error when it failed
-    let column: BoardColumn = finishedIn ?? AGENT_COLUMN[agent.state];
     if (isFinished(agent)) {
       view.summary = finishedSummary(agent, item, pending);
     }
-    // a research run still out finding something is Thinking, not Working with the authors (once finished it is Research)
-    if (agent.kind === 'research' && agent.state === 'running') {
-      column = 'thinking';
-    }
-    if (agent.review) {
-      // a story review is asked on committed work: pushed with no PR is Ready to ship, an open PR is PR open, else Ready
-      column = readyColumn(
-        readyFactsFor(
-          ctx.review,
-          {
-            repo: agent.repo ?? null,
-            branch: agent.result?.branch ?? agent.branch ?? null,
-            typedPr: agent.result?.pr,
-          },
-          trees,
-          nowMs,
-          { commit: agent.result?.commit, movedPast: ctx.lookups.movedPast },
-        ),
-      );
-    }
-    // a run on an implicit card that already has its agent card goes on that card, not on a card of its own. The card keeps
-    // the head's column, unless the head is over and this run is still going: then it is this run's
+    const column = agentColumn(ctx, agent, finishedIn, trees);
+    // a run on a stored card nobody listed that already has its agent card goes on that card, not on a card of its own
     const kept = agent.card ? stored.find((one) => one.id === agent.card) : undefined;
     const implicitId = kept && !isListed(kept) ? kept.id : null;
-    // an implicit card whose repo and branch already have a work (or session) card rides on it, as a backlog card does
-    // (cardOnBranch): one piece of work, one card. A storyteller started with --pr or --branch and no card joins its PR's
-    // work card the same way; any other run with no card never nests
-    const branch = agent.result?.branch ?? agent.branch;
-    const joins = implicitId || (!agent.card && isStoryteller(agent));
-    const home =
-      joins && agent.repo && branch ? cardOnBranch({ repo: agent.repo, branch }, cards) : null;
-    if (home) {
-      home.agents.push(view);
+    if (joinExistingCard({ heads, cards }, agent, view, column, implicitId)) {
       continue;
     }
-    const head = implicitId ? heads.get(implicitId) : undefined;
-    if (head) {
-      head.card.agents.push(view);
-      // a run silent for STALE_MS (a storyteller the sweep never closes) never decides the card's column, as the head or
-      // not: a live run takes it from a finished or a silent head, and a finished run takes it from a silent head
-      if (!view.stale && (head.stale || (isFinished(head.agent) && !isFinished(agent)))) {
-        head.card.column = view.gate ? 'checks' : column;
-        head.stale = false;
-      }
-      continue;
-    }
-    const placed: BoardCard = {
-      id: agentWorkKey(agent.sid, agent.name),
-      kind: 'agent',
-      // a parent session's own run has no name worth showing: it is titled by its session
-      title: isSelfName(agent.name) ? (parentSession?.title ?? agent.name) : agent.name,
-      repo: null,
-      branch: null,
-      lane: laneOfAgent(agent, parent?.lane ?? voiceParent?.lane ?? editorParent?.lane ?? null),
-      column: view.gate ? 'checks' : column,
-      detail:
-        agent.state === 'waiting' ||
-        isFinished(agent) ||
-        view.gate?.kind === 'fixing' ||
-        view.gate?.kind === 'plan'
-          ? view.outcome
-          : view.task,
-      since: (isFinished(agent) ? active : agent.ended || agent.started)?.toISOString() ?? null,
-      pr: null,
-      story: null,
-      building: null,
-      sessions: [],
-      agents: [view],
-      // the pinned voice session is named for what it is, not by its tab's title
-      parent: voiceParent ? 'Voice session' : (parentSession?.title ?? null),
-      focus_session: parentSession?.id ?? null,
-      can_focus: parentSession?.focus ?? false,
-      listening: null,
-      build: null,
-      // a commit waiting on your review: Review and Build story work on its branch's worktree
-      ...((finishedIn === 'ready' || finishedIn === 'ship') && pending
-        ? { review: { branch: pending.branch, path: pending.path } }
-        : {}),
-      // moved past the commit with no run behind the tip: Record as fix
-      ...(finishedIn === 'working' && pending?.outside && agent.repo
-        ? {
-            outside: {
-              sha: pending.tip,
-              branch: pending.branch,
-              repo: agent.repo,
-              path: pending.path,
-            },
-          }
-        : {}),
-    };
+    const parent = parentOf(agent, cardsBySid, pin, editorViews);
+    const placed = agentCard(agent, view, column, parent, active, finishedIn, pending);
     if (implicitId) {
       heads.set(implicitId, { card: placed, agent, stale: view.stale });
     }

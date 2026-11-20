@@ -49,6 +49,53 @@ function shippedBy(ctx: BuildContext, trees: WorktreeFacts[]) {
     );
 }
 
+/** Every session by id: those on cards and the ones set aside (quiet, blank, an editor's, the voice session). */
+function viewsById(
+  cards: BoardCard[],
+  aside: Pick<ListenerFacts, 'quietViews' | 'blankViews' | 'editorViews' | 'pin'>,
+): Map<string, BoardSession> {
+  const views = new Map<string, BoardSession>();
+  aside.quietViews.forEach((view) => views.set(view.id, view));
+  for (const card of cards) {
+    card.sessions.forEach((view) => views.set(view.id, view));
+  }
+  if (aside.pin) {
+    views.set(aside.pin.view.id, aside.pin.view);
+  }
+  aside.blankViews.forEach((item) => views.set(item.view.id, item.view));
+  (aside.editorViews ?? []).forEach((item) => views.set(item.view.id, item.view));
+  return views;
+}
+
+/** Each story card's listener, and each open card's session that could build its story and its review checkout. */
+function markCards(
+  cards: BoardCard[],
+  waits: ListenerFacts['waits'],
+  listening: ListeningInput,
+  idle: Set<string>,
+  shipped: ReturnType<typeof shippedBy>,
+): void {
+  for (const card of cards) {
+    if (card.story) {
+      card.listening = storyListening(card.story.id, waits, listening);
+    }
+    // an agent's own card in Ready to ship (pushed, no PR, nothing approved) keeps its Build story; a work card there
+    // is in ship because its story was approved
+    if (card.column === 'done' || (card.column === 'ship' && card.kind !== 'agent')) {
+      continue;
+    }
+    card.build = buildFor(card, idle);
+    if (card.kind !== 'agent') {
+      const review = reviewFor(card, shipped);
+      if (review) {
+        card.review = review;
+      } else {
+        delete card.review;
+      }
+    }
+  }
+}
+
 /**
  * Marks each story card with the session that listens for it (`listening`), and each card with the session that could
  * build its story (`build`): both are set on the cards given. The answer is every session by id, and the input the
@@ -70,16 +117,7 @@ export function markListening(
     trees = [],
   }: ListenerFacts,
 ): { listening: ListeningInput; sessionViews: Map<string, BoardSession> } {
-  const sessionViews = new Map<string, BoardSession>();
-  quietViews.forEach((view) => sessionViews.set(view.id, view));
-  for (const card of cards) {
-    card.sessions.forEach((view) => sessionViews.set(view.id, view));
-  }
-  if (pin) {
-    sessionViews.set(pin.view.id, pin.view);
-  }
-  blankViews.forEach((item) => sessionViews.set(item.view.id, item.view));
-  editorViews.forEach((item) => sessionViews.set(item.view.id, item.view));
+  const sessionViews = viewsById(cards, { quietViews, pin, blankViews, editorViews });
   const idle = new Set(
     [...sessionViews.values()]
       .filter((view) => view.status === 'idle' || view.status === 'done')
@@ -104,24 +142,6 @@ export function markListening(
     busy: busyListeners,
     apart,
   };
-  const shipped = shippedBy(ctx, trees);
-  for (const card of cards) {
-    if (card.story) {
-      card.listening = storyListening(card.story.id, waits, listening);
-    }
-    // an agent's own card in Ready to ship (pushed, no PR, nothing approved) keeps its Build story; a work card there
-    // is in ship because its story was approved
-    if (card.column !== 'done' && (card.column !== 'ship' || card.kind === 'agent')) {
-      card.build = buildFor(card, idle);
-      if (card.kind !== 'agent') {
-        const review = reviewFor(card, shipped);
-        if (review) {
-          card.review = review;
-        } else {
-          delete card.review;
-        }
-      }
-    }
-  }
+  markCards(cards, waits, listening, idle, shippedBy(ctx, trees));
   return { listening, sessionViews };
 }

@@ -73,6 +73,27 @@ export interface SessionHome {
   branch: string;
 }
 
+/** The cards each session's runs name: the ones its open runs name, and every carded run with when it last showed life. */
+function cardsBySession(agents: LedgerAgent[]): {
+  open: Map<string, Set<string>>;
+  latest: Map<string, { card: string; time: number }[]>;
+} {
+  const open = new Map<string, Set<string>>();
+  const latest = new Map<string, { card: string; time: number }[]>();
+  for (const agent of agents) {
+    if (agent.card && runIsOpen(agent)) {
+      open.set(agent.sid, (open.get(agent.sid) ?? new Set()).add(agent.card));
+    }
+    for (const run of [...(agent.earlier ?? []), agent]) {
+      if (run.card) {
+        const time = lastActivity(run)?.getTime() ?? 0;
+        latest.set(run.sid, [...(latest.get(run.sid) ?? []), { card: run.card, time }]);
+      }
+    }
+  }
+  return { open, latest };
+}
+
 /**
  * Where each session (first 8 of the id) does its work, by the cards its runs name, so a session in a checkout on the default
  * branch (or on a branch with no work) is placed with its card's branch instead of its own. The card is the one the session's
@@ -87,19 +108,7 @@ export function sessionHomes(
   nowMs: number,
   cutoffMs: number,
 ): Map<string, SessionHome> {
-  const open = new Map<string, Set<string>>();
-  const latest = new Map<string, { card: string; time: number }[]>();
-  for (const agent of agents) {
-    if (agent.card && runIsOpen(agent)) {
-      open.set(agent.sid, (open.get(agent.sid) ?? new Set()).add(agent.card));
-    }
-    for (const run of [...(agent.earlier ?? []), agent]) {
-      if (run.card) {
-        const time = lastActivity(run)?.getTime() ?? 0;
-        latest.set(run.sid, [...(latest.get(run.sid) ?? []), { card: run.card, time }]);
-      }
-    }
-  }
+  const { open, latest } = cardsBySession(agents);
   const stored = new Map(items.map((item) => [item.id, item]));
   const placeOf = (card: string): SessionHome | null => {
     const item = stored.get(card);
@@ -107,15 +116,11 @@ export function sessionHomes(
       ? null
       : { card, repo: item.repo, branch: item.branch };
   };
-  const homes = new Map<string, SessionHome>();
-  for (const sid of new Set([...open.keys(), ...latest.keys()])) {
+  const homeOf = (sid: string): SessionHome | null => {
     // only a card that gives a place counts: a branchless helper's implicit card, or a dropped one, is no second card
     const placed = [...(open.get(sid) ?? [])].map(placeOf).filter((home) => home !== null);
     if (placed.length > 0) {
-      if (placed.length === 1) {
-        homes.set(sid, placed[0]);
-      }
-      continue;
+      return placed.length === 1 ? placed[0] : null;
     }
     let newest: { home: SessionHome; time: number } | undefined;
     for (const { card, time } of latest.get(sid) ?? []) {
@@ -124,8 +129,13 @@ export function sessionHomes(
         newest = { home, time };
       }
     }
-    if (newest && newest.time + cutoffMs > nowMs) {
-      homes.set(sid, newest.home);
+    return newest && newest.time + cutoffMs > nowMs ? newest.home : null;
+  };
+  const homes = new Map<string, SessionHome>();
+  for (const sid of new Set([...open.keys(), ...latest.keys()])) {
+    const home = homeOf(sid);
+    if (home) {
+      homes.set(sid, home);
     }
   }
   return homes;
