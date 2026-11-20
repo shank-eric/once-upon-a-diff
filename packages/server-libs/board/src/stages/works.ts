@@ -7,7 +7,9 @@ import { branchKey, branchWorkKey, prWorkKey, storyWorkKey } from '@once-upon-a-
 import { hasRepoAndBranch } from '@once-upon-a-diff/terms/repo-branch';
 import { sameRepo } from '@once-upon-a-diff/foundation/repos';
 import { isFeatureBranch } from '@once-upon-a-diff/foundation/settings';
+import type { BranchPr } from '@once-upon-a-diff/state/records/github/github-checks';
 import {
+  type LocalEntry,
   localEntries,
   mergedStories,
   prStories,
@@ -41,9 +43,9 @@ export interface CollectedWorks {
 }
 
 /** A work that is only a branch's local story: no PR, no PR story, not merged, on a repo and branch. */
-export function isBranchWithLocalStory(
-  work: Work,
-): work is Work & { local: InboxLocalStory; repo: string; branch: string } {
+export type BranchWithLocalStory = Work & { local: InboxLocalStory; repo: string; branch: string };
+
+export function isBranchWithLocalStory(work: Work): work is BranchWithLocalStory {
   return !!work.local && !work.number && !work.story && !work.mergedAt && hasRepoAndBranch(work);
 }
 
@@ -72,53 +74,178 @@ function linkBranchWorks(
     if (!isBranchWithLocalStory(work) || isResolved(work.local)) {
       continue;
     }
-    const { local } = work;
     const checkout = checkouts.get(branchKey(work.repo, work.branch));
     if (!checkout) {
       continue;
     }
-    const heads = headsOf.get(local.id) ?? [];
+    const heads = headsOf.get(work.local.id) ?? [];
     review.kickBranch(work.repo, work.branch, checkout.checkout, nowMs, heads);
     const found = review.branchPr(work.repo, work.branch);
-    if (!found) {
-      continue;
+    if (found) {
+      linkBranchWork(works, work, found, heads);
     }
-    const there = works.get(prWorkKey(work.repo, found.number));
-    if (there) {
-      // The PR already has a work of its own (one of yours, from GitHub's list, before GitHub has said which branch it is
-      // from): the branch's card goes instead of staying as a second card with no PR in Ready to ship, and the local story
-      // goes on the PR's work unless that has a story of its own.
-      if (found.state === 'open') {
-        if (!there.story && !there.local) {
-          there.local = local;
-        }
-        there.branch = there.branch ?? work.branch;
-        works.delete(work.key);
+  }
+}
+
+/** Gives a branch's work the PR GitHub says the branch has (see linkBranchWorks). */
+function linkBranchWork(
+  works: Map<string, Work>,
+  work: BranchWithLocalStory,
+  found: BranchPr,
+  heads: string[],
+): void {
+  const there = works.get(prWorkKey(work.repo, found.number));
+  if (there) {
+    // The PR already has a work of its own (one of yours, from GitHub's list, before GitHub has said which branch it is
+    // from): the branch's card goes instead of staying as a second card with no PR in Ready to ship, and the local story
+    // goes on the PR's work unless that has a story of its own.
+    if (found.state === 'open') {
+      if (!there.story && !there.local) {
+        there.local = work.local;
       }
-      continue;
+      there.branch = there.branch ?? work.branch;
+      works.delete(work.key);
     }
-    if (found.state === 'merged') {
-      // the story's own commit is the PR's last, or among its commits when GitHub added one after the approval
-      const ours =
-        (!!found.head_oid && heads.includes(found.head_oid)) ||
-        !!found.shipped?.some((head) => heads.includes(head));
-      if (!ours) {
-        continue;
+    return;
+  }
+  if (found.state === 'merged') {
+    // the story's own commit is the PR's last, or among its commits when GitHub added one after the approval
+    const ours =
+      (!!found.head_oid && heads.includes(found.head_oid)) ||
+      !!found.shipped?.some((head) => heads.includes(head));
+    if (!ours) {
+      return;
+    }
+    work.mergedAt = found.merged_at;
+  }
+  work.number = found.number;
+}
+
+type Start = (work: Omit<Work, 'sessions' | 'local'>) => void;
+
+/** A PR GitHub is waiting on your review for, or a PR a session has claimed a build, rebuild or fix for, is a unit of work too. */
+function startRequestedWorks(ctx: BuildContext, works: Map<string, Work>, start: Start): void {
+  const { nowMs, review, builds } = ctx;
+  const bare = { branch: null, story: null, mergedAt: null, title: null, built: false };
+  // PRs GitHub is waiting on your review for, and your own open ones, are units of work too, with or without a story
+  review.kickRequested(nowMs);
+  for (const request of review.requested()) {
+    const key = prWorkKey(request.repo, request.number);
+    if (!works.has(key)) {
+      start({ key, repo: request.repo, number: request.number, ...bare });
+    }
+  }
+  // a PR a session has claimed a build, rebuild or fix for is a unit of work even with no story yet
+  for (const build of builds.pending()) {
+    const key = build.repo && build.number ? prWorkKey(build.repo, build.number) : null;
+    if (
+      key &&
+      build.repo &&
+      build.number &&
+      !works.has(key) &&
+      builds.stateOf(build) === 'building'
+    ) {
+      start({ key, repo: build.repo, number: build.number, ...bare });
+    }
+  }
+}
+
+/** The newest local story's checkout for each repo and branch. */
+function checkoutsOf(entries: LocalEntry[]): CollectedWorks['localCheckouts'] {
+  const checkouts: CollectedWorks['localCheckouts'] = new Map();
+  for (const entry of entries) {
+    const { repo, branch } = entry.story;
+    if (repo && branch && entry.repo_path) {
+      const key = branchKey(repo, branch);
+      if (!checkouts.has(key)) {
+        checkouts.set(key, { story: entry.story.id, checkout: entry.repo_path });
       }
-      work.mergedAt = found.merged_at;
     }
-    work.number = found.number;
+  }
+  return checkouts;
+}
+
+/** A work of its own for a local story that has no branch to share, shown while it waits for review (workCard drops it after). */
+function startStoryWork(works: Map<string, Work>, start: Start, local: InboxLocalStory): void {
+  // a story of commits on a default branch, or of a commit range with no branch (one commit each, say): no
+  // branch to share, so a card of its own
+  const key = storyWorkKey(local.id);
+  start({
+    key,
+    repo: local.repo,
+    number: null,
+    branch: null,
+    story: null,
+    mergedAt: null,
+    title: local.title,
+    built: true,
+  });
+  (works.get(key) as Work).local = local;
+}
+
+/** The newest local story of a branch goes on that branch's work, or on a branch-only work of its own. */
+function placeBranchStory(
+  works: Map<string, Work>,
+  review: PrWatcher,
+  start: Start,
+  local: InboxLocalStory,
+): void {
+  const repo = local.repo as string;
+  const there = [...works.values()].find(
+    (work) => work.repo && sameRepo(work.repo, repo) && branchOfWork(review, work) === local.branch,
+  );
+  if (there) {
+    if (!there.story && !there.mergedAt) {
+      there.local = local;
+    }
+    return;
+  }
+  const key = branchWorkKey(repo, local.branch as string);
+  start({
+    key,
+    repo,
+    number: null,
+    branch: local.branch,
+    story: null,
+    mergedAt: null,
+    title: local.title,
+    built: true,
+  });
+  (works.get(key) as Work).local = local;
+}
+
+/**
+ * Local stories (a branch's story before any PR): the newest per repo and branch goes on that branch's work, or on a
+ * branch-only work of its own; a PR story already on the branch is the card's story, so a local one is not.
+ */
+function placeLocalStories(
+  works: Map<string, Work>,
+  review: PrWatcher,
+  start: Start,
+  stories: InboxLocalStory[],
+): void {
+  const newestLocal = new Map<string, InboxLocalStory>();
+  for (const local of stories) {
+    if (local.repo && isFeatureBranch(local.branch)) {
+      const key = branchKey(local.repo, local.branch);
+      newestLocal.set(key, newestLocal.get(key) ?? local);
+    } else if (local.repo) {
+      startStoryWork(works, start, local);
+    }
+  }
+  for (const local of newestLocal.values()) {
+    placeBranchStory(works, review, start, local);
   }
 }
 
 /** Reads the stories and the PR lists into works. Asks the GitHub watcher about what it reads (kick, kickRequested, kickLocal), in this order. */
 export function collectWorks(ctx: BuildContext): CollectedWorks {
-  const { nowMs, review, builds } = ctx;
+  const { nowMs, review } = ctx;
   // the units of work: every built PR story, and the PRs merged in the last day
   const stories = prStories(ctx.stories, { now: nowMs });
   review.kick(stories, nowMs);
   const works = new Map<string, Work>();
-  const start = (work: Omit<Work, 'sessions' | 'local'>) => startWork(works, work);
+  const start: Start = (work) => startWork(works, work);
   for (const story of stories) {
     start({
       key: prWorkKey(story.repo, story.number),
@@ -143,103 +270,12 @@ export function collectWorks(ctx: BuildContext): CollectedWorks {
       built: true,
     });
   }
-  // PRs GitHub is waiting on your review for, and your own open ones, are units of work too, with or without a story
-  review.kickRequested(nowMs);
-  for (const request of review.requested()) {
-    const key = prWorkKey(request.repo, request.number);
-    if (!works.has(key)) {
-      start({
-        key,
-        repo: request.repo,
-        number: request.number,
-        branch: null,
-        story: null,
-        mergedAt: null,
-        title: null,
-        built: false,
-      });
-    }
-  }
-  // a PR a session has claimed a build, rebuild or fix for is a unit of work even with no story yet
-  for (const build of builds.pending()) {
-    const key = build.repo && build.number ? prWorkKey(build.repo, build.number) : null;
-    if (
-      key &&
-      build.repo &&
-      build.number &&
-      !works.has(key) &&
-      builds.stateOf(build) === 'building'
-    ) {
-      start({
-        key,
-        repo: build.repo,
-        number: build.number,
-        branch: null,
-        story: null,
-        mergedAt: null,
-        title: null,
-        built: false,
-      });
-    }
-  }
-  // local stories (a branch's story before any PR): the newest per repo and branch goes on that branch's work, or on a
-  // branch-only work of its own; a PR story already on the branch is the card's story, so a local one is not
+  startRequestedWorks(ctx, works, start);
   const localEntryList = localEntries(ctx.stories, { now: nowMs });
   review.kickLocal(localEntryList, nowMs);
-  const localCheckouts = new Map<string, { story: string; checkout: string }>();
-  for (const entry of localEntryList) {
-    const { repo, branch } = entry.story;
-    if (repo && branch && entry.repo_path) {
-      const key = branchKey(repo, branch);
-      if (!localCheckouts.has(key)) {
-        localCheckouts.set(key, { story: entry.story.id, checkout: entry.repo_path });
-      }
-    }
-  }
+  const localCheckouts = checkoutsOf(localEntryList);
   const localStoryList = localEntryList.map((entry) => entry.story);
-  const newestLocal = new Map<string, InboxLocalStory>();
-  for (const local of localStoryList) {
-    if (local.repo && isFeatureBranch(local.branch)) {
-      const key = branchKey(local.repo, local.branch);
-      newestLocal.set(key, newestLocal.get(key) ?? local);
-    } else if (local.repo) {
-      // a story of commits on a default branch, or of a commit range with no branch (one commit each, say): no
-      // branch to share, so a card of its own, shown while it waits for review (workCard drops it after)
-      start({
-        key: storyWorkKey(local.id),
-        repo: local.repo,
-        number: null,
-        branch: null,
-        story: null,
-        mergedAt: null,
-        title: local.title,
-        built: true,
-      });
-      (works.get(storyWorkKey(local.id)) as Work).local = local;
-    }
-  }
-  for (const local of newestLocal.values()) {
-    const repo = local.repo as string;
-    const there = [...works.values()].find(
-      (work) =>
-        work.repo && sameRepo(work.repo, repo) && branchOfWork(review, work) === local.branch,
-    );
-    if (!there) {
-      start({
-        key: branchWorkKey(repo, local.branch as string),
-        repo,
-        number: null,
-        branch: local.branch,
-        story: null,
-        mergedAt: null,
-        title: local.title,
-        built: true,
-      });
-      (works.get(branchWorkKey(repo, local.branch as string)) as Work).local = local;
-    } else if (!there.story && !there.mergedAt) {
-      there.local = local;
-    }
-  }
+  placeLocalStories(works, review, start, localStoryList);
   const headsOf = new Map(
     localEntryList.map((entry) => [
       entry.story.id,

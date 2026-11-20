@@ -143,9 +143,13 @@ export function isApprovedLocal({ story, pr }: Pick<ColumnInput, 'story' | 'pr'>
   return !!story?.local && !!story.approved && !pr;
 }
 
-export function columnOf(input: ColumnInput): BoardColumn {
-  const { sessions, agents, pr, story, building, moved, launched } = input;
-  const ready = moved ? 'working' : 'ready';
+/** The column of a card that is being worked on or waits on an answer: Waiting, Checks, Working or Thinking, else null. */
+function inProgressColumn({
+  sessions,
+  agents,
+  building,
+  launched,
+}: ColumnInput): BoardColumn | null {
   if (
     sessions.some((session) => session.status === 'waiting') ||
     agents.some((agent) => agent.state === 'waiting' && !agent.review)
@@ -169,17 +173,13 @@ export function columnOf(input: ColumnInput): BoardColumn {
   if (sessions.some((session) => session.status === 'working' && session.thinking)) {
     return 'thinking';
   }
-  if (pr?.state === 'merged' || isLandedLocal(input)) {
-    return 'done';
-  }
-  // a failed agent on the card (nested by its branch, PR or card, or the claimed author) is Error, as its own card is
-  // (finishedColumn); an acknowledged one is no line on the card (claimViews), so it never gets here
-  if (agents.some((agent) => agent.state === 'failed')) {
-    return 'error';
-  }
-  if (isApprovedLocal(input)) {
-    return 'ship';
-  }
+  return null;
+}
+
+/** The column a story puts its card in (Ready, or back to you) while its work has no PR or the PR is yours, else null. */
+function storyColumn(input: ColumnInput): BoardColumn | null {
+  const { agents, pr, story, moved } = input;
+  const ready = moved ? 'working' : 'ready';
   // an answer to a question you asked, unread: back to you on the GitHub side for your own PR, in Ready while there is
   // no PR. On someone else's PR the answer is a chip on the card, not a reason to leave PR open (you asked about their
   // code while reviewing it; the ball is theirs unless GitHub requests you or its story has a new version)
@@ -203,6 +203,30 @@ export function columnOf(input: ColumnInput): BoardColumn {
   }
   if (story && !story.reviewed && !pr) {
     return ready;
+  }
+  return null;
+}
+
+export function columnOf(input: ColumnInput): BoardColumn {
+  const { sessions, agents, pr } = input;
+  const active = inProgressColumn(input);
+  if (active) {
+    return active;
+  }
+  if (pr?.state === 'merged' || isLandedLocal(input)) {
+    return 'done';
+  }
+  // a failed agent on the card (nested by its branch, PR or card, or the claimed author) is Error, as its own card is
+  // (finishedColumn); an acknowledged one is no line on the card (claimViews), so it never gets here
+  if (agents.some((agent) => agent.state === 'failed')) {
+    return 'error';
+  }
+  if (isApprovedLocal(input)) {
+    return 'ship';
+  }
+  const fromStory = storyColumn(input);
+  if (fromStory) {
+    return fromStory;
   }
   if (pr) {
     return isBackToYou(input) || pr.review_requested ? 'back' : 'pr_open';
