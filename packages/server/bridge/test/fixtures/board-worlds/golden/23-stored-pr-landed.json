@@ -1,0 +1,75 @@
+{
+  "board": {
+    "at": "2026-10-26T19:00:00.000Z",
+    "blank": [],
+    "editors": [],
+    "helpers": [],
+    "lanes": [
+      {
+        "cards": [
+          {
+            "agents": [],
+            "ahead": null,
+            "branch": "feat/landed-new",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "done",
+            "detail": null,
+            "focus_session": null,
+            "id": "pr:acme/widgets#24",
+            "kind": "work",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": {
+              "approvals": 0,
+              "author": null,
+              "branch": "feat/landed-new",
+              "checks": null,
+              "draft": false,
+              "merge": null,
+              "merged_at": "2026-10-26T18:40:00.000Z",
+              "mine": false,
+              "number": 24,
+              "others_at": null,
+              "required": null,
+              "review": null,
+              "review_requested": false,
+              "state": "merged",
+              "title": "landed PR 24",
+              "unresolved": 0,
+              "url": "https://github.com/acme/widgets/pull/24",
+              "viewer_at": null
+            },
+            "repo": "acme/widgets",
+            "sessions": [],
+            "since": "2026-10-26T18:40:00.000Z",
+            "story": null,
+            "title": "landed PR 24"
+          }
+        ],
+        "key": "acme/widgets",
+        "name": "widgets"
+      }
+    ],
+    "listeners": [],
+    "phone": null,
+    "status_source": "registry",
+    "usage": null,
+    "voice": null,
+    "voice_paused": false,
+    "voice_start": null,
+    "warning": null,
+    "worktrees": {
+      "at": null,
+      "items": [],
+      "on_cards": 0,
+      "prunable": [],
+      "removable": 0,
+      "scanning": true,
+      "size_kb": "<kb>",
+      "total": 0
+    }
+  }
+}

@@ -2543,6 +2543,29 @@ export function scrubPids(text: string, all: number[]): string {
     ];
     await record('22-stored-pr-merged', boardOf(home, fakeWatcher(infos, {}).watcher));
   }
+
+  // 23. a stored PR card that landed (ADR-29, branch D1): its `landed_at` is when it merged, and it is a merged work for the hour
+  // after, with GitHub's lists and merged.json knowing nothing of it; one that landed 3 hours ago is no card
+  {
+    const { home } = world(
+      [
+        [24, 'feat/landed-new', et(14, 40)],
+        [25, 'feat/landed-old', et(11, 0)],
+      ].flatMap(([number, branch, at]) => [
+        {
+          op: 'add',
+          id: `bl_storedland${number}`,
+          title: `landed PR ${number}`,
+          repo: 'acme/widgets',
+          branch,
+          source: 'pr',
+          pr: number,
+        },
+        { op: 'done', id: `bl_storedland${number}`, merged_at: (at as Date).toISOString() },
+      ]),
+    );
+    await record('23-stored-pr-landed', boardOf(home, fakeWatcher([], {}).watcher));
+  }
 }
 
 // ---- normalize paths and pids

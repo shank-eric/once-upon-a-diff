@@ -129,6 +129,13 @@ export interface LinkInput {
 export const isListed = (item: Pick<BacklogItem, 'source'>): boolean =>
   (item.source ?? 'backlog') === 'backlog';
 
+/** What a landing carries: the sha it landed as, who recorded it, and when GitHub merged it (a merge-landed card's own time). */
+export interface DoneInput {
+  sha?: string | null;
+  by?: string | null;
+  mergedAt?: string | null;
+}
+
 /** Where the items live. Swap the implementation to move them. */
 export interface BacklogStorage {
   items(): BacklogItem[];
@@ -145,7 +152,7 @@ export interface BacklogStorage {
   ): BacklogItem;
   drop(id: string, who?: string | null): BacklogItem;
   reopen(id: string, who?: string | null): BacklogItem;
-  done(id: string, input?: { sha?: string | null; by?: string | null }): BacklogItem;
+  done(id: string, input?: DoneInput): BacklogItem;
   claim(id: string, input: ClaimInput): BacklogItem;
   hold(id: string, held: boolean, who?: string | null): BacklogItem;
   skipCritic(id: string, skipped: boolean, who?: string | null): BacklogItem;
@@ -235,8 +242,12 @@ export function foldBacklogEvents(events: BacklogEvent[]): BacklogItem[] {
       event.op === 'done'
     ) {
       // (an open item an agent works on is started by what the board finds, so it can land with no `start`)
-      found.landed_at = event.merged_at || when;
-      found.landed_sha = event.sha || null;
+      // landing is once: a later `done` can only move the time earlier (an earlier `merged_at`), and fills a sha only when none
+      const landedAt = event.merged_at || when;
+      if (!found.landed_at || Date.parse(landedAt) < Date.parse(found.landed_at)) {
+        found.landed_at = landedAt;
+      }
+      found.landed_sha = found.landed_sha || event.sha || null;
       // the claim ends when the card lands, whatever its agent is doing. A later claim is recorded, but holds nothing
       // until a `start` reopens the work (liveClaim ignores a landed card)
       found.claim = null;
@@ -656,15 +667,20 @@ export class BacklogStore implements BacklogStorage {
   }
 
   /** Records that a started item's work landed (deploy-local.sh, or the board seeing its PR merge), with the sha it landed as when known. */
-  done(id: string, input: { sha?: string | null; by?: string | null } = {}): BacklogItem {
+  done(id: string, input: DoneInput = {}): BacklogItem {
     const item = this.find(id);
     if (item.state === 'dropped') {
       throw new Error(`${id} is dropped, only a started or open item can be done`);
     }
+    // when GitHub merged it: a time that does not parse, or is in the future (a clock skew), is dropped, not an error
+    const mergedMs = Date.parse(input.mergedAt ?? '');
+    const mergedAt =
+      Number.isFinite(mergedMs) && mergedMs <= Date.now() ? new Date(mergedMs).toISOString() : null;
     this.append({
       op: 'done',
       id,
       sha: optional(input.sha, 'the sha', SHA_RE),
+      ...(mergedAt ? { merged_at: mergedAt } : {}),
       by: clean(input.by, 'the name', BY_MAX) || 'cli',
     });
     return this.find(id);

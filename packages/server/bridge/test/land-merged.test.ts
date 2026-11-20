@@ -308,3 +308,35 @@ test('a Board built with no check asks nothing of gh and lands nothing, so no te
     }
   }
 });
+
+test('a merge-landed card lands at the PR merged_at, not at the write time; a future or bad one lands at the write time', async () => {
+  const past = world(async () => merged(-5));
+  const id = past.started('fix-past');
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  const before = Date.now();
+  assert.equal(await past.lander.kick(), 1);
+  assert.ok(Date.parse(past.item(id).landed_at as string) < before);
+
+  for (const mergedAt of [new Date(Date.now() + 3600000).toISOString(), 'not a time']) {
+    const odd = world(async () => ({ ...merged(), merged_at: mergedAt }));
+    const oddId = odd.started('fix-odd');
+    // a time in the future cannot beat the card's start, so the card is landed by a start-time-proof PR: write it directly
+    odd.store.done(oddId, { mergedAt });
+    assert.ok(Date.parse(odd.item(oddId).landed_at as string) <= Date.now());
+  }
+});
+
+test('a second done can only move landed_at earlier and never replaces the sha', () => {
+  const home = tmp('done-twice-home');
+  const store = new BacklogStore(home);
+  const card = store.add({ title: 'a', repo: 'acme/widgets', branch: 'x' });
+  const early = new Date(Date.now() - 3 * 3600000).toISOString();
+  const late = new Date(Date.now() - 3600000).toISOString();
+  store.done(card.id, { sha: MERGE, mergedAt: late });
+  store.done(card.id, { sha: TIP, mergedAt: early });
+  const once = store.items().find((one) => one.id === card.id)!;
+  assert.equal(once.landed_at, early);
+  assert.equal(once.landed_sha, MERGE);
+  store.done(card.id, { mergedAt: late });
+  assert.equal(store.items().find((one) => one.id === card.id)!.landed_at, early);
+});

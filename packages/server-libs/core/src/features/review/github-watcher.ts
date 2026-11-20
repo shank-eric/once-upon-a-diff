@@ -32,6 +32,8 @@ import { FULL_SHA_RE } from '@once-upon-a-diff/terms/patterns';
 import { runGitAsync } from '@once-upon-a-diff/adapters/git';
 import { readApproval } from '@once-upon-a-diff/stories/approval';
 import type { MarkBy } from '@once-upon-a-diff/stories/review-record';
+import { BacklogStore, isListed } from '@once-upon-a-diff/state/queues/backlog/backlog';
+import { findCard } from '@once-upon-a-diff/state/queues/backlog/ensure';
 import { clearApproval } from './approve.ts';
 import { carryRebasedApproval } from './carry-approval.ts';
 import { lapseChangesOf } from './lapse-changes.ts';
@@ -489,6 +491,33 @@ export class AutoReview {
     this.branchSeq.set(key, (this.branchSeq.get(key) ?? 0) + 1);
   }
 
+  /**
+   * A merged story's stored non-listed card lands at the PR's `merged_at`. A listed card is MergeLander's (one writer per
+   * card), and a PR closed with its branch deleted is no landing. A failure is swallowed: merged.json is written after it.
+   */
+  private landStoredCard(
+    story: { repo: string; number: number; id: string },
+    mergedAt: string | null,
+  ) {
+    if (!this.home) {
+      return;
+    }
+    try {
+      const store = new BacklogStore(this.home);
+      const card = findCard(store.items(), {
+        source: 'story',
+        repo: story.repo,
+        pr: story.number,
+        story: story.id,
+      });
+      if (card && !isListed(card)) {
+        store.done(card.id, { mergedAt, by: 'merged-pr' });
+      }
+    } catch {
+      // a card that cannot be landed here is landed by the next writer; the inbox drop does not wait for it
+    }
+  }
+
   /** Starts a check for each story's PR that wasn't asked about lately, and applies what it found to every listed story of that PR. Doesn't wait. */
   kick(list: InboxStory[], now: number): void {
     for (const story of list) {
@@ -503,6 +532,9 @@ export class AutoReview {
             return;
           }
           if (facts.merged || facts.abandoned) {
+            if (facts.merged) {
+              this.landStoredCard(story, facts.info?.merged_at ?? null);
+            }
             markStoryDone(
               this.stories,
               story.id,
