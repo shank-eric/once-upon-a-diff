@@ -2319,6 +2319,100 @@ async function record(
   await record('17-reopened-old-story', board);
 }
 
+// ---- 18. a parked card (reopened, on hold) whose runs finished before the mark is in Backlog, even with an unreviewed story and a failed
+// or done run behind it; a run opened after the mark takes it out of Backlog.
+{
+  const home = tmp('home');
+  const sessions = tmp('sessions');
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
+  const et = (hour: number, minute: number) => new Date(Date.UTC(2026, 9, 26, hour + 4, minute));
+  const events: Record<string, unknown>[] = [];
+  const add = (id: string, branch: string, started = true) => {
+    events.push({
+      op: 'add',
+      id,
+      title: `Card ${id}`,
+      note: null,
+      repo: 'acme/widgets',
+      branch,
+      by: 'cli',
+      at: et(8, 0).toISOString(),
+    });
+    if (started) {
+      events.push({
+        op: 'start',
+        id,
+        branch,
+        repo: 'acme/widgets',
+        by: 'cli',
+        at: et(8, 1).toISOString(),
+      });
+    }
+  };
+  const reopen = (id: string) =>
+    events.push(
+      { op: 'drop', id, by: 'cli', at: et(10, 0).toISOString() },
+      { op: 'reopen', id, by: 'cli', at: et(11, 0).toISOString() },
+    );
+  const runs = new AgentRegistry(home);
+  const authorRun = (name: string, id: string, branch: string, startedAt: Date) =>
+    runs.start({
+      sid: 'ffffffff',
+      name,
+      kind: 'author',
+      task: 'the work',
+      card: id,
+      repo: 'acme/widgets',
+      branch,
+      at: startedAt,
+    });
+  // the marks are all at 11:00 ET; the runs below ended at 9:00 ET and the stories were told at 13:00Z (9:00 ET)
+  add('bl_parkdone', 'feat/park-done');
+  authorRun('au-park-done', 'bl_parkdone', 'feat/park-done', et(8, 2));
+  runs.finish('au-park-done', { sid: 'ffffffff', state: 'done', outcome: 'built', at: et(9, 0) });
+  reopen('bl_parkdone');
+  add('bl_parkfailed', 'feat/park-failed');
+  authorRun('au-park-failed', 'bl_parkfailed', 'feat/park-failed', et(8, 2));
+  runs.finish('au-park-failed', {
+    sid: 'ffffffff',
+    state: 'failed',
+    outcome: 'broke',
+    at: et(9, 0),
+  });
+  reopen('bl_parkfailed');
+  // a hold on an open card whose run finished (a started one rides its branch's work card, whatever it is held for)
+  add('bl_parkheld', 'feat/park-held', false);
+  authorRun('au-park-held', 'bl_parkheld', 'feat/park-held', et(8, 2));
+  runs.finish('au-park-held', { sid: 'ffffffff', state: 'done', outcome: 'built', at: et(9, 0) });
+  events.push({ op: 'hold', id: 'bl_parkheld', on: true, by: 'cli', at: et(11, 0).toISOString() });
+  // a reopened card with a new run after the mark: it leaves Backlog
+  add('bl_parknew', 'feat/park-new');
+  authorRun('au-park-new-1', 'bl_parknew', 'feat/park-new', et(8, 2));
+  runs.finish('au-park-new-1', { sid: 'ffffffff', state: 'done', outcome: 'built', at: et(9, 0) });
+  reopen('bl_parknew');
+  authorRun('au-park-new-2', 'bl_parknew', 'feat/park-new', et(12, 0));
+  for (const [id, branch] of [
+    ['story-park-done', 'feat/park-done'],
+    ['story-park-held', 'feat/park-held'],
+    ['story-park-new', 'feat/park-new'],
+  ] as const) {
+    localStory(home, id, checkoutOf('widgets', branch), branch, {
+      built_at: '2026-10-26T13:00:00Z',
+    });
+  }
+  writeFileSync(
+    path.join(home, 'backlog.jsonl'),
+    events.map((event) => JSON.stringify(event)).join('\n') + '\n',
+  );
+  const { watcher } = fakeWatcher([], {});
+  const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
+    source: sourceSaying({}),
+    now: () => NOW,
+    repoOf,
+  });
+  await record('18-parked-after-run', board);
+}
+
 // ---- normalize paths and pids
 export const snapshots: Record<string, string> = {};
 for (const [name, value] of Object.entries(results)) {

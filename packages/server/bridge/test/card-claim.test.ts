@@ -175,6 +175,20 @@ test('a claim whose agent is not registered yet is Working, pending, for CLAIM_G
   assert.equal(back?.backlog?.claim, null);
 });
 
+test('a started card claimed with --branch and no run yet is Working, pending, then Backlog after the grace', async () => {
+  const { store, cards } = world();
+  const item = store.add({ title: 'Claimed and started', repo: 'acme/widgets' });
+  store.claim(item.id, { agent: 'ou-slow' });
+  store.start(item.id, { branch: 'claimed-started', repo: 'acme/widgets' });
+  const real = new Date();
+  const pending = (await cards(real)).find((one) => one.backlog?.id === item.id);
+  assert.equal(pending?.column, 'working');
+  assert.equal(pending?.backlog?.claim?.pending, true);
+  const later = new Date(real.getTime() + (CLAIM_GRACE_HOURS + 1) * 3600 * 1000);
+  const back = (await cards(later)).find((one) => one.backlog?.id === item.id);
+  assert.equal(back?.column, 'backlog');
+});
+
 test('a claimed agent that fails puts its card in Error', async () => {
   const { store, cards, home } = world();
   const item = store.add({ title: 'Try it', repo: 'acme/widgets' });

@@ -35,6 +35,7 @@ test('every branch of cardPhase names its row', () => {
     ['1', cardPhase(plain, [run({})], NOW)],
     ['1', cardPhase(plain, [run({ state: 'waiting' })], NOW)],
     ['1', cardPhase(plain, [run({ state: 'plan' })], NOW)],
+    ['1b', cardPhase({ ...plain, parked_at: minutes(10).toISOString() }, [done], NOW)],
     ['2', cardPhase(plain, [done, run({ kind: 'critic', name: 'review' })], NOW)],
     ['3', cardPhase(plain, [run({ state: 'failed', ended: minutes(5) })], NOW)],
     [
@@ -67,7 +68,7 @@ test('every branch of cardPhase names its row', () => {
     assert.equal(phase?.row, row);
     assert.ok(Object.hasOwn(PHASE_ROWS, row));
   }
-  assert.equal(Object.keys(PHASE_ROWS).length, 8);
+  assert.equal(Object.keys(PHASE_ROWS).length, 9);
 });
 
 test('a storyteller silent for 61 minutes holds nothing, one silent for 59 minutes still holds Agent checks; other runs keep the 24 hour cutoff', () => {
@@ -198,4 +199,55 @@ test('a landed card (backlog done) is Done, not Ready for your review, whatever 
   const holdingStory = run({ kind: 'storyteller', name: 'story-y', lastEvent: minutes(1) });
   assert.equal(cardPhase(landed, [author, holdingStory], NOW)?.column, 'done');
   assert.equal(cardPhase({ ...landed, landed_at: minutes(90).toISOString() }, [author], NOW), null);
+});
+
+test('row 1b: a park (reopen, hold, someday) newer than every run is Backlog; a run, a beat or a landing after it is not', () => {
+  const parked = (minutesAgo: number) => ({
+    ...plain,
+    parked_at: minutes(minutesAgo).toISOString(),
+  });
+  // parked after the finished run, with a critic that passed: Backlog, not Ready for your review (row 6) or Waiting (row 5)
+  for (const runs of [[done], [done, passed]]) {
+    const phase = cardPhase(parked(10), runs, NOW);
+    assert.deepEqual([phase?.column, phase?.tried, phase?.row], ['backlog', false, '1b']);
+    assert.equal(phase?.when, NOW - 10 * 60000);
+  }
+  // an unacknowledged failure parked after it is Backlog (tried), not Error; a stopped one the same
+  const failed = run({ state: 'failed', ended: minutes(30) });
+  assert.deepEqual(
+    [cardPhase(parked(10), [failed], NOW)?.column, cardPhase(parked(10), [failed], NOW)?.tried],
+    ['backlog', true],
+  );
+  assert.equal(cardPhase(plain, [failed], NOW)?.column, 'error');
+  // an open critic or storyteller that began before the park keeps the card on the board (not row 1b)
+  const criticBefore = run({
+    kind: 'critic',
+    name: 'review',
+    started: minutes(25),
+    lastEvent: minutes(25),
+  });
+  assert.equal(cardPhase(parked(10), [done, criticBefore], NOW)?.row, '2');
+  const tellerBefore = run({
+    kind: 'storyteller',
+    name: 'story',
+    started: minutes(25),
+    lastEvent: minutes(25),
+  });
+  assert.notEqual(cardPhase(parked(10), [done, tellerBefore], NOW)?.row, '1b');
+  // new work after the park ends it: an open work run (row 1), a finished run or a critic that began after it
+  assert.equal(cardPhase(parked(40), [run({ started: minutes(35) })], NOW)?.row, '1');
+  assert.equal(cardPhase(parked(40), [done], NOW)?.row, '5');
+  assert.equal(cardPhase(parked(40), [done, passed], NOW)?.row, '6');
+  // a beat after the park on an open run keeps the card Working (row 1 reads it first anyway)
+  assert.equal(
+    cardPhase(parked(10), [run({ started: minutes(60), lastEvent: minutes(2) })], NOW)?.column,
+    'working',
+  );
+  // a landed card is Done whatever it was parked for
+  assert.equal(
+    cardPhase({ ...parked(10), landed_at: minutes(5).toISOString() }, [done], NOW)?.row,
+    '7',
+  );
+  // a park with no work run on the card is not this row
+  assert.notEqual(cardPhase(parked(10), [passed], NOW)?.row, '1b');
 });

@@ -1,0 +1,257 @@
+{
+  "board": {
+    "at": "2026-10-26T19:00:00.000Z",
+    "blank": [],
+    "editors": [],
+    "helpers": [],
+    "lanes": [
+      {
+        "cards": [
+          {
+            "agents": [],
+            "backlog": {
+              "added_by": "cli",
+              "agent": {
+                "links": {
+                  "active": false,
+                  "agent": {
+                    "beat": null,
+                    "ended_at": "2026-10-26T13:00:00.000Z",
+                    "name": "au-park-done",
+                    "outcome": "built",
+                    "state": "done"
+                  },
+                  "merged": false,
+                  "merged_at": null,
+                  "sessions": [],
+                  "worktrees": []
+                },
+                "tried": false
+              },
+              "claim": null,
+              "id": "bl_parkdone",
+              "start_line": "once-upon backlog start bl_parkdone --branch feat/park-done",
+              "started": null
+            },
+            "branch": "feat/park-done",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "backlog",
+            "detail": null,
+            "focus_session": null,
+            "id": "backlog:bl_parkdone",
+            "kind": "backlog",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/widgets",
+            "sessions": [],
+            "since": "2026-10-26T12:00:00.000Z",
+            "story": null,
+            "title": "Card bl_parkdone"
+          },
+          {
+            "agents": [],
+            "backlog": {
+              "added_by": "cli",
+              "agent": {
+                "links": {
+                  "active": false,
+                  "agent": {
+                    "beat": null,
+                    "ended_at": "2026-10-26T13:00:00.000Z",
+                    "name": "au-park-failed",
+                    "outcome": "broke",
+                    "state": "failed"
+                  },
+                  "merged": false,
+                  "merged_at": null,
+                  "sessions": [],
+                  "worktrees": []
+                },
+                "tried": true
+              },
+              "claim": null,
+              "id": "bl_parkfailed",
+              "start_line": "once-upon backlog start bl_parkfailed --branch feat/park-failed",
+              "started": null
+            },
+            "branch": "feat/park-failed",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "backlog",
+            "detail": null,
+            "focus_session": null,
+            "id": "backlog:bl_parkfailed",
+            "kind": "backlog",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/widgets",
+            "sessions": [],
+            "since": "2026-10-26T12:00:00.000Z",
+            "story": null,
+            "title": "Card bl_parkfailed"
+          },
+          {
+            "agents": [],
+            "backlog": {
+              "added_by": "cli",
+              "agent": {
+                "links": {
+                  "active": false,
+                  "agent": {
+                    "beat": null,
+                    "ended_at": "2026-10-26T13:00:00.000Z",
+                    "name": "au-park-held",
+                    "outcome": "built",
+                    "state": "done"
+                  },
+                  "merged": false,
+                  "merged_at": null,
+                  "sessions": [],
+                  "worktrees": []
+                },
+                "tried": false
+              },
+              "claim": null,
+              "id": "bl_parkheld",
+              "start_line": "once-upon backlog start bl_parkheld --branch feat/park-held",
+              "started": null
+            },
+            "branch": "feat/park-held",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "backlog",
+            "detail": null,
+            "focus_session": null,
+            "id": "backlog:bl_parkheld",
+            "kind": "backlog",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/widgets",
+            "sessions": [],
+            "since": "2026-10-26T12:00:00.000Z",
+            "story": null,
+            "title": "Card bl_parkheld"
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": "2026-10-26T13:00:00.000Z",
+                "gate": null,
+                "key": "ffffffff:au-park-new-1",
+                "kind": "author",
+                "model": null,
+                "name": "au-park-new-1",
+                "notes": null,
+                "outcome": "built",
+                "review": false,
+                "sid": "ffffffff",
+                "stale": false,
+                "started_at": "2026-10-26T12:02:00.000Z",
+                "state": "done",
+                "status": "done",
+                "summary": null,
+                "task": "the work"
+              },
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": null,
+                "gate": null,
+                "key": "ffffffff:au-park-new-2",
+                "kind": "author",
+                "model": null,
+                "name": "au-park-new-2",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "ffffffff",
+                "stale": false,
+                "started_at": "2026-10-26T16:00:00.000Z",
+                "state": "running",
+                "status": "working",
+                "summary": null,
+                "task": "the work"
+              }
+            ],
+            "backlog": {
+              "added_by": "cli",
+              "agent": {
+                "links": {
+                  "active": true,
+                  "agent": {
+                    "beat": null,
+                    "ended_at": null,
+                    "name": "au-park-new-2",
+                    "outcome": null,
+                    "state": "running"
+                  },
+                  "merged": false,
+                  "merged_at": null,
+                  "sessions": [],
+                  "worktrees": []
+                },
+                "tried": false
+              },
+              "claim": null,
+              "id": "bl_parknew",
+              "start_line": "once-upon backlog start bl_parknew --branch feat/park-new",
+              "started": null
+            },
+            "branch": "feat/park-new",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "working",
+            "detail": null,
+            "focus_session": null,
+            "id": "backlog:bl_parknew",
+            "kind": "backlog",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/widgets",
+            "sessions": [],
+            "since": "2026-10-26T12:00:00.000Z",
+            "story": null,
+            "title": "Card bl_parknew"
+          }
+        ],
+        "key": "acme/widgets",
+        "name": "widgets"
+      }
+    ],
+    "listeners": [],
+    "phone": null,
+    "status_source": "registry",
+    "usage": null,
+    "voice": null,
+    "voice_paused": false,
+    "voice_start": null,
+    "warning": null,
+    "worktrees": {
+      "at": null,
+      "items": [],
+      "on_cards": 0,
+      "prunable": [],
+      "removable": 0,
+      "scanning": true,
+      "size_kb": "<kb>",
+      "total": 0
+    }
+  }
+}

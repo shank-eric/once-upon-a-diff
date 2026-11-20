@@ -366,7 +366,7 @@ test('a card whose run finished with nothing to show is Done for an hour and the
   );
 });
 
-test('a started card with no session, agent or worktree yet is a Working card, for the grace day', async () => {
+test('a started card with no session, agent or worktree yet is a Backlog card', async () => {
   const home = tmp('links-unlinked');
   const sessions = tmp('links-sessions-u');
   writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
@@ -375,11 +375,11 @@ test('a started card with no session, agent or worktree yet is a Working card, f
   const item = store.add({ title: 'Not picked up', repo: 'acme/widgets' });
   store.start(item.id, { branch: 'not-yet', repo: 'acme/widgets', by: 'nobody' });
   const card = await backlogCard(boardOf(home, new Date()), item.id);
-  assert.equal(card?.column, 'working');
+  assert.equal(card?.column, 'backlog');
   assert.equal(card?.backlog?.started?.links?.active, false);
 });
 
-test('a merged branch shows merged, and an unlinked started card still drops after the day', async () => {
+test('a merged branch shows merged, and an unlinked started card stays in Backlog after the day', async () => {
   const home = tmp('links-merged');
   const sessions = tmp('links-sessions2');
   writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
@@ -403,7 +403,7 @@ test('a merged branch shows merged, and an unlinked started card still drops aft
   assert.equal(card?.column, 'done', 'merged work is a Done card, not a Backlog one');
   const later = new Date(Date.now() + 2 * 24 * 3600 * 1000); // the start events are stamped with the real clock
   assert.equal(await backlogCard(boardOf(home, later, merged), item.id), undefined);
-  assert.equal(await backlogCard(boardOf(home, later, merged), lonely.id), undefined);
+  assert.equal((await backlogCard(boardOf(home, later, merged), lonely.id))?.column, 'backlog');
   assert.ok(await backlogCard(boardOf(home, NOW, merged), lonely.id), 'within the day it shows');
 });
 
