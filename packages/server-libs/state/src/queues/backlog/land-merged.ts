@@ -108,7 +108,7 @@ export class MergeLander {
       // that is left is the file's, microseconds; a second `done` on a landed card would only reset its sha)
       const fresh = this.store.items().find((one) => one.id === item.id);
       if (fresh && landable(fresh, runs) && fresh.branch === item.branch) {
-        this.store.done(item.id, { sha: pr.merge_oid, by: 'merged-pr' });
+        this.store.done(item.id, { sha: pr.merge_oid, mergedAt: pr.merged_at, by: 'merged-pr' });
         wrote += 1;
       }
     }

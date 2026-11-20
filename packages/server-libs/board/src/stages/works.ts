@@ -252,11 +252,45 @@ export function collectWorks(ctx: BuildContext, stored: BacklogItem[] = []): Col
   // lists found it; GitHub's lists stay the discovery for a PR no card has. A card's story that is among the local stories goes on
   // the work when it has none (the story store is read by `card.story`)
   for (const card of stored) {
-    if (card.state === 'dropped' || card.landed_at || !card.repo || !card.pr) {
+    if (card.state === 'dropped' || !card.repo || !card.pr) {
       continue;
     }
     const key = prWorkKey(card.repo, card.pr);
     const repo = card.repo;
+    if (card.landed_at) {
+      if ((card.source ?? 'backlog') === 'backlog') {
+        // a listed card lands through deploy or MergeLander and is drawn as a card, not as a PR's work
+        continue;
+      }
+      // a landed card is a merged work for MERGED_HOURS, and the card's `landed_at` is when it merged (the merge time on a
+      // work merged.json found is replaced by it). A PR that is no work and was not merged here is left to GitHub's lists
+      const landedMs = Date.parse(card.landed_at);
+      const found = [...works.values()].find(
+        (work) =>
+          work.repo &&
+          sameRepo(work.repo, repo) &&
+          (work.number === card.pr ||
+            (!!card.branch && branchOfWork(review, work) === card.branch)),
+      );
+      if (found?.mergedAt) {
+        // the earlier of the two times wins, as the fold does: a landing written later than the merge does not move it
+        if (landedMs < Date.parse(found.mergedAt)) {
+          found.mergedAt = card.landed_at;
+        }
+      } else if (!found && nowMs - landedMs <= MERGED_HOURS * 3600 * 1000) {
+        start({
+          key,
+          repo,
+          number: card.pr,
+          branch: card.branch,
+          story: null,
+          mergedAt: card.landed_at,
+          title: card.title,
+          built: true,
+        });
+      }
+      continue;
+    }
     // a PR GitHub's lists or a story already found, or a branch's work that has the PR's number or branch, is not doubled
     const there = [...works.values()].find(
       (work) =>
