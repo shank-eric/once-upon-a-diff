@@ -953,8 +953,13 @@ test('POST /api/board/review: a session’s branch becomes a storyless review ov
     bridge.call<{ url: string; story: string }>('POST', '/api/board/review', body, {
       Authorization: `Bearer ${key}`,
     });
-  const before = await cardOnX();
-  assert.deepEqual(before.review, { branch: 'feat/x', path: dir });
+  // the repo lookup answers in the background: a loaded machine takes a while to give the card its review
+  let before = await cardOnX();
+  for (const deadline = Date.now() + 45000; !before?.review && Date.now() < deadline;) {
+    await pause(200);
+    before = await cardOnX();
+  }
+  assert.deepEqual(before?.review, { branch: 'feat/x', path: dir });
   assert.equal((await post({ card: before.id }, pageKey(TOKEN, 'x'))).status, 403);
   assert.equal((await post({ card: 'branch:nope@nope' })).status, 404);
 

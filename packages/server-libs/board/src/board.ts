@@ -12,12 +12,7 @@ import {
   repoOfCheckoutAsync,
   typedRepoNote,
 } from '@once-upon-a-diff/foundation/repos';
-import {
-  branchMovedPastAsync,
-  branchNameAsync,
-  isAncestorAsync,
-  runGitAsync,
-} from '@once-upon-a-diff/adapters/git';
+import { branchMovedPastAsync, isAncestorAsync, runGitAsync } from '@once-upon-a-diff/adapters/git';
 import { aheadOf } from '@once-upon-a-diff/stories/pull-request';
 import { lastActivity } from '@once-upon-a-diff/state/records/agents/ledger';
 import { dropRunsProblem } from '@once-upon-a-diff/state/queues/backlog/phase';
@@ -110,7 +105,7 @@ export class Board {
   private building: Promise<BoardData> | null = null;
   /** commits ahead of origin per checkout and branch, looked up in the background (kickAhead) */
   private aheads = new Map<string, { at: number; count: number | null }>();
-  /** whether a tip moved past a commit, by the pair of shas (immutable, so an answer is never stale); a null is asked again after AHEAD_MS */
+  /** whether a tip moved past a commit, by the pair of shas (immutable, so an answer is never stale); a null (the look failed or timed out) is asked again after BRANCH_CACHE_MS */
   private moves = new Map<string, { at: number; moved: boolean | null; asking: boolean }>();
   /** Bumped when what a build read is out of date, so a build that started before it does not fill the cache. */
   private generation = 0;
@@ -390,7 +385,7 @@ export class Board {
     const key = `${told}\0${tip}`;
     const kept = this.moves.get(key);
     const now = Date.now();
-    if (kept && (kept.asking || kept.moved !== null || now - kept.at < AHEAD_MS)) {
+    if (kept && (kept.asking || kept.moved !== null || now - kept.at < BRANCH_CACHE_MS)) {
       return kept.moved;
     }
     if ([...this.moves.values()].filter((one) => one.asking).length >= MOVED_AT_ONCE) {
@@ -418,7 +413,14 @@ export class Board {
       return kept.branch;
     }
     // symbolic-ref also answers on a branch with no commits yet, and fails when HEAD is detached
-    const branch = await branchNameAsync(cwd, 3000);
+    const out = await runGitAsync(cwd, ['symbolic-ref', '--short', 'HEAD'], { timeout: 3000 });
+    // a lookup that timed out under load keeps the last good branch; any other failure (detached, not a repo) is no branch
+    let branch: string | null = null;
+    if (out.code === 0 && out.stdout.trim()) {
+      branch = out.stdout.trim();
+    } else if (out.killed) {
+      branch = kept?.branch ?? null;
+    }
     this.branches.set(cwd, { at: now, branch });
     return branch;
   }

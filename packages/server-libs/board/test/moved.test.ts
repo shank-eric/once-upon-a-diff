@@ -302,3 +302,24 @@ test('the board’s movedPast look: asked once per pair of shas, a few at a time
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(lookups.movedPast('/wt', 'a1', 'b2', 'main'), false);
 });
+
+test('the board’s movedPast look: a null answer is asked again after a short wait, not a minute', async (ctx) => {
+  const home = tmp('moved-retry-home');
+  let calls = 0;
+  const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
+    movedPast: () => {
+      calls += 1;
+      return Promise.resolve(calls === 1 ? null : true);
+    },
+  });
+  const { lookups } = board as unknown as { lookups: Lookups };
+  const start = Date.now();
+  const now = ctx.mock.method(Date, 'now', () => start);
+  assert.equal(lookups.movedPast('/wt', 'a1', 'b1', 'main'), null);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(lookups.movedPast('/wt', 'a1', 'b1', 'main'), null);
+  assert.equal(calls, 1, 'not asked again at once');
+  now.mock.mockImplementation(() => start + 11000);
+  lookups.movedPast('/wt', 'a1', 'b1', 'main');
+  assert.equal(calls, 2, 'asked again after BRANCH_CACHE_MS');
+});
