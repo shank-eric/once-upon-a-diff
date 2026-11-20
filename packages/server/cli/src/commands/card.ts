@@ -10,7 +10,6 @@
 import { formatTime, readSettings, repoSettings } from '@once-upon-a-diff/foundation/settings';
 import { prHeadBranch } from '@once-upon-a-diff/foundation/gh';
 import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
-import { implicitItems } from '@once-upon-a-diff/state/queues/backlog/implicit';
 import { PHASE_ROWS, cardPhase, runsOf } from '@once-upon-a-diff/state/queues/backlog/phase';
 import {
   backfillCards,
@@ -130,7 +129,7 @@ function backfill(home: string, opts: CliOpts) {
 
 type Phase = ReturnType<typeof cardPhase>;
 
-/** What `card status` reports on: the card (stored or implicit), the stored record behind it, its runs and the run-decided phase. */
+/** What `card status` reports on: the stored card, its runs and the run-decided phase. */
 async function statusOf(home: string, id: string) {
   // a self run whose session is gone is closed first, so the column below is the stored one (the board shows the same)
   const registry = runRegistry(home);
@@ -140,10 +139,9 @@ async function statusOf(home: string, id: string) {
   });
   const agents = registry.agents();
   const store = new BacklogStore(home);
-  const items = store.listed();
-  // what the stored record says (ADR-29): a card an agent made is stored under its id, hidden from the lists until adopted
+  // the stored record (ADR-29): a card an agent made is stored under its id, hidden from the lists until adopted
   const stored = store.items().find((one) => one.id === id);
-  const item = [...items, ...implicitItems(agents, items)].find((one) => one.id === id);
+  const item = stored;
   if (!item) {
     throw new Error(`no card ${id}`);
   }

@@ -10,7 +10,6 @@
  */
 import { commitOf, commitTime, isAncestor } from '@once-upon-a-diff/adapters/git';
 import { BACKLOG_NOTE_MAX } from '@once-upon-a-diff/terms/text';
-import { newImplicitCardId } from '@once-upon-a-diff/foundation/ids';
 import { BacklogStore, cardLookup } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { ensureCard, findCard } from '@once-upon-a-diff/state/queues/backlog/ensure';
 import {
@@ -48,7 +47,7 @@ export interface RecordedFix {
   run: string | null;
   card: string | null;
   covered: boolean;
-  /** the branch had no open card, so an implicit one was made for the run */
+  /** the branch had no open card, so one was made for the run */
   madeCard: boolean;
   /** the run just recorded and finished: what `carryApproval` reads. Absent when `covered` */
   finished?: LedgerAgent;
@@ -88,8 +87,7 @@ export async function recordFix(
   if (!card) {
     // a fix is always a run on a card: one is made when the branch has none open (a landed one)
     const title = implicitTitle(input.task) || `fix on ${branch}`;
-    card = ensureCard(store, {
-      id: newImplicitCardId(),
+    const ensured = ensureCard(store, {
       source: 'agent',
       title,
       note: input.task !== title ? input.task.slice(0, BACKLOG_NOTE_MAX) : null,
@@ -97,9 +95,9 @@ export async function recordFix(
       branch,
       worktree: input.checkout,
       by: 'fixed',
-      joinBranch: true,
-    }).item.id;
-    madeCard = true;
+    });
+    card = ensured.item.id;
+    madeCard = ensured.made;
   }
   const latestWork = runsOf({ id: card }, agents).filter(isWorkRun).pop();
   const sid = input.sid ?? input.session?.slice(0, 8) ?? latestWork?.sid;
@@ -110,7 +108,7 @@ export async function recordFix(
   }
   const name = `fix-${flat(branch)}`.slice(0, 60);
   // a fixer needs a claimed card; a claim someone holds is never replaced (an author's stays, the fixer starts under it). A card
-  // that exists only as runs (a legacy implicit one: no backlog row) has nothing to claim, and the registry reads it as claimed
+  // that is no stored card (an old run's `ic_` id before `card backfill`) has nothing to claim
   const stored = cardLookup(store)(card);
   if (stored && !stored.claimed) {
     store.claim(card, { agent: name, sid, session: input.session, by: 'fixer' });

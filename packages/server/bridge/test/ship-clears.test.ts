@@ -251,7 +251,7 @@ test('a fixer on an implicit card (no backlog row) carries by its own repo and b
   assert.equal(ended.code, 0, ended.stderr);
   const started = await startRun('fix-adhoc', 'fixer', adhoc);
   assert.equal(started.code, 0, started.stderr);
-  assert.match(adhoc, /^ic_/);
+  assert.match(adhoc, /^bl_/);
   const second = commit('two.txt');
   const done = await cli(...finishArgs('fix-adhoc', second, adhoc));
   assert.equal(done.code, 0, done.stderr);

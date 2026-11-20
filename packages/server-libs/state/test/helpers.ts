@@ -27,6 +27,8 @@ export function claimAt(
 
 /** One registered agent's run as a test sets it up: its start, then where it stands now and when it got there. */
 export interface AgentRun {
+  /** an `ic_` card named only by runs, with no stored card (the shape a home had before `card backfill`) */
+  unstored?: boolean;
   sid: string;
   name: string;
   /** a finished helper sits in Done, a stopped or failed one in Waiting (agent-home.ts) */
@@ -106,7 +108,7 @@ export function registerRuns(home: string, ...runs: AgentRun[]): AgentRegistry {
       });
     }
   }
-  storeRunCards(home);
+  storeRunCards(home, new Set(runs.filter((run) => run.unstored).map((run) => run.card as string)));
   return registry;
 }
 
@@ -115,9 +117,9 @@ export function registerRuns(home: string, ...runs: AgentRun[]): AgentRegistry {
  * joins a run to its card by the stored card): the first run's task is the title, its repo the card's, and the latest branch any
  * run named is the card's. A test that registers runs another way than `registerRuns` calls it before it builds a board.
  */
-export function storeRunCards(home: string): void {
+export function storeRunCards(home: string, skip: ReadonlySet<string> = new Set()): void {
   const store = new BacklogStore(home);
-  for (const card of implicitCards(readAgents(home).agents)) {
+  for (const card of implicitCards(readAgents(home).agents).filter((one) => !skip.has(one.id))) {
     const found = store.items().find((one) => one.id === card.id);
     if (!found) {
       store.add({

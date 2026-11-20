@@ -112,10 +112,7 @@ export const isSelfName = (name: string | null | undefined): boolean =>
 /** An agent's card on the board. */
 export const agentWorkKey = (sid8: string, name: string): string => `agent:${agentId(sid8, name)}`;
 
-/** An implicit card's id: the card a run is when it did not start in the backlog, `ic_` and a fresh suffix (foundation/ids.ts mints it). */
-export const implicitCardId = (suffix: string): string => `ic_${suffix}`;
-
-/** Whether a card id is an implicit card's (an adopted one keeps its `ic_` id, so this says where it began, not whether it is in the backlog). */
+/** Whether a card id is an old run's implicit card (`ic_`, minted before stored cards; an adopted one keeps its `ic_` id, so this says where it began, not whether it is in the backlog). */
 export const isImplicitCard = (id: string | null | undefined): boolean =>
   !!id && id.startsWith('ic_');
 

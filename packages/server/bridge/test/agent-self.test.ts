@@ -227,7 +227,7 @@ test('a session that finished one card starts the next on a card of its own: res
   const research = await agent(home, 'start', '--self', '--role', 'research', '--task', 'look');
   assert.equal(research.code, 0, research.stderr);
   const implicit = research.stdout.trim().split(' ')[2];
-  assert.match(implicit, /^ic_/);
+  assert.match(implicit, /^bl_/);
   assert.equal((await agent(home, 'finish', '--self', '--state', 'done')).code, 0);
   const coded = await agent(
     home,
@@ -242,7 +242,7 @@ test('a session that finished one card starts the next on a card of its own: res
   );
   assert.equal(coded.code, 0, coded.stderr);
   const other = coded.stdout.trim().split(' ')[2];
-  assert.match(other, /^ic_/);
+  assert.match(other, /^bl_/);
   assert.notEqual(other, implicit);
   // two --self runs open: state names the newest, --run picks one
   const runs = new AgentRegistry(home).agents();

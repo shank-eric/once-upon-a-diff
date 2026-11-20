@@ -707,6 +707,7 @@ export const cardLookup =
           // a card an agent or a session made has no claim row: its first run's session holds it, as an implicit card's does
           claimed: !!item.claim || !isListed(item),
           worktree: item.worktree,
+          agentMade: item.source === 'agent',
         }
       : null;
   };

@@ -1,6 +1,6 @@
 /**
  * Implicit cards (ADR-27): work that did not start in the backlog is its own card, and the card lives in agents.jsonl only. A start
- * with no `--card` mints an `ic_` id on its start row (one row, one file: backlog.jsonl is not written), a restart of the same name
+ * with no `--card` stores a `bl_` card (source agent) and names it on its start row, a restart of the same name
  * goes on it, a critic of that work names it, and `backlog adopt` makes it a real card with the same id.
  */
 import { test } from 'node:test';
@@ -19,7 +19,7 @@ import type { BoardCard } from '@once-upon-a-diff/contracts/types';
 
 const SID = 'abcdef01';
 const env = { CLAUDE_CODE_SESSION_ID: `${SID}-1111-4222-8333-444444444444` };
-const IMPLICIT = /^ic_[a-z0-9]{6,24}$/;
+const IMPLICIT = /^bl_[a-z0-9]{6,24}$/;
 
 const agent = (home: string, ...args: string[]) => runCli(home, ['agent', ...args], env);
 const backlog = (home: string, ...args: string[]) => runCli(home, ['backlog', ...args], env);
@@ -47,7 +47,7 @@ const rowsOf = (home: string): Array<Record<string, unknown>> => {
     : [];
 };
 
-test('a start with no card mints an ic_ card, stores it as one add row (source agent) and puts its id on the run row', async () => {
+test('a start with no card stores one bl_ card (one add row, source agent), puts its id on the run row and prints it after the run id', async () => {
   const home = tmp('implicit-mint');
   const first = await start(home, 'look-it-up', '--kind', 'research', '--task', 'look it up');
   assert.match(first.card, IMPLICIT);
@@ -702,7 +702,8 @@ test('--new-card, a landed or dropped card, a branchless helper and a typed --ca
     '--task',
     't',
   );
-  assert.equal(typed.card, later.card);
+  assert.equal(typed.card, undefined, 'a start that named its card prints nothing extra');
+  assert.deepEqual(cardOf(home, 'ou-typed'), [later.card]);
 });
 
 test('a joining author takes the claim of a listed card that has none; main and a storyteller by branch never join', async () => {
@@ -843,6 +844,46 @@ test('a minting author start whose stored card another start already joined is r
       }),
     /already has an open author run/,
   );
+});
+
+test('an old run’s ic_ card that `card backfill` stored is the branch’s open card, and a start on its branch joins it', async () => {
+  const home = tmp('join-legacy');
+  const registry = new AgentRegistry(home);
+  const started = new Date(Date.now() - 2 * 24 * 3600 * 1000);
+  registry.start({
+    name: 'ou-old-recent',
+    sid: SID,
+    kind: 'author',
+    task: 'old ou-old-recent',
+    repo: 'acme/widgets',
+    branch: 'feat-rec',
+    card: 'ic_legacyrec001',
+    at: started,
+  });
+  registry.finish('ou-old-recent', {
+    sid: SID,
+    outcome: 'done',
+    at: new Date(started.getTime() + 60_000),
+  });
+  assert.equal(new BacklogStore(home).items().length, 0, 'no stored card yet');
+  const backfilled = await runCli(home, ['card', 'backfill'], env);
+  assert.equal(backfilled.code, 0, backfilled.stderr);
+  assert.deepEqual(
+    new BacklogStore(home).items().map((one) => [one.id, one.source]),
+    [['ic_legacyrec001', 'agent']],
+  );
+  const [line, joined] = await startOut(
+    home,
+    'ou-new-rec',
+    ...AUTHOR,
+    '--branch',
+    'feat-rec',
+    '--task',
+    'rework',
+  );
+  assert.equal(line.split(' ')[2], 'ic_legacyrec001');
+  assert.match(joined, /^joined ic_legacyrec001 /);
+  assert.equal(new BacklogStore(home).items().length, 1, 'no second card on the branch');
 });
 
 test('a start with --pr and no branch joins the card on the PR’s head branch', async () => {

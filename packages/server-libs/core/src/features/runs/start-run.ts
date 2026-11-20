@@ -25,7 +25,7 @@ import {
   cardLookup,
   type LinkInput,
 } from '@once-upon-a-diff/state/queues/backlog/backlog';
-import { newImplicitCardId, newRunId } from '@once-upon-a-diff/foundation/ids';
+import { newId, newRunId } from '@once-upon-a-diff/foundation/ids';
 import { ensureCard, findCard } from '@once-upon-a-diff/state/queues/backlog/ensure';
 import { implicitTitle } from '@once-upon-a-diff/state/records/agents/implicit';
 import { SESSION_RE } from '@once-upon-a-diff/terms/patterns';
@@ -467,7 +467,7 @@ function planCard(
   if (!registry.wouldMint(startInput) || (run.kind === 'author' && !branch)) {
     return { minted: null, join: null };
   }
-  const minted = newImplicitCardId();
+  const minted = newId('bl');
   const repo = startInput.repo;
   const cardRepo = repo && REPO_RE.test(repo) ? repo : null;
   const joinable = !run.input.newCard && isFeatureBranch(branch) ? branch : null;

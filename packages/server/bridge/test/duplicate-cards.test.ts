@@ -94,7 +94,7 @@ async function adhoc(home: string, branch: string, author = 'ou-dup', critic = '
 test('work first, then card: backlog add on the branch adopts the open implicit card with its title and note, and says so', async () => {
   const home = tmp('dup-work-first');
   const implicitId = await adhoc(home, 'dup-a');
-  assert.ok(implicitId.startsWith('ic_'));
+  assert.ok(implicitId.startsWith('bl_'));
   const done = await backlog(
     home,
     'add',
@@ -153,7 +153,7 @@ test('a card that matches no open implicit card is a plain add: another branch, 
 test('a card added on a default branch is a plain add, even with an author open on that branch', async () => {
   const home = tmp('dup-defaults');
   const main = await adhoc(home, 'main');
-  assert.ok(main.startsWith('ic_'));
+  assert.ok(main.startsWith('bl_'));
   const added = await add(home, 'On main', 'main');
   assert.ok(added.startsWith('bl_'), 'no adopting of the implicit card on main');
   assert.equal(mine(await cardsOf(home), added).length, 1);

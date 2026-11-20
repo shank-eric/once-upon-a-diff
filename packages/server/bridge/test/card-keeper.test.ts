@@ -673,3 +673,29 @@ test('the bridge’s board writes the stories’ cards when its keeper is enable
     'startBridge leaves the keeper off by default: no card written',
   );
 });
+
+test('a bridge start stores the cards of old runs (ic_ ids) before the board builds, and only with the keeper on', async () => {
+  const seed = (home: string) => {
+    new AgentRegistry(home).start({
+      name: 'ou-old',
+      sid: 'abcdef01',
+      kind: 'author',
+      task: 'old work',
+      repo: REPO,
+      branch: 'feat-old',
+      card: 'ic_oldrun000001',
+      at: new Date(Date.now() - 3600_000),
+    });
+  };
+  const off = tmp('bridge-backfill-off');
+  seed(off);
+  open.push(await startBridge({ home: off, keeper: false }));
+  assert.equal(new BacklogStore(off).items().length, 0, 'keeper off: nothing is written');
+  const live = tmp('bridge-backfill-on');
+  seed(live);
+  open.push(await startBridge({ home: live, keeper: true }));
+  assert.deepEqual(
+    new BacklogStore(live).items().map((item) => [item.id, item.source]),
+    [['ic_oldrun000001', 'agent']],
+  );
+});

@@ -394,7 +394,7 @@ test('Finish on a waiting critic of a card is refused without a findings count, 
     .find((one) => one.agents?.some((run) => run.name === 'review-me'));
   assert.ok(shown, 'the critic is still on the board');
   // a waiting author on a card, and a critic of no card, still finish from the board
-  registry.start({
+  new AgentRegistry(rig.home).start({
     sid: SID,
     name: 'built-me',
     kind: 'helper',

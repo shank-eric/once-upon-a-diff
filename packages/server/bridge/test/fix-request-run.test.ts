@@ -14,6 +14,7 @@ import { readFixes } from '@once-upon-a-diff/state/queues/requests/fixes';
 const SESSION = 'abcd1234-0000-4000-8000-000000000000';
 const AUTHOR = 'cafe0001';
 /** a card that exists only as its runs: no backlog row */
+const IMPLICIT = 'ic_mwlegacy000001';
 
 /** A local story of `feature` in acme/widgets, with a card on the branch and a fix request claimed a moment ago. */
 function scene(options: { card?: boolean; claimed?: boolean; squash?: boolean } = {}) {
@@ -134,13 +135,13 @@ describe('fixed --sha records the fix as a run on the branch’s card', () => {
     assert.equal(readFixes(fixture.home)[fixture.request].run, fixture.runs()[0].run);
   });
 
-  test('a branch with no open card gets an implicit one for the run, and the line says so', async () => {
+  test('a branch with no open card gets a bl_ card for the run, and the line says so', async () => {
     const fixture = scene({ card: false });
     const sha = fixture.commit('fix.txt');
     const done = await fixture.cli('fixed', '--request', fixture.request, '--sha', sha);
     assert.equal(done.code, 0, done.stderr);
     assert.match(done.stdout, /no open card on feature: made it/);
-    assert.match(fixture.runs()[0].card ?? '', /^ic_/);
+    assert.match(fixture.runs()[0].card ?? '', /^bl_/);
   });
 
   test('--failed records no run, and a sha that is not at or behind HEAD is refused with the request left pending', async () => {
@@ -213,6 +214,40 @@ describe('fixed --sha records the fix as a run on the branch’s card', () => {
     const carried = readApproval(new StoryStore({ home: fixture.home }), fixture.story);
     assert.equal(carried?.head_oid, amended);
     assert.equal(carried?.carried?.from, first);
+  });
+
+  test('an old ic_ card that `card backfill` stored takes the fixer run, and no second card is made', async () => {
+    const fixture = scene({ card: false });
+    const earlier = git(fixture.repo, 'rev-parse', 'HEAD');
+    registerRuns(fixture.home, {
+      sid: AUTHOR,
+      name: 'the-author',
+      kind: 'author',
+      repo: 'acme/widgets',
+      branch: 'feature',
+      card: IMPLICIT,
+      unstored: true,
+      started: new Date(Date.now() - 3600_000),
+      now: {
+        state: 'done',
+        at: new Date(Date.now() - 1800_000),
+        result: { commit: earlier, branch: 'feature' },
+      },
+    });
+    assert.equal(fixture.backlog.items().length, 0);
+    assert.equal((await fixture.cli('card', 'backfill')).code, 0);
+    assert.deepEqual(
+      fixture.backlog.items().map((one) => one.id),
+      [IMPLICIT],
+    );
+    const sha = fixture.commit('fix.txt');
+    const done = await fixture.cli('fixed', '--request', fixture.request, '--sha', sha);
+    assert.equal(done.code, 0, done.stderr);
+    assert.doesNotMatch(done.stdout, /made it/);
+    const fixer = fixture.runs().find((one) => one.name === 'fix-feature');
+    assert.equal(fixer?.card, IMPLICIT);
+    assert.equal(fixer?.result?.commit, sha);
+    assert.equal(readFixes(fixture.home)[fixture.request].status, 'done');
   });
 
   test('a request the reviewer took back, and a --notes id it lacks, record no run and carry no approval', async () => {
