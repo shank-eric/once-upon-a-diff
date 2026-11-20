@@ -196,6 +196,55 @@ export const flagsBesideCardError = (flags: string[]): Error =>
     `${flags.join(', ')} ${flags.length > 1 ? 'are' : 'is'} not taken with --card: the card gives the run its repo and branch, and --role says what it does. Drop ${flags.length > 1 ? 'them' : 'it'} (--role author|fixer|critic|storyteller|helper|research; once-upon backlog branch <id> <name> changes the card's branch)`,
   );
 
+/**
+ * Whether a sweep leaves a run alone. A parent session's own run beats no one while it works, so it is never quiet: it ends when
+ * its session is gone. Any other run is left while it is parked, not an author or critic, standing, or heard from lately.
+ */
+function sweepSpares(
+  agent: LedgerAgent,
+  now: Date,
+  liveSids: readonly string[] | undefined,
+  transcript: number | null,
+): boolean {
+  if (isSelfName(agent.name)) {
+    return !(runIsOpen(agent) && !!liveSids?.length && !liveSids.includes(agent.sid));
+  }
+  if (
+    !SWEPT_STATES.includes(agent.state) ||
+    !SWEPT_KINDS.includes(agent.kind as never) ||
+    agent.standing
+  ) {
+    return true;
+  }
+  const sign = lastActivity(agent)?.getTime() ?? now.getTime();
+  return transcript === null
+    ? now.getTime() - sign <= STALE_MS
+    : now.getTime() - transcript <= QUIET_MS;
+}
+
+/** What a start types beside its name and kind, checked and cleaned. */
+interface StartGiven {
+  pr: number | null;
+  repo: string | null;
+  branch: string | null;
+  typedLane: string | null;
+  replaces: string | null;
+  cwd: string | null;
+}
+
+function startGiven(input: StartInput, name: string): StartGiven {
+  const pr = count(input.pr, 'the PR number');
+  const repo = optional(input.repo, 'the repo', REPO_RE);
+  const branch = optional(input.branch, 'the branch', CARD_BRANCH_RE);
+  const typedLane = input.lane?.trim() || null;
+  const replaces = optional(input.replaces, 'the replaced run', AGENT_NAME_RE);
+  if (replaces === name) {
+    throw new Error('--replaces names an earlier run: it cannot be this run');
+  }
+  const cwd = clean(input.cwd, 'the cwd', 500) || null;
+  return { pr, repo, branch, typedLane, replaces, cwd };
+}
+
 export class AgentRegistry {
   declare file: string;
   declare mirror: Mirror;
@@ -324,56 +373,49 @@ export class AgentRegistry {
   ): LedgerAgent[] {
     const now = options.at ?? new Date();
     const swept: LedgerAgent[] = [];
-    const live = options.liveSids;
     for (const agent of this.agents()) {
-      const sign = lastActivity(agent)?.getTime() ?? now.getTime();
       const judged =
         !isSelfName(agent.name) && SWEPT_KINDS.includes(agent.kind as never) && !agent.standing;
       const transcript = judged
         ? quietSign(agent, options.lastWrite?.get(livenessKey(agent)))
         : null;
-      // a parent session's own run beats no one while it works, so it is never quiet: it ends when its session is gone
-      const self = isSelfName(agent.name);
-      const gone = self && runIsOpen(agent) && !!live?.length && !live.includes(agent.sid);
-      if (
-        self
-          ? !gone
-          : !SWEPT_STATES.includes(agent.state) ||
-            !SWEPT_KINDS.includes(agent.kind as never) ||
-            agent.standing ||
-            (transcript === null
-              ? now.getTime() - sign <= STALE_MS
-              : now.getTime() - transcript <= QUIET_MS)
-      ) {
+      if (sweepSpares(agent, now, options.liveSids, transcript)) {
         continue;
       }
-      if (!options.dryRun) {
-        try {
-          this.finish(agent.name, {
-            sid: agent.sid,
-            run: agent.run,
-            ...(transcript === null
-              ? {
-                  state: 'stopped' as const,
-                  outcome: self ? 'its session ended' : 'no sign of life for 24 hours',
-                  by: 'sweep',
-                  at: now,
-                }
-              : {
-                  ...endOfStopped(agent),
-                  // auto-finish, not sweep: the run's own later finish replaces it, so a live run judged dead is never locked out
-                  by: 'auto-finish',
-                  at: new Date(transcript + QUIET_MS),
-                }),
-          });
-        } catch {
-          // another writer closed it first: the run is over either way
-          continue;
-        }
+      if (!options.dryRun && !this.sweepEnd(agent, transcript, now)) {
+        continue;
       }
       swept.push(agent);
     }
     return swept;
+  }
+
+  /** Closes one swept run: false when another writer closed it first (the run is over either way). */
+  private sweepEnd(agent: LedgerAgent, transcript: number | null, now: Date): boolean {
+    try {
+      this.finish(agent.name, {
+        sid: agent.sid,
+        run: agent.run,
+        ...(transcript === null
+          ? {
+              state: 'stopped' as const,
+              outcome: isSelfName(agent.name)
+                ? 'its session ended'
+                : 'no sign of life for 24 hours',
+              by: 'sweep',
+              at: now,
+            }
+          : {
+              ...endOfStopped(agent),
+              // auto-finish, not sweep: the run's own later finish replaces it, so a live run judged dead is never locked out
+              by: 'auto-finish',
+              at: new Date(transcript + QUIET_MS),
+            }),
+      });
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -458,6 +500,41 @@ export class AgentRegistry {
     input: StartInput,
     warn?: (text: string) => void,
   ): { id: string; run: string; card: string | null } {
+    const who = this.startWho(input);
+    const run = newRunId();
+    const given = startGiven(input, who.name);
+    const joined = this.startCard(input, who, given);
+    if (given.typedLane) {
+      warn?.('once-upon: --lane is ignored: a run’s lane is its repo’s');
+    }
+    const { cardId, repo, branch, pr, standing } = joined;
+    const { name, sid, kind, task, slots, earlier } = who;
+    this.append({
+      ...this.base('start', name, sid, input),
+      session: clean(input.session, 'the session', 100) || null,
+      run,
+      kind,
+      standing,
+      task,
+      model: clean(input.model, 'the model', 60) || null,
+      effort: clean(input.effort, 'the effort', 30) || null,
+      repo,
+      branch,
+      tip: branchTip(given.cwd, branch, repo),
+      pr: pr || null,
+      cwd: given.cwd,
+      card: cardId,
+      ...(given.replaces ? { replaces: given.replaces } : {}),
+      ...(input.role ? { role: input.role } : {}),
+      notes: clean(input.notes, 'the notes path', 500) || null,
+      // a restart that leaves --slots out keeps the editor's earlier slots
+      ...(kind === 'editor' ? { slots: slots ?? earlier?.slots ?? DEFAULT_SLOTS } : {}),
+    });
+    return { id: agentId(sid, name), run, card: cardId };
+  }
+
+  /** Who is starting: the name, the session, the kind (a restart of the same sid:name keeps what the earlier run was registered as), the task and the slots. */
+  private startWho(input: StartInput) {
     const name = optional(input.name, 'the name', AGENT_NAME_RE);
     if (!name) {
       throw new Error('a name is needed');
@@ -482,32 +559,53 @@ export class AgentRegistry {
     if (slots !== null && (kind !== 'editor' || slots < 1)) {
       throw new Error('--slots is for an editor (once-upon editor start --slots N), 1 to 99');
     }
-    const run = newRunId();
-    let pr = count(input.pr, 'the PR number');
-    let repo = optional(input.repo, 'the repo', REPO_RE);
-    let branch = optional(input.branch, 'the branch', CARD_BRANCH_RE);
-    const typedLane = input.lane?.trim() || null;
-    const replaces = optional(input.replaces, 'the replaced run', AGENT_NAME_RE);
-    if (replaces === name) {
-      throw new Error('--replaces names an earlier run: it cannot be this run');
-    }
-    const cwd = clean(input.cwd, 'the cwd', 500) || null;
+    return { name, sid, earlier, kind, task, slots };
+  }
+
+  /**
+   * The card the run starts on, and the repo, branch and PR it takes from it. A card the run joins has the last word on repo
+   * and branch; a run that mints its own card is checked for the shape that needs one.
+   */
+  private startCard(
+    input: StartInput,
+    who: ReturnType<AgentRegistry['startWho']>,
+    given: StartGiven,
+  ) {
+    const { name, sid, earlier, kind } = who;
     const { cardId: carried, standing, mints: wouldMint } = this.cardFor(input, earlier, kind);
-    let cardId = carried;
     const mints = !!this.cards && wouldMint;
+    const cardId = this.cardIdFor(input, kind, given.branch, carried, mints);
+    // a card the caller stored for this start has no runs, unless a start that joined it got in first: two authors on one card
+    // are the same refusal there
+    if (mints && cardId && kind === 'author') {
+      this.refuseSecondAuthor(cardId, sid, name, input.at);
+    }
+    const { repo, branch, pr } =
+      this.cards && cardId && !mints
+        ? this.joinCard(input, who, cardId, given)
+        : { repo: given.repo, branch: given.branch, pr: given.pr };
+    return { cardId, standing, repo, branch, pr };
+  }
+
+  /** The id the run's card has, refusing a shape that needs a card or a branch and has neither. */
+  private cardIdFor(
+    input: StartInput,
+    kind: AgentKind,
+    branch: string | null,
+    carried: string | null,
+    mints: boolean,
+  ): string | null {
     if (mints && kind === 'author' && !branch) {
       throw new Error(
         'an author with no card needs --branch (the branch its work is on, which names its card) or --card ID',
       );
     }
-    if (this.cards && input.role === 'fixer' && !cardId) {
+    if (this.cards && input.role === 'fixer' && !carried) {
       throw new Error('a fixer works on a card: pass --card ID');
     }
-    if (mints) {
-      cardId = optional(input.mintedCard, 'the minted card', BACKLOG_ID_RE);
-      if (!cardId) {
-        throw new Error('a run with no card needs its card stored first (startRun does it)');
-      }
+    const cardId = mints ? optional(input.mintedCard, 'the minted card', BACKLOG_ID_RE) : carried;
+    if (mints && !cardId) {
+      throw new Error('a run with no card needs its card stored first (startRun does it)');
     }
     if (this.cards && kind === 'critic' && !cardId) {
       throw new Error(
@@ -520,71 +618,46 @@ export class AgentRegistry {
         'a storyteller tells a card’s story: pass --card ID (once-upon backlog list shows the ids), --pr N or --branch NAME. Without one the board cannot tie the story to its work',
       );
     }
-    // a card the caller stored for this start has no runs, unless a start that joined it got in first: two authors on one card
-    // are the same refusal there
-    if (mints && cardId && kind === 'author') {
+    return cardId;
+  }
+
+  /** Joins an existing card: it must be open, an author needs no second author, and its repo and branch are the run's. */
+  private joinCard(
+    input: StartInput,
+    who: ReturnType<AgentRegistry['startWho']>,
+    cardId: string,
+    given: StartGiven,
+  ): { repo: string | null; branch: string | null; pr: number | null } {
+    const { name, sid, kind } = who;
+    const card = this.cardFacts(cardId);
+    if (!card) {
+      throw new Error(`no backlog card ${cardId}`);
+    }
+    if (card.closed) {
+      throw new Error(`${cardId} is ${card.closed}: a run cannot start on it`);
+    }
+    if (kind === 'author') {
       this.refuseSecondAuthor(cardId, sid, name, input.at);
     }
-    if (this.cards && cardId && !mints) {
-      const card = this.cardFacts(cardId);
-      if (!card) {
-        throw new Error(`no backlog card ${cardId}`);
-      }
-      if (card.closed) {
-        throw new Error(`${cardId} is ${card.closed}: a run cannot start on it`);
-      }
-      if (kind === 'author') {
-        this.refuseSecondAuthor(cardId, sid, name, input.at);
-      }
-      // the card's repo and branch are the run's: a typed one is refused, not guessed over. A card carried over from the
-      // earlier run takes no typed branch, PR or lane either; its repo is filled from the checkout, so it is not "typed"
-      const flags = flagsBesideCard(card, {
-        repo: input.card ? repo : null,
-        branch,
-        pr,
-        lane: typedLane,
-      });
-      if (flags.length) {
-        throw flagsBesideCardError(flags);
-      }
-      repo = card.repo ?? repo;
-      branch = card.branch ?? branch;
-      pr = null;
-      // a critic or a storyteller has to have work to read: a card with no branch has none
-      if (
-        (kind === 'critic' || kind === 'storyteller' || input.role === 'storyteller') &&
-        !branch
-      ) {
-        throw new Error(
-          `no branch on ${cardId}: backlog branch ${cardId} <branch>, or agent start ${name} --card ${cardId} --pr N`,
-        );
-      }
-    }
-    if (typedLane) {
-      warn?.('once-upon: --lane is ignored: a run’s lane is its repo’s');
-    }
-    this.append({
-      ...this.base('start', name, sid, input),
-      session: clean(input.session, 'the session', 100) || null,
-      run,
-      kind,
-      standing,
-      task,
-      model: clean(input.model, 'the model', 60) || null,
-      effort: clean(input.effort, 'the effort', 30) || null,
-      repo,
-      branch,
-      tip: branchTip(cwd, branch, repo),
-      pr: pr || null,
-      cwd,
-      card: cardId,
-      ...(replaces ? { replaces } : {}),
-      ...(input.role ? { role: input.role } : {}),
-      notes: clean(input.notes, 'the notes path', 500) || null,
-      // a restart that leaves --slots out keeps the editor's earlier slots
-      ...(kind === 'editor' ? { slots: slots ?? earlier?.slots ?? DEFAULT_SLOTS } : {}),
+    // the card's repo and branch are the run's: a typed one is refused, not guessed over. A card carried over from the
+    // earlier run takes no typed branch, PR or lane either; its repo is filled from the checkout, so it is not "typed"
+    const flags = flagsBesideCard(card, {
+      repo: input.card ? given.repo : null,
+      branch: given.branch,
+      pr: given.pr,
+      lane: given.typedLane,
     });
-    return { id: agentId(sid, name), run, card: cardId };
+    if (flags.length) {
+      throw flagsBesideCardError(flags);
+    }
+    const branch = card.branch ?? given.branch;
+    // a critic or a storyteller has to have work to read: a card with no branch has none
+    if ((kind === 'critic' || kind === 'storyteller' || input.role === 'storyteller') && !branch) {
+      throw new Error(
+        `no branch on ${cardId}: backlog branch ${cardId} <branch>, or agent start ${name} --card ${cardId} --pr N`,
+      );
+    }
+    return { repo: card.repo ?? given.repo, branch, pr: null };
   }
 
   /** Refuses an author start when another author of the card is open (a restart of the same sid:name is a fix round, not a second). */
@@ -784,44 +857,7 @@ export class AgentRegistry {
     if (!(END_STATES as readonly string[]).includes(state)) {
       throw new Error(`the state must be one of ${END_STATES.join(', ')}`);
     }
-    let wanted = optional(input.sid, 'the session id', SID_RE);
-    const prefer = wanted || input.run ? null : optional(input.prefer, 'the session id', SID_RE);
-    const ofName = this.agents().filter((one) => one.name === name);
-    // without --sid, the caller's own session's runs when it has any (stale or not): another session's run of the name is
-    // never its to end, and `open()` is told so it cannot fall through to one
-    if (prefer && ofName.some((one) => one.sid === prefer)) {
-      wanted = prefer;
-    } else if (!wanted && !input.run) {
-      // none of the caller's own: refuse when several sessions have a live run (open and not stale, as `open()` counts them)
-      const nowMs = (input.at ?? new Date()).getTime();
-      const live = new Set(
-        ofName
-          .filter(
-            (one) => runIsOpen(one) && nowMs - (lastActivity(one)?.getTime() ?? nowMs) <= STALE_MS,
-          )
-          .map((one) => one.sid),
-      );
-      if (live.size > 1) {
-        throw new Error(
-          `${name} has open runs in more than one session (${[...live].join(', ')}) and this session is not one of them: pass --sid to say which to finish`,
-        );
-      }
-    }
-    const named = ofName.filter((one) => !wanted || one.sid === wanted);
-    // the agent's own finish replaces the hook's (`agent auto-finish`): the stop was not the end after all, or the agent finishes late
-    const autoFinished =
-      input.by === 'auto-finish'
-        ? undefined
-        : named.find((one) => one.autoFinished && (!input.run || one.run === input.run));
-    if (named.length && !named.some(runIsOpen) && !autoFinished) {
-      throw new Error(
-        `${name} has already finished, so this finish (and any --commit on it) was not recorded: run \`agent start\` for a new run (a fix round is one), then finish that`,
-      );
-    }
-    const agent =
-      autoFinished && !named.some(runIsOpen)
-        ? autoFinished
-        : this.open(name, { ...input, sid: wanted }, warn);
+    const agent = this.runToFinish(name, input, warn);
     // a null count reads as a pass, so a critic on a card must say how many (0 is fine)
     const criticOnCard = this.cards && agent.kind === 'critic' && agent.card;
     if (criticOnCard && state === 'done' && count(input.findings, 'the findings count') === null) {
@@ -829,77 +865,7 @@ export class AgentRegistry {
         'a critic finishes with its findings count: --findings N (0 if it found none). Without one the card would read as passed',
       );
     }
-    const result: AgentResult = {};
-    const given = input.result ?? {};
-    const commit = optional(given.commit, 'the commit', SHA_RE);
-    const pr = count(given.pr, 'the PR number');
-    const branch = optional(given.branch, 'the branch', CARD_BRANCH_RE);
-    const card = optional(given.card, 'the card', BACKLOG_ID_RE);
-    // a run that started on a card finishes on it. One that started with none, or on a card an agent made for it (ADR-27, ADR-29),
-    // may name its card here, and nothing is said.
-    if (
-      card &&
-      agent.card &&
-      !isImplicitCard(agent.card) &&
-      !this.cardFacts(agent.card)?.agentMade &&
-      card !== agent.card
-    ) {
-      warn?.(`once-upon: --card ${card} is not the card ${name} started on (${agent.card})`);
-    } else if (card && this.cards && !this.cardFacts(card)) {
-      warn?.(`once-upon: --card ${card} is not a backlog card`);
-    }
-    if (commit) {
-      result.commit = commit;
-    }
-    if (pr) {
-      result.pr = pr;
-    }
-    if (branch) {
-      result.branch = branch;
-    }
-    if (card) {
-      result.card = card;
-    }
-    // git is the truth for what an author made (ADR-29): its worktree's HEAD and branch, when the card's worktree (else the run's
-    // checkout) is a checkout on a branch. A typed commit that is HEAD or behind it stands; one that is not is replaced, with a
-    // warning. Anything git cannot say (no checkout, gone, detached, slow), and every run that is not an author finishing done,
-    // goes on with what was typed, as before
-    if (state === 'done' && agent.kind === 'author' && !input.noCommit) {
-      const dir = (agent.card && this.cardFacts(agent.card)?.worktree) || agent.cwd;
-      const facts = dir ? worktreeFacts(dir) : null;
-      const onItsBranch =
-        isFeatureBranch(facts?.branch) && (!agent.branch || facts.branch === agent.branch);
-      if (dir && facts && onItsBranch) {
-        const typed = result.commit;
-        if (typed && !isAncestor(dir, typed, facts.head)) {
-          warn?.(
-            `once-upon: --commit ${typed} is not in ${dir}'s history (HEAD ${facts.head}): recorded ${facts.head}`,
-          );
-        }
-        // nothing typed: HEAD counts as made when it moved past the run's start tip and is not the default branch's own tip (a
-        // branch with nothing over main: its HEAD is the commit it was cut from, which a null start tip must not mistake for work)
-        const baseTip = [defaultBranchOf(dir), 'main', 'master']
-          .map((name) => (name ? commitOf(dir, `refs/heads/${name}`) : null))
-          .find(Boolean);
-        const untouched = facts.head === agent.tip || facts.head === baseTip;
-        if (typed ? !isAncestor(dir, typed, facts.head) : !untouched) {
-          result.commit = facts.head;
-        }
-        if (result.commit && result.branch !== facts.branch) {
-          result.branch = facts.branch;
-        }
-      }
-    }
-    // none given: what an author's registered branch gained since the run started. A run that failed or was stopped made
-    // nothing to point at, and a helper, critic or researcher never takes an author's commit
-    if (
-      !Object.keys(result).length &&
-      state === 'done' &&
-      agent.kind === 'author' &&
-      !input.noCommit
-    ) {
-      Object.assign(result, madeOnBranch(agent));
-    }
+    const result = this.finishResult(agent, input, state, warn);
     // an author done with no commit and changes left in its worktree: recorded once, here (a planner made none to hold)
     let uncommitted: true | null = null;
     const finishedAuthor = state === 'done' && agent.kind === 'author' && agent.state !== 'plan';
@@ -923,5 +889,153 @@ export class AgentRegistry {
       findings: count(input.findings, 'the findings count'),
       notes: clean(input.notes, 'the notes path', 500) || null,
     });
+  }
+
+  /** The session a finish is for: the one typed, else the caller's own when it has a run of the name, else (refusing several live ones) none. */
+  private finishSession(name: string, input: FinishInput, ofName: LedgerAgent[]): string | null {
+    const wanted = optional(input.sid, 'the session id', SID_RE);
+    const prefer = wanted || input.run ? null : optional(input.prefer, 'the session id', SID_RE);
+    // without --sid, the caller's own session's runs when it has any (stale or not): another session's run of the name is
+    // never its to end, and `open()` is told so it cannot fall through to one
+    if (prefer && ofName.some((one) => one.sid === prefer)) {
+      return prefer;
+    }
+    if (!wanted && !input.run) {
+      // none of the caller's own: refuse when several sessions have a live run (open and not stale, as `open()` counts them)
+      const nowMs = (input.at ?? new Date()).getTime();
+      const live = new Set(
+        ofName
+          .filter(
+            (one) => runIsOpen(one) && nowMs - (lastActivity(one)?.getTime() ?? nowMs) <= STALE_MS,
+          )
+          .map((one) => one.sid),
+      );
+      if (live.size > 1) {
+        throw new Error(
+          `${name} has open runs in more than one session (${[...live].join(', ')}) and this session is not one of them: pass --sid to say which to finish`,
+        );
+      }
+    }
+    return wanted;
+  }
+
+  /** The run a finish ends: an open one, or the hook's auto-finished one the agent's own finish replaces. */
+  private runToFinish(
+    name: string,
+    input: FinishInput,
+    warn?: (text: string) => void,
+  ): LedgerAgent {
+    const ofName = this.agents().filter((one) => one.name === name);
+    const wanted = this.finishSession(name, input, ofName);
+    const named = ofName.filter((one) => !wanted || one.sid === wanted);
+    // the agent's own finish replaces the hook's (`agent auto-finish`): the stop was not the end after all, or the agent finishes late
+    const autoFinished =
+      input.by === 'auto-finish'
+        ? undefined
+        : named.find((one) => one.autoFinished && (!input.run || one.run === input.run));
+    if (named.length && !named.some(runIsOpen) && !autoFinished) {
+      throw new Error(
+        `${name} has already finished, so this finish (and any --commit on it) was not recorded: run \`agent start\` for a new run (a fix round is one), then finish that`,
+      );
+    }
+    return autoFinished && !named.some(runIsOpen)
+      ? autoFinished
+      : this.open(name, { ...input, sid: wanted }, warn);
+  }
+
+  /** Whether an agent made the card for its run (an `ic_` id, or a start with no card stored one). */
+  private agentMadeCard(id: string): boolean {
+    return isImplicitCard(id) || !!this.cardFacts(id)?.agentMade;
+  }
+
+  /** What the finish records of the work: what was typed, corrected by git for an author, else what its branch gained. */
+  private finishResult(
+    agent: LedgerAgent,
+    input: FinishInput,
+    state: string,
+    warn?: (text: string) => void,
+  ): AgentResult {
+    const result = this.typedResult(agent, input, warn);
+    const author = state === 'done' && agent.kind === 'author' && !input.noCommit;
+    if (author) {
+      this.checkAgainstGit(agent, result, warn);
+      // none given: what an author's registered branch gained since the run started. A run that failed or was stopped made
+      // nothing to point at, and a helper, critic or researcher never takes an author's commit
+      if (!Object.keys(result).length) {
+        Object.assign(result, madeOnBranch(agent));
+      }
+    }
+    return result;
+  }
+
+  /** The result the caller typed (commit, PR, branch, card), with a warning for a card that is not the run's. */
+  private typedResult(
+    agent: LedgerAgent,
+    input: FinishInput,
+    warn?: (text: string) => void,
+  ): AgentResult {
+    const result: AgentResult = {};
+    const given = input.result ?? {};
+    const commit = optional(given.commit, 'the commit', SHA_RE);
+    const pr = count(given.pr, 'the PR number');
+    const branch = optional(given.branch, 'the branch', CARD_BRANCH_RE);
+    const card = optional(given.card, 'the card', BACKLOG_ID_RE);
+    // a run that started on a card finishes on it. One that started with none, or on a card an agent made for it (ADR-27, ADR-29),
+    // may name its card here, and nothing is said.
+    if (card && agent.card && !this.agentMadeCard(agent.card) && card !== agent.card) {
+      warn?.(`once-upon: --card ${card} is not the card ${agent.name} started on (${agent.card})`);
+    } else if (card && this.cards && !this.cardFacts(card)) {
+      warn?.(`once-upon: --card ${card} is not a backlog card`);
+    }
+    if (commit) {
+      result.commit = commit;
+    }
+    if (pr) {
+      result.pr = pr;
+    }
+    if (branch) {
+      result.branch = branch;
+    }
+    if (card) {
+      result.card = card;
+    }
+    return result;
+  }
+
+  /**
+   * Git is the truth for what an author made (ADR-29): its worktree's HEAD and branch, when the card's worktree (else the run's
+   * checkout) is a checkout on a branch. A typed commit that is HEAD or behind it stands; one that is not is replaced, with a
+   * warning. Anything git cannot say (no checkout, gone, detached, slow) goes on with what was typed, as before.
+   */
+  private checkAgainstGit(
+    agent: LedgerAgent,
+    result: AgentResult,
+    warn?: (text: string) => void,
+  ): void {
+    const dir = (agent.card && this.cardFacts(agent.card)?.worktree) || agent.cwd;
+    const facts = dir ? worktreeFacts(dir) : null;
+    const onItsBranch =
+      isFeatureBranch(facts?.branch) && (!agent.branch || facts.branch === agent.branch);
+    if (!dir || !facts || !onItsBranch) {
+      return;
+    }
+    const typed = result.commit;
+    if (typed && !isAncestor(dir, typed, facts.head)) {
+      warn?.(
+        `once-upon: --commit ${typed} is not in ${dir}'s history (HEAD ${facts.head}): recorded ${facts.head}`,
+      );
+    }
+    // nothing typed: HEAD counts as made when it moved past the run's start tip and is not the default branch's own tip (a
+    // branch with nothing over main: its HEAD is the commit it was cut from, which a null start tip must not mistake for work)
+    const baseTip = [defaultBranchOf(dir), 'main', 'master']
+      .map((branch) => (branch ? commitOf(dir, `refs/heads/${branch}`) : null))
+      .find(Boolean);
+    const untouched = facts.head === agent.tip || facts.head === baseTip;
+    if (typed ? !isAncestor(dir, typed, facts.head) : !untouched) {
+      result.commit = facts.head;
+    }
+    if (result.commit && result.branch !== facts.branch) {
+      result.branch = facts.branch;
+    }
   }
 }

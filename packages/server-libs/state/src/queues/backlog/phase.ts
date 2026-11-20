@@ -190,91 +190,192 @@ export function cardPhase(
   ready: ReadyFacts = UNKNOWN_READY,
   skipsReview = false,
 ): CardPhase | null | undefined {
-  const work = runs.filter(isWorkRun);
+  const facts = phaseFacts(item, runs, nowMs, ready, skipsReview);
+  for (const rule of PHASE_RULES) {
+    const verdict = rule(facts);
+    if (verdict !== NEXT_ROW) {
+      return verdict;
+    }
+  }
+  return undefined;
+}
+
+/** What the rows read of a card: its runs, how old they are and whether it is built. */
+interface PhaseFacts {
+  item: Pick<BacklogItem, 'state' | 'repo' | 'branch' | 'critic_skipped'> &
+    Partial<Pick<BacklogItem, 'landed_at' | 'someday' | 'parked_at'>>;
+  runs: LedgerAgent[];
+  nowMs: number;
+  ready: ReadyFacts;
+  skipsReview: boolean;
+  critics: LedgerAgent[];
+  latestWork: LedgerAgent | undefined;
+  latestCritic: LedgerAgent | undefined;
+  /** started on a branch */
+  built: boolean;
+  /** when the latest work run ended */
+  when: number | null;
+  /** open, and heard from within its kind's stale limit */
+  alive: (run: LedgerAgent) => boolean;
+}
+
+/** A row's verdict: the card's phase, null (off the board), undefined (nothing to say), or NEXT_ROW (this row does not fit). */
+const NEXT_ROW = Symbol('next row');
+type PhaseVerdict = CardPhase | null | undefined | typeof NEXT_ROW;
+
+const isOpenRun = (run: LedgerAgent) => OPEN.includes(run.state);
+
+function phaseFacts(
+  item: PhaseFacts['item'],
+  runs: LedgerAgent[],
+  nowMs: number,
+  ready: ReadyFacts,
+  skipsReview: boolean,
+): PhaseFacts {
   const critics = runs.filter(isCritic);
-  const latestWork = work[work.length - 1];
-  const isOpen = (run: LedgerAgent) => OPEN.includes(run.state);
+  const latestWork = runs.filter(isWorkRun).pop();
   const lastSign = (run: LedgerAgent) =>
     (run.lastEvent ?? run.started ?? new Date(nowMs)).getTime();
-  const alive = (run: LedgerAgent) => isOpen(run) && nowMs - lastSign(run) <= staleAfterMs(run);
-  const working = [...work].reverse().find(isOpen);
-  if (working) {
-    const when = msOf(working.ended);
-    if (working.state === 'waiting') {
-      return { column: working.review ? 'ready' : 'waiting', when, tried: false, row: '1' };
-    }
-    return {
-      column: working.state === 'plan' ? 'checks' : 'working',
-      when,
-      tried: false,
-      row: '1',
-    };
+  const settledAt = (run: LedgerAgent) => msOf(run.ended ?? run.lastEvent ?? run.started) ?? 0;
+  return {
+    item,
+    runs,
+    nowMs,
+    ready,
+    skipsReview,
+    critics,
+    latestWork,
+    latestCritic: [...critics].sort((first, second) => settledAt(second) - settledAt(first))[0],
+    built: item.state === 'started' && !!item.branch,
+    when: msOf(latestWork?.ended),
+    alive: (run) => isOpenRun(run) && nowMs - lastSign(run) <= staleAfterMs(run),
+  };
+}
+
+const phaseOf = (
+  column: BoardColumn,
+  row: PhaseRow,
+  when: number | null,
+  tried = false,
+): CardPhase => ({ column, when, tried, row });
+
+const tooOld = (when: number | null, nowMs: number) =>
+  when !== null && nowMs - when > DONE_HOURS * 3600 * 1000;
+
+/** Row 1: a work run is open. */
+function rowOpenWork({ runs }: PhaseFacts): PhaseVerdict {
+  const working = runs.filter(isWorkRun).reverse().find(isOpenRun);
+  if (!working) {
+    return NEXT_ROW;
   }
+  const when = msOf(working.ended);
+  if (working.state === 'waiting') {
+    return phaseOf(working.review ? 'ready' : 'waiting', '1', when);
+  }
+  return phaseOf(working.state === 'plan' ? 'checks' : 'working', '1', when);
+}
+
+/** Row 7, landed: Done for DONE_HOURS after it landed, whatever its runs say. */
+function rowLanded({ item, nowMs }: PhaseFacts): PhaseVerdict {
   const landedMs = item.landed_at ? Date.parse(item.landed_at) : NaN;
-  if (!Number.isNaN(landedMs)) {
-    return nowMs - landedMs > DONE_HOURS * 3600 * 1000
-      ? null
-      : { column: 'done', when: landedMs, tried: false, row: '7' };
+  if (Number.isNaN(landedMs)) {
+    return NEXT_ROW;
   }
+  return tooOld(landedMs, nowMs) ? null : phaseOf('done', '7', landedMs);
+}
+
+/** Row 1b: parked (a reopen, hold or someday) after every run on the card, a beat included: back in Backlog. */
+function rowParked({ item, runs, latestWork }: PhaseFacts): PhaseVerdict {
   const parkedMs = item.parked_at ? Date.parse(item.parked_at) : NaN;
   if (
-    !Number.isNaN(parkedMs) &&
-    latestWork &&
+    Number.isNaN(parkedMs) ||
+    !latestWork ||
     // a live run of any kind (a critic, a storyteller, a helper) keeps the card on the board with its agents
-    !runs.some(isOpen) &&
-    runs.every((run) => parkedMs > (lastActivity(run)?.getTime() ?? 0))
+    runs.some(isOpenRun) ||
+    !runs.every((run) => parkedMs > (lastActivity(run)?.getTime() ?? 0))
   ) {
-    // a parked card whose last work run failed or was stopped stays marked tried, as row 3 marks it
-    const tried = latestWork.state === 'failed' || latestWork.state === 'stopped';
-    return { column: 'backlog', when: parkedMs, tried, row: '1b' };
+    return NEXT_ROW;
   }
-  if (critics.some(alive)) {
-    return { column: 'checks', when: null, tried: false, row: '2' };
-  }
+  // a parked card whose last work run failed or was stopped stays marked tried, as row 3 marks it
+  const tried = latestWork.state === 'failed' || latestWork.state === 'stopped';
+  return phaseOf('backlog', '1b', parkedMs, tried);
+}
+
+/** Row 2: a critic is open. */
+function rowOpenCritic({ critics, alive }: PhaseFacts): PhaseVerdict {
+  return critics.some(alive) ? phaseOf('checks', '2', null) : NEXT_ROW;
+}
+
+/** Row 3: the latest work run failed or stopped. */
+function rowFailed({ item, latestWork }: PhaseFacts): PhaseVerdict {
   // a card you set aside (someday) after its failure is dealt with: it goes back to Backlog, as an acked one does
   if (latestWork?.state === 'failed' && !isAcked(latestWork) && !item.someday) {
-    return { column: 'error', when: msOf(latestWork.ended), tried: false, row: '3' };
+    return phaseOf('error', '3', msOf(latestWork.ended));
   }
   if (latestWork && (latestWork.state === 'failed' || latestWork.state === 'stopped')) {
-    return { column: 'backlog', when: msOf(latestWork.ended), tried: true, row: '3' };
+    return phaseOf('backlog', '3', msOf(latestWork.ended), true);
   }
-  if (runs.some((run) => isStoryteller(run) && run.state === 'running' && alive(run))) {
-    return { column: 'checks', when: null, tried: false, row: '3b' };
-  }
-  const built = item.state === 'started' && !!item.branch;
-  if (!latestWork && !built) {
-    return undefined;
-  }
-  const when = msOf(latestWork?.ended);
-  const settledAt = (run: LedgerAgent) => msOf(run.ended ?? run.lastEvent ?? run.started) ?? 0;
-  const latestCritic = [...critics].sort(
-    (first, second) => settledAt(second) - settledAt(first),
-  )[0];
-  if (
+  return NEXT_ROW;
+}
+
+/** Row 3b: a storyteller is running. */
+function rowStoryteller({ runs, alive }: PhaseFacts): PhaseVerdict {
+  const telling = runs.some((run) => isStoryteller(run) && run.state === 'running' && alive(run));
+  return telling ? phaseOf('checks', '3b', null) : NEXT_ROW;
+}
+
+/** No work run and not started on a branch: nothing to say. */
+function rowNothing({ latestWork, built }: PhaseFacts): PhaseVerdict {
+  return !latestWork && !built ? undefined : NEXT_ROW;
+}
+
+/** Row 4: fixes are due. */
+function rowFixesDue({ latestCritic, when, nowMs }: PhaseFacts): PhaseVerdict {
+  const due =
     latestCritic?.state === 'done' &&
     (latestCritic.findings ?? 0) > 0 &&
     nowMs - (msOf(latestCritic.ended) ?? nowMs) <= STALE_MS &&
-    (when ?? 0) <= (msOf(latestCritic.ended) ?? 0)
-  ) {
-    return { column: 'checks', when: msOf(latestCritic.ended), tried: false, row: '4' };
-  }
-  if (built && (!latestCritic || latestCritic.state !== 'done') && !item.critic_skipped) {
-    return { column: 'waiting', when, tried: false, row: '5' };
-  }
-  if (built) {
-    const column = readyColumn(ready, skipsReview);
-    return {
-      column,
-      when,
-      tried: false,
-      row: '6',
-      ...(column === 'working' && ready.moved ? { outside: ready.moved } : {}),
-    };
-  }
-  return when !== null && nowMs - when > DONE_HOURS * 3600 * 1000
-    ? null
-    : { column: 'done', when, tried: false, row: '7' };
+    (when ?? 0) <= (msOf(latestCritic.ended) ?? 0);
+  return due ? phaseOf('checks', '4', msOf(latestCritic.ended)) : NEXT_ROW;
 }
+
+/** Row 5: built, and no critic has passed. */
+function rowNoCritic({ built, latestCritic, item, when }: PhaseFacts): PhaseVerdict {
+  const unchecked = !latestCritic || latestCritic.state !== 'done';
+  return built && unchecked && !item.critic_skipped ? phaseOf('waiting', '5', when) : NEXT_ROW;
+}
+
+/** Row 6: built. */
+function rowBuilt({ built, ready, skipsReview, when }: PhaseFacts): PhaseVerdict {
+  if (!built) {
+    return NEXT_ROW;
+  }
+  const column = readyColumn(ready, skipsReview);
+  return {
+    ...phaseOf(column, '6', when),
+    ...(column === 'working' && ready.moved ? { outside: ready.moved } : {}),
+  };
+}
+
+/** Row 7: no branch: Done for DONE_HOURS after the work ended. */
+function rowDone({ when, nowMs }: PhaseFacts): PhaseVerdict {
+  return tooOld(when, nowMs) ? null : phaseOf('done', '7', when);
+}
+
+/** The rows in order: the first that fits decides. */
+const PHASE_RULES: ((facts: PhaseFacts) => PhaseVerdict)[] = [
+  rowOpenWork,
+  rowLanded,
+  rowParked,
+  rowOpenCritic,
+  rowFailed,
+  rowStoryteller,
+  rowNothing,
+  rowFixesDue,
+  rowNoCritic,
+  rowBuilt,
+  rowDone,
+];
 
 /**
  * The joins between runs and cards that do not hold, one line each, for `once-upon doctor` (read only: nothing is fixed here):
@@ -291,49 +392,42 @@ export function cardRunProblems(
   known: ReadonlySet<string> = new Set(items.map((item) => item.id)),
 ): string[] {
   const byId = new Map(items.map((item) => [item.id, item]));
-  const problems: string[] = [];
   const runs = agents.flatMap((agent) => [...(agent.earlier ?? []), agent]);
-  for (const run of runs) {
-    const label = `${agentKey(run)}${run.run ? ` ${run.run}` : ''}`;
-    const item = run.card ? byId.get(run.card) : undefined;
-    if (run.card && !item && known.has(run.card)) {
-      continue;
-    }
-    if (run.card && (!item || item.state === 'dropped')) {
-      problems.push(`${label} names ${run.card}, which ${item ? 'was dropped' : 'is not a card'}`);
-      continue;
-    }
-    if (!item) {
-      continue;
-    }
-    if (run.repo && item.repo && !sameRepo(run.repo, item.repo)) {
-      problems.push(`${label} typed repo ${run.repo}, its card ${item.id} is on ${item.repo}`);
-    }
-    // only an open run follows a rename (`backlog branch` moves those): a finished run's branch is the one it worked on
-    if (OPEN.includes(run.state) && run.branch && item.branch && run.branch !== item.branch) {
-      problems.push(
-        `${label} typed branch ${run.branch}, its card ${item.id} is on ${item.branch}`,
-      );
-    }
-    if (run.result?.card && run.result.card !== run.card) {
-      problems.push(`${label} finished naming ${run.result.card}, but it started on ${run.card}`);
-    }
+  return [
+    ...runs.flatMap((run) =>
+      runJoinProblems(run, run.card ? byId.get(run.card) : undefined, known),
+    ),
+    ...agents.flatMap((agent) => silentProblems(agent, nowMs)),
+    ...items.flatMap((item) => twoAuthorProblems(item, agents)),
+  ];
+}
+
+/** The joins of one run to its card that do not hold: a missing or dropped card, a typed repo or branch that is not the card's, a finish naming another card. */
+function runJoinProblems(
+  run: LedgerAgent,
+  item: BacklogItem | undefined,
+  known: ReadonlySet<string>,
+): string[] {
+  const label = `${agentKey(run)}${run.run ? ` ${run.run}` : ''}`;
+  if (run.card && !item && known.has(run.card)) {
+    return [];
   }
-  for (const agent of agents) {
-    const sign = (agent.lastEvent ?? agent.started)?.getTime() ?? nowMs;
-    if (OPEN.includes(agent.state) && nowMs - sign > STALE_MS) {
-      problems.push(`${agentKey(agent)} is open and silent for over 24 hours`);
-    }
+  if (run.card && (!item || item.state === 'dropped')) {
+    return [`${label} names ${run.card}, which ${item ? 'was dropped' : 'is not a card'}`];
   }
-  for (const item of items) {
-    const open = agents.filter(
-      (agent) => agent.card === item.id && agent.kind === 'author' && OPEN.includes(agent.state),
-    );
-    if (open.length > 1) {
-      problems.push(
-        `${item.id} has ${open.length} open author runs (${open.map(agentKey).join(', ')})`,
-      );
-    }
+  if (!item) {
+    return [];
+  }
+  const problems: string[] = [];
+  if (run.repo && item.repo && !sameRepo(run.repo, item.repo)) {
+    problems.push(`${label} typed repo ${run.repo}, its card ${item.id} is on ${item.repo}`);
+  }
+  // only an open run follows a rename (`backlog branch` moves those): a finished run's branch is the one it worked on
+  if (OPEN.includes(run.state) && run.branch && item.branch && run.branch !== item.branch) {
+    problems.push(`${label} typed branch ${run.branch}, its card ${item.id} is on ${item.branch}`);
+  }
+  if (run.result?.card && run.result.card !== run.card) {
+    problems.push(`${label} finished naming ${run.result.card}, but it started on ${run.card}`);
   }
   return problems;
 }
@@ -343,6 +437,24 @@ const isWorked = (item: BacklogItem, agents: LedgerAgent[]): boolean => {
   const run = workAgent(item, agents);
   return item.state === 'started' || (!!run && runIsOpen(run));
 };
+
+/** A run still open with no sign of life for STALE_MS. */
+function silentProblems(agent: LedgerAgent, nowMs: number): string[] {
+  const sign = (agent.lastEvent ?? agent.started)?.getTime() ?? nowMs;
+  return OPEN.includes(agent.state) && nowMs - sign > STALE_MS
+    ? [`${agentKey(agent)} is open and silent for over 24 hours`]
+    : [];
+}
+
+/** A card with two open author runs at once. */
+function twoAuthorProblems(item: BacklogItem, agents: LedgerAgent[]): string[] {
+  const open = agents.filter(
+    (agent) => agent.card === item.id && agent.kind === 'author' && OPEN.includes(agent.state),
+  );
+  return open.length > 1
+    ? [`${item.id} has ${open.length} open author runs (${open.map(agentKey).join(', ')})`]
+    : [];
+}
 
 /**
  * The cards being worked that carry no branch, one line each, for `once-upon doctor`: the board joins a card to its worktree,

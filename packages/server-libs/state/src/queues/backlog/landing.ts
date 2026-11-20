@@ -21,20 +21,13 @@ import { isWorkRun, namedByRuns, runsOf } from './phase.ts';
  */
 export function recordedTips(events: AgentEvent[]): Map<string, string> {
   const runCard = new Map<string, string>();
-  const finishes: { key: string | null; named: string | undefined; sha: string; when: number }[] =
-    [];
+  const finishes: Finish[] = [];
   for (const event of events) {
     const key = event.run ? `${event.id}/${event.run}` : null;
     if (event.op === 'start' && key && event.card) {
       runCard.set(key, event.card);
     } else if (event.op === 'card' && key && event.card) {
-      const from = runCard.get(key);
-      for (const one of finishes) {
-        if (one.key === key && movesWith(one.named, from)) {
-          one.named = event.card;
-        }
-      }
-      runCard.set(key, event.card);
+      moveRun(runCard, finishes, key, event.card);
     } else if (event.op === 'finish' && event.result?.commit) {
       finishes.push({
         key,
@@ -44,6 +37,11 @@ export function recordedTips(events: AgentEvent[]): Map<string, string> {
       });
     }
   }
+  return newestTips(finishes, runCard);
+}
+
+/** Each card's newest finish commit: a finish names its card, else it is the card of its own run's start. */
+function newestTips(finishes: Finish[], runCard: Map<string, string>): Map<string, string> {
   const tips = new Map<string, { sha: string; when: number }>();
   for (const { key, named, sha, when } of finishes) {
     const card = named ?? (key ? runCard.get(key) : undefined);
@@ -52,6 +50,24 @@ export function recordedTips(events: AgentEvent[]): Map<string, string> {
     }
   }
   return new Map([...tips].map(([card, tip]) => [card, tip.sha]));
+}
+
+interface Finish {
+  key: string | null;
+  named: string | undefined;
+  sha: string;
+  when: number;
+}
+
+/** A run moved to another card: a finish that named its old card now names the new one, and its start card is the new one. */
+function moveRun(runCard: Map<string, string>, finishes: Finish[], key: string, card: string) {
+  const from = runCard.get(key);
+  for (const one of finishes) {
+    if (one.key === key && movesWith(one.named, from)) {
+      one.named = card;
+    }
+  }
+  runCard.set(key, card);
 }
 
 /**
@@ -92,19 +108,11 @@ export interface LandResult {
 }
 
 /**
- * The cards this deploy landed, in the checkout `repo`. Pure of writes: the caller marks each landed card done. Only a
- * card of this repo is reported as open (a card with no repo counts); a card's tip that is not a commit of this repo is
- * skipped for landing.
+ * What a deploy range lands, as a lookup from a card's tip to the commit that went live (null when the tip is not in the range):
+ * the tip itself (a fast-forward), the same patch (a rebase, or a pick whose sha changed) or a picked sha (a batch deploy's
+ * cherry-picks).
  */
-export function landItems(
-  repo: string,
-  repoName: string | null,
-  items: BacklogItem[],
-  tips: Map<string, string>,
-  range: LandRange,
-  agents: LedgerAgent[] = [],
-  nowMs = Date.now(),
-): LandResult {
+function shaLandedBy(repo: string, range: LandRange): (tip: string) => string | null {
   const reachable = new Set(commitsInRange(repo, range.from, range.to));
   const patches = new Map<string, string>();
   for (const sha of commitsInRange(repo, range.from, range.to, { merges: false })) {
@@ -130,6 +138,50 @@ export function landItems(
     const stamp = authorStamp(repo, tip);
     return (stamp && stamps.get(stamp)) || null;
   };
+  return (tip) => {
+    if (reachable.has(tip)) {
+      return tip;
+    }
+    const own = patchId(repo, tip);
+    if (own && patches.has(own)) {
+      return patches.get(own) ?? null;
+    }
+    // the pick's context changed, so its patch differs: the commit that went live is the one that kept the tip's
+    // author, date and message, else (nothing found) the tip as given
+    return picked.has(tip) ? (pickOf(tip) ?? tip) : null;
+  };
+}
+
+/** A card whose tip went live: landed, unless it is held (a held card is never closed here). */
+function landOrHold(result: LandResult, item: BacklogItem, sha: string): void {
+  if (item.hold) {
+    result.held.push(item);
+  } else {
+    result.landed.push({ item, sha });
+  }
+}
+
+/** Whether a card that did not land is still work to report: of this repo (one with no repo counts), not held, and named by a run or started. */
+function holdsWork(item: BacklogItem, repoName: string | null, agents: LedgerAgent[]): boolean {
+  const mine = !item.repo || !repoName || sameRepo(item.repo, repoName);
+  return mine && !item.hold && (namedByRuns(item, agents) || item.state === 'started');
+}
+
+/**
+ * The cards this deploy landed, in the checkout `repo`. Pure of writes: the caller marks each landed card done. Only a
+ * card of this repo is reported as open (a card with no repo counts); a card's tip that is not a commit of this repo is
+ * skipped for landing.
+ */
+export function landItems(
+  repo: string,
+  repoName: string | null,
+  items: BacklogItem[],
+  tips: Map<string, string>,
+  range: LandRange,
+  agents: LedgerAgent[] = [],
+  nowMs = Date.now(),
+): LandResult {
+  const landedSha = shaLandedBy(repo, range);
   const result: LandResult = { landed: [], held: [], open: [] };
   for (const item of items) {
     if (item.state === 'dropped' || item.landed_at) {
@@ -137,29 +189,10 @@ export function landItems(
     }
     const recorded = tips.get(item.id);
     const tip = recorded ? commitOf(repo, recorded) : null;
-    let sha: string | null = null;
-    if (tip) {
-      const own = patchId(repo, tip);
-      if (reachable.has(tip)) {
-        sha = tip;
-      } else if (own && patches.has(own)) {
-        sha = patches.get(own) ?? null;
-      } else if (picked.has(tip)) {
-        // the pick's context changed, so its patch differs: the commit that went live is the one that kept the tip's
-        // author, date and message, else (nothing found) the tip as given
-        sha = pickOf(tip) ?? tip;
-      }
-    }
+    const sha = tip ? landedSha(tip) : null;
     if (sha) {
-      if (item.hold) {
-        result.held.push(item);
-      } else {
-        result.landed.push({ item, sha });
-      }
-      continue;
-    }
-    const mine = !item.repo || !repoName || sameRepo(item.repo, repoName);
-    if (mine && !item.hold && (namedByRuns(item, agents) || item.state === 'started')) {
+      landOrHold(result, item, sha);
+    } else if (holdsWork(item, repoName, agents)) {
       result.open.push({
         item,
         why: whyOpen(recorded, tip, workInProgress(item, agents, nowMs)),

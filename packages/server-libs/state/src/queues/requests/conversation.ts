@@ -113,6 +113,50 @@ export interface ReadOptions {
   auto?: boolean;
 }
 
+/** What one mark step needs: the time, what the client saw, and whether the panel marked it by itself. */
+interface MarkContext {
+  now: string;
+  nowMs: number;
+  seen: Record<string, unknown> | null;
+  auto: boolean;
+}
+
+/** A read keeps the newest answer the client says it saw and never moves a mark back; an auto read leaves a held question alone. */
+function markRead(marks: QaMarks, id: string, { now, nowMs, seen, auto }: MarkContext): void {
+  if (auto && marks.held[id]) {
+    return;
+  }
+  const upto = seenTime(seen?.[id], nowMs) ?? now;
+  const before = Date.parse(marks.read[id] || '') || 0;
+  marks.read[id] = Date.parse(upto) > before ? upto : marks.read[id];
+  if (!auto) {
+    delete marks.held[id];
+  }
+}
+
+/** The last action, `expand`, and the fallback. */
+function markUncollapsed(marks: QaMarks, id: string): void {
+  delete marks.collapsed[id];
+}
+
+/** What each of QA_ACTIONS does to one question's marks. */
+const MARK_STEPS: Record<string, (marks: QaMarks, id: string, context: MarkContext) => void> = {
+  dismiss: (marks, id, { now }) => {
+    marks.dismissed[id] = now;
+  },
+  read: markRead,
+  unread: (marks, id, { now }) => {
+    marks.read[id] = NEVER_READ; // unread whatever its age
+    marks.held[id] = now;
+  },
+  restore: (marks, id) => {
+    delete marks.dismissed[id];
+  },
+  collapse: (marks, id) => {
+    marks.collapsed[id] = true;
+  },
+};
+
 /**
  * Applies one of QA_ACTIONS to the question ids, and returns the marks. A read keeps the newest answer the client says
  * it saw (never the time of the request, so an answer that arrived in between stays unread) and never moves a mark
@@ -131,29 +175,9 @@ export function markQuestions(
   const marks = readQaMarks(home, story);
   const nowMs = Date.now();
   const now = new Date(nowMs).toISOString();
+  const step = MARK_STEPS[action] ?? markUncollapsed;
   for (const id of ids) {
-    if (action === 'dismiss') {
-      marks.dismissed[id] = now;
-    } else if (action === 'read') {
-      if (auto && marks.held[id]) {
-        continue;
-      }
-      const upto = seenTime(seen?.[id], nowMs) ?? now;
-      const before = Date.parse(marks.read[id] || '') || 0;
-      marks.read[id] = Date.parse(upto) > before ? upto : marks.read[id];
-      if (!auto) {
-        delete marks.held[id];
-      }
-    } else if (action === 'unread') {
-      marks.read[id] = NEVER_READ; // unread whatever its age
-      marks.held[id] = now;
-    } else if (action === 'restore') {
-      delete marks.dismissed[id];
-    } else if (action === 'collapse') {
-      marks.collapsed[id] = true;
-    } else {
-      delete marks.collapsed[id];
-    }
+    step(marks, id, { now, nowMs, seen, auto });
   }
   writeJsonAtomic(stateFileToWrite(home, story, MARKS), marks);
   return marks;

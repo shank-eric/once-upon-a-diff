@@ -59,6 +59,20 @@ export function isGone(error: unknown): boolean {
   return /^no such (PR|repo)$|Could not resolve to a (PullRequest|Repository)/.test(text);
 }
 
+/** The rules an open PR's base branch must meet, from the rulesets (null when the PR is closed or has no base). */
+async function rulesetsFor(pr: PrNode, repo: string): Promise<number | null> {
+  const base = !pr.merged && pr.state === 'OPEN' ? pr.baseRefName : null;
+  return base ? await rulesRequired(repo, base) : null;
+}
+
+/** Why a PR reads as reviewed: a submitted review, else every file viewed. */
+function whyDone(reviewedAt: string | null, allViewed: boolean): PrFacts['why'] {
+  if (reviewedAt) {
+    return 'review';
+  }
+  return allViewed ? 'all viewed' : null;
+}
+
 /** The real check: `gh api graphql`, as the signed-in gh user. */
 export const ghPrCheck: PrCheck = async (repo, number) => {
   const [owner, name] = repo.split('/');
@@ -68,10 +82,12 @@ export const ghPrCheck: PrCheck = async (repo, number) => {
   let info: PrInfo | undefined;
   let reviewedAt: string | null = null;
   for (let pages = 0; pages < 50; pages++) {
-    const variables: Record<string, string | number> = { owner, name, pr: number };
-    if (after) {
-      variables.after = after;
-    }
+    const variables: Record<string, string | number> = {
+      owner,
+      name,
+      pr: number,
+      ...(after ? { after } : {}),
+    };
     const out = await ghGraphql<Page>(QUERY, variables, {
       timeout: 30000,
       maxBuffer: 8 * 1024 * 1024,
@@ -82,10 +98,7 @@ export const ghPrCheck: PrCheck = async (repo, number) => {
     }
     const login = out.data.viewer.login.toLowerCase();
     if (!info) {
-      const fromRulesets =
-        !pr.merged && pr.state === 'OPEN' && pr.baseRefName
-          ? await rulesRequired(repo, pr.baseRefName)
-          : null;
+      const fromRulesets = await rulesetsFor(pr, repo);
       info = infoOf(pr, login, repo, number, fromRulesets);
     }
     if (pr.merged) {
@@ -103,12 +116,7 @@ export const ghPrCheck: PrCheck = async (repo, number) => {
     after = pr.files.pageInfo.endCursor;
   }
   const allViewed = total > 0 && viewed === total;
-  let why: PrFacts['why'] = null;
-  if (reviewedAt) {
-    why = 'review';
-  } else if (allViewed) {
-    why = 'all viewed';
-  }
+  const why = whyDone(reviewedAt, allViewed);
   return { merged: false, why, reviewed_at: reviewedAt ?? null, viewed: allViewed, info };
 };
 

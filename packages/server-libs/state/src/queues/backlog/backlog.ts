@@ -161,162 +161,286 @@ export const backlogEventsIn = tailLog(parseBacklogEvents);
 export const foldBacklog = (text: string): BacklogItem[] =>
   foldBacklogEvents(parseBacklogEvents(text));
 
+interface BacklogMarks {
+  reopened?: string;
+  hold?: string;
+  someday?: string;
+}
+
+/** What the fold keeps while it reads the events. */
+interface BacklogFold {
+  items: Map<string, BacklogItem>;
+  /** what each item was added with, which a reopen goes back to (a start overwrote the branch and the repo) */
+  added: Map<string, { branch: string | null; repo: string | null }>;
+  /** when each item was last reopened, put on hold and set aside, which `parked_at` reads */
+  marks: Map<string, BacklogMarks>;
+  order: string[];
+}
+
+/** One event applied to the card it names (`item`, undefined for an id no add made yet); each op takes the events that apply to its card and ignores the rest. */
+interface BacklogStep<Op extends BacklogEvent['op'] = BacklogEvent['op']> {
+  fold: BacklogFold;
+  event: Extract<BacklogEvent, { op: Op }>;
+  item: BacklogItem | undefined;
+  when: string;
+  who: string;
+}
+
+const notDropped = (item: BacklogItem | undefined): item is BacklogItem =>
+  !!item && item.state !== 'dropped';
+
+/** A card whose work has not landed and is not dropped: an open or started one. */
+const notLanded = (item: BacklogItem | undefined): item is BacklogItem =>
+  notDropped(item) && !item.landed_at;
+
+function foldAdd({ fold, event, item, when, who }: BacklogStep<'add'>): void {
+  if (item) {
+    return;
+  }
+  const id = event.id;
+  fold.order.push(id);
+  fold.added.set(id, { branch: event.branch || null, repo: event.repo || null });
+  fold.items.set(id, {
+    id,
+    title: event.title,
+    note: event.note || null,
+    repo: event.repo || null,
+    branch: event.branch || null,
+    added_by: who,
+    added_at: when,
+    state: 'open',
+    source: event.source ?? 'backlog',
+    worktree: event.worktree || null,
+    pr: event.pr || null,
+    story: event.story || null,
+    session: event.session || null,
+    started_at: null,
+    started_by: null,
+    dropped_at: null,
+    landed_at: null,
+    landed_sha: null,
+    hold: false,
+    critic_skipped: false,
+    someday: false,
+  });
+}
+
+function foldStart({ event, item, when, who }: BacklogStep<'start'>): void {
+  // (a start that landed after a drop, from a writer that read before it, doesn't bring the item back)
+  if (!notDropped(item)) {
+    return;
+  }
+  // a start on a card already started and not landed is the same work on another branch (`backlog branch`): who started
+  // it and when stand, as the board's elapsed time reads them
+  const sameWork = item.state === 'started' && !item.landed_at && !!item.started_at;
+  item.state = 'started';
+  item.branch = event.branch;
+  item.repo = event.repo || item.repo;
+  if (!sameWork) {
+    item.started_at = when;
+    item.started_by = who;
+  }
+  // a new start is new work: an earlier landing no longer speaks for it
+  item.landed_at = null;
+  item.landed_sha = null;
+  item.someday = false;
+}
+
+function foldDone({ event, item, when }: BacklogStep<'done'>): void {
+  // (an open item an agent works on is started by what the board finds, so it can land with no `start`)
+  if (!item || (item.state !== 'started' && item.state !== 'open')) {
+    return;
+  }
+  // landing is once: a later `done` can only move the time earlier (an earlier `merged_at`), and fills a sha only when none
+  const landedAt = event.merged_at || when;
+  if (!item.landed_at || Date.parse(landedAt) < Date.parse(item.landed_at)) {
+    item.landed_at = landedAt;
+  }
+  item.landed_sha = item.landed_sha || event.sha || null;
+  item.someday = false;
+}
+
+function foldLink({ event, item }: BacklogStep<'link'>): void {
+  if (!notLanded(item)) {
+    return;
+  }
+  // a fact learned about the work: only the fields the event carries are set, nothing else about the card moves
+  item.repo = event.repo || item.repo;
+  item.branch = event.branch || item.branch;
+  item.worktree = event.worktree || item.worktree;
+  item.pr = event.pr || item.pr;
+  item.story = event.story || item.story;
+  item.session = event.session || item.session;
+  item.source = event.source ?? item.source;
+}
+
+/** An old row (nothing writes one now): its checkout is the card's until a `link` says another, and it ends someday. */
+function foldClaim({ event, item }: BacklogStep<'claim'>): void {
+  if (!notDropped(item)) {
+    return;
+  }
+  item.worktree ??= event.worktree || null;
+  item.someday = false;
+}
+
+function foldHold({ fold, event, item, when }: BacklogStep<'hold'>): void {
+  if (notDropped(item)) {
+    item.hold = event.on !== false;
+    fold.marks.set(item.id, {
+      ...fold.marks.get(item.id),
+      hold: item.hold ? when : undefined,
+    });
+  }
+}
+
+function foldSkipCritic({ event, item }: BacklogStep<'skip_critic'>): void {
+  if (notDropped(item)) {
+    item.critic_skipped = event.on !== false;
+  }
+}
+
+function foldSomeday({ fold, event, item, when }: BacklogStep<'someday'>): void {
+  if (item && item.state === 'open' && !item.landed_at) {
+    item.someday = event.on !== false;
+    fold.marks.set(item.id, {
+      ...fold.marks.get(item.id),
+      someday: item.someday ? when : undefined,
+    });
+  }
+}
+
+function foldDrop({ item, when }: BacklogStep<'drop'>): void {
+  if (item) {
+    item.state = 'dropped';
+    item.dropped_at = when;
+    item.someday = false;
+  }
+}
+
+function foldReopen({ fold, item, when }: BacklogStep<'reopen'>): void {
+  if (!item || item.state !== 'dropped') {
+    return;
+  }
+  // back to an open item: the work it was started on no longer speaks for it, and it keeps its place in the order
+  item.state = 'open';
+  item.dropped_at = null;
+  fold.marks.set(item.id, {
+    ...fold.marks.get(item.id),
+    reopened: when,
+    hold: undefined,
+    someday: undefined,
+  });
+  item.started_at = null;
+  item.started_by = null;
+  item.landed_at = null;
+  item.landed_sha = null;
+  item.branch = fold.added.get(item.id)?.branch ?? null;
+  item.repo = fold.added.get(item.id)?.repo ?? null;
+  item.hold = false;
+  item.critic_skipped = false;
+  item.someday = false;
+}
+
+function foldEdit({ fold, event, item }: BacklogStep<'edit'>): void {
+  if (!notLanded(item)) {
+    return;
+  }
+  // only the fields the event carries change (a note or repo of '' clears it); a title is never blanked.
+  // A started card takes the story only: its title, note and repo stay what its work began with
+  if (item.state === 'open') {
+    editOpen(fold, event, item);
+  }
+  if (typeof event.story === 'string') {
+    item.story = event.story || null;
+  }
+}
+
+/** The title, note and repo an edit sets on an open card. */
+function editOpen(
+  fold: BacklogFold,
+  event: Extract<BacklogEvent, { op: 'edit' }>,
+  item: BacklogItem,
+): void {
+  if (event.title) {
+    item.title = event.title;
+  }
+  if (typeof event.note === 'string') {
+    item.note = event.note || null;
+  }
+  if (typeof event.repo === 'string') {
+    item.repo = event.repo || null;
+    // a reopen goes back to the repo the item has now, not the one it was added with
+    fold.added.set(item.id, { branch: fold.added.get(item.id)?.branch ?? null, repo: item.repo });
+  }
+}
+
+/** Where a moved card goes in the order (the card is already out of it): an edge, or before another card. */
+function placeFor(order: string[], event: Extract<BacklogEvent, { op: 'move' }>): number {
+  if (!event.edge) {
+    return order.indexOf(event.before as string);
+  }
+  return event.edge === 'top' ? 0 : order.length;
+}
+
+function foldMove({ fold, event, item }: BacklogStep<'move'>): void {
+  if (!item) {
+    return;
+  }
+  const { order } = fold;
+  // a target that is gone or unknown leaves the item where it was
+  const target = event.before ? order.indexOf(event.before) : -1;
+  if (event.edge || (target >= 0 && event.before !== item.id)) {
+    order.splice(order.indexOf(item.id), 1);
+    order.splice(placeFor(order, event), 0, item.id);
+  }
+}
+
+/** How each op changes its card. */
+const BACKLOG_STEPS: { [Op in BacklogEvent['op']]?: (step: BacklogStep<Op>) => void } = {
+  add: foldAdd,
+  start: foldStart,
+  done: foldDone,
+  link: foldLink,
+  claim: foldClaim,
+  hold: foldHold,
+  skip_critic: foldSkipCritic,
+  someday: foldSomeday,
+  drop: foldDrop,
+  reopen: foldReopen,
+  edit: foldEdit,
+  move: foldMove,
+};
+
+/** A mark counts while it stands: a start ends someday, and hold or someday off end theirs. */
+function parkedAt(item: BacklogItem, mark: BacklogMarks): string | null {
+  const times = [
+    mark.reopened,
+    item.hold ? mark.hold : undefined,
+    item.someday ? mark.someday : undefined,
+  ]
+    .filter((time): time is string => !!time)
+    .sort();
+  return times.length ? times[times.length - 1] : null;
+}
+
 /** The items the events fold to, by id, oldest first. */
 export function foldBacklogEvents(events: BacklogEvent[]): BacklogItem[] {
-  const items = new Map<string, BacklogItem>();
-  // what each item was added with, which a reopen goes back to (a start overwrote the branch and the repo)
-  const added = new Map<string, { branch: string | null; repo: string | null }>();
-  // when each item was last reopened, put on hold and set aside, which `parked_at` reads
-  const marks = new Map<string, { reopened?: string; hold?: string; someday?: string }>();
-  const order: string[] = [];
+  const fold: BacklogFold = { items: new Map(), added: new Map(), marks: new Map(), order: [] };
   for (const event of events) {
-    const id = event.id;
-    const when = event.at ?? '';
-    const who = event.by ?? 'cli';
-    const found = items.get(id);
-    if (event.op === 'add' && !found) {
-      order.push(id);
-      added.set(id, { branch: event.branch || null, repo: event.repo || null });
-      items.set(id, {
-        id,
-        title: event.title,
-        note: event.note || null,
-        repo: event.repo || null,
-        branch: event.branch || null,
-        added_by: who,
-        added_at: when,
-        state: 'open',
-        source: event.source ?? 'backlog',
-        worktree: event.worktree || null,
-        pr: event.pr || null,
-        story: event.story || null,
-        session: event.session || null,
-        started_at: null,
-        started_by: null,
-        dropped_at: null,
-        landed_at: null,
-        landed_sha: null,
-        hold: false,
-        critic_skipped: false,
-        someday: false,
-      });
-    } else if (found && found.state !== 'dropped' && event.op === 'start') {
-      // (a start that landed after a drop, from a writer that read before it, doesn't bring the item back)
-      // a start on a card already started and not landed is the same work on another branch (`backlog branch`): who started
-      // it and when stand, as the board's elapsed time reads them
-      const sameWork = found.state === 'started' && !found.landed_at && !!found.started_at;
-      found.state = 'started';
-      found.branch = event.branch;
-      found.repo = event.repo || found.repo;
-      if (!sameWork) {
-        found.started_at = when;
-        found.started_by = who;
-      }
-      // a new start is new work: an earlier landing no longer speaks for it
-      found.landed_at = null;
-      found.landed_sha = null;
-      found.someday = false;
-    } else if (
-      found &&
-      (found.state === 'started' || found.state === 'open') &&
-      event.op === 'done'
-    ) {
-      // (an open item an agent works on is started by what the board finds, so it can land with no `start`)
-      // landing is once: a later `done` can only move the time earlier (an earlier `merged_at`), and fills a sha only when none
-      const landedAt = event.merged_at || when;
-      if (!found.landed_at || Date.parse(landedAt) < Date.parse(found.landed_at)) {
-        found.landed_at = landedAt;
-      }
-      found.landed_sha = found.landed_sha || event.sha || null;
-      found.someday = false;
-    } else if (found && found.state !== 'dropped' && !found.landed_at && event.op === 'link') {
-      // a fact learned about the work: only the fields the event carries are set, nothing else about the card moves
-      found.repo = event.repo || found.repo;
-      found.branch = event.branch || found.branch;
-      found.worktree = event.worktree || found.worktree;
-      found.pr = event.pr || found.pr;
-      found.story = event.story || found.story;
-      found.session = event.session || found.session;
-      found.source = event.source ?? found.source;
-    } else if (found && found.state !== 'dropped' && event.op === 'claim') {
-      // an old row (nothing writes one now): its checkout is the card's until a `link` says another, and it ends someday
-      found.worktree ??= event.worktree || null;
-      found.someday = false;
-    } else if (found && found.state !== 'dropped' && event.op === 'hold') {
-      found.hold = event.on !== false;
-      marks.set(id, { ...marks.get(id), hold: found.hold ? when : undefined });
-    } else if (found && found.state !== 'dropped' && event.op === 'skip_critic') {
-      found.critic_skipped = event.on !== false;
-    } else if (found && found.state === 'open' && !found.landed_at && event.op === 'someday') {
-      found.someday = event.on !== false;
-      marks.set(id, { ...marks.get(id), someday: found.someday ? when : undefined });
-    } else if (found && event.op === 'drop') {
-      found.state = 'dropped';
-      found.dropped_at = when;
-      found.someday = false;
-    } else if (found && found.state === 'dropped' && event.op === 'reopen') {
-      // back to an open item: the work it was started on no longer speaks for it, and it keeps its place in the order
-      found.state = 'open';
-      found.dropped_at = null;
-      marks.set(id, { ...marks.get(id), reopened: when, hold: undefined, someday: undefined });
-      found.started_at = null;
-      found.started_by = null;
-      found.landed_at = null;
-      found.landed_sha = null;
-      found.branch = added.get(id)?.branch ?? null;
-      found.repo = added.get(id)?.repo ?? null;
-      found.hold = false;
-      found.critic_skipped = false;
-      found.someday = false;
-    } else if (
-      found &&
-      (found.state === 'open' || found.state === 'started') &&
-      !found.landed_at &&
-      event.op === 'edit'
-    ) {
-      // only the fields the event carries change (a note or repo of '' clears it); a title is never blanked.
-      // A started card takes the story only: its title, note and repo stay what its work began with
-      const open = found.state === 'open';
-      if (open && event.title) {
-        found.title = event.title;
-      }
-      if (open && typeof event.note === 'string') {
-        found.note = event.note || null;
-      }
-      if (open && typeof event.repo === 'string') {
-        found.repo = event.repo || null;
-        // a reopen goes back to the repo the item has now, not the one it was added with
-        added.set(id, { branch: added.get(id)?.branch ?? null, repo: found.repo });
-      }
-      if (typeof event.story === 'string') {
-        found.story = event.story || null;
-      }
-    } else if (found && event.op === 'move') {
-      // a target that is gone or unknown leaves the item where it was
-      const target = event.before ? order.indexOf(event.before) : -1;
-      if (event.edge || (target >= 0 && event.before !== id)) {
-        order.splice(order.indexOf(id), 1);
-        let place = event.edge === 'top' ? 0 : order.length;
-        if (!event.edge) {
-          place = order.indexOf(event.before as string);
-        }
-        order.splice(place, 0, id);
-      }
-    }
+    const step = BACKLOG_STEPS[event.op] as ((step: BacklogStep) => void) | undefined;
+    step?.({
+      fold,
+      event,
+      item: fold.items.get(event.id),
+      when: event.at ?? '',
+      who: event.by ?? 'cli',
+    });
   }
-  for (const [id, mark] of marks) {
-    const item = items.get(id) as BacklogItem;
-    // a mark counts while it stands: a start ends someday, and hold or someday off end theirs
-    const times = [
-      mark.reopened,
-      item.hold ? mark.hold : undefined,
-      item.someday ? mark.someday : undefined,
-    ]
-      .filter((time): time is string => !!time)
-      .sort();
-    item.parked_at = times.length ? times[times.length - 1] : null;
+  for (const [id, mark] of fold.marks) {
+    const item = fold.items.get(id) as BacklogItem;
+    item.parked_at = parkedAt(item, mark);
   }
-  return order.map((id) => items.get(id) as BacklogItem);
+  return fold.order.map((id) => fold.items.get(id) as BacklogItem);
 }
 
 const cardSource = (value: string): CardSource => {
@@ -358,6 +482,39 @@ function cardFacts(input: {
     ...(story ? { story } : {}),
     ...(session ? { session } : {}),
   };
+}
+
+/** What an edit changes: only the fields that differ from the card now, checked. */
+function editChanges(item: BacklogItem, input: EditInput): Record<string, string> {
+  const changes: Record<string, string> = {};
+  if (input.title !== undefined) {
+    const title = clean(input.title, 'the title', TITLE_MAX);
+    if (!title) {
+      throw new Error('a title is needed');
+    }
+    if (title !== item.title) {
+      changes.title = title;
+    }
+  }
+  if (input.note !== undefined) {
+    const note = clean(input.note, 'the note', NOTE_MAX, true);
+    if (note !== (item.note ?? '')) {
+      changes.note = note;
+    }
+  }
+  if (input.repo !== undefined) {
+    const repo = optional(input.repo, 'the repo', REPO_RE) ?? '';
+    if (repo !== (item.repo ?? '')) {
+      changes.repo = repo;
+    }
+  }
+  if (input.story !== undefined) {
+    const story = optional(input.story, 'the story', STORY_ID_RE) ?? '';
+    if (story !== (item.story ?? '')) {
+      changes.story = story;
+    }
+  }
+  return changes;
 }
 
 /** The items in <home>/backlog.jsonl. */
@@ -429,15 +586,23 @@ export class BacklogStore implements BacklogStorage {
     const facts = cardFacts(input);
     const repo = optional(input.repo, 'the repo', REPO_RE);
     const branch = optional(input.branch, 'the branch', CARD_BRANCH_RE);
-    const changes: Record<string, unknown> = {
-      ...(repo && repo !== item.repo ? { repo } : {}),
-      ...(branch && branch !== item.branch ? { branch } : {}),
-      ...(facts.worktree && facts.worktree !== item.worktree ? { worktree: facts.worktree } : {}),
-      ...(facts.pr && facts.pr !== item.pr ? { pr: facts.pr } : {}),
-      ...(facts.story && facts.story !== item.story ? { story: facts.story } : {}),
-      ...(facts.session && facts.session !== item.session ? { session: facts.session } : {}),
-      ...(input.source === 'backlog' && !isListed(item) ? { source: 'backlog' } : {}),
+    const given = {
+      repo,
+      branch,
+      worktree: facts.worktree,
+      pr: facts.pr,
+      story: facts.story,
+      session: facts.session,
     };
+    // only what is given and differs from what the card has
+    const changes: Record<string, unknown> = Object.fromEntries(
+      Object.entries(given).filter(
+        ([key, value]) => value && value !== item[key as keyof typeof given],
+      ),
+    );
+    if (input.source === 'backlog' && !isListed(item)) {
+      changes.source = 'backlog';
+    }
     if (Object.keys(changes).length) {
       this.append({ op: 'link', id, ...changes, by: clean(input.by, 'the name', BY_MAX) || 'cli' });
     }
@@ -568,34 +733,7 @@ export class BacklogStore implements BacklogStorage {
         `${id} is ${item.landed_at ? 'done' : item.state}, only an open card can be edited`,
       );
     }
-    const changes: Record<string, string> = {};
-    if (input.title !== undefined) {
-      const title = clean(input.title, 'the title', TITLE_MAX);
-      if (!title) {
-        throw new Error('a title is needed');
-      }
-      if (title !== item.title) {
-        changes.title = title;
-      }
-    }
-    if (input.note !== undefined) {
-      const note = clean(input.note, 'the note', NOTE_MAX, true);
-      if (note !== (item.note ?? '')) {
-        changes.note = note;
-      }
-    }
-    if (input.repo !== undefined) {
-      const repo = optional(input.repo, 'the repo', REPO_RE) ?? '';
-      if (repo !== (item.repo ?? '')) {
-        changes.repo = repo;
-      }
-    }
-    if (input.story !== undefined) {
-      const story = optional(input.story, 'the story', STORY_ID_RE) ?? '';
-      if (story !== (item.story ?? '')) {
-        changes.story = story;
-      }
-    }
+    const changes = editChanges(item, input);
     if (Object.keys(changes).length) {
       this.append({ op: 'edit', id, ...changes, by: clean(who, 'the name', BY_MAX) || 'cli' });
     }
@@ -731,6 +869,136 @@ export function mergeIntoWork(
   }
 }
 
+/** Where a backlog item sits on the board: its column, since when, and what the runs said of it. */
+interface Placement {
+  column: BoardCard['column'];
+  since: string | null;
+  tried: boolean;
+  outside: CardPhase['outside'];
+}
+
+/** The place a card's runs put it (cardPhase): Working while the author runs, Agent checks at a plan stop, Waiting at a question, then by what it produced. */
+function placeByPhase(item: BacklogItem, placed: CardPhase): Placement {
+  let since: string | null = item.started_at ?? item.added_at ?? null;
+  if (placed.column === 'backlog') {
+    since = item.added_at || null;
+  } else if (placed.when !== null) {
+    since = new Date(placed.when).toISOString();
+  }
+  return { column: placed.column, since, tried: placed.tried, outside: placed.outside };
+}
+
+/** The place the runs give an item; null when the runs leave it out of the board. */
+function placeByRuns(
+  item: BacklogItem,
+  link: BoardStartedLinks | undefined,
+  phases: Map<string, CardPhase | null>,
+): Placement | null {
+  if (phases.has(item.id) && !(item.state === 'started' && (link?.merged || item.landed_at))) {
+    const placed = phases.get(item.id);
+    return placed ? placeByPhase(item, placed) : null;
+  }
+  return { column: 'backlog', since: item.added_at || null, tried: false, outside: undefined };
+}
+
+/** The place of a started item: Done (for DONE_HOURS) once its work landed or merged, else the place its runs gave it; null when it is gone. */
+function placeStarted(
+  item: BacklogItem,
+  link: BoardStartedLinks | undefined,
+  place: Placement,
+  nowMs: number,
+): Placement | null {
+  const landed = endedColumn(
+    link,
+    Date.parse(item.started_at ?? ''),
+    Date.parse(item.landed_at ?? ''),
+  );
+  if (!landed) {
+    return place;
+  }
+  // landed or merged: Done for DONE_HOURS from then, as far as is known
+  if (nowMs - landed.when > DONE_HOURS * 3600 * 1000) {
+    return null;
+  }
+  return {
+    ...place,
+    column: landed.column,
+    tried: false,
+    since: new Date(landed.when).toISOString(),
+  };
+}
+
+/** The board card of a shown backlog item. */
+function backlogCardOf(
+  item: BacklogItem,
+  facts: {
+    original: BacklogItem;
+    derived: boolean;
+    link: BoardStartedLinks | undefined;
+    views: BoardAgent[];
+  },
+  place: Placement,
+  phases: Map<string, CardPhase | null>,
+): BoardCard {
+  const { original, derived, link, views } = facts;
+  const { column, since, tried, outside } = place;
+  return {
+    id: `backlog:${item.id}`,
+    kind: 'backlog',
+    title: item.title,
+    repo: item.repo,
+    branch: item.branch,
+    lane: lane(item.repo),
+    column,
+    detail: item.note,
+    since,
+    pr: null,
+    story: null,
+    building: null,
+    sessions: [],
+    // a started card no work run names keeps its other runs (a critic, a helper) in view; a card sent back or parked shows none
+    agents: column === 'backlog' && (item.state !== 'started' || phases.has(item.id)) ? [] : views,
+    parent: null,
+    focus_session: null,
+    can_focus: false,
+    listening: null,
+    build: null,
+    ...(outside && item.repo && item.branch && column === 'working'
+      ? {
+          outside: { sha: outside.tip, branch: item.branch, repo: item.repo, path: outside.path },
+        }
+      : {}),
+    backlog: {
+      id: item.id,
+      added_by: item.added_by,
+      started:
+        item.state === 'started'
+          ? {
+              branch: item.branch,
+              at: item.started_at,
+              on: null,
+              links: link ?? null,
+            }
+          : null,
+      ...(item.someday && item.state === 'open' && column === 'backlog'
+        ? { someday: true as const }
+        : {}),
+      start_line: startLine(item),
+      // an open item whose run is in the registry: what is working it, or who tried it
+      agent: original.state === 'open' && !derived && link?.agent ? { links: link, tried } : null,
+    },
+  };
+}
+
+/** Whether a started item with a branch rode on the work or session card for that branch (its runs' views go there). */
+function mergedIntoWorkCard(item: BacklogItem, cards: BoardCard[], views: BoardAgent[]): boolean {
+  const work = item.state === 'started' && item.branch ? cardOnBranch(item, cards) : undefined;
+  if (work) {
+    mergeIntoWork(work, item, views);
+  }
+  return !!work;
+}
+
 /**
  * The cards the Backlog item column shows, and the work cards' "from backlog" marks. Open items are cards in Backlog,
  * except one a work run names (`agent start --card`), which goes where its runs put it (`cardPhase`, phase.ts). A started item is one piece of work, shown once:
@@ -763,95 +1031,16 @@ export function backlogCards(
     // an open item that landed (`done` with no `start`) is a started one
     const derived = original.state === 'open' && !!original.landed_at;
     const item: BacklogItem = derived ? { ...original, state: 'started' } : original;
-    let column: BoardCard['column'] = 'backlog';
-    let since: string | null = item.added_at || null;
-    let tried = false;
-    let outside: CardPhase['outside'];
     const itemViews = views.get(item.id) ?? [];
-    if (item.state === 'started' && item.branch) {
-      const work = cardOnBranch(item, cards);
-      if (work) {
-        mergeIntoWork(work, item, itemViews);
-        continue;
-      }
+    if (mergedIntoWorkCard(item, cards, itemViews)) {
+      continue;
     }
-    if (phases.has(item.id) && !(item.state === 'started' && (link?.merged || item.landed_at))) {
-      // the card's runs decide the column (cardPhase): Working while the author runs, Agent checks at a plan stop, Waiting at
-      // a question, then by what it produced
-      const placed = phases.get(item.id);
-      if (!placed) {
-        continue;
-      }
-      column = placed.column;
-      tried = placed.tried;
-      outside = placed.outside;
-      since = item.started_at ?? item.added_at ?? null;
-      if (column === 'backlog') {
-        since = item.added_at || null;
-      } else if (placed.when !== null) {
-        since = new Date(placed.when).toISOString();
-      }
+    const byRuns = placeByRuns(item, link, phases);
+    const place =
+      byRuns && item.state === 'started' ? placeStarted(item, link, byRuns, nowMs) : byRuns;
+    if (place) {
+      shown.push(backlogCardOf(item, { original, derived, link, views: itemViews }, place, phases));
     }
-    if (item.state === 'started') {
-      const started = Date.parse(item.started_at ?? '');
-      const landed = endedColumn(link, started, Date.parse(item.landed_at ?? ''));
-      if (landed) {
-        // landed or merged: Done for DONE_HOURS from then, as far as is known
-        if (nowMs - landed.when > DONE_HOURS * 3600 * 1000) {
-          continue;
-        }
-        column = landed.column;
-        tried = false;
-        since = new Date(landed.when).toISOString();
-      }
-    }
-    shown.push({
-      id: `backlog:${item.id}`,
-      kind: 'backlog',
-      title: item.title,
-      repo: item.repo,
-      branch: item.branch,
-      lane: lane(item.repo),
-      column,
-      detail: item.note,
-      since,
-      pr: null,
-      story: null,
-      building: null,
-      sessions: [],
-      // a started card no work run names keeps its other runs (a critic, a helper) in view; a card sent back or parked shows none
-      agents:
-        column === 'backlog' && (item.state !== 'started' || phases.has(item.id)) ? [] : itemViews,
-      parent: null,
-      focus_session: null,
-      can_focus: false,
-      listening: null,
-      build: null,
-      ...(outside && item.repo && item.branch && column === 'working'
-        ? {
-            outside: { sha: outside.tip, branch: item.branch, repo: item.repo, path: outside.path },
-          }
-        : {}),
-      backlog: {
-        id: item.id,
-        added_by: item.added_by,
-        started:
-          item.state === 'started'
-            ? {
-                branch: item.branch,
-                at: item.started_at,
-                on: null,
-                links: links.get(item.id) ?? null,
-              }
-            : null,
-        ...(item.someday && item.state === 'open' && column === 'backlog'
-          ? { someday: true as const }
-          : {}),
-        start_line: startLine(item),
-        // an open item whose run is in the registry: what is working it, or who tried it
-        agent: original.state === 'open' && !derived && link?.agent ? { links: link, tried } : null,
-      },
-    });
   }
   return shown;
 }

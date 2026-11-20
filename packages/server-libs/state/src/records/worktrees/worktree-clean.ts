@@ -133,6 +133,83 @@ function log(home: string, now: () => number, entry: Record<string, unknown>): v
   }
 }
 
+type Judged = ReturnType<typeof judge>;
+
+/** Refuses a worktree that is not removable, or whose confirmations (superseded work, ignored files) are missing or out of date. */
+function refuseUnlessConfirmed(judged: Judged, input: CleanInput): void {
+  if (!judged.removable) {
+    throw new BoardError(409, `not cleaned up: ${judged.keep.join(', ')}`);
+  }
+  const supersededAck = input.ack.includes('superseded');
+  if (judged.verdict === 'superseded' && !supersededAck) {
+    throw new BoardError(
+      409,
+      'this work is only superseded (the main line has a copy of each commit): confirm that first',
+    );
+  }
+  if (judged.verdict !== 'superseded' && supersededAck) {
+    throw new BoardError(409, 'the worktree is no longer only superseded: look at it again');
+  }
+  const shown = new Set(input.seen ?? []);
+  const confirmed =
+    input.ack.includes('ignored-files') && judged.ignored.every((name) => shown.has(name));
+  if (judged.ignored.length && !confirmed) {
+    throw new BoardError(
+      409,
+      `these ignored files would be deleted with the folder, so confirm them first: ${judged.ignored.join(', ')}`,
+    );
+  }
+}
+
+/** Why `git worktree remove` failed: its own words, or what the worktree's state says (a timeout looks at nothing). */
+async function removalFailure(
+  run: Runner,
+  facts: WorktreeFacts,
+  removed: RunResult,
+): Promise<string> {
+  return removalError(
+    removed,
+    removed.timedOut
+      ? { dirty: false, locked: false }
+      : await removalState(run, facts.main, facts.path),
+  );
+}
+
+/** Deletes the removed worktree's branch when git agrees it is merged, keeping the line that brings it back; a note when git would not. */
+async function deleteBranch(
+  run: Runner,
+  facts: WorktreeFacts,
+): Promise<{ branch: CleanResult['branch']; note: string | null }> {
+  if (!facts.branch || facts.branch.startsWith('-')) {
+    return { branch: null, note: null };
+  }
+  // the tip as it is now, captured before the delete (git's own message only has a short sha)
+  const tip = await gitVia(
+    run,
+    facts.main,
+    ['rev-parse', '--verify', '--quiet', `refs/heads/${facts.branch}`],
+    SHORT_MS,
+  );
+  const tipSha = tip.code === 0 ? tip.stdout.trim() : '';
+  const deleted = tipSha
+    ? await gitVia(run, facts.main, ['branch', '-d', '--', facts.branch], SHORT_MS)
+    : null;
+  if (deleted && deleted.code === 0) {
+    return {
+      branch: {
+        name: facts.branch,
+        sha: tipSha,
+        restore: `git -C ${shellQuote(facts.main)} branch ${shellQuote(facts.branch)} ${shellQuote(tipSha)}`,
+      },
+      note: null,
+    };
+  }
+  return {
+    branch: null,
+    note: 'git would not delete the branch (it is not merged as git sees it), so it was kept',
+  };
+}
+
 export async function cleanWorktree(input: CleanInput): Promise<CleanResult> {
   const run = input.run ?? runCommand;
   const now = input.now ?? Date.now;
@@ -154,28 +231,7 @@ export async function cleanWorktree(input: CleanInput): Promise<CleanResult> {
       keepBranches: input.keepBranches,
       now: now(),
     });
-    if (!judged.removable) {
-      throw new BoardError(409, `not cleaned up: ${judged.keep.join(', ')}`);
-    }
-    const supersededAck = input.ack.includes('superseded');
-    if (judged.verdict === 'superseded' && !supersededAck) {
-      throw new BoardError(
-        409,
-        'this work is only superseded (the main line has a copy of each commit): confirm that first',
-      );
-    }
-    if (judged.verdict !== 'superseded' && supersededAck) {
-      throw new BoardError(409, 'the worktree is no longer only superseded: look at it again');
-    }
-    if (judged.ignored.length) {
-      const shown = new Set(input.seen ?? []);
-      if (!input.ack.includes('ignored-files') || judged.ignored.some((name) => !shown.has(name))) {
-        throw new BoardError(
-          409,
-          `these ignored files would be deleted with the folder, so confirm them first: ${judged.ignored.join(', ')}`,
-        );
-      }
-    }
+    refuseUnlessConfirmed(judged, input);
     const sha = facts.head;
     const base = {
       path: facts.path,
@@ -189,40 +245,14 @@ export async function cleanWorktree(input: CleanInput): Promise<CleanResult> {
     log(input.home, now, { ...base, phase: 'attempt' });
     const removed = await gitVia(run, facts.main, ['worktree', 'remove', facts.path], REMOVE_MS);
     if (removed.code !== 0) {
-      const error = removalError(
-        removed,
-        removed.timedOut
-          ? { dirty: false, locked: false }
-          : await removalState(run, facts.main, facts.path),
-      );
+      const error = await removalFailure(run, facts, removed);
       log(input.home, now, { ...base, phase: 'failed', error });
       input.scanner.markAttention(facts.path, error);
       throw new BoardError(409, `${error}. It is marked as needing attention and was not retried.`);
     }
-    let branch: CleanResult['branch'] = null;
-    let note: string | null = null;
-    if (judged.deletes_branch && facts.branch && !facts.branch.startsWith('-')) {
-      // the tip as it is now, captured before the delete (git's own message only has a short sha)
-      const tip = await gitVia(
-        run,
-        facts.main,
-        ['rev-parse', '--verify', '--quiet', `refs/heads/${facts.branch}`],
-        SHORT_MS,
-      );
-      const tipSha = tip.code === 0 ? tip.stdout.trim() : '';
-      const deleted = tipSha
-        ? await gitVia(run, facts.main, ['branch', '-d', '--', facts.branch], SHORT_MS)
-        : null;
-      if (deleted && deleted.code === 0) {
-        branch = {
-          name: facts.branch,
-          sha: tipSha,
-          restore: `git -C ${shellQuote(facts.main)} branch ${shellQuote(facts.branch)} ${shellQuote(tipSha)}`,
-        };
-      } else {
-        note = 'git would not delete the branch (it is not merged as git sees it), so it was kept';
-      }
-    }
+    const { branch, note } = judged.deletes_branch
+      ? await deleteBranch(run, facts)
+      : { branch: null, note: null };
     log(input.home, now, { ...base, phase: 'removed', branch_deleted: !!branch });
     input.scanner.forget(facts.path);
     return { removed: facts.path, branch, note };

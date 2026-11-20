@@ -49,6 +49,69 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 /** The files already reported to have a record the check refuses, so a poll doesn't repeat it. */
 const reported = new Set<string>();
 
+/** What a change did to one record of the file: the value to write (none when it was removed), and whether it was made or changed. */
+function settle(
+  key: string,
+  raw: Record<string, unknown>,
+  taken: Record<string, unknown>,
+  first: string[],
+  before: Record<string, string>,
+  held: Record<string, unknown>,
+): { value?: unknown; made: boolean; changed: boolean } {
+  if (!(key in taken)) {
+    // removed, or a record the check refused, which stays as it was
+    return first.includes(key)
+      ? { made: false, changed: true }
+      : { value: raw[key], made: false, changed: false };
+  }
+  if (!(key in before)) {
+    // a new request under the key of a refused record replaces it
+    return { value: taken[key], made: true, changed: true };
+  }
+  if (JSON.stringify(taken[key]) === before[key]) {
+    return { value: raw[key], made: false, changed: false };
+  }
+  // replaced with another object, not stamped in place
+  const replaced = taken[key] !== held[key];
+  const value = replaced ? taken[key] : merged(raw[key], JSON.parse(before[key]), taken[key]);
+  return { value, made: replaced, changed: true };
+}
+
+/**
+ * The file's records after a change: each raw record as it was, unless `change` altered its accepted form (then the merge of
+ * what the check dropped with the change), removed it, or added one. `made` is the records the write made or replaced, the only
+ * ones the strict check is for.
+ */
+function mergeWrite(
+  raw: Record<string, unknown>,
+  taken: Record<string, unknown>,
+  first: string[],
+  before: Record<string, string>,
+  held: Record<string, unknown>,
+): { written: Record<string, unknown>; made: string[]; changed: boolean } {
+  const written: Record<string, unknown> = {};
+  const made: string[] = [];
+  let changed = false;
+  for (const key of Object.keys(raw)) {
+    const one = settle(key, raw, taken, first, before, held);
+    if ('value' in one) {
+      written[key] = one.value;
+    }
+    if (one.made) {
+      made.push(key);
+    }
+    changed ||= one.changed;
+  }
+  for (const key of Object.keys(taken)) {
+    if (!(key in written) && !(key in raw)) {
+      written[key] = taken[key];
+      made.push(key);
+      changed = true;
+    }
+  }
+  return { written, made, changed };
+}
+
 export class RequestQueue<R extends Queued> {
   declare file: string;
   declare claimFreshMs: number | null;
@@ -124,41 +187,7 @@ export class RequestQueue<R extends Queued> {
       const before = Object.fromEntries(first.map((key) => [key, JSON.stringify(taken[key])]));
       const held = Object.fromEntries(first.map((key) => [key, taken[key]]));
       const result = change(taken);
-      const written: Record<string, unknown> = {};
-      /** the records this write made or replaced: the only ones the strict check is for */
-      const made: string[] = [];
-      let changed = false;
-      for (const key of Object.keys(raw)) {
-        if (!(key in taken)) {
-          if (first.includes(key)) {
-            changed = true; // removed
-          } else {
-            written[key] = raw[key]; // a record the check refused stays as it was
-          }
-        } else if (!(key in before)) {
-          written[key] = taken[key]; // a new request under the key of a refused record replaces it
-          made.push(key);
-          changed = true;
-        } else if (JSON.stringify(taken[key]) === before[key]) {
-          written[key] = raw[key];
-        } else {
-          written[key] =
-            taken[key] === held[key]
-              ? merged(raw[key], JSON.parse(before[key]), taken[key])
-              : taken[key];
-          if (taken[key] !== held[key]) {
-            made.push(key); // replaced with another object, not stamped in place
-          }
-          changed = true;
-        }
-      }
-      for (const key of Object.keys(taken)) {
-        if (!(key in written) && !(key in raw)) {
-          written[key] = taken[key];
-          made.push(key);
-          changed = true;
-        }
-      }
+      const { written, made, changed } = mergeWrite(raw, taken, first, before, held);
       for (const key of made) {
         const problems = this.strict?.(written[key], key) ?? [];
         if (problems.length) {

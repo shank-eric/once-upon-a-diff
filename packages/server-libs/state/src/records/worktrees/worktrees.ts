@@ -244,6 +244,45 @@ const real = (dir: string): string => {
   }
 };
 
+/** The branch a ref names (`refs/heads/x` or `refs/remotes/origin/x`). */
+const branchOfRef = (ref: string): string => ref.replace(/^refs\/(heads|remotes\/origin)\//, '');
+
+const finiteOrNull = (value: number): number | null => (Number.isFinite(value) ? value : null);
+
+/** What an earlier scan saved of a worktree. What an earlier bridge saved is not a clean or dirty answer until a status confirms it. */
+function savedFacts(before: WorktreeFacts | undefined) {
+  const fresh = !before?.loaded;
+  return {
+    modified: fresh ? (before?.modified ?? null) : null,
+    untracked: fresh ? (before?.untracked ?? null) : null,
+    statusHead: before?.statusHead ?? null,
+    statusAt: fresh ? (before?.statusAt ?? null) : null,
+    sizeKb: before?.sizeKb ?? null,
+    sizeAt: before?.sizeAt ?? null,
+    ignored: fresh ? (before?.ignored ?? []) : [],
+    ...(before?.attention ? { attention: before.attention } : {}),
+  };
+}
+
+/** When a folder was created, null when the platform does not say or the folder is gone. */
+function birthOf(dir: string): number | null {
+  try {
+    return statSync(dir).birthtimeMs || null;
+  } catch {
+    return null;
+  }
+}
+
+/** A check that timed out keeps the last answer for the same tip: a branch must not read unknown for one scan. */
+function keptOutcome(
+  before: WorktreeFacts | undefined,
+  tip: string | null,
+): { merged: boolean; superseded: boolean } | null {
+  return before && before.head === tip && before.merged !== null && before.superseded !== null
+    ? { merged: before.merged, superseded: before.superseded }
+    : null;
+}
+
 export class WorktreeScanner {
   private home: string;
   private dirs: () => string[];
@@ -502,57 +541,62 @@ export class WorktreeScanner {
     if (init.code === 0 && init.stdout.trim()) {
       names.push(init.stdout.trim());
     }
-    const lookup = async (candidates: string[]) => {
-      const found: Target[] = [];
-      if (!candidates.length) {
-        return found;
-      }
-      const refs = await this.git(main.path, [
-        'for-each-ref',
-        '--format=%(objectname) %(refname)',
-        ...candidates.flatMap((name) => [`refs/heads/${name}`, `refs/remotes/origin/${name}`]),
-      ]);
-      for (const line of refs.code === 0 ? refs.stdout.split('\n') : []) {
-        const [sha, ref] = line.trim().split(' ');
-        if (sha && ref) {
-          found.push({ ref, sha });
-        }
-      }
-      return found;
-    };
-    let list = await lookup([...new Set(names)]);
+    let list = await this.lookupTargets(main, [...new Set(names)]);
     let defaultBranch: string | null = null;
     if (list.length) {
-      defaultBranch = list[0].ref.replace(/^refs\/(heads|remotes\/origin)\//, '');
+      defaultBranch = branchOfRef(list[0].ref);
     } else {
-      list = await lookup(['main', 'master']);
-      defaultBranch = list.length
-        ? list[0].ref.replace(/^refs\/(heads|remotes\/origin)\//, '')
-        : null;
+      list = await this.lookupTargets(main, ['main', 'master']);
+      defaultBranch = list.length ? branchOfRef(list[0].ref) : null;
     }
-    // the main checkout's own branch, when it is built on the default branch: work in it is not lost
-    const attached = await this.git(main.path, ['symbolic-ref', '--quiet', '--short', 'HEAD']);
-    const branch = attached.code === 0 ? attached.stdout.trim() : '';
-    if (branch && !list.some((target) => target.ref === `refs/heads/${branch}`)) {
-      const tip = await this.git(main.path, [
-        'rev-parse',
-        '--verify',
-        '--quiet',
-        `refs/heads/${branch}`,
-      ]);
-      const sha = tip.code === 0 ? tip.stdout.trim() : '';
-      const builtOn = list.length
-        ? await Promise.all(
-            list.map((target) =>
-              this.git(main.path, ['merge-base', '--is-ancestor', target.sha, sha]),
-            ),
-          )
-        : [];
-      if (sha && builtOn.some((check) => check.code === 0)) {
-        list.push({ ref: `refs/heads/${branch}`, sha });
+    await this.addCheckedOutBranch(main, list);
+    return { defaultBranch, list };
+  }
+
+  /** The refs, local and on origin, of these branch names, with the commit each is at. */
+  private async lookupTargets(main: MainInfo, candidates: string[]): Promise<Target[]> {
+    const found: Target[] = [];
+    if (!candidates.length) {
+      return found;
+    }
+    const refs = await this.git(main.path, [
+      'for-each-ref',
+      '--format=%(objectname) %(refname)',
+      ...candidates.flatMap((name) => [`refs/heads/${name}`, `refs/remotes/origin/${name}`]),
+    ]);
+    for (const line of refs.code === 0 ? refs.stdout.split('\n') : []) {
+      const [sha, ref] = line.trim().split(' ');
+      if (sha && ref) {
+        found.push({ ref, sha });
       }
     }
-    return { defaultBranch, list };
+    return found;
+  }
+
+  /** The main checkout's own branch joins the targets when it is built on one of them: work in it is not lost. */
+  private async addCheckedOutBranch(main: MainInfo, list: Target[]): Promise<void> {
+    const attached = await this.git(main.path, ['symbolic-ref', '--quiet', '--short', 'HEAD']);
+    const branch = attached.code === 0 ? attached.stdout.trim() : '';
+    if (!branch || list.some((target) => target.ref === `refs/heads/${branch}`)) {
+      return;
+    }
+    const tip = await this.git(main.path, [
+      'rev-parse',
+      '--verify',
+      '--quiet',
+      `refs/heads/${branch}`,
+    ]);
+    const sha = tip.code === 0 ? tip.stdout.trim() : '';
+    const builtOn = list.length
+      ? await Promise.all(
+          list.map((target) =>
+            this.git(main.path, ['merge-base', '--is-ancestor', target.sha, sha]),
+          ),
+        )
+      : [];
+    if (sha && builtOn.some((check) => check.code === 0)) {
+      list.push({ ref: `refs/heads/${branch}`, sha });
+    }
   }
 
   private async cheap(
@@ -568,33 +612,12 @@ export class WorktreeScanner {
       this.git(dir, ['rev-list', '--count', ref, '--not', '--remotes', '--']),
     ]);
     const seconds = date.code === 0 ? Number(date.stdout.trim()) : NaN;
-    const count = unpushed.code === 0 ? Number.parseInt(unpushed.stdout) : NaN;
-    let created: number | null = null;
-    try {
-      created = statSync(dir).birthtimeMs || null;
-    } catch {
-      created = null;
-    }
     const tip = entry.head;
-    // a check that timed out keeps the last answer for the same tip: a branch must not read unknown for one scan
-    const kept =
-      before && before.head === tip && before.merged !== null && before.superseded !== null
-        ? { merged: before.merged, superseded: before.superseded }
-        : null;
-    const outcome = (tip ? await this.mergeState(main, targets, entry, tip) : null) ?? kept;
+    const outcome =
+      (tip ? await this.mergeState(main, targets, entry, tip) : null) ?? keptOutcome(before, tip);
     const branch = entry.detached ? null : entry.branch;
-    const remote = branch
-      ? await this.git(main.path, [
-          'rev-parse',
-          '--verify',
-          '--quiet',
-          `refs/remotes/origin/${branch}`,
-        ])
-      : null;
-    let reachable: boolean | null = true;
-    if (entry.detached) {
-      reachable = tip ? await this.reaches(main, tip) : null;
-    }
+    const onRemote = await this.onRemote(main, branch, tip);
+    const reachable = await this.reachableOf(entry, main, tip);
     return {
       path: dir,
       main: main.path,
@@ -605,24 +628,46 @@ export class WorktreeScanner {
       detached: entry.detached,
       locked: entry.locked,
       lastCommitMs: Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : null,
-      created,
+      created: birthOf(dir),
       unmoved: entry.branch && tip ? await this.neverMoved(main, entry.branch, tip) : false,
-      // what was saved by an earlier bridge is not a clean or dirty answer until a status confirms it
-      modified: before?.loaded ? null : (before?.modified ?? null),
-      untracked: before?.loaded ? null : (before?.untracked ?? null),
-      statusHead: before?.statusHead ?? null,
-      statusAt: before?.loaded ? null : (before?.statusAt ?? null),
-      unpushed: Number.isFinite(count) ? count : null,
-      sizeKb: before?.sizeKb ?? null,
-      sizeAt: before?.sizeAt ?? null,
+      ...savedFacts(before),
+      unpushed: unpushed.code === 0 ? finiteOrNull(Number.parseInt(unpushed.stdout)) : null,
       defaultBranch: targets.defaultBranch,
       merged: outcome ? outcome.merged : null,
       superseded: outcome ? outcome.superseded : null,
-      onRemote: !!remote && remote.code === 0 && !!tip && remote.stdout.trim() === tip,
+      onRemote,
       reachable,
-      ignored: before?.loaded ? [] : (before?.ignored ?? []),
-      ...(before?.attention ? { attention: before.attention } : {}),
     };
+  }
+
+  /** A branch's commits are safe; a detached HEAD's only if some branch reaches it (null: not known). */
+  private async reachableOf(
+    entry: WorktreeEntry,
+    main: MainInfo,
+    tip: string | null,
+  ): Promise<boolean | null> {
+    if (!entry.detached) {
+      return true;
+    }
+    return tip ? await this.reaches(main, tip) : null;
+  }
+
+  /** Whether origin has the branch at this commit. */
+  private async onRemote(
+    main: MainInfo,
+    branch: string | null,
+    tip: string | null,
+  ): Promise<boolean> {
+    if (!branch) {
+      return false;
+    }
+    const remote = await this.git(main.path, [
+      'rev-parse',
+      '--verify',
+      '--quiet',
+      `refs/remotes/origin/${branch}`,
+    ]);
+    return remote.code === 0 && !!tip && remote.stdout.trim() === tip;
   }
 
   /** Whether some branch, local or remote, reaches a commit (a detached HEAD's commits are safe only if one does). null: could not tell. */
@@ -901,29 +946,79 @@ const stateOf = (unknown: boolean, dirty: boolean): BoardWorktree['state'] => {
  * locked, not new, and its work is in live or main, or superseded there, or its PR merged with nothing unpushed.
  * Unpushed commits only matter when it is none of merged or superseded. Pure.
  */
-export function judge(facts: WorktreeFacts, context: JudgeContext): BoardWorktree {
+/** What a worktree is, first rule that fits. */
+function verdictOf(facts: WorktreeFacts, context: JudgeContext): BoardWorktree['verdict'] {
   // a branch that never moved is new work, unless origin has it too (a review checkout: nothing is local)
   const isNew =
     (!!facts.branch && facts.unmoved && !facts.onRemote) ||
     (facts.created !== null && context.now - facts.created < NEW_MS);
-  let verdict: BoardWorktree['verdict'];
-  if (isNew) {
-    verdict = 'new';
-  } else if (facts.merged) {
-    verdict = 'merged';
-  } else if (facts.superseded) {
-    verdict = 'superseded';
-  } else if (context.pr.state === 'merged') {
-    verdict = 'pr_merged';
-  } else if (!!facts.branch && facts.unmoved && facts.onRemote) {
-    verdict = 'pushed';
-  } else if (facts.merged === null) {
-    verdict = 'unknown';
-  } else {
-    verdict = 'unmerged';
+  const rules: [boolean, BoardWorktree['verdict']][] = [
+    [isNew, 'new'],
+    [!!facts.merged, 'merged'],
+    [!!facts.superseded, 'superseded'],
+    [context.pr.state === 'merged', 'pr_merged'],
+    [!!facts.branch && facts.unmoved && facts.onRemote, 'pushed'],
+    [facts.merged === null, 'unknown'],
+  ];
+  return rules.find(([fits]) => fits)?.[1] ?? 'unmerged';
+}
+
+/** What a worktree says about its own state, which the keep reasons read. */
+interface TreeState {
+  dirty: boolean;
+  unknownStatus: boolean;
+  onDefault: boolean;
+}
+
+/** Why the worktree is not removed (none when it is): what is unsafe about it, in the order they are told. */
+function keepReasons(
+  facts: WorktreeFacts,
+  context: JudgeContext,
+  verdict: BoardWorktree['verdict'],
+  { dirty, unknownStatus, onDefault }: TreeState,
+): string[] {
+  const inMain = verdict === 'merged' || verdict === 'superseded' || verdict === 'pushed';
+  const reasons: (string | false | null)[] = [
+    !!facts.attention && `needs attention: ${facts.attention}`,
+    facts.detached &&
+      facts.reachable !== true &&
+      'its HEAD is on no branch, so removing it would lose the commits',
+    !!facts.loaded && 'scanning',
+    context.inUse.length > 0 && `in use by ${context.inUse.map((one) => one.label).join(', ')}`,
+    facts.locked && 'locked',
+    onDefault && 'on the default branch',
+    unknownStatus && 'clean or dirty not known',
+    !unknownStatus && dirty && `dirty (${facts.modified} modified, ${facts.untracked} untracked)`,
+    verdictReason(facts, verdict),
+    !inMain && unpushedReason(facts.unpushed),
+    context.pr.state === 'open' && !inMain && `PR #${context.pr.number} open`,
+  ];
+  return reasons.filter((reason): reason is string => !!reason);
+}
+
+/** The keep reason a verdict gives: new, unmerged or unknown work. */
+function verdictReason(facts: WorktreeFacts, verdict: BoardWorktree['verdict']): string | null {
+  if (verdict === 'new') {
+    return facts.branch && facts.unmoved
+      ? 'no commits of its own yet'
+      : 'made less than an hour ago';
   }
+  if (verdict === 'unmerged') {
+    return 'not in the main line';
+  }
+  return verdict === 'unknown' ? 'merge state not known' : null;
+}
+
+function unpushedReason(unpushed: number | null): string | null {
+  if (unpushed === null) {
+    return 'unpushed commits not known';
+  }
+  return unpushed > 0 ? `${unpushed} unpushed` : null;
+}
+
+export function judge(facts: WorktreeFacts, context: JudgeContext): BoardWorktree {
+  const verdict = verdictOf(facts, context);
   const stale = !!facts.loaded;
-  const keep: string[] = [];
   const dirty = (facts.modified ?? 0) + (facts.untracked ?? 0) > 0;
   const unknownStatus = facts.modified === null || facts.untracked === null;
   const onDefault =
@@ -931,49 +1026,7 @@ export function judge(facts: WorktreeFacts, context: JudgeContext): BoardWorktre
     (DEFAULT_BRANCHES.has(facts.branch) ||
       facts.branch === facts.mainBranch ||
       facts.branch === facts.defaultBranch);
-  if (facts.attention) {
-    keep.push(`needs attention: ${facts.attention}`);
-  }
-  if (facts.detached && facts.reachable !== true) {
-    keep.push('its HEAD is on no branch, so removing it would lose the commits');
-  }
-  if (stale) {
-    keep.push('scanning');
-  }
-  if (context.inUse.length) {
-    keep.push(`in use by ${context.inUse.map((one) => one.label).join(', ')}`);
-  }
-  if (facts.locked) {
-    keep.push('locked');
-  }
-  if (onDefault) {
-    keep.push('on the default branch');
-  }
-  if (unknownStatus) {
-    keep.push('clean or dirty not known');
-  } else if (dirty) {
-    keep.push(`dirty (${facts.modified} modified, ${facts.untracked} untracked)`);
-  }
-  if (verdict === 'new') {
-    keep.push(
-      facts.branch && facts.unmoved ? 'no commits of its own yet' : 'made less than an hour ago',
-    );
-  } else if (verdict === 'unmerged') {
-    keep.push('not in the main line');
-  } else if (verdict === 'unknown') {
-    keep.push('merge state not known');
-  }
-  const inMain = verdict === 'merged' || verdict === 'superseded' || verdict === 'pushed';
-  if (!inMain) {
-    if (facts.unpushed === null) {
-      keep.push('unpushed commits not known');
-    } else if (facts.unpushed > 0) {
-      keep.push(`${facts.unpushed} unpushed`);
-    }
-  }
-  if (context.pr.state === 'open' && !inMain) {
-    keep.push(`PR #${context.pr.number} open`);
-  }
+  const keep = keepReasons(facts, context, verdict, { dirty, unknownStatus, onDefault });
   const removable = keep.length === 0;
   return {
     path: facts.path,

@@ -45,6 +45,20 @@ interface UpdateSince {
   story?: string | null;
 }
 
+/** The facts an update carries of where the reader stopped. */
+function sinceFacts(since: UpdateSince) {
+  return {
+    ...(since.since_sha ? { since_sha: since.since_sha, since_source: since.source } : {}),
+    reads: (since.read || []).map((read) => ({
+      chapter: read.chapter,
+      title: read.title,
+      sha: read.sha,
+      at: read.at,
+    })),
+    ...(since.story ? { story: since.story } : {}),
+  };
+}
+
 type BuildState = Build['status'] | 'building' | 'queued' | 'none';
 
 /** A build request as a wait hands it to a session: the request, what it asks in words, and its update or rebuild fields. */
@@ -349,6 +363,28 @@ export class Builds {
     }));
   }
 
+  /** What a request does to a build already pending for the PR: it stands, but the later of an Update and a Re-tell click wins while no session has taken it. */
+  private keepPending(old: Build, update: boolean, retell: boolean): Build {
+    // a rebuild asked from the panel stands until it's done
+    if (isRebuild(old)) {
+      return old;
+    }
+    // Update (new commits) and Re-tell from scratch: the later click wins while no session has taken it
+    const switches =
+      update &&
+      old.mode === 'update' &&
+      !!retell !== !!old.retell &&
+      this.stateOf(old) === 'queued';
+    if (!switches) {
+      return old;
+    }
+    delete old.retell;
+    if (retell) {
+      old.retell = true;
+    }
+    return old;
+  }
+
   /**
    * A new request, or the pending one already there for that PR. Throws on a bad repo or number. The URL is always rebuilt from them.
    * An update can carry `retell` (a whole new story instead of a "Since you read it" chapter) and `since` (sinceOf() in reads.ts,
@@ -370,43 +406,12 @@ export class Builds {
       const update = mode === 'update' && SHA_RE.test(String(base_sha || ''));
       const old = all[key];
       if (old && old.status === 'pending') {
-        // a rebuild asked from the panel stands until it's done
-        if (isRebuild(old)) {
-          return old;
-        }
-        // Update (new commits) and Re-tell from scratch: the later click wins while no session has taken it
-        if (!(
-          update &&
-          old.mode === 'update' &&
-          !!retell !== !!old.retell &&
-          this.stateOf(old) === 'queued'
-        )) {
-          return old;
-        }
-        delete old.retell;
-        if (retell) {
-          old.retell = true;
-        }
-        return old;
+        return this.keepPending(old, update, retell);
       }
       const requestedAt = Number.isFinite(Date.parse(requested_at as string))
         ? new Date(requested_at as string).toISOString()
         : new Date().toISOString();
-      const where =
-        update && since
-          ? {
-              ...(since.since_sha
-                ? { since_sha: since.since_sha, since_source: since.source }
-                : {}),
-              reads: (since.read || []).map((read) => ({
-                chapter: read.chapter,
-                title: read.title,
-                sha: read.sha,
-                at: read.at,
-              })),
-              ...(since.story ? { story: since.story } : {}),
-            }
-          : {};
+      const where = update && since ? sinceFacts(since) : {};
       const build: Build = {
         id: newId('b'),
         repo,
