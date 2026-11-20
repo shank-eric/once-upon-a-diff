@@ -198,7 +198,6 @@ test('a built backlog card whose branch moved past its run’s commit is Working
     [item],
     [],
     NOW,
-    [],
     new Map(),
     new Map(),
     new Map([[item.id, phase ?? null]]),

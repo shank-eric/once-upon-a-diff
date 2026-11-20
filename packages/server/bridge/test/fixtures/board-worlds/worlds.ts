@@ -2416,6 +2416,117 @@ async function record(
   await record('18-parked-after-run', board);
 }
 
+// ---- 19-22. the board reads stored cards (ADR-29, branch C3): a session's, a PR's and a story's card are read, not guessed
+{
+  const et = (hour: number, minute: number) => new Date(Date.UTC(2026, 9, 26, hour + 4, minute));
+  const world = (rows: Record<string, unknown>[]) => {
+    const home = tmp('home');
+    const sessions = tmp('sessions');
+    writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
+    writeFileSync(
+      path.join(home, 'backlog.jsonl'),
+      rows
+        .map((row) => JSON.stringify({ by: 'cli', at: et(8, 0).toISOString(), ...row }))
+        .join('\n') + '\n',
+    );
+    return { home, sessions };
+  };
+  const boardOf = (home: string, watcher: unknown) =>
+    new Board(home, new StoryStore({ home }), watcher as never, new Builds(home), {
+      source: sourceSaying({}),
+      now: () => NOW,
+      repoOf,
+    });
+
+  // 19. a stored session card with a branch and no run is not Ready: its live session is a card, idle; a stored card nothing is on
+  // (no run, PR, story or session) shows nothing
+  {
+    const child = liveChild();
+    const cwd = checkoutOf('widgets', 'feat/sess');
+    const { home, sessions } = world([
+      {
+        op: 'add',
+        id: 'bl_sesscard001',
+        title: 'a session card',
+        repo: 'acme/widgets',
+        branch: 'feat/sess',
+        source: 'session',
+        session: fullId(child.pid),
+      },
+      {
+        op: 'add',
+        id: 'bl_idlecard0001',
+        title: 'nothing on it',
+        repo: 'acme/widgets',
+        branch: 'feat/idle',
+        source: 'agent',
+      },
+    ]);
+    registry(sessions, child, { cwd, name: 'session-card' });
+    await record('19-stored-session-card', boardOf(home, fakeWatcher([], {}).watcher));
+  }
+
+  // 20. a PR whose head was renamed keeps its card: the started card names the PR by number, GitHub says the head is a new branch
+  {
+    const { home } = world([
+      {
+        op: 'add',
+        id: 'bl_renamed0001',
+        title: 'Renamed head',
+        repo: 'acme/widgets',
+        branch: 'feat/old-name',
+      },
+      { op: 'start', id: 'bl_renamed0001', repo: 'acme/widgets', branch: 'feat/old-name' },
+      { op: 'link', id: 'bl_renamed0001', pr: 12 },
+    ]);
+    const info = prInfo(12, { title: 'Renamed PR', branch: 'feat/new-name' });
+    await record('20-renamed-pr-head', boardOf(home, fakeWatcher([info], {}).watcher));
+  }
+
+  // 21. a PR GitHub waits on your review for, with no stored card, still shows
+  {
+    const { home } = world([
+      { op: 'add', id: 'bl_unrelated001', title: 'unrelated', source: 'agent' },
+    ]);
+    const info = prInfo(21, { mine: false, review_requested: true, author: 'someone' });
+    await record(
+      '21-requested-pr-no-card',
+      boardOf(home, fakeWatcher([info], {}, [{ repo: 'acme/widgets', number: 21 }]).watcher),
+    );
+  }
+
+  // 22. a stored PR card for a PR GitHub reports merged leaves after the Done hour: one merged 20 minutes ago shows, one 3 hours ago does not
+  {
+    const { home } = world(
+      [
+        [22, 'feat/merged-old'],
+        [23, 'feat/merged-new'],
+      ].flatMap(([number, branch]) => [
+        {
+          op: 'add',
+          id: `bl_storedpr${number}`,
+          title: `stored PR ${number}`,
+          repo: 'acme/widgets',
+          branch,
+          source: 'pr',
+          pr: number,
+        },
+      ]),
+    );
+    const infos = [
+      prInfo(22, {
+        state: 'merged',
+        merged_at: new Date(NOW.getTime() - 3 * 3600000).toISOString(),
+      }),
+      prInfo(23, {
+        state: 'merged',
+        merged_at: new Date(NOW.getTime() - 20 * 60000).toISOString(),
+      }),
+    ];
+    await record('22-stored-pr-merged', boardOf(home, fakeWatcher(infos, {}).watcher));
+  }
+}
+
 // ---- normalize paths and pids
 export const snapshots: Record<string, string> = {};
 for (const [name, value] of Object.entries(results)) {

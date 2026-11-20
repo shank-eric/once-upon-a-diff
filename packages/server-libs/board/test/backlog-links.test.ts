@@ -494,3 +494,37 @@ test('agentLinks: an open item is linked by the work run that names its card, an
   store.start(made.id, { branch: 'x' });
   assert.equal(agentLinks(store.items()[0], facts([run({ card: made.id })])), null);
 });
+
+test('a stored PR card whose PR merged long ago, or was closed, is not asked about again', async () => {
+  const home = tmp('links-no-kick');
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: tmp('links-no-kick-sessions') });
+  const store = new BacklogStore(home);
+  const item = store.add({ title: 'Old PR', repo: 'acme/widgets' });
+  store.link(item.id, { pr: 9 });
+  const asked: number[] = [];
+  const watcher = (info: unknown): PrWatcher => ({
+    ...noPrWatcher,
+    kickInfo: (_repo, number) => {
+      asked.push(number);
+    },
+    info: () => info as never,
+  });
+  const long = new Date(Date.parse('2026-10-26T19:00:00Z') + 400 * 24 * 3600 * 1000);
+  await boardOf(home, new Date(NOW), watcher(null)).snapshot();
+  assert.ok(
+    asked.length > 0 && asked.every((num) => num === 9),
+    'nothing known yet: GitHub is asked',
+  );
+  asked.length = 0;
+  await boardOf(
+    home,
+    long,
+    watcher({ number: 9, state: 'merged', merged_at: '2026-10-26T00:00:00Z', branch: 'x' }),
+  ).snapshot();
+  await boardOf(
+    home,
+    long,
+    watcher({ number: 9, state: 'closed', merged_at: null, branch: 'x' }),
+  ).snapshot();
+  assert.deepEqual(asked, [], 'merged past MERGED_HOURS, or closed: not asked again');
+});

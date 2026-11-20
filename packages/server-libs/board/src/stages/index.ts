@@ -112,7 +112,12 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
   const standing = read.agents.filter(isStandingHelper);
   const liveFacts = { ...read, agents: read.agents.filter((agent) => !isStandingHelper(agent)) };
   const { live, agents, picked } = liveFacts;
-  const collected = collectWorks(ctx);
+  // `storedCards` is every stored card (an agent's, a session's, a PR's, a story's too): the board joins runs, sessions and works
+  // to them. `backlogItems` is the listed ones, the cards a person added: what the Backlog column and the stages that act on a
+  // person's card read
+  const storedCards = state.backlog.items();
+  const backlogItems = storedCards.filter(isListed);
+  const collected = collectWorks(ctx, storedCards);
   const { works, stories, localStoryList } = collected;
   const cardFacts: CardFacts = {
     unreadById,
@@ -137,11 +142,6 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
   } = facts;
 
   // the Backlog's items: a card shows the agents whose runs name it, so those agents have no card of their own
-  // `storedCards` is every stored card (an agent's, a session's, a PR's, a story's too): the board joins runs and sessions to
-  // them. `backlogItems` is the listed ones, the cards a person added: what the Backlog column and the stages that act on a
-  // person's card read
-  const storedCards = state.backlog.items();
-  const backlogItems = storedCards.filter(isListed);
   const placed = placeSessions(ctx, liveFacts, facts, works, state.seen, storedCards);
   const { sessionCards, quietViews, blankViews, repoBySession } = placed;
   const pin = placed.pin;
@@ -235,12 +235,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
       cards,
       backlogItems,
       links,
-      {
-        quietViews,
-        pin,
-        repoBySession,
-        trees: settings.worktrees ? state.scanner.read().items : [],
-      },
+      { trees: settings.worktrees ? state.scanner.read().items : [] },
       claimed,
       agents,
     ),

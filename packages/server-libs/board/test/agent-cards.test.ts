@@ -902,31 +902,17 @@ test('a session card is titled by the title in its transcript, else the registry
   assert.equal(resting?.rested_at, new Date(NOW.getTime() - 600000).toISOString());
 });
 
-test('a started item on the voice session’s or a listening session’s branch says so, and every started card stays past the day', () => {
+test('a started item with no session on its branch stays in Backlog past the day', () => {
   const store = new BacklogStore(tmp('board-backlog-cardless'));
-  const onVoice = store.add({ title: 'Voice idea', repo: 'acme/widgets' });
-  store.start(onVoice.id, { branch: 'feat/voice' });
   const alone = store.add({ title: 'Nobody on it', repo: 'acme/widgets' });
   store.start(alone.id, { branch: 'feat/alone' });
   const later = Date.now() + 2 * 24 * 3600 * 1000;
-  const cardless = [{ repo: 'acme/widgets', branch: 'feat/voice', label: 'Voice session' }];
-  const started = (now: number) =>
-    backlogCards(store.items(), [], now, cardless).map((card) => [
-      card.title,
-      card.backlog?.started?.on,
-    ]);
-  assert.deepEqual(started(Date.now()), [
-    ['Voice idea', 'Voice session'],
-    ['Nobody on it', null],
-  ]);
-  assert.deepEqual(
-    started(later),
-    [
-      ['Voice idea', 'Voice session'],
-      ['Nobody on it', null],
-    ],
-    'a started card with no session stays in Backlog after a day',
-  );
+  for (const when of [Date.now(), later]) {
+    const [card] = backlogCards(store.items(), [], when);
+    assert.equal(card.title, 'Nobody on it');
+    assert.equal(card.column, 'backlog');
+    assert.equal(card.backlog?.started?.branch, 'feat/alone');
+  }
 });
 
 test('a started backlog item rides on a live session’s card on its new branch, before any PR or story', async () => {

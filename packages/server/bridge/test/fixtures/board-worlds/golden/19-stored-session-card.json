@@ -1,0 +1,73 @@
+{
+  "board": {
+    "at": "2026-10-26T19:00:00.000Z",
+    "blank": [],
+    "editors": [],
+    "helpers": [],
+    "lanes": [
+      {
+        "cards": [
+          {
+            "agents": [],
+            "branch": "feat/sess",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "idle",
+            "detail": null,
+            "focus_session": "<PID:25>-aaaa-bbbb-cccc-dddddddddddd",
+            "id": "<PID:25>-aaaa-bbbb-cccc-dddddddddddd",
+            "kind": "session",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/widgets",
+            "review": {
+              "branch": "feat/sess",
+              "path": "<WORK>/checkout-65"
+            },
+            "sessions": [
+              {
+                "branch": "feat/sess",
+                "context": null,
+                "cwd": "<WORK>/checkout-65",
+                "detail": null,
+                "focus": false,
+                "id": "<PID:25>-aaaa-bbbb-cccc-dddddddddddd",
+                "rested_at": "2026-10-26T18:50:00.000Z",
+                "since": "2026-10-26T18:50:00.000Z",
+                "source": "registry",
+                "status": "idle",
+                "title": "session-card"
+              }
+            ],
+            "since": "2026-10-26T18:50:00.000Z",
+            "story": null,
+            "title": "session-card"
+          }
+        ],
+        "key": "acme/widgets",
+        "name": "widgets"
+      }
+    ],
+    "listeners": [],
+    "phone": null,
+    "status_source": "registry",
+    "usage": null,
+    "voice": null,
+    "voice_paused": false,
+    "voice_start": null,
+    "warning": null,
+    "worktrees": {
+      "at": null,
+      "items": [],
+      "on_cards": 0,
+      "prunable": [],
+      "removable": 0,
+      "scanning": true,
+      "size_kb": "<kb>",
+      "total": 0
+    }
+  }
+}
