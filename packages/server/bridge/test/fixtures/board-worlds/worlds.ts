@@ -88,6 +88,7 @@ globalThis.Date = FrozenDate as unknown as DateConstructor;
 const src = (pkg: string, file: string) =>
   import(path.join(ROOT, 'packages', dirOf(pkg), 'src', file));
 const { Board, noPrWatcher } = await src('board', 'board.ts');
+const { backfillCards } = await src('core', 'features/runs/backfill.ts');
 const { StoryStore } = await src('stories', 'store.ts');
 const { Builds } = await src('state', 'queues/requests/builds.ts');
 const { seenCheckout, repoOfCheckoutAsync } = await src('foundation', 'repos.ts');
@@ -418,6 +419,8 @@ async function record(
   board: any,
   extras: Record<string, () => Promise<unknown>> = {},
 ) {
+  // the board joins a run to its card by the stored card: store the ones the world's runs name, as `card backfill` does
+  backfillCards(board.home);
   worldBoards.push({ name, board, home: board.home });
   const out: Record<string, unknown> = { board: await board.snapshot() };
   for (const [key, fn] of Object.entries(extras)) {
@@ -2470,9 +2473,13 @@ export async function storedCardsChangeNothing(): Promise<
     const agentsText = existsSync(path.join(home, 'agents.jsonl'))
       ? readFileSync(path.join(home, 'agents.jsonl'), 'utf8').split('\n')
       : [];
+    const storedText = existsSync(path.join(home, 'backlog.jsonl'))
+      ? readFileSync(path.join(home, 'backlog.jsonl'), 'utf8')
+      : '';
+    // the world already stores a card for each `ic_` id its runs name (record)
     const named = [
       ...new Set(agentsText.flatMap((line) => line.match(/ic_[a-z0-9]{6,24}/g) ?? [])),
-    ];
+    ].filter((id) => !storedText.includes(id));
     const rows = [
       ...named.map((id) => ({
         op: 'add',

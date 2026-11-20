@@ -3,7 +3,7 @@
  * (ADR-25); every other agent is a card of its own, on its own lane.
  */
 import { sameRepo } from '@once-upon-a-diff/foundation/repos';
-import { agentWorkKey, isImplicitCard, isSelfName } from '@once-upon-a-diff/terms/ids';
+import { agentWorkKey, isSelfName } from '@once-upon-a-diff/terms/ids';
 import {
   finishedColumn,
   finishedSummary,
@@ -30,7 +30,7 @@ import {
   lastActivity,
   type LedgerAgent,
 } from '@once-upon-a-diff/state/records/agents/ledger';
-import { cardOnBranch } from '@once-upon-a-diff/state/queues/backlog/backlog';
+import { cardOnBranch, isListed } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { laneOf } from './lanes.ts';
 import { KEEP_MS, readFinished } from '@once-upon-a-diff/adapters/stores/finished-agents';
 import type { WorktreeFacts } from '@once-upon-a-diff/state/records/worktrees/worktrees';
@@ -84,7 +84,7 @@ function replacedByRetry(agent: LedgerAgent, all: LedgerAgent[]): boolean {
   );
 }
 
-/** A finished run of a card (`ic_` or `bl_`) that was dropped: the card is gone from the board, the run stays in the ledger. */
+/** A finished run of a stored card that was dropped: the card is gone from the board, the run stays in the ledger. */
 const droppedCard = (agent: LedgerAgent, items: BacklogItem[]): boolean =>
   isFinished(agent) &&
   !!agent.card &&
@@ -195,6 +195,8 @@ export interface AgentFacts {
   held?: Set<string>;
   /** the backlog's items, which an agent's registered `card` points into */
   items?: BacklogItem[];
+  /** every stored card (`items` is the listed ones): a run on a stored card nobody listed has that card's agent card */
+  stored?: BacklogItem[];
   /** the editor that controls an agent, when one does (editors.ts) */
   editorOf?: (agent: LedgerAgent) => BoardAgentEditor | null;
   /** what the worktree scanner has (memory only): whether a finished author's branch is merged (pendingReview) */
@@ -240,6 +242,7 @@ export function placeAgents(
     editorViews = [],
     held = new Set(),
     items = [],
+    stored = items,
     editorOf = () => null,
     trees = [],
   }: AgentFacts,
@@ -294,7 +297,7 @@ export function placeAgents(
       !held.has(agentKey(agent)) &&
       !replacedByRetry(agent, agents) &&
       !isAcked(agent) &&
-      !droppedCard(agent, items) &&
+      !droppedCard(agent, stored) &&
       (agent.state === 'running' ||
         !!pendingOf.get(agent) ||
         (leftUncommitted(agent) && nowMs - (lastActivity(agent)?.getTime() ?? 0) < KEEP_MS) ||
@@ -375,7 +378,8 @@ export function placeAgents(
     }
     // a run on an implicit card that already has its agent card goes on that card, not on a card of its own. The card keeps
     // the head's column, unless the head is over and this run is still going: then it is this run's
-    const implicitId = agent.card && !item && isImplicitCard(agent.card) ? agent.card : null;
+    const kept = agent.card ? stored.find((one) => one.id === agent.card) : undefined;
+    const implicitId = kept && !isListed(kept) ? kept.id : null;
     // an implicit card whose repo and branch already have a work (or session) card rides on it, as a backlog card does
     // (cardOnBranch): one piece of work, one card. A storyteller started with --pr or --branch and no card joins its PR's
     // work card the same way; any other run with no card never nests

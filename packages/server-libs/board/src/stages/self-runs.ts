@@ -6,7 +6,6 @@
  */
 import { isSelfName } from '@once-upon-a-diff/terms/ids';
 import { runIsOpen } from '@once-upon-a-diff/state/records/agents/events';
-import { implicitCards } from '@once-upon-a-diff/state/records/agents/implicit';
 import { lastActivity, type LedgerAgent } from '@once-upon-a-diff/state/records/agents/ledger';
 import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
 
@@ -80,7 +79,7 @@ export interface SessionHome {
  * open runs name (any kind, a parked one too: every carded run counts, and an uncarded one is ignored); with none open, the one
  * its most recent carded run named, while that run's last sign of life is within `cutoffMs` (runs are seconds long, so a session
  * between them has none open). Open runs on two cards that give a place give no entry, and the session keeps its own branch; a card that is
- * dropped, landed, or has no branch gives no place and is not counted. An implicit card has no stored item: its repo and branch come from its runs. Pure.
+ * dropped, landed, or has no branch gives no place and is not counted. A card no stored item names gives no place (`card backfill` stores the ones older runs made). Pure.
  */
 export function sessionHomes(
   agents: LedgerAgent[],
@@ -102,17 +101,11 @@ export function sessionHomes(
     }
   }
   const stored = new Map(items.map((item) => [item.id, item]));
-  let implicit: ReturnType<typeof implicitCards> | null = null;
   const placeOf = (card: string): SessionHome | null => {
     const item = stored.get(card);
-    if (item) {
-      return item.state === 'dropped' || item.landed_at || !item.branch
-        ? null
-        : { card, repo: item.repo, branch: item.branch };
-    }
-    implicit ??= implicitCards(agents);
-    const made = implicit.find((one) => one.id === card);
-    return made?.branch ? { card, repo: made.repo, branch: made.branch } : null;
+    return !item || item.state === 'dropped' || item.landed_at || !item.branch
+      ? null
+      : { card, repo: item.repo, branch: item.branch };
   };
   const homes = new Map<string, SessionHome>();
   for (const sid of new Set([...open.keys(), ...latest.keys()])) {

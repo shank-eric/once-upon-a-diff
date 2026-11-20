@@ -4,7 +4,12 @@ import { appendFileSync } from 'node:fs';
 import path from 'node:path';
 import { tmp, writeJson } from '@once-upon-a-diff/test-kit/files';
 import { CLAUDE_DIR } from '@once-upon-a-diff/test-kit/env';
-import { claimAt, registerRuns, type AgentRun } from '@once-upon-a-diff/state/test/helpers';
+import {
+  claimAt,
+  registerRuns,
+  storeRunCards,
+  type AgentRun,
+} from '@once-upon-a-diff/state/test/helpers';
 import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
 import { Board, noPrWatcher } from '../src/board.ts';
 import { columnOf, isBackToYou } from '../src/columns.ts';
@@ -480,6 +485,7 @@ test('the board: Agent checks holds a PR card with a gated agent in it, an agent
     [prInfo(7, { branch: 'feat/x' }), prInfo(9, { branch: 'feat/y' })],
     { 'acme/widgets@feat/y': { number: 9, state: 'open', merged_at: null } },
   );
+  storeRunCards(home);
   const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
     source: sourceSaying({}),
     now: () => NOW,
@@ -602,6 +608,7 @@ test('an agent parked on your story review is ready for review, not waiting; a q
   );
   writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
   const { watcher } = fakeWatcher([prInfo(7, { branch: 'feat/x' })], {});
+  storeRunCards(home);
   const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
     source: sourceSaying({}),
     now: () => NOW,
@@ -671,6 +678,7 @@ test('a [review] agent naming a no-PR branch sits in its Ready card; one left a 
     },
   );
   writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
+  storeRunCards(home);
   const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
     source: sourceSaying({}),
     now: () => NOW,

@@ -198,7 +198,7 @@ flowchart LR
 | 17 | `service` | cards for the works, with PR details from what the GitHub watcher last heard | `packages/server-libs/board/src/stages/index.ts` (`buildCards`) |
 | 18 | `service` | each card's column | `packages/server-libs/board/src/stages/cards.ts` (`columnOf`) |
 | 19 | `service` | the column rules | `packages/server-libs/board/src/columns.ts` (`columnOf`) |
-| 20 | `service` | the Backlog's items, folded from **`backlog.jsonl`** (claims included) | `packages/server-libs/board/src/stages/index.ts` (`state.backlog.listed(`) |
+| 20 | `service` | the Backlog's items, folded from **`backlog.jsonl`** (claims included) | `packages/server-libs/board/src/stages/index.ts` (`state.backlog.items(`) |
 | 21 | `service` | which agent claimed which Backlog card | `packages/server-libs/board/src/stages/index.ts` (`claimViews`) |
 | 22 | `service` | the lanes, by repo | `packages/server-libs/board/src/stages/index.ts` (`groupLanes`) |
 | 23 | `contracts` | back: the answer's shape | `packages/domain/contracts/src/board/types.ts` (`BoardData`) |

@@ -63,8 +63,17 @@ const agent = (over: Partial<LedgerAgent> = {}): LedgerAgent => ({
 const registered = (over: Partial<LedgerAgent> = {}): LedgerAgent =>
   agent({ kind: 'author', ...over });
 
-const place = (agents: LedgerAgent[], cards: BoardCard[], items: BacklogItem[] = []) =>
-  placeAgents(ctx(), cards, { agents, pin: null, items });
+/** The stored `agent` cards a run's `ic_` card id has once the keeper or `card backfill` has written them (what the board joins by). */
+const storedOf = (agents: LedgerAgent[]): BacklogItem[] =>
+  [...new Set(agents.map((one) => one.card).filter((id) => id?.startsWith('ic_')))].map(
+    (id) => ({ id, source: 'agent', state: 'open' }) as BacklogItem,
+  );
+const place = (
+  agents: LedgerAgent[],
+  cards: BoardCard[],
+  items: BacklogItem[] = [],
+  stored: BacklogItem[] = [...items, ...storedOf(agents)],
+) => placeAgents(ctx(), cards, { agents, pin: null, items, stored });
 const nestedIn = (target: BoardCard) => target.agents.map((one) => one.name);
 
 const makeX = () => card({ branch: 'feat/x', pr: { number: 7 } as BoardCard['pr'] });
@@ -321,6 +330,7 @@ test('a finished agent stays inside its card for an hour by default, never less 
     placeAgents({ ...ctx(), home, settings } as unknown as BuildContext, [featX], {
       agents: [finished(minutesAgo)],
       pin: null,
+      stored: storedOf([finished(minutesAgo)]),
     });
     return nestedIn(featX);
   };
@@ -350,6 +360,7 @@ test('Finish clears a finished agent nested in a card, and a new line brings it 
     placeAgents({ ...ctx(), home } as unknown as BuildContext, [featX], {
       agents,
       pin: null,
+      stored: storedOf(agents),
     });
     return nestedIn(featX);
   };
@@ -382,6 +393,7 @@ test('a failed agent nested in a card puts the card in Error, not Waiting or Idl
       }),
     ],
     pin: null,
+    stored: [{ id: 'ic_cccccccccccc', source: 'agent', state: 'open' } as BacklogItem],
   });
   assert.deepEqual(nestedIn(sessionCard), ['ou-broke']);
   const columnWith = (pr: BoardCard['pr'], agents: BoardCard['agents']) =>
@@ -688,6 +700,7 @@ const placeWith = (
       agents,
       pin: null,
       items,
+      stored: [...items, ...storedOf(agents)],
       trees: tree ? [{ ...facts('/wt/feat-x'), head: TIP, unpushed: 1, ...tree }] : [],
     },
   );
@@ -1087,6 +1100,7 @@ test('an acked failed run is no line on its card and no longer holds it in Error
         }),
       ],
       pin: null,
+      stored: [{ id: 'ic_cccccccccccc', source: 'agent', state: 'open' } as BacklogItem],
     });
     return target;
   };
@@ -1181,4 +1195,20 @@ test('a work card with a failed agent lands in Error and says which agent failed
   assert.equal(work.column, 'error');
   assert.equal(work.detail, 'ou-broke failed');
   assert.equal(work.since, ended);
+});
+
+test('two runs on a stored card nobody listed (any id, not only ic_) are one agent card; a run on an id nothing stores is its own', () => {
+  const kept = { id: 'bl_storedagent1', source: 'agent', state: 'open' } as BacklogItem;
+  const runs = [
+    registered({ name: 'ou-one', card: kept.id, repo: 'acme/widgets', branch: 'feat/q' }),
+    registered({ name: 'rv-one', kind: 'critic', card: kept.id, repo: 'acme/widgets' }),
+  ];
+  const added = place(runs, [], [], [kept]);
+  assert.equal(added.length, 1);
+  assert.deepEqual(
+    added[0].agents.map((one) => one.name),
+    ['ou-one', 'rv-one'],
+  );
+  const lone = place(runs, [], [], []);
+  assert.equal(lone.length, 2);
 });
