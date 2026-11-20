@@ -61,6 +61,29 @@ export function findCard(
   );
 }
 
+/** The facts a found card lacks, from the input: a fact it has is left out (null), and a branch only when it is a feature branch. */
+function missingFacts(found: BacklogItem, input: EnsureInput, keepListedClear?: boolean) {
+  return {
+    repo: found.repo ? null : input.repo,
+    branch: found.branch || !isFeatureBranch(input.branch) ? null : input.branch,
+    worktree: found.worktree || (keepListedClear && isListed(found)) ? null : input.worktree,
+    pr: found.pr ? null : input.pr,
+    story: found.story ? null : input.story,
+    session: found.session ? null : input.session,
+    by: input.by,
+  };
+}
+
+/** The card for this work found, and whether it was found by joining the branch (an id given for a card that is not there yet). */
+function foundCard(store: BacklogStore, input: EnsureInput) {
+  const found = findCard(store.items(), input);
+  const joined = !found && !!input.id && !!input.joinBranch && isFeatureBranch(input.branch);
+  return {
+    found: joined ? findCard(store.items(), { ...input, id: undefined }) : found,
+    joined,
+  };
+}
+
 /**
  * The card for this work: the one found (given the facts it lacked) or a new one. `made` says which. A branch that is not a
  * feature branch is not stored on a new card either (it would join every card on main).
@@ -70,22 +93,10 @@ export function ensureCard(
   { keepListedClear, ...input }: EnsureInput,
 ): { item: BacklogItem; made: boolean; joined: boolean } {
   return withLock(store.file, () => {
-    let found = findCard(store.items(), input);
-    const joined = !found && !!input.id && !!input.joinBranch && isFeatureBranch(input.branch);
-    if (joined) {
-      found = findCard(store.items(), { ...input, id: undefined });
-    }
+    const { found, joined } = foundCard(store, input);
     if (found) {
       return {
-        item: store.link(found.id, {
-          repo: found.repo ? null : input.repo,
-          branch: found.branch || !isFeatureBranch(input.branch) ? null : input.branch,
-          worktree: found.worktree || (keepListedClear && isListed(found)) ? null : input.worktree,
-          pr: found.pr ? null : input.pr,
-          story: found.story ? null : input.story,
-          session: found.session ? null : input.session,
-          by: input.by,
-        }),
+        item: store.link(found.id, missingFacts(found, input, keepListedClear)),
         made: false,
         joined,
       };
