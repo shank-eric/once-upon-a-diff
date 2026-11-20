@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { tmp, writeJson } from '@once-upon-a-diff/test-kit/files';
+import { implicitCards } from '@once-upon-a-diff/state/records/agents/implicit';
 import { registerRuns } from '@once-upon-a-diff/state/test/helpers';
 import {
   NOW,
@@ -59,8 +60,21 @@ const item = (over: Partial<BacklogItem>): BacklogItem =>
     ...over,
   }) as BacklogItem;
 
+/** The stored cards `card backfill` makes for the `ic_` cards the runs name: an `agent` card with the repo and branch its runs gave. */
+const storedFor = (agents: LedgerAgent[]): BacklogItem[] =>
+  implicitCards(agents).map(
+    (card) =>
+      ({
+        id: card.id,
+        repo: card.repo,
+        branch: card.branch,
+        state: 'open',
+        source: 'agent',
+        landed_at: null,
+      }) as BacklogItem,
+  );
 const homes = (agents: LedgerAgent[], items: BacklogItem[] = []) =>
-  sessionHomes(agents, items, NOW_MS, CUTOFF);
+  sessionHomes(agents, [...items, ...storedFor(agents)], NOW_MS, CUTOFF);
 
 test('a session’s open runs on one card place it there, a parked one included', () => {
   for (const state of ['running', 'plan', 'fixing', 'waiting'] as const) {

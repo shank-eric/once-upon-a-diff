@@ -3,7 +3,7 @@
  * a card is made is in stages/ (stages/index.ts has the stages and the sources). What a click on the board does to other
  * tools is in ADR-11: Board has the actions, which are the board's writes, and landing a card whose PR merged (landMerged).
  */
-import { agentId, isImplicitCard } from '@once-upon-a-diff/terms/ids';
+import { agentId } from '@once-upon-a-diff/terms/ids';
 import path from 'node:path';
 import { readSettings } from '@once-upon-a-diff/foundation/settings';
 import {
@@ -27,7 +27,7 @@ import { markFinished } from '@once-upon-a-diff/adapters/stores/finished-agents'
 import { BlankSessions } from '@once-upon-a-diff/adapters/claude-sessions/blank-sessions';
 import { SessionTitles } from '@once-upon-a-diff/adapters/claude-sessions/titles';
 import { SubagentLiveness } from '@once-upon-a-diff/adapters/claude-sessions/subagent-liveness';
-import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
+import { BacklogStore, isListed } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import type { AddInput, EditInput, MoveTo } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
 import { MergeLander } from '@once-upon-a-diff/state/queues/backlog/land-merged';
@@ -736,8 +736,9 @@ export class Board {
     // the click counts as at least the agent's latest line, which may be ahead of this clock (a wrong zone, a typo), so the card goes either way
     const latest = lastActivity(agent)?.getTime() ?? 0;
     markFinished(this.home, agentId(sid, name), Math.max(now.getTime(), latest));
-    // an implicit card's other finished runs (a critic of the work) are on this card: Finish clears the piece of work, not one run of it
-    if (agent.card && isImplicitCard(agent.card)) {
+    // an agent's card's other finished runs (a critic of the work) are on this card: Finish clears the piece of work, not one run of it
+    const own = agent.card ? this.backlog.items().find((one) => one.id === agent.card) : undefined;
+    if (own && !isListed(own)) {
       for (const other of agents) {
         if (other !== agent && other.card === agent.card && isFinished(other)) {
           const seen = lastActivity(other)?.getTime() ?? 0;

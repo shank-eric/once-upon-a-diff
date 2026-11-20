@@ -10,9 +10,8 @@
  * Pure: the board gathers the facts.
  */
 import type { BoardColumn } from '@once-upon-a-diff/contracts/types';
-import { isImplicitCard, sameRepo } from '@once-upon-a-diff/terms/ids';
+import { sameRepo } from '@once-upon-a-diff/terms/ids';
 import { STALE_MS, runIsOpen, staleAfterMs } from '../../records/agents/events.ts';
-import { implicitCards } from '../../records/agents/implicit.ts';
 import {
   isAcked,
   isCritic,
@@ -298,8 +297,7 @@ export function cardRunProblems(
   for (const run of runs) {
     const label = `${agentKey(run)}${run.run ? ` ${run.run}` : ''}`;
     const item = run.card ? byId.get(run.card) : undefined;
-    // an implicit card (ADR-27) is its runs: no backlog item holds it until it is adopted
-    if (run.card && !item && (isImplicitCard(run.card) || known.has(run.card))) {
+    if (run.card && !item && known.has(run.card)) {
       continue;
     }
     if (run.card && (!item || item.state === 'dropped')) {
@@ -369,11 +367,15 @@ export function cardBranchProblems(items: BacklogItem[], nowMs: number): string[
 
 /**
  * The duplicates a join at write time would have prevented, one per pair, for `once-upon doctor`: a backlog card with a branch and
- * no run, no claim and no drop, and an implicit card with a run on its repo and branch that was live when the backlog card was
+ * no run, no claim and no drop, and a stored agent card (an `ic_` one, or any a run made) with a run on its repo and branch that was live when the backlog card was
  * added (a run open, or the card added no later than the last run's activity). A card added after that work ended, on a branch
  * name it reused, is its own. Each carries the `backlog drop ID --into CARD` that merges the pair; nothing is merged here.
  */
-export function duplicateCardProblems(items: BacklogItem[], agents: LedgerAgent[]): string[] {
+export function duplicateCardProblems(
+  items: BacklogItem[],
+  agents: LedgerAgent[],
+  stored: BacklogItem[] = items,
+): string[] {
   const taken = new Set<string>();
   const problems: string[] = [];
   const twins = items.filter(
@@ -385,17 +387,19 @@ export function duplicateCardProblems(items: BacklogItem[], agents: LedgerAgent[
       !item.someday &&
       runsOf(item, agents).length === 0,
   );
-  for (const card of implicitCards(agents)) {
-    if (items.some((item) => item.id === card.id)) {
+  for (const card of stored) {
+    const listed = (card.source ?? 'backlog') === 'backlog';
+    const runs = listed || card.state === 'dropped' ? [] : runsOf(card, agents);
+    if (!runs.length) {
       continue;
     }
-    const open = card.runs.some(runIsOpen);
-    const lastEnd = Math.max(...card.runs.map((run) => lastActivity(run)?.getTime() ?? 0));
+    const open = runs.some(runIsOpen);
+    const lastEnd = Math.max(...runs.map((run) => lastActivity(run)?.getTime() ?? 0));
     const twin = twins.find(
       (item) =>
         !taken.has(item.id) &&
         (open || Date.parse(item.added_at) <= lastEnd) &&
-        card.runs.some(
+        runs.some(
           (run) =>
             (run.result?.branch ?? run.branch) === item.branch &&
             (item.repo ? sameRepo(run.repo, item.repo) : !run.repo),

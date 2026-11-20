@@ -226,6 +226,7 @@ describe('fixed --sha records the fix as a run on the branch’s card', () => {
       repo: 'acme/widgets',
       branch: 'feature',
       card: IMPLICIT,
+      unstored: true,
       started: new Date(Date.now() - 3600_000),
       now: {
         state: 'done',

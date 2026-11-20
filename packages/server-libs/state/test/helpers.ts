@@ -1,6 +1,9 @@
 // what the tests that drive the agent registry share: the isolation env, and the claim event and the runs with a chosen time
 import '@once-upon-a-diff/test-kit/env';
 import { appendFileSync } from 'node:fs';
+import { BacklogStore } from '../src/queues/backlog/backlog.ts';
+import { implicitCards } from '../src/records/agents/implicit.ts';
+import { readAgents } from '../src/records/agents/read.ts';
 import { AgentRegistry } from '../src/records/agents/registry.ts';
 import type { AgentKind, AgentResult } from '../src/records/agents/agent-types.ts';
 
@@ -24,6 +27,8 @@ export function claimAt(
 
 /** One registered agent's run as a test sets it up: its start, then where it stands now and when it got there. */
 export interface AgentRun {
+  /** an `ic_` card named only by runs, with no stored card (the shape a home had before `card backfill`) */
+  unstored?: boolean;
   sid: string;
   name: string;
   /** a finished helper sits in Done, a stopped or failed one in Waiting (agent-home.ts) */
@@ -103,5 +108,29 @@ export function registerRuns(home: string, ...runs: AgentRun[]): AgentRegistry {
       });
     }
   }
+  storeRunCards(home, new Set(runs.filter((run) => run.unstored).map((run) => run.card as string)));
   return registry;
+}
+
+/**
+ * Stores an `agent` card for each `ic_` card the ledger's runs name that is not stored yet, as `agent start` writes it (the board
+ * joins a run to its card by the stored card): the first run's task is the title, its repo the card's, and the latest branch any
+ * run named is the card's. A test that registers runs another way than `registerRuns` calls it before it builds a board.
+ */
+export function storeRunCards(home: string, skip: ReadonlySet<string> = new Set()): void {
+  const store = new BacklogStore(home);
+  for (const card of implicitCards(readAgents(home).agents).filter((one) => !skip.has(one.id))) {
+    const found = store.items().find((one) => one.id === card.id);
+    if (!found) {
+      store.add({
+        id: card.id,
+        title: card.title,
+        repo: card.repo,
+        branch: card.branch,
+        source: 'agent',
+      });
+    } else if (card.branch && !found.branch) {
+      store.link(card.id, { branch: card.branch });
+    }
+  }
 }

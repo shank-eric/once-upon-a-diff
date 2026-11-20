@@ -455,7 +455,7 @@ const backlogCheck: Check = ({ home, items, agents }) => {
     ...claimWorktreeProblems(items()),
   ];
   // a backlog card and an implicit card on one repo and branch are a pair to merge by hand
-  const duplicates = duplicateCardProblems(items(), agents());
+  const duplicates = duplicateCardProblems(items(), agents(), new BacklogStore(home).items());
   // the runs made before stored cards (ADR-29): their `ic_` cards, and the recent runs with no card, are what `card backfill` stores
   const stray = backfillCards(home, { dryRun: true });
   const cardless = backfillCards(home, { dryRun: true, cardless: true });

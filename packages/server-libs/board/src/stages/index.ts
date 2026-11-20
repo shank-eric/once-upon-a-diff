@@ -32,6 +32,7 @@
  */
 import { unreadAnswers } from '@once-upon-a-diff/state/queues/requests/conversation';
 import { Inbox } from '@once-upon-a-diff/state/queues/requests/inbox';
+import { isListed } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import type { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import type { BlankSessions } from '@once-upon-a-diff/adapters/claude-sessions/blank-sessions';
 import { listenersLane } from '@once-upon-a-diff/core/features/listeners/service';
@@ -136,8 +137,12 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
   } = facts;
 
   // the Backlog's items: a card shows the agents whose runs name it, so those agents have no card of their own
-  const backlogItems = state.backlog.listed();
-  const placed = placeSessions(ctx, liveFacts, facts, works, state.seen, backlogItems);
+  // `storedCards` is every stored card (an agent's, a session's, a PR's, a story's too): the board joins runs and sessions to
+  // them. `backlogItems` is the listed ones, the cards a person added: what the Backlog column and the stages that act on a
+  // person's card read
+  const storedCards = state.backlog.items();
+  const backlogItems = storedCards.filter(isListed);
+  const placed = placeSessions(ctx, liveFacts, facts, works, state.seen, storedCards);
   const { sessionCards, quietViews, blankViews, repoBySession } = placed;
   const pin = placed.pin;
   // the pinned voice session's last lines, from voice_ctl: asked only when the strip is shown
@@ -170,6 +175,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
       editorViews: placed.editorViews,
       held,
       items: backlogItems,
+      stored: storedCards,
       editorOf: editing.editorOf,
       // with the scanner off its facts are not kept up, so no author waits on a merge state read from them
       trees: settings.worktrees ? state.scanner.read().items : [],
