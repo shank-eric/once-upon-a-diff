@@ -30,7 +30,7 @@ import type {
 } from '@once-upon-a-diff/contracts/types';
 import { isLocalStoryCard } from '../columns.ts';
 import { AGENT_OPEN, forgotten } from './agents.ts';
-import type { BuildContext, PinnedVoice, StoryFacts, Work } from './types.ts';
+import type { BuildContext, StoryFacts, Work } from './types.ts';
 import { readyFactsFor } from './ready-facts.ts';
 import { dirOf } from './worktrees.ts';
 import { branchOfWork } from './works.ts';
@@ -332,11 +332,8 @@ export async function readBacklogLinks(
   return links;
 }
 
-/** The sessions an open item's card may stand in for. */
+/** What the Backlog's cards read besides the items. */
 export interface AssignFacts {
-  quietViews: BoardSession[];
-  pin: PinnedVoice | null;
-  repoBySession: Map<string, string | null>;
   /** what the worktree scanner has: whether a built card's branch is pushed (ready.ts) */
   trees?: WorktreeFacts[];
 }
@@ -351,19 +348,11 @@ export function addBacklogCards(
   cards: BoardCard[],
   backlogItems: BacklogItem[],
   links: Map<string, BoardStartedLinks>,
-  { quietViews, pin, repoBySession, trees = [] }: AssignFacts,
+  { trees = [] }: AssignFacts,
   views: Map<string, BoardAgent[]> = new Map(),
   agents: LedgerAgent[] = [],
 ): BoardCard[] {
   const { nowMs } = ctx;
-  const cardless = [
-    ...quietViews.map((view) => ({
-      repo: repoBySession.get(view.id) ?? null,
-      branch: view.branch,
-      label: view.title,
-    })),
-    ...(pin ? [{ repo: pin.repo, branch: pin.view.branch, label: 'Voice session' }] : []),
-  ];
   // a card that a work run names is read by its runs (cardPhase); one no run names is a started or pending card
   const phases = new Map<string, CardPhase | null>();
   for (const item of backlogItems) {
@@ -394,6 +383,6 @@ export function addBacklogCards(
       }
     }
   }
-  const added = backlogCards(backlogItems, cards, nowMs, cardless, links, views, phases);
+  const added = backlogCards(backlogItems, cards, nowMs, links, views, phases);
   return added;
 }

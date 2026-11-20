@@ -227,7 +227,6 @@ test('a claimed agent on a card whose branch has a work card rides on that card,
     store.items(),
     [workCard],
     NOW.getTime(),
-    [],
     new Map(),
     new Map([[item.id, [view]]]),
   );

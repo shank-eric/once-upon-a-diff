@@ -16,6 +16,7 @@ import {
   BacklogStore,
   DONE_HOURS,
   backlogCards,
+  cardOnBranch,
   foldBacklog,
   startLine,
 } from '@once-upon-a-diff/state/queues/backlog/backlog';
@@ -54,6 +55,18 @@ const work = (repo: string | null, branch: string, extra: Partial<BoardCard> = {
     column: 'working',
     ...extra,
   }) as BoardCard;
+
+test('a started card rides the work card of its PR by number, so a renamed head keeps its card', () => {
+  const byBranch = work('acme/widgets', 'feat/old-name');
+  const byNumber = work('acme/widgets', 'feat/new-name', {
+    pr: { number: 12 } as BoardCard['pr'],
+  });
+  const item = { repo: 'acme/widgets', branch: 'feat/old-name', pr: 12 };
+  assert.equal(cardOnBranch(item, [byBranch, byNumber]), byNumber);
+  assert.equal(cardOnBranch({ ...item, pr: null }, [byBranch, byNumber]), byBranch);
+  assert.equal(cardOnBranch(item, [byBranch]), byBranch, 'no card of that number: by branch');
+  assert.equal(cardOnBranch({ ...item, repo: 'acme/other' }, [byNumber]), undefined);
+});
 
 test('the store appends events and folds them: add, start, drop', () => {
   const home = tmp('backlog-store');
@@ -347,7 +360,7 @@ test('a claimed started item is one Working card with its agent on it; with a wo
   const views = new Map([[item.id, [view]]]);
   // no card for the agent: the backlog card is the one card, in Working, with the agent in it
   const phases = phaseFor(store.items()[0], 'running', null, NOW);
-  const shown = backlogCards(store.items(), [], NOW, [], links, views, phases);
+  const shown = backlogCards(store.items(), [], NOW, links, views, phases);
   assert.equal(shown.length, 1);
   assert.equal(shown[0].title, 'Hold a spoken line');
   assert.equal(shown[0].column, 'working');
@@ -359,7 +372,7 @@ test('a claimed started item is one Working card with its agent on it; with a wo
     title: 'A PR title',
     pr: { number: 3 } as never,
   });
-  assert.deepEqual(backlogCards(store.items(), [inside], NOW, [], links, views, phases), []);
+  assert.deepEqual(backlogCards(store.items(), [inside], NOW, links, views, phases), []);
   assert.equal(inside.title, 'A PR title');
   assert.deepEqual(inside.agents, [view]);
   assert.equal(inside.from_backlog?.length, 1);
@@ -376,7 +389,7 @@ test('a claimed started item is one Working card with its agent on it; with a wo
       } as BoardCard['agents'][number],
     ],
   });
-  assert.equal(backlogCards(store.items(), [stray], NOW, [], links).length, 1);
+  assert.equal(backlogCards(store.items(), [stray], NOW, links).length, 1);
 });
 
 test('a landed item is Done for an hour from the done event, then off the board; list --all shows it', async () => {
@@ -442,7 +455,6 @@ test('a started item with no card is Working until its work ends, then Ready, or
       store.items(),
       [],
       now,
-      [],
       links ? new Map([[item.id, links]]) : new Map(),
       new Map(),
       run ? phaseFor(store.items()[0], run[0], run[1], now) : new Map(),
@@ -497,7 +509,6 @@ test('a started item with no card is Working until its work ends, then Ready, or
     store.items(),
     [],
     startedAt + 3 * hour,
-    [],
     new Map([[item.id, linked({ agent: agentLink('done', ended) })]]),
     new Map(),
     phaseFor(store.items()[0], 'done', ended, startedAt + 3 * hour),
@@ -984,7 +995,6 @@ test('an open item with a claimed agent: one card in the agent’s column while 
       store.items(),
       [],
       now,
-      [],
       new Map([[item.id, linked({ agent: agentLink(state, endedAt) })]]),
       new Map(),
       phaseFor(store.items()[0], state, endedAt, now),
@@ -1060,7 +1070,6 @@ test('an open item that landed with no start is Done for an hour', () => {
     store.items(),
     [],
     Date.parse(landed.landed_at as string) + 1800 * 1000,
-    [],
     new Map(),
   );
   assert.deepEqual(
@@ -1072,7 +1081,6 @@ test('an open item that landed with no start is Done for an hour', () => {
       store.items(),
       [],
       Date.parse(landed.landed_at as string) + 2 * 3600 * 1000,
-      [],
       new Map(),
     ),
     [],
@@ -1094,7 +1102,6 @@ test('finished, unmerged branch work whose critic passed is Ready, or Ready to s
       store.items().filter((one) => one.id === item.id),
       [],
       NOW,
-      [],
       new Map([[item.id, linked({ agent: agentLink('done', ended) })]]),
       new Map(),
       phaseFor(
@@ -1120,7 +1127,6 @@ test('finished, unmerged branch work whose critic passed is Ready, or Ready to s
       store.items().filter((one) => one.id === bare.id),
       [],
       NOW,
-      [],
       new Map([[bare.id, linked({ agent: agentLink('done', ended) })]]),
       new Map(),
       phaseFor(
@@ -1340,7 +1346,6 @@ test('a someday card whose claimed agent finished: someday while its column is B
       store.items(),
       [],
       later,
-      [],
       new Map([[item.id, linked({ agent: agentLink(state, ended) })]]),
       new Map(),
       phaseFor(store.items()[0], state, ended, later),

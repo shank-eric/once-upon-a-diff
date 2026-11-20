@@ -298,14 +298,7 @@ test('two agents of one name in different sessions are two agents on a card, and
 
   // the Backlog column's own nesting (backlogCards) says the same
   const other = card({ branch: 'feat/x', agents: [view('bbbbbbbb', 'ou-x')] });
-  backlogCards(
-    [item],
-    [other],
-    NOW,
-    [],
-    new Map(),
-    new Map([[item.id, [view('aaaaaaaa', 'ou-x')]]]),
-  );
+  backlogCards([item], [other], NOW, new Map(), new Map([[item.id, [view('aaaaaaaa', 'ou-x')]]]));
   assert.equal(other.agents.length, 2);
   // a view with no key is nobody's twin
   const keyless = card({ branch: 'feat/x', agents: [{ name: 'ou-x' } as BoardAgent] });

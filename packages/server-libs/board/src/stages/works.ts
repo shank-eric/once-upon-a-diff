@@ -13,6 +13,7 @@ import {
   prStories,
 } from '@once-upon-a-diff/core/features/review/story-lists';
 import type { InboxLocalStory, InboxStory } from '@once-upon-a-diff/contracts/types';
+import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
 import type { PrWatcher } from './pr-watcher.ts';
 import type { BuildContext, Work } from './types.ts';
 
@@ -112,7 +113,7 @@ function linkBranchWorks(
 }
 
 /** Reads the stories and the PR lists into works. Asks the GitHub watcher about what it reads (kick, kickRequested, kickLocal), in this order. */
-export function collectWorks(ctx: BuildContext): CollectedWorks {
+export function collectWorks(ctx: BuildContext, stored: BacklogItem[] = []): CollectedWorks {
   const { nowMs, review, builds } = ctx;
   // the units of work: every built PR story, and the PRs merged in the last day
   const stories = prStories(ctx.stories, { now: nowMs });
@@ -247,6 +248,50 @@ export function collectWorks(ctx: BuildContext): CollectedWorks {
     ]),
   );
   linkBranchWorks(works, review, localCheckouts, headsOf, nowMs);
+  // a stored card that has a PR is a work too, once the others are in (asked from GitHub by number, as a card's PR is), whether or not a story or GitHub's
+  // lists found it; GitHub's lists stay the discovery for a PR no card has. A card's story that is among the local stories goes on
+  // the work when it has none (the story store is read by `card.story`)
+  for (const card of stored) {
+    if (card.state === 'dropped' || card.landed_at || !card.repo || !card.pr) {
+      continue;
+    }
+    const key = prWorkKey(card.repo, card.pr);
+    const repo = card.repo;
+    // a PR GitHub's lists or a story already found, or a branch's work that has the PR's number or branch, is not doubled
+    const there = [...works.values()].find(
+      (work) =>
+        work.repo &&
+        sameRepo(work.repo, repo) &&
+        (work.number === card.pr || (!!card.branch && branchOfWork(review, work) === card.branch)),
+    );
+    if (!there) {
+      // GitHub's cached answer wins over the card's: a renamed head shows its new branch, and a PR it says merged carries
+      // its merge time (so a long-merged one is not asked about again)
+      const known = review.info(card.repo, card.pr);
+      const mergedMs = known?.merged_at ? Date.parse(known.merged_at) : NaN;
+      const settled =
+        known?.state === 'closed' ||
+        (known?.state === 'merged' && nowMs - mergedMs > MERGED_HOURS * 3600 * 1000);
+      if (!settled) {
+        review.kickInfo(card.repo, card.pr, nowMs);
+      }
+      start({
+        key,
+        repo: card.repo,
+        number: card.pr,
+        branch: known?.branch ?? card.branch,
+        story: null,
+        mergedAt: known?.state === 'merged' ? known.merged_at : null,
+        title: card.title,
+        built: false,
+      });
+    }
+    const work = there ?? (works.get(key) as Work);
+    const told = card.story ? localStoryList.find((local) => local.id === card.story) : undefined;
+    if (told && !work.story && !work.local && !work.mergedAt) {
+      work.local = told;
+    }
+  }
   const toldHeads = new Map(
     localEntryList.flatMap((entry) =>
       entry.told_head_oid ? [[entry.story.id, entry.told_head_oid] as const] : [],

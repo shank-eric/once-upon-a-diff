@@ -741,19 +741,24 @@ function endedColumn(
 
 const lane = (repo: string | null) => canonicalRepo(repo) ?? 'General';
 
-/** A live session that is on no card (the voice session, or one only listening): what a started item can sit on. */
-export interface CardlessSession {
-  repo: string | null;
-  branch: string | null;
-  /** how the card names it: "Voice session", or the session's title */
-  label: string;
-}
-
-/** The card a started item rides on: the work card for its repo and branch, else a session card on it (a session on a new branch with no PR or story yet). */
+/**
+ * The card a started item rides on: the work card of its PR (by number, so a PR whose head was renamed keeps its card), else the work
+ * card for its repo and branch, else a session card on it (a session on a new branch with no PR or story yet).
+ */
 export function cardOnBranch(
-  item: Pick<BacklogItem, 'branch' | 'repo'>,
+  item: Pick<BacklogItem, 'branch' | 'repo'> & Partial<Pick<BacklogItem, 'pr'>>,
   cards: BoardCard[],
 ): BoardCard | undefined {
+  const ofPr =
+    item.pr && item.repo
+      ? cards.find(
+          (card) =>
+            card.kind === 'work' && card.pr?.number === item.pr && sameRepo(card.repo, item.repo),
+        )
+      : undefined;
+  if (ofPr) {
+    return ofPr;
+  }
   const onBranch = (card: BoardCard, kind: BoardCard['kind']) =>
     card.kind === kind &&
     card.branch === item.branch &&
@@ -799,7 +804,6 @@ export function backlogCards(
   items: BacklogItem[],
   cards: BoardCard[],
   nowMs: number,
-  cardless: CardlessSession[] = [],
   links: Map<string, BoardStartedLinks> = new Map(),
   views: Map<string, BoardAgent[]> = new Map(),
   phases: Map<string, CardPhase | null> = new Map(),
@@ -813,7 +817,6 @@ export function backlogCards(
     // an open item that landed (`done` with no `start`) is a started one
     const derived = original.state === 'open' && !!original.landed_at;
     const item: BacklogItem = derived ? { ...original, state: 'started' } : original;
-    let onSession: CardlessSession | undefined;
     let column: BoardCard['column'] = 'backlog';
     let since: string | null = item.added_at || null;
     let tried = false;
@@ -850,11 +853,6 @@ export function backlogCards(
       since = claim.claim.at || since;
     }
     if (item.state === 'started') {
-      onSession = cardless.find(
-        (session) =>
-          session.branch === item.branch &&
-          (item.repo ? sameRepo(session.repo, item.repo) : !session.repo),
-      );
       const started = Date.parse(item.started_at ?? '');
       const landed = endedColumn(link, started, Date.parse(item.landed_at ?? ''));
       if (landed) {
@@ -902,7 +900,7 @@ export function backlogCards(
             ? {
                 branch: item.branch,
                 at: item.started_at,
-                on: onSession?.label ?? null,
+                on: null,
                 links: links.get(item.id) ?? null,
               }
             : null,

@@ -160,8 +160,8 @@ export interface BoardCard {
     id: string;
     added_by: string;
     /**
-     * work was started on a branch but no card for it exists yet: shown for a day, or while `on` (the voice session or a
-     * listening one, which have no cards) is on that branch
+     * work was started on a branch but no card for it exists yet. `on` is always null now (the voice session's and a listening
+     * one's are in `links.sessions`); the field stays so the board's wire shape does not change
      */
     started: {
       branch: string | null;
