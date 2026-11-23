@@ -20,7 +20,7 @@ import { landItems, recordedTips } from '@once-upon-a-diff/state/queues/backlog/
 import { liveCardIds } from '@once-upon-a-diff/state/queues/backlog/implicit';
 import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
 import { out } from '../output.ts';
-import { warnTypedRepo } from '../typed-repo.ts';
+import { cardRepoOf, warnTypedRepo } from '../typed-repo.ts';
 import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
 import type { Config } from '@once-upon-a-diff/foundation/settings';
 import type { CliOpts, Command } from '../types.ts';
@@ -186,7 +186,7 @@ function add(call: Call) {
   const title = titleOf(opts, words);
   warnTypedRepo(home, text(opts.repo), process.cwd());
   // the checkout the command runs in names the repo unless --repo says otherwise
-  const repo = text(opts.repo) ?? repoOfCheckout(process.cwd());
+  const repo = cardRepoOf(home, text(opts.repo), process.cwd()) ?? repoOfCheckout(process.cwd());
   const branch = text(opts.branch);
   // work and its card are one card: a card an agent made with a run open on this repo and branch is the card this add would make,
   // so it is adopted with this title and note (as `adopt` does) and no second card is written. A card whose runs are all over
@@ -273,7 +273,7 @@ function edit({ home, opts, store, who, found }: Call) {
     {
       title: changes.title ?? undefined,
       note: changes.note ?? undefined,
-      repo: changes.repo ?? undefined,
+      repo: cardRepoOf(home, changes.repo, process.cwd()) ?? undefined,
       story: changes.story ?? undefined,
     },
     who,
@@ -301,7 +301,10 @@ function start({ home, opts, store, who, found }: Call) {
   warnTypedRepo(home, item.repo ? null : text(opts.repo), process.cwd());
   const started = store.start(item.id, {
     branch,
-    repo: text(opts.repo) ?? item.repo ?? repoOfCheckout(process.cwd()),
+    repo:
+      cardRepoOf(home, text(opts.repo), process.cwd()) ??
+      item.repo ??
+      repoOfCheckout(process.cwd()),
     by: who,
   });
   return out(
@@ -364,7 +367,8 @@ function claim({ home, opts, store, who, found }: Call) {
   if (branch) {
     store.start(item.id, {
       branch,
-      repo: typedRepo ?? claimed.repo ?? repoOfCheckout(process.cwd()),
+      repo:
+        cardRepoOf(home, typedRepo, process.cwd()) ?? claimed.repo ?? repoOfCheckout(process.cwd()),
       by: who ?? agent,
     });
   }

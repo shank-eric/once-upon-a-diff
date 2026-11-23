@@ -250,6 +250,37 @@ function knownRepos(
 }
 
 /**
+ * The spelling of a typed repo this machine already uses, so a card's repo has one casing (GitHub's names compare without
+ * case, but the board's lanes and menus show what the card says). The checkout's origin wins; else the typed spelling when a card already has it
+ * exactly; else the most used spelling on the cards (the first met when tied); else the repo as typed. Only a spelling that differs in case counts: a named typo is
+ * not rewritten here (`typedRepoNote` asks about it). Never asks the network.
+ */
+export function canonicalCasing(
+  typed: string | null | undefined,
+  spellings: { origin?: string | null; cardRepos?: (string | null | undefined)[] } = {},
+): string | null {
+  const repo = (typed ?? '').trim();
+  if (!repo) {
+    return typed ?? null;
+  }
+  const lower = repo.toLowerCase();
+  if (spellings.origin && spellings.origin.toLowerCase() === lower) {
+    return spellings.origin;
+  }
+  if ((spellings.cardRepos ?? []).includes(repo)) {
+    return repo;
+  }
+  const counts = new Map<string, number>();
+  for (const one of spellings.cardRepos ?? []) {
+    if (one && one.toLowerCase() === lower) {
+      counts.set(one, (counts.get(one) ?? 0) + 1);
+    }
+  }
+  const [best] = [...counts.entries()].sort((first, second) => second[1] - first[1])[0] ?? [repo];
+  return best;
+}
+
+/**
  * What to warn about a repo someone typed (a flag or a form), or null when it is on a known repo or nothing was typed. Only a
  * typed repo is asked about: one taken from a checkout's origin is the checkout's. Warns now; the flip (ADR-25) refuses.
  */

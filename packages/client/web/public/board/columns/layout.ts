@@ -77,7 +77,7 @@ export function arrange(data: BoardData, hideOnAuthor: boolean, now: number) {
     )
     .sort(
       (first, second) =>
-        first.lane.localeCompare(second.lane) ||
+        first.lane.toLowerCase().localeCompare(second.lane.toLowerCase()) ||
         String(first.card.since).localeCompare(String(second.card.since)),
     );
   return {

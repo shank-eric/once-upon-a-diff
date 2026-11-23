@@ -3,6 +3,7 @@ import { statSync } from 'node:fs';
 import path from 'node:path';
 import { isFeatureBranch } from '@once-upon-a-diff/foundation/settings';
 import { sameRepo, seenCheckouts } from '@once-upon-a-diff/foundation/repos';
+import { repoKey } from '@once-upon-a-diff/terms/ids';
 import type { LedgerAgent } from '@once-upon-a-diff/state/records/agents/ledger';
 import type { LiveSession } from '@once-upon-a-diff/adapters/claude-sessions/live-sessions';
 import { judge, workingIn } from '@once-upon-a-diff/state/records/worktrees/worktrees';
@@ -102,7 +103,7 @@ export function worktreeSection({
   loose.sort(
     (first, second) =>
       Number(second.removable) - Number(first.removable) ||
-      first.lane.localeCompare(second.lane) ||
+      repoKey(first.lane).localeCompare(repoKey(second.lane)) ||
       String(first.last_commit_at).localeCompare(String(second.last_commit_at)),
   );
   return {

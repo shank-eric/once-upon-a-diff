@@ -8,6 +8,7 @@ import path from 'node:path';
 import { readSettings } from '@once-upon-a-diff/foundation/settings';
 import {
   REPO_RE,
+  canonicalCasing,
   lastKnownRepo,
   repoOfCheckoutAsync,
   typedRepoNote,
@@ -214,9 +215,16 @@ export class Board {
 
   /** Adds a backlog item (a page's Add), and drops the kept snapshot so the card shows on the next poll. */
   addBacklog(input: AddInput): BacklogItem {
-    const item = this.backlog.add(input);
+    const item = this.backlog.add({ ...input, repo: this.cardRepoOf(input.repo) });
     this.invalidate();
     return item;
+  }
+
+  /** A typed repo in the casing the other cards use (a form's `everfi/x` is stored as `EverFi/x`), as the CLI does. */
+  private cardRepoOf<T extends string | null | undefined>(repo: T): T | string | null {
+    return repo
+      ? canonicalCasing(repo, { cardRepos: this.backlog.listed().map((item) => item.repo) })
+      : repo;
   }
 
   /** Moves a backlog item (a card dragged, or its up and down buttons). */
@@ -228,7 +236,7 @@ export class Board {
 
   /** Edits an open backlog item's title, note or repo (a card's Edit). */
   editBacklog(id: string, input: EditInput, who: string): BacklogItem {
-    const item = this.backlog.edit(id, input, who);
+    const item = this.backlog.edit(id, { ...input, repo: this.cardRepoOf(input.repo) }, who);
     this.invalidate();
     return item;
   }

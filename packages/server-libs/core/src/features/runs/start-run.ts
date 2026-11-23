@@ -9,7 +9,12 @@
  * locks and no lock spans both: if the stamp fails after the run is written, the error says so and names
  * `once-upon backlog branch`, which is idempotent and repairs it.
  */
-import { REPO_RE, repoOfCheckout, typedRepoNote } from '@once-upon-a-diff/foundation/repos';
+import {
+  REPO_RE,
+  canonicalCasing,
+  repoOfCheckout,
+  typedRepoNote,
+} from '@once-upon-a-diff/foundation/repos';
 import { isFeatureBranch } from '@once-upon-a-diff/foundation/settings';
 import { BACKLOG_NOTE_MAX } from '@once-upon-a-diff/terms/text';
 import { prHeadBranch } from '@once-upon-a-diff/foundation/gh';
@@ -221,6 +226,14 @@ function refuseNoWork({ role, card, typedPr, typedBranch, name }: Start): void {
   }
 }
 
+/** The repo typed on a start, in the casing the checkout's origin or the other cards use (null when none was typed). */
+function typedRepoCasing(input: RunStartInput, store: BacklogStore): string | null {
+  return canonicalCasing(text(input.repo), {
+    origin: repoOfCheckout(input.cwd),
+    cardRepos: store.listed().map((item) => item.repo),
+  });
+}
+
 /** Reads the input into a Start, refusing the shapes that no card or registry could make sense of. */
 function beginStart(home: string, input: RunStartInput, warn: Start['warn']): Start {
   refuseOtherRegistration(input);
@@ -228,7 +241,8 @@ function beginStart(home: string, input: RunStartInput, warn: Start['warn']): St
   const role = text(input.role);
   const start: Start = {
     home,
-    input,
+    // a typed repo is kept in the spelling the checkout's origin or the other cards use
+    input: { ...input, repo: typedRepoCasing(input, store) },
     warn,
     store,
     lookup: cardLookup(store),

@@ -210,21 +210,21 @@ export function useAddPanel(api: Api) {
   }, [open]);
 
   const repoItems = () => {
-    const repos = [
-      ...new Set(
-        api.board.lanes
-          .flatMap((lane) => lane.cards)
-          .map((card) => card.repo)
-          .filter((one): one is string => !!one),
-      ),
-    ].sort();
+    // one entry a repo, whatever its casing (the first spelling met)
+    const spelled = new Map<string, string>();
+    for (const one of api.board.lanes.flatMap((lane) => lane.cards).map((card) => card.repo)) {
+      if (one && !spelled.has(one.toLowerCase())) {
+        spelled.set(one.toLowerCase(), one);
+      }
+    }
+    const repos = [...spelled.values()].sort();
     return [
       { value: '', label: 'No repo', detail: 'in the General lane', checked: !repo },
       ...repos.map((one) => ({
         value: one,
         label: repoName(one),
         detail: one,
-        checked: one === repo,
+        checked: sameLaneKey(one, repo),
       })),
     ];
   };
@@ -309,7 +309,8 @@ export function useBacklogDnd(api: Api) {
     }
     const cards = [...list.children].filter(
       (card) =>
-        card.hasAttribute('data-backlog-card') && card.getAttribute('data-lane') === first.lane,
+        card.hasAttribute('data-backlog-card') &&
+        sameLaneKey(card.getAttribute('data-lane') ?? '', first.lane),
     ) as HTMLElement[];
     if (!cards.length) {
       return null;
