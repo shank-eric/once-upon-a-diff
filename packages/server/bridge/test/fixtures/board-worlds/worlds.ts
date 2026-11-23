@@ -2413,6 +2413,24 @@ async function record(
   await record('18-parked-after-run', board);
 }
 
+/**
+ * Pids become stable tokens, matched as whole numbers so one can never hit the inside of a sha, another number or a date
+ * (a pid of 2026 must leave `2026-10-26T...` alone: a bare pid is never glued to a digit by a dash).
+ */
+export function scrubPids(text: string, all: number[]): string {
+  let out = text;
+  for (const pid of all) {
+    const token = all.indexOf(pid);
+    const padded = new RegExp(
+      `(?<![0-9A-Za-z])${String(pid).padStart(8, '0')}(?![0-9A-Za-z])`,
+      'g',
+    );
+    const bare = new RegExp(`(?<![0-9A-Za-z.]|\\d-)${pid}(?![0-9A-Za-z]|-\\d)`, 'g');
+    out = out.replace(padded, `<PID:${token}>`).replace(bare, `<pid:${token}>`);
+  }
+  return out;
+}
+
 // ---- normalize paths and pids
 export const snapshots: Record<string, string> = {};
 for (const [name, value] of Object.entries(results)) {
@@ -2427,17 +2445,7 @@ for (const [name, value] of Object.entries(results)) {
     2,
   );
   text = text.split(WORK).join('<WORK>');
-  const all = [...new Set([...pidsSeen, ...children.map((child) => child.pid)])];
-  // Pids become stable tokens, matched as whole numbers so one can never hit the inside of a sha or another number.
-  for (const pid of all) {
-    const token = all.indexOf(pid);
-    const padded = new RegExp(
-      `(?<![0-9A-Za-z])${String(pid).padStart(8, '0')}(?![0-9A-Za-z])`,
-      'g',
-    );
-    const bare = new RegExp(`(?<![0-9A-Za-z.])${pid}(?![0-9A-Za-z])`, 'g');
-    text = text.replace(padded, `<PID:${token}>`).replace(bare, `<pid:${token}>`);
-  }
+  text = scrubPids(text, [...new Set([...pidsSeen, ...children.map((child) => child.pid)])]);
   shasSeen.forEach((sha, token) => {
     text = text.split(sha).join(`<SHA:${token}>`).split(sha.slice(0, 7)).join(`<SHA:${token}>`);
   });

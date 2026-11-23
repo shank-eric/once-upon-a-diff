@@ -11,7 +11,7 @@ const golden = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
   'fixtures/board-worlds/golden',
 );
-const { snapshots, finish, storedCardsChangeNothing, keeperChangesNothing } =
+const { snapshots, finish, scrubPids, storedCardsChangeNothing, keeperChangesNothing } =
   await import('./fixtures/board-worlds/worlds.ts');
 after(finish);
 
@@ -26,6 +26,35 @@ for (const [name, text] of Object.entries(snapshots)) {
     assert.equal(text, readFileSync(file, 'utf8'), `${name} differs from ${file}`);
   });
 }
+
+// A bridge whose pid is 2026 (it happened: deploy 11/20) must not turn every `2026-...` timestamp into a pid token.
+test('the pid scrub leaves dates alone when the pid is 2026', () => {
+  const text = [
+    '"pid": 2026,',
+    '"session": "00002026-aaaa-bbbb-cccc-dddddddddddd",',
+    '"name": "session-2026",',
+    '"since": "2026-10-26T18:00:00Z",',
+    '"until": "2025-12-2026"',
+  ].join('\n');
+  assert.equal(
+    scrubPids(text, [4242, 2026]),
+    [
+      '"pid": <pid:1>,',
+      '"session": "<PID:1>-aaaa-bbbb-cccc-dddddddddddd",',
+      '"name": "session-<pid:1>",',
+      '"since": "2026-10-26T18:00:00Z",',
+      '"until": "2025-12-2026"',
+    ].join('\n'),
+  );
+  for (const name of Object.keys(snapshots)) {
+    const goldenText = readFileSync(path.join(golden, `${name}.json`), 'utf8');
+    assert.equal(
+      scrubPids(goldenText, [2026]),
+      goldenText,
+      `${name}: a 2026 pid changed the golden`,
+    );
+  }
+});
 
 // ADR-29, branch A: a card stored for each source (what `agent start`, a session, a PR or a story writes) is read by nothing yet, so
 // every world's board is the same with them in backlog.jsonl. A world whose runs name an `ic_` card keeps its implicit join.
