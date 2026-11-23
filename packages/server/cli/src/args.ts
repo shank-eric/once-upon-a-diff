@@ -20,6 +20,7 @@ const BOOLEAN_FLAGS = new Set([
   'cardless',
   'keep',
   'with-key',
+  'uninstall',
 ]);
 
 export function parseArgs(argv: string[]): { command: string | undefined; opts: CliOpts } {

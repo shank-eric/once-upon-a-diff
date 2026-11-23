@@ -29,6 +29,7 @@ You need Node 24 or newer, the current LTS (`.nvmrc` says 24, so `fnm use` or `n
    ```bash
    once-upon serve    # or: yarn bridge
    ```
+   On a Mac, to have the bridge start at login instead, run `once-upon install-launch-agent` once (on Node 24, from the main checkout; `--uninstall` removes it). It writes a LaunchAgent (`~/Library/LaunchAgents/dev.onceupon.bridge.plist`) that runs `bin/once-upon.mjs serve` from main's `packages/server/bridge` and logs to `~/.once-upon/bridge.log`. There is no KeepAlive, so a bridge you stop by hand stays stopped; `scripts/deploy-local.sh` restarts it with `launchctl kickstart -k`. `once-upon doctor` says whether it is installed. Re-run the install after a Node upgrade or moving the checkout.
 5. Install the Claude Code skills (`once-upon-listen`, `once-upon` and `once-upon-editor`) by linking them into your skills folder. `scripts/install-cli.sh` already did this; to do it alone, or to repeat it, run:
    ```bash
    scripts/link-skills.sh    # links each skills/<name> into ~/.claude/skills (or $CLAUDE_SKILLS_DIR)

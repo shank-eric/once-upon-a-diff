@@ -12,7 +12,9 @@ const BRIDGE_LOG_MAX_BYTES = 5 * 1024 * 1024;
 /**
  * Appends to the bridge's log, keeping it under `maxBytes`: a write that would pass the cap first copies the file to
  * `<file>.1` (replacing the old copy) and empties it in place. Copy and truncate, never rename: deploy-local.sh starts the
- * bridge with its stderr on this file, and that descriptor follows the inode, so a rename would leave it filling the backup.
+ * bridge with its stderr on this file, and so does launchd (the LaunchAgent's StandardErrorPath); that descriptor follows the
+ * inode, so a rename would leave it filling the backup. The copy-and-truncate holds only when the descriptor appends: if launchd
+ * opens it without O_APPEND, a truncate leaves a sparse file (harmless).
  * The size is read on each write (a line is rare, and the stderr copy of every line also lands in the file).
  */
 export function makeBridgeLog(

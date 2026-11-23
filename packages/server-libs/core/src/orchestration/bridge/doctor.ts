@@ -36,6 +36,8 @@ import { freshStatusLineIds } from '@once-upon-a-diff/adapters/claude-sessions/s
 import { gitVersionText } from '@once-upon-a-diff/adapters/git';
 import { gitVersionProblem, MIN_GIT } from '@once-upon-a-diff/foundation/git-version';
 import { fetchHealth } from '@once-upon-a-diff/adapters/bridge-health';
+import { readLaunchAgentFacts, type LaunchAgentFacts } from '../../features/launch-agent/status.ts';
+import { LAUNCH_LABEL } from '@once-upon-a-diff/adapters/launch-agent';
 import { readExtensionSeen } from './bridge.ts';
 import { backfillCards } from '../../features/runs/service.ts';
 import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
@@ -136,6 +138,7 @@ interface Env {
   nodeVersion: string;
   gitVersion: string | null;
   pumaDevLink: string;
+  launchAgent: () => Promise<LaunchAgentFacts>;
   proxyListeners: (port: number) => string[];
   fix: boolean;
   keepDays: number;
@@ -287,6 +290,77 @@ const bridgeCheck: Check = async ({ port, cfg, wait }) => {
       name: 'Bridge',
       detail: `something else answers on port ${port} (HTTP ${health.status})`,
       fix: 'Pick another port: set "port" in config.json, restart the bridge, and change it in the extension options',
+    },
+  ];
+};
+
+/** Whether the bridge's LaunchAgent starts it at login, and still points at files that are there. */
+const launchAgentCheck: Check = async ({ port, launchAgent }) => {
+  const facts = await launchAgent();
+  if (!facts.available) {
+    return [];
+  }
+  const name = 'Bridge at login';
+  const reinstall = 'Run: once-upon install-launch-agent (on Node 24, from the main checkout)';
+  if (!facts.fileExists) {
+    return [
+      {
+        level: 'WARN',
+        name,
+        detail: `no LaunchAgent (${facts.file}): after a reboot nothing starts the bridge`,
+        fix: 'Run: once-upon install-launch-agent',
+      },
+    ];
+  }
+  if (!facts.loaded) {
+    return [
+      {
+        level: 'WARN',
+        name,
+        detail: `${facts.file} is there but launchd has not loaded it`,
+        fix: `Run: launchctl bootstrap gui/${facts.uid} ${facts.file} (or ${reinstall})`,
+      },
+    ];
+  }
+  const gone = [facts.program, facts.workingDirectory].filter(
+    (found): found is string => !!found && !existsSync(found),
+  );
+  if (gone.length > 0) {
+    return [
+      {
+        level: 'WARN',
+        name,
+        detail: `the LaunchAgent runs ${gone.join(' and ')}, which is not there any more`,
+        fix: reinstall,
+      },
+    ];
+  }
+  const listener = listenerPid(port);
+  const handStarted = listener !== null && Number(listener.pid) !== facts.pid;
+  if (handStarted) {
+    return [
+      {
+        level: 'INFO',
+        name,
+        detail: `starts at login (${LAUNCH_LABEL}), but a bridge started by hand (pid ${listener.pid}) holds port ${port}; the next deploy restarts it under launchd`,
+      },
+    ];
+  }
+  if (facts.pid === null) {
+    return [
+      {
+        level: 'WARN',
+        name,
+        detail: `launchd has ${LAUNCH_LABEL} loaded but it is not running, and nothing holds port ${port}`,
+        fix: `Run: launchctl kickstart -k gui/${facts.uid}/${LAUNCH_LABEL} (or ${reinstall})`,
+      },
+    ];
+  }
+  return [
+    {
+      level: 'PASS',
+      name,
+      detail: `starts at login (${LAUNCH_LABEL}), loaded, pid ${facts.pid}`,
     },
   ];
 };
@@ -660,6 +734,7 @@ const CHECKS: Check[] = [
   gitCheck,
   tokenCheck,
   bridgeCheck,
+  launchAgentCheck,
   proxyCheck,
   extensionCheck,
   listeningCheck,
@@ -703,6 +778,7 @@ export async function doctor(
     nodeVersion = process.versions.node,
     gitVersion = gitVersionText(),
     pumaDevLink = path.join(os.homedir(), '.puma-dev', 'once-upon'),
+    launchAgent = readLaunchAgentFacts,
     proxyListeners = openListeners,
     fix = false,
     keepDays = DEFAULT_KEEP_DAYS,
@@ -716,6 +792,8 @@ export async function doctor(
     gitVersion?: string | null;
     /** puma-dev's link to the bridge, and the addresses a port listens on past this machine: for tests */
     pumaDevLink?: string;
+    /** the bridge's LaunchAgent as launchd and its file say it is: for tests; this Mac's by default */
+    launchAgent?: () => Promise<LaunchAgentFacts>;
     proxyListeners?: (port: number) => string[];
     /** compact the logs (`--fix`), keeping the old ones; runs over `keepDays` days old go. Without it doctor writes nothing */
     fix?: boolean;
@@ -730,6 +808,7 @@ export async function doctor(
     nodeVersion,
     gitVersion,
     pumaDevLink,
+    launchAgent,
     proxyListeners,
     fix,
     keepDays,

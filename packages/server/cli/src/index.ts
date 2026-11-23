@@ -28,6 +28,7 @@ import { editorCommands } from './commands/editor.ts';
 import { approveCommands } from './commands/approve.ts';
 import { reviewedCommands } from './commands/reviewed.ts';
 import { usageCommands } from './commands/usage.ts';
+import { launchAgentCommands } from './commands/launch-agent.ts';
 import { commandLabel, noteCommand } from '@once-upon-a-diff/usage/cli-log';
 import type { Command } from './types.ts';
 
@@ -55,6 +56,7 @@ const COMMANDS = new Map<string, Command>(
     ...reviewedCommands,
     ...approveCommands,
     ...usageCommands,
+    ...launchAgentCommands,
   ].map((command) => [command.name, command]),
 );
 
@@ -64,6 +66,7 @@ const HELP_ORDER = [
   'setup',
   'token',
   'install-hooks',
+  'install-launch-agent',
   'config',
   'list',
   'local',

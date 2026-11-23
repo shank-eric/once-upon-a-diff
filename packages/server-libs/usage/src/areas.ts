@@ -198,6 +198,7 @@ export const COMMAND_AREAS: Record<string, Area> = {
   serve: 'Server shell',
   setup: 'Settings, config and doctor',
   'install-hooks': 'Listeners and sessions',
+  'install-launch-agent': 'Server shell',
   token: 'Settings, config and doctor',
   config: 'Settings, config and doctor',
   doctor: 'Settings, config and doctor',

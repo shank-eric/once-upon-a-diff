@@ -8,7 +8,8 @@
 #   scripts/deploy-local.sh --rollback <sha>
 #
 # Fast-forward mode refuses unless the target descends from the main checkout's live HEAD and the checkout is clean.
-# It fast-forwards main to the target, installs, builds, respawns the bridge and verifies. It runs no gates: the
+# It fast-forwards main to the target, installs, builds, respawns the bridge (through launchd when `once-upon install-launch-agent`
+# put the bridge under it, else by killing and respawning it: scripts/lib/respawn-bridge.sh) and verifies. It runs no gates: the
 # branch's own agent ran them. Without --yes it only prints the plan.
 # Batch mode cherry-picks the shas onto <base> in ONE reusable worktree (../once-upon-a-diff-worktrees/deploy, reset
 # to the base each time), runs every gate and prints the plan. Re-running with the same arguments and --yes reuses
@@ -25,6 +26,8 @@ BRIDGE_LOG="$HOME/.once-upon/bridge.log"
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/worktree-cleanup.sh"
 # shellcheck source=lib/read-token.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/read-token.sh"
+# shellcheck source=lib/respawn-bridge.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/respawn-bridge.sh"
 
 die() { echo "deploy-local: $*" >&2; exit 1; }
 say() { echo "deploy-local: $*"; }
@@ -152,20 +155,6 @@ restore_main() {
   git -C "$MAIN" reset -q --keep "$sha" || git -C "$MAIN" reset -q --hard "$sha"
 }
 
-# The pid listening on $PORT, or nothing.
-listener_pid() { lsof -nP -iTCP:$PORT -sTCP:LISTEN -t 2>/dev/null | head -n 1 || true; }
-
-cwd_of() { lsof -a -p "$1" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p'; }
-
-# The bridge's folder in MAIN.
-bridge_dir() {
-  if [ -f "$MAIN/packages/server/bridge/bin/once-upon.mjs" ]; then
-    echo "$MAIN/packages/server/bridge"
-  else
-    die "no bridge folder under $MAIN/packages/server"
-  fi
-}
-
 # The vendored files' folder in MAIN.
 vendor_dir() {
   if [ -d "$MAIN/packages/client-libs/ui-kit/vendor" ]; then
@@ -173,46 +162,6 @@ vendor_dir() {
   else
     echo "$MAIN/packages/client/web/public/vendor"
   fi
-}
-
-# Kill the bridge on $PORT (only if it is a node process running from MAIN's bridge folder) and respawn it from bridge_dir.
-respawn_bridge() {
-  local pid cwd comm dir
-  dir="$(bridge_dir)"
-  pid="$(listener_pid)"
-  if [ -n "$pid" ]; then
-    cwd="$(cwd_of "$pid")"
-    comm="$(ps -o command= -p "$pid" || true)"
-    case "$comm" in
-      *node*once-upon*serve*) ;;
-      *) die "the process on $PORT (pid $pid) is not the bridge ($comm). Not killing it." ;;
-    esac
-    case "$cwd" in
-      "$MAIN/packages/server/bridge") ;;
-      *) die "the bridge on $PORT (pid $pid) runs from $cwd, not $MAIN/packages/server/bridge. Not killing it. Stop it by hand and re-run." ;;
-    esac
-    say "killing bridge pid $pid"
-    kill "$pid" || true
-    for _ in 1 2 3 4 5 6 7 8 9 10; do
-      kill -0 "$pid" 2>/dev/null || break
-      sleep 1
-    done
-    if kill -0 "$pid" 2>/dev/null; then die "bridge pid $pid did not exit"; fi
-  fi
-  (
-    cd "$dir" || exit 1
-    nohup node bin/once-upon.mjs serve </dev/null >>"$BRIDGE_LOG" 2>&1 &
-  )
-  for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
-    if curl -s --max-time 5 -o /dev/null "http://127.0.0.1:$PORT/"; then break; fi
-    sleep 1
-  done
-  pid="$(listener_pid)"
-  [ -n "$pid" ] || die "bridge did not come up on $PORT (see $BRIDGE_LOG)"
-  cwd="$(cwd_of "$pid")"
-  [ "$cwd" = "$dir" ] || die "new bridge pid $pid runs from $cwd, expected $dir"
-  say "bridge pid $pid, cwd verified: $cwd"
-  BRIDGE_PID="$pid"
 }
 
 verify_live() {

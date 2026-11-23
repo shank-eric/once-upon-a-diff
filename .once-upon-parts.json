@@ -75,6 +75,7 @@
         "packages/server-libs/state/src/records/listeners/",
         "packages/server-libs/core/src/features/listeners/",
         "packages/server-libs/core/src/features/heavy/",
+        "packages/server-libs/core/src/features/launch-agent/",
         "packages/server-libs/foundation/src/",
         "packages/server-libs/core/src/orchestration/bridge/",
         "packages/server-libs/state/src/records/page-links/",
