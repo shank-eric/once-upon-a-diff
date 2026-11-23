@@ -845,51 +845,6 @@ test('a minting author start whose stored card another start already joined is r
   );
 });
 
-test('a card that exists only as runs (made before stored cards) is joined while its work is recent, and not once it ended long ago', async () => {
-  const home = tmp('join-legacy');
-  const day = 24 * 3600 * 1000;
-  const old = (name: string, card: string, branch: string, agoDays: number) => {
-    const registry = new AgentRegistry(home);
-    const started = new Date(Date.now() - agoDays * day);
-    registry.start({
-      name,
-      sid: SID,
-      kind: 'author',
-      task: `old ${name}`,
-      repo: 'acme/widgets',
-      branch,
-      card,
-      at: started,
-    });
-    registry.finish(name, { sid: SID, outcome: 'done', at: new Date(started.getTime() + 60_000) });
-  };
-  old('ou-old-recent', 'ic_legacyrec001', 'feat-rec', 2);
-  old('ou-old-aged', 'ic_legacyold001', 'feat-aged', 40);
-  assert.equal(new BacklogStore(home).items().length, 0, 'no stored card: a legacy one');
-  const [line, joined] = await startOut(
-    home,
-    'ou-new-rec',
-    ...AUTHOR,
-    '--branch',
-    'feat-rec',
-    '--task',
-    'rework',
-  );
-  assert.equal(line.split(' ')[2], 'ic_legacyrec001');
-  assert.match(joined, /^joined ic_legacyrec001 /);
-  const aged = await start(
-    home,
-    'ou-new-aged',
-    ...AUTHOR,
-    '--branch',
-    'feat-aged',
-    '--task',
-    'again',
-  );
-  assert.notEqual(aged.card, 'ic_legacyold001');
-  assert.match(aged.card, IMPLICIT);
-});
-
 test('a start with --pr and no branch joins the card on the PR’s head branch', async () => {
   const home = tmp('join-pr');
   const first = await start(home, 'ou-one', ...AUTHOR, '--branch', 'feat-pr', '--task', 'build');

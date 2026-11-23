@@ -24,7 +24,7 @@ import type { LedgerAgent } from '@once-upon-a-diff/state/records/agents/ledger'
 import { flat } from './checkout.ts';
 import { finishRun } from './finish-run.ts';
 import { runRegistry } from './registry.ts';
-import { legacyCard, startRun, type RunIo } from './start-run.ts';
+import { startRun, type RunIo } from './start-run.ts';
 
 export interface RecordFixInput {
   repo: string;
@@ -75,19 +75,18 @@ export async function recordFix(
   const covering = coveringRun(onBranch, sha, nowMs);
   const store = new BacklogStore(home);
   const open = findCard(store.items(), { source: 'agent', repo, branch });
-  const legacy = open ? undefined : legacyCard(registry, store, repo, branch, nowMs);
   if (covering) {
     return {
       run: covering.run ?? null,
-      card: covering.card ?? open?.id ?? legacy?.id ?? null,
+      card: covering.card ?? open?.id ?? null,
       covered: true,
       madeCard: false,
     };
   }
-  let card = open?.id ?? legacy?.id ?? null;
+  let card = open?.id ?? null;
   let madeCard = false;
   if (!card) {
-    // a fix is always a run on a card: one is made when the branch has none open (a landed one, or one past the legacy window)
+    // a fix is always a run on a card: one is made when the branch has none open (a landed one)
     const title = implicitTitle(input.task) || `fix on ${branch}`;
     card = ensureCard(store, {
       id: newImplicitCardId(),

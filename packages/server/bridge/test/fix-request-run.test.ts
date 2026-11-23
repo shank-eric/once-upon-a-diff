@@ -14,7 +14,6 @@ import { readFixes } from '@once-upon-a-diff/state/queues/requests/fixes';
 const SESSION = 'abcd1234-0000-4000-8000-000000000000';
 const AUTHOR = 'cafe0001';
 /** a card that exists only as its runs: no backlog row */
-const IMPLICIT = 'ic_mwlegacy000001';
 
 /** A local story of `feature` in acme/widgets, with a card on the branch and a fix request claimed a moment ago. */
 function scene(options: { card?: boolean; claimed?: boolean; squash?: boolean } = {}) {
@@ -214,34 +213,6 @@ describe('fixed --sha records the fix as a run on the branch’s card', () => {
     const carried = readApproval(new StoryStore({ home: fixture.home }), fixture.story);
     assert.equal(carried?.head_oid, amended);
     assert.equal(carried?.carried?.from, first);
-  });
-
-  test('a card that exists only as runs (an implicit ic_ card, no backlog row) takes the fixer run without a claim error', async () => {
-    const fixture = scene({ card: false });
-    const earlier = git(fixture.repo, 'rev-parse', 'HEAD');
-    registerRuns(fixture.home, {
-      sid: AUTHOR,
-      name: 'the-author',
-      kind: 'author',
-      repo: 'acme/widgets',
-      branch: 'feature',
-      card: IMPLICIT,
-      started: new Date(Date.now() - 3600_000),
-      now: {
-        state: 'done',
-        at: new Date(Date.now() - 1800_000),
-        result: { commit: earlier, branch: 'feature' },
-      },
-    });
-    assert.equal(fixture.backlog.items().length, 0);
-    const sha = fixture.commit('fix.txt');
-    const done = await fixture.cli('fixed', '--request', fixture.request, '--sha', sha);
-    assert.equal(done.code, 0, done.stderr);
-    assert.doesNotMatch(done.stdout, /made it/);
-    const fixer = fixture.runs().find((one) => one.name === 'fix-feature');
-    assert.equal(fixer?.card, IMPLICIT);
-    assert.equal(fixer?.result?.commit, sha);
-    assert.equal(readFixes(fixture.home)[fixture.request].status, 'done');
   });
 
   test('a request the reviewer took back, and a --notes id it lacks, record no run and carry no approval', async () => {

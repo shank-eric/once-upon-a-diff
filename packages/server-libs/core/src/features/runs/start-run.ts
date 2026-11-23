@@ -9,17 +9,11 @@
  * locks and no lock spans both: if the stamp fails after the run is written, the error says so and names
  * `once-upon backlog branch`, which is idempotent and repairs it.
  */
-import {
-  REPO_RE,
-  repoOfCheckout,
-  sameRepo,
-  typedRepoNote,
-} from '@once-upon-a-diff/foundation/repos';
+import { REPO_RE, repoOfCheckout, typedRepoNote } from '@once-upon-a-diff/foundation/repos';
 import { isFeatureBranch } from '@once-upon-a-diff/foundation/settings';
 import { BACKLOG_NOTE_MAX } from '@once-upon-a-diff/terms/text';
 import { prHeadBranch } from '@once-upon-a-diff/foundation/gh';
 import { canonicalKind, runIsOpen } from '@once-upon-a-diff/state/records/agents/events';
-import { lastActivity } from '@once-upon-a-diff/state/records/agents/ledger';
 import type { AgentKind } from '@once-upon-a-diff/state/records/agents/agent-types';
 import {
   flagsBesideCard,
@@ -33,7 +27,7 @@ import {
 } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { newImplicitCardId, newRunId } from '@once-upon-a-diff/foundation/ids';
 import { ensureCard, findCard } from '@once-upon-a-diff/state/queues/backlog/ensure';
-import { implicitCards, implicitTitle } from '@once-upon-a-diff/state/records/agents/implicit';
+import { implicitTitle } from '@once-upon-a-diff/state/records/agents/implicit';
 import { SESSION_RE } from '@once-upon-a-diff/terms/patterns';
 import { isAbsolute } from 'node:path';
 import { worktreeFacts } from '@once-upon-a-diff/adapters/git';
@@ -92,36 +86,6 @@ export interface StartedRun {
   stamped: { branch: string; repo: string | null } | null;
   /** the open card on the run's branch that this start joined, instead of making its own; null when it made one or named one */
   joined: { card: string; title: string; branch: string } | null;
-}
-
-/** How long after its last run ended a card that exists only as runs (made before stored cards) is still the branch's open card. */
-const LEGACY_JOIN_DAYS = 14;
-
-/**
- * The card a start on this branch joins when no stored card is on it: a card made before stored cards (it exists only as runs, and
- * is never "landed", so it counts as open only while a run is open or the latest ended within LEGACY_JOIN_DAYS). Delete with the
- * `card backfill` that stores those cards.
- */
-export function legacyCard(
-  registry: AgentRegistry,
-  store: BacklogStore,
-  repo: string | null,
-  branch: string,
-  now: number,
-) {
-  const recent = LEGACY_JOIN_DAYS * 24 * 3600 * 1000;
-  const stored = new Set(store.items().map((item) => item.id));
-  return implicitCards(registry.agents())
-    .filter(
-      (card) =>
-        !stored.has(card.id) &&
-        (repo ? sameRepo(card.repo, repo) : !card.repo) &&
-        card.runs.some((run) => (run.result?.branch ?? run.branch) === branch) &&
-        card.runs.some(
-          (run) => runIsOpen(run) || now - (lastActivity(run)?.getTime() ?? 0) <= recent,
-        ),
-    )
-    .pop();
 }
 
 const text = (value: unknown): string | null => (typeof value === 'string' && value ? value : null);
@@ -407,39 +371,28 @@ function startInputOf(
 /** The card a start joined, and what to write to it once the start is accepted. */
 interface Join {
   joined: NonNullable<StartedRun['joined']>;
-  /** what the card lacked, which the join teaches it; null when the card was just made, or is a legacy one */
+  /** what the card lacked, which the join teaches it; null when the card was just made */
   link: Pick<LinkInput, 'repo' | 'branch' | 'worktree' | 'session'> | null;
-  legacy: boolean;
 }
 
 /**
- * The open card on the branch, which a stored card or a card made before stored cards is: finding it writes nothing, so a
- * start the registry then refuses leaves the card as it was.
+ * The open stored card on the branch: finding it writes nothing, so a start the registry then refuses leaves the card as it was.
  */
-function openCardOn(
-  run: Start,
-  registry: AgentRegistry,
-  repo: string | null,
-  branch: string,
-): Join | null {
+function openCardOn(run: Start, repo: string | null, branch: string): Join | null {
   const open = findCard(run.store.items(), { source: 'agent', repo, branch });
-  if (open) {
-    const sessionOk = !!run.input.session && SESSION_RE.test(run.input.session);
-    return {
-      joined: { card: open.id, title: open.title, branch: open.branch ?? '' },
-      link: {
-        repo: open.repo ? null : repo,
-        branch: open.branch ? null : branch,
-        worktree: open.worktree ? null : worktreeOn(run.input.cwd, branch),
-        session: open.session || !sessionOk ? null : run.input.session,
-      },
-      legacy: false,
-    };
+  if (!open) {
+    return null;
   }
-  const legacy = legacyCard(registry, run.store, repo, branch, Date.now());
-  return legacy
-    ? { joined: { card: legacy.id, title: legacy.title, branch }, link: null, legacy: true }
-    : null;
+  const sessionOk = !!run.input.session && SESSION_RE.test(run.input.session);
+  return {
+    joined: { card: open.id, title: open.title, branch: open.branch ?? '' },
+    link: {
+      repo: open.repo ? null : repo,
+      branch: open.branch ? null : branch,
+      worktree: open.worktree ? null : worktreeOn(run.input.cwd, branch),
+      session: open.session || !sessionOk ? null : run.input.session,
+    },
+  };
 }
 
 /**
@@ -472,7 +425,6 @@ function makeCard(
     ? {
         joined: { card: made.item.id, title: made.item.title, branch: made.item.branch ?? '' },
         link: null,
-        legacy: false,
       }
     : null;
 }
@@ -520,7 +472,7 @@ function planCard(
   const cardRepo = repo && REPO_RE.test(repo) ? repo : null;
   const joinable = !run.input.newCard && isFeatureBranch(branch) ? branch : null;
   const found =
-    (joinable ? openCardOn(run, registry, cardRepo, joinable) : null) ??
+    (joinable ? openCardOn(run, cardRepo, joinable) : null) ??
     makeCard(run, minted, cardRepo, branch, joinable);
   if (!found) {
     return { minted, join: null };
@@ -528,8 +480,7 @@ function planCard(
   runOnJoinedCard(run, startInput, found.joined.card);
   // an author takes a card with no claim as its own, since the dispatcher that would claim it is not here; the claim is
   // written once the registry has accepted the start, so a refused start leaves no claim
-  const claimOnStart =
-    run.kind === 'author' && !found.legacy && !run.lookup(found.joined.card)?.claimed;
+  const claimOnStart = run.kind === 'author' && !run.lookup(found.joined.card)?.claimed;
   startInput.claimsOnStart = claimOnStart;
   return { minted: null, join: { ...found, claimOnStart } };
 }
