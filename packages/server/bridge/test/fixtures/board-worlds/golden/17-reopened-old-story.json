@@ -42,7 +42,6 @@
             "backlog": {
               "added_by": "cli",
               "agent": null,
-              "claim": null,
               "id": "bl_reopenold",
               "start_line": "once-upon backlog start bl_reopenold --branch feat/reopen-old",
               "started": null
@@ -71,7 +70,6 @@
             "backlog": {
               "added_by": "cli",
               "agent": null,
-              "claim": null,
               "id": "bl_reopennew",
               "start_line": "once-upon backlog start bl_reopennew --branch feat/reopen-new",
               "started": null
@@ -116,7 +114,6 @@
                 },
                 "tried": true
               },
-              "claim": null,
               "id": "bl_reopenbare",
               "start_line": "once-upon backlog start bl_reopenbare --branch <branch>",
               "started": null
@@ -145,7 +142,6 @@
             "backlog": {
               "added_by": "cli",
               "agent": null,
-              "claim": null,
               "id": "bl_heldold",
               "start_line": "once-upon backlog start bl_heldold --branch feat/held-old",
               "started": null
@@ -174,7 +170,6 @@
             "backlog": {
               "added_by": "cli",
               "agent": null,
-              "claim": null,
               "id": "bl_somedayold",
               "someday": true,
               "start_line": "once-upon backlog start bl_somedayold --branch feat/someday-old",

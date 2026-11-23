@@ -86,7 +86,6 @@ test('a refused start leaves one idle agent card, and no branch stamp on a card 
   const card = (await backlog(home, 'add', 'A card', '--repo', 'acme/widgets')).stdout.split(
     ' ',
   )[0];
-  assert.equal((await backlog(home, 'claim', card, '--agent', 'ou-first')).code, 0);
   assert.equal(
     (await agent(home, 'start', 'ou-first', '--role', 'author', '--card', card, '--task', 'one'))
       .code,
@@ -108,13 +107,13 @@ test('a refused start leaves one idle agent card, and no branch stamp on a card 
   assert.notEqual(second.code, 0);
   assert.deepEqual(
     rowsOf(home).map((row) => row.op),
-    ['add', 'claim'],
+    ['add'],
     'the card was not stamped or linked by the refused start',
   );
   // an author with no card and no branch is refused before anything is stored
   const none = await agent(home, 'start', 'ou-none', '--role', 'author', '--task', 'three');
   assert.notEqual(none.code, 0);
-  assert.equal(rowsOf(home).length, 2);
+  assert.equal(rowsOf(home).length, 1);
 });
 
 test('a restart of the same name goes on its implicit card, and --new-card mints another', async () => {
@@ -272,7 +271,7 @@ test('backlog list hides implicit cards; --implicit lists the live ones and --al
   assert.equal(shown.id, live.card);
   assert.equal(shown.implicit, true);
   assert.equal(shown.title, 'working on a thing');
-  const edit = await backlog(home, 'claim', live.card, '--agent', 'x');
+  const edit = await backlog(home, 'hold', live.card);
   assert.notEqual(edit.code, 0);
   assert.match(edit.stderr, /adopt/);
 });
@@ -304,8 +303,8 @@ test('backlog adopt writes one add with the same id and the runs now name a real
     .map((line) => JSON.parse(line));
   assert.deepEqual(
     events.map((event) => event.op),
-    ['add', 'link', 'start', 'claim'],
-    'the stored add (no second one), the link that lists it, the start a card with a branch gets, and the claim its runs need for a fix round',
+    ['add', 'link', 'start'],
+    'the stored add (no second one), the link that lists it, and the start a card with a branch gets',
   );
   assert.equal(events[0].id, author.card);
   assert.equal(events[0].title, 'build the thing with more detail');
@@ -313,7 +312,6 @@ test('backlog adopt writes one add with the same id and the runs now name a real
   assert.equal(events[0].branch, 'adhoc-x');
   assert.equal(events[1].source, 'backlog');
   assert.equal(events[2].branch, 'adhoc-x');
-  assert.equal(events[3].agent, 'ou-adhoc');
   const [item] = new BacklogStore(home).items();
   assert.equal(item.id, author.card);
   assert.equal(item.state, 'started', 'work under way: no Assign');
@@ -588,7 +586,6 @@ test('backlog drop of an implicit card takes its finished run off the board; the
 test('a dropped backlog card takes its stopped run off the board too; the run stays in the ledger', async () => {
   const home = tmp('backlog-drop-board');
   const item = new BacklogStore(home).add({ title: 'Retell stories', repo: 'acme/widgets' });
-  assert.equal((await backlog(home, 'claim', item.id, '--agent', 'retell-x')).code, 0);
   await start(home, 'retell-x', '--card', item.id, '--role', 'author', '--task', 'retell');
   assert.equal((await agent(home, 'finish', 'retell-x', '--state', 'stopped')).code, 0);
   assert.equal((await backlog(home, 'drop', item.id)).code, 0);
@@ -706,14 +703,13 @@ test('--new-card, a landed or dropped card, a branchless helper and a typed --ca
   assert.deepEqual(cardOf(home, 'ou-typed'), [later.card]);
 });
 
-test('a joining author takes the claim of a listed card that has none; main and a storyteller by branch never join', async () => {
+test('a joining author joins a listed card and writes no claim; main and a storyteller by branch never join', async () => {
   const home = tmp('join-listed');
   const item = new BacklogStore(home).add({
     title: 'Listed work',
     repo: 'acme/widgets',
     branch: 'feat-l',
   });
-  assert.equal(item.claim, null);
   const [line, joined] = await startOut(
     home,
     'ou-l',
@@ -725,10 +721,7 @@ test('a joining author takes the claim of a listed card that has none; main and 
   );
   assert.equal(line.split(' ')[2], item.id);
   assert.match(joined, new RegExp(`^joined ${item.id} \\(Listed work\\)`));
-  assert.equal(
-    new BacklogStore(home).items().find((one) => one.id === item.id)?.claim?.agent,
-    'ou-l',
-  );
+  assert.equal(readFileSync(new BacklogStore(home).file, 'utf8').includes('"op":"claim"'), false);
   // main names no work, so a helper on it makes its own card
   const onMain = await start(
     home,
@@ -822,7 +815,6 @@ test('a joined start with --lane warns as a minting start does, and a joined sta
   assert.notEqual(refused.code, 0);
   assert.equal(rowsOf(home).length, before, 'no row on the card: no claim, no link');
   const kept = new BacklogStore(home).items().find((one) => one.id === other.id);
-  assert.equal(kept?.claim, null);
   assert.equal(kept?.session ?? null, null);
 });
 
@@ -1016,7 +1008,6 @@ test('two open cards on one branch: agent start refuses and asks for --card, for
   assert.equal(rowsOf(home).length, adds, 'nothing written');
   assert.deepEqual(new AgentRegistry(home).agents(), []);
   // naming the card says which
-  assert.equal((await backlog(home, 'claim', cardA.id, '--agent', 'fix-two')).code, 0);
   const named = await start(home, 'fix-two', '--role', 'fixer', '--card', cardA.id, '--task', 'x');
   assert.equal(named.id.length > 0, true);
   assert.deepEqual(cardOf(home, 'fix-two'), [cardA.id]);

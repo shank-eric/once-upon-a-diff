@@ -13,7 +13,7 @@
  *   move-branch.ts  a card's branch change: the card first, then its open runs.
  *   finish-run.ts   an end, with the findings check.
  *   record-fix.ts   a fix made outside any run, recorded as a done fixer run on the branch's card (`once-upon fixed --sha`, the board's Record as fix).
- *   dispatch.ts     launching an agent for a card: claim, start and the brief (`once-upon dispatch`); briefs.ts the brief's text, checkout.ts the paths.
+ *   dispatch.ts     launching an agent for a card: start and the brief (`once-upon dispatch`); briefs.ts the brief's text, checkout.ts the paths.
  *   handback.ts     an agent's hand-back (`once-upon handback`): the run's commit, branch and card recorded, or its state moved.
  *   backfill.ts     `once-upon card backfill`: stores the `ic_` cards of runs made before ADR-29, and with `cardless` a card for each recent cardless run.
  *   auto-finish.ts  an end for a subagent that stopped with its run open (the SubagentStop hook).

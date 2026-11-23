@@ -31,8 +31,8 @@ const stamped = { id, at: lenient(string()), by: lenient(string()) };
  *   {op:'drop' | 'reopen', id, by, at}
  *   {op:'move',  id, before | edge, by, at}    `before` is another item's id; `edge` is 'top' or 'bottom'
  *   {op:'edit',  id, title?, note?, repo?, story?, by, at}
- *   {op:'claim', id, agent, sid?, session?, worktree?, by, at}   an agent (named as it registered) owns the card; `session` is the
- *                                              claimer's full session id (the editor's) and `worktree` the checkout path, when given
+ *   {op:'claim', id, agent, sid?, session?, worktree?, by, at}   retired (ADR-29): nothing writes it, an old row is read for its `worktree`
+ *                                              (the card's checkout until a `link` says another) and ends someday
  *   {op:'hold' | 'someday' | 'skip_critic', id, on, by, at}
  * What each means, and how they fold into items, is state/src/queues/backlog/backlog.ts.
  */

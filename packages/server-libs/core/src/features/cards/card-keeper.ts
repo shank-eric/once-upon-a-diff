@@ -97,7 +97,7 @@ export class CardKeeper {
     return (
       (!learned.repo || !!item.repo) &&
       (!learned.branch || !!item.branch) &&
-      // a listed card is a person's: the checkout of the work is not written onto it (the claim's is, and its readers lean on that)
+      // a listed card is a person's: the checkout of the work is not written onto it (an old claim row's is, and its readers lean on that)
       (!learned.worktree || !!item.worktree || isListed(item)) &&
       (!learned.pr || !!item.pr) &&
       (!learned.story || !!item.story) &&

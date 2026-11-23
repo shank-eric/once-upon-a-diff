@@ -4,7 +4,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { runCli, tmp } from './helpers.ts';
 import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
@@ -46,9 +46,12 @@ test('--self registers the session under its sid with a fresh name, claims the c
   assert.match(oneName, /^self-[0-9a-f]{6}$/);
   assert.ok(one.stdout.startsWith(`${SID}:self-`), one.stdout);
   const store = new BacklogStore(home);
-  const claim = store.items().find((item) => item.id === first)?.claim;
-  assert.equal(claim?.agent, oneName);
-  assert.equal(claim?.session, env.CLAUDE_CODE_SESSION_ID);
+  assert.equal(
+    new AgentRegistry(home).agents().find((run) => run.name === oneName)?.session,
+    env.CLAUDE_CODE_SESSION_ID,
+    'the run records the session; no claim row is written',
+  );
+  assert.equal(readFileSync(store.file, 'utf8').includes('"op":"claim"'), false);
   const two = await agent(
     home,
     'start',
@@ -178,7 +181,6 @@ test('--self refusals each name their cause and write nothing', async () => {
     assert.match(result.stderr, message, args.join(' '));
   }
   assert.equal(existsSync(agentsFile(home)), false);
-  assert.equal(new BacklogStore(home).items().find((item) => item.id === id)?.claim ?? null, null);
   const noSession = await runCli(
     home,
     ['agent', 'start', '--self', '--role', 'research', '--task', 't'],
@@ -193,10 +195,15 @@ test('--self refusals each name their cause and write nothing', async () => {
   assert.match(none.stderr, /no open self run/);
 });
 
-test('a card claimed by someone else is refused, not re-claimed', async () => {
+test('a card another session’s author is running is refused by the open-author check; once that run is finished it is taken', async () => {
   const home = tmp('self-claimed');
   const id = startedCard(home);
-  new BacklogStore(home).claim(id, { agent: 'ou-a', sid: 'abcdef02' });
+  const theirs = await runCli(
+    home,
+    ['agent', 'start', '--self', '--role', 'author', '--card', id, '--task', 't'],
+    otherEnv,
+  );
+  assert.equal(theirs.code, 0, theirs.stderr);
   const refused = await agent(
     home,
     'start',
@@ -209,8 +216,24 @@ test('a card claimed by someone else is refused, not re-claimed', async () => {
     't',
   );
   assert.notEqual(refused.code, 0);
-  assert.match(refused.stderr, /claimed by ou-a/);
-  assert.equal(new BacklogStore(home).items().find((item) => item.id === id)?.claim?.agent, 'ou-a');
+  assert.match(refused.stderr, /already has an open author run/);
+  assert.equal(new AgentRegistry(home).agents().length, 1);
+  assert.equal(
+    (await runCli(home, ['agent', 'finish', '--self', '--state', 'done'], otherEnv)).code,
+    0,
+  );
+  const taken = await agent(
+    home,
+    'start',
+    '--self',
+    '--role',
+    'author',
+    '--card',
+    id,
+    '--task',
+    't',
+  );
+  assert.equal(taken.code, 0, taken.stderr);
 });
 
 test('a session that finished one card starts the next on a card of its own: research mints an implicit card, an author on --branch another', async () => {
@@ -298,10 +321,6 @@ test('a self run whose session is gone is closed as stopped by the next start, a
   assert.equal(old?.outcome, 'its session ended');
   const mine = runs.find((run) => run.name === nameOf(second.stdout));
   assert.equal(mine?.state, 'running');
-  assert.equal(
-    new BacklogStore(home).items().find((item) => item.id === id)?.claim?.agent,
-    mine?.name,
-  );
 });
 
 test('card status closes a gone session’s self run first, so it does not say Working', async () => {
@@ -333,7 +352,7 @@ test('an empty session scan closes nothing, so the old run stays open and a new 
     otherEnv,
   );
   assert.notEqual(second.code, 0);
-  assert.match(second.stderr, /claimed by self-/);
+  assert.match(second.stderr, /already has an open author run \(\w+:self-/);
   assert.equal(new AgentRegistry(home).agents()[0]?.state, 'running');
 });
 

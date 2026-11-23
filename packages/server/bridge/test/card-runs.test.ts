@@ -10,8 +10,8 @@ import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
 import { BacklogStore, cardLookup } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { cardPhase, cardRunProblems, runsOf } from '@once-upon-a-diff/state/queues/backlog/phase';
 import { doctor } from '@once-upon-a-diff/core/orchestration/bridge/doctor';
-import { claimViews } from '@once-upon-a-diff/board/stages/agents';
-import { nestClaimedAgents } from '@once-upon-a-diff/board/stages/backlog';
+import { runViews } from '@once-upon-a-diff/board/stages/agents';
+import { nestCardAgents } from '@once-upon-a-diff/board/stages/backlog';
 import type { BoardCard } from '@once-upon-a-diff/contracts/types';
 
 // The 11/5 misses, as the rows the store held: one piece of work is one card, whatever its runs typed for repo, and a
@@ -256,7 +256,7 @@ test('F. the card’s runs, not its claim, find its agents; critics and the auth
     at: stamp(1),
   });
   const agents = registry.agents();
-  const views = claimViews(store.items(), agents, stamp(2).getTime());
+  const views = runViews(store.items(), agents, stamp(2).getTime());
   assert.deepEqual(
     views.get(item.id)?.map((one) => one.name),
     ['ou-build', 'review-b'],
@@ -269,7 +269,7 @@ test('F. the card’s runs, not its claim, find its agents; critics and the auth
     agents: [],
     sessions: [],
   } as unknown as BoardCard;
-  nestClaimedAgents(store.items(), [work], views);
+  nestCardAgents(store.items(), [work], views);
   assert.deepEqual(
     work.agents.map((one) => one.name),
     ['ou-build', 'review-b'],
@@ -453,9 +453,6 @@ test('H. the registry checks a run that names a card: unknown, dropped, a second
     () => registry.start({ ...base, name: 'a', card: 'bl_missing1' }),
     /no backlog card/,
   );
-  // an author starts on a claimed card (ADR-25, the flip)
-  assert.throws(() => registry.start({ ...base, name: 'a', card: item.id }), /has no claim/);
-  store.claim(item.id, { agent: 'a' });
   // the card gives the run its repo and branch: typed ones are refused, naming each, and nothing is written
   assert.throws(
     () =>
@@ -638,7 +635,6 @@ test('M. a second author is refused only while the first is working: one parked 
   const registry = new AgentRegistry(home, undefined, cardLookup(store));
   const item = store.add({ title: 'Parked', repo: REPO });
   const base = { sid: SID, task: 't', kind: 'author' as const, card: item.id };
-  store.claim(item.id, { agent: 'first' });
   registry.start({ ...base, name: 'first' });
   assert.throws(() => registry.start({ ...base, name: 'second' }), /already has an open author/);
   registry.state('first', { sid: SID, state: 'review' });

@@ -1,6 +1,6 @@
 /*
- * `once-upon dispatch CARD --role ...`: launches an agent for a card in one call (core's features/runs/dispatch.ts): it claims
- * the card (an author, a fixer), registers the run and prints the Agent call's arguments and the brief to use as its prompt.
+ * `once-upon dispatch CARD --role ...`: launches an agent for a card in one call (core's features/runs/dispatch.ts): it registers
+ * the run, which is what takes the card, and prints the Agent call's arguments and the brief to use as its prompt.
  * `once-upon handback NAME` is the agent's way back.
  */
 import { ownSession } from '@once-upon-a-diff/core/features/listeners/service';
@@ -110,7 +110,7 @@ export const dispatchCommands: Command[] = [
   {
     name: 'dispatch',
     usage: [
-      '  once-upon dispatch CARD --role author|fixer|critic|storyteller|helper|writer|finisher   claim the card (an author, a fixer), start the agent’s run and print the Agent call and its brief',
+      '  once-upon dispatch CARD --role author|fixer|critic|storyteller|helper|writer|finisher   start the agent’s run on the card and print the Agent call and its brief',
       '                                                                                   --check TEXT: the success check (an author and a fixer need one); --task TEXT|--task-file PATH: the goal and file:line pointers',
       '                                                                                   --plan: an author that stops at its plan; --from-notes PATH: the fresh build from a checked plan',
       '                                                                                   --name NAME (default by role), --branch NAME (a card with no branch), --base REF, --findings-from PATH (a fixer), --out PATH (a critic’s file)',

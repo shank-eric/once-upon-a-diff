@@ -1,6 +1,6 @@
 /*
- * `backlog claim` and `agent start` check the folded log and then append. Each does both under the log's lock, so two CLI
- * calls milliseconds apart cannot both pass the check. The lock is held here by this process, then raced from two children.
+ * `agent start` checks the folded log and then appends. It does both under the log's lock, so two CLI calls milliseconds
+ * apart cannot both pass the check (one open author per card). The lock is held here by this process, then raced from two children.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -94,26 +94,8 @@ function world() {
   return { home, store, item };
 }
 
-test('a claim waits for the backlog log’s lock', async () => {
-  const { home, store, item } = world();
-  const claimer = child(`new BacklogStore(home).claim(card, { agent: 'held' });`);
-  let proc: ReturnType<typeof spawn> | null = null;
-  try {
-    withLock(store.file, () => {
-      proc = claimer(home, item.id);
-      hold(1000);
-      assert.equal(store.items()[0].claim, null, 'no claim goes in while the lock is held');
-    });
-    await ended(proc!);
-    assert.equal(store.items()[0].claim?.agent, 'held');
-  } finally {
-    (proc as ReturnType<typeof spawn> | null)?.kill('SIGKILL');
-  }
-});
-
 test('an agent start waits for the agents log’s lock', async () => {
   const { home, item } = world();
-  new BacklogStore(home).claim(item.id, { agent: 'one' });
   const registry = new AgentRegistry(home, undefined, cardLookup(new BacklogStore(home)));
   const starter = child(
     `new AgentRegistry(home, undefined, cardLookup(new BacklogStore(home))).start({ name: 'one', sid: '${SID}', kind: 'author', task: 't', card });`,
@@ -134,8 +116,7 @@ test('an agent start waits for the agents log’s lock', async () => {
 });
 
 test('two author starts on one card at once leave one open author', async () => {
-  const { home, store, item } = world();
-  store.claim(item.id, { agent: 'one' });
+  const { home, item } = world();
   const outs = await race(
     `(new AgentRegistry(home, undefined, cardLookup(new BacklogStore(home))).start({ name, sid: '${SID}', kind: 'author', task: 't', card }), 'started')`,
     home,

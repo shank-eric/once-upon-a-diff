@@ -15,7 +15,7 @@ export interface BacklogItem {
   state: 'open' | 'started' | 'dropped';
   /** what made the card; an old row with no `source` is `backlog` */
   source: CardSource;
-  /** the checkout the work is in (a path), from a `link` or the claim's; null until one is learned */
+  /** the checkout the work is in (a path), from a `link` (or an old claim row); null until one is learned */
   worktree: string | null;
   /** the PR's number, once GitHub answered for the card's branch (repo is the card's); null until then */
   pr: number | null;
@@ -34,19 +34,6 @@ export interface BacklogItem {
   /** when a `done` event recorded the work as landed (started items only), and the sha it landed as, when given */
   landed_at: string | null;
   landed_sha: string | null;
-  /**
-   * the agent that claimed the card (named as it registered, with its launching session's first 8 when given); cleared when it
-   * lands (`done`) or by a reopen. `session` is the claimer's full session id (the editor's, so its slots can tell its cards)
-   * and `worktree` the checkout the work is in, each null when the claim gave none (an old claim).
-   */
-  claim: {
-    agent: string;
-    sid: string | null;
-    session: string | null;
-    worktree: string | null;
-    by: string;
-    at: string;
-  } | null;
   /** the card lands by hand: a deploy does not mark it done (part of its work lands outside the repo) */
   hold: boolean;
   /** the card's critic is skipped by hand (Eric's call on the board's Waiting): a built card with no passing critic is Ready, not Waiting */

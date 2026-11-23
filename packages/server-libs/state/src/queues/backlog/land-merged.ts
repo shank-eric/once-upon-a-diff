@@ -1,5 +1,5 @@
 /**
- * Landing by merged PR: a card whose work has begun (started, claimed or named by a run) and whose branch has a PR merged
+ * Landing by merged PR: a card whose work has begun (started or named by a run) and whose branch has a PR merged
  * into the repo's default branch is done at the merge commit (a repo with no deploy-local.sh never runs `backlog land`). The board's snapshot kicks it (board.ts) and never
  * waits for it. A deploy matches a card by its recorded commit (landing.ts); this matches by the card's branch, so a squash,
  * an amend or a card with no author run lands the same, with these guards: the PR is from the card's own repo, into the
@@ -20,15 +20,11 @@ const MAX_ASKS = 20;
 const ASK_MS = 40000;
 
 /**
- * When the card's work began, in ms: the earliest of its start, its claim and the first run that names it (a card added with a
- * branch and claimed or run without `--branch` is never `started`), or null when none of them exists.
+ * When the card's work began, in ms: the earlier of its start and the first run that names it (a card added with a
+ * branch and run without `--branch` is never `started`), or null when none of them exists.
  */
 function workBeganAt(item: BacklogItem, agents: LedgerAgent[]): number | null {
-  const times = [
-    item.started_at,
-    item.claim?.at,
-    ...runsOf(item, agents).map((run) => run.started?.toISOString()),
-  ]
+  const times = [item.started_at, ...runsOf(item, agents).map((run) => run.started?.toISOString())]
     .map((stamp) => (stamp ? Date.parse(stamp) : NaN))
     .filter((time) => !Number.isNaN(time));
   return times.length ? Math.min(...times) : null;

@@ -55,11 +55,6 @@
             "backlog": {
               "added_by": "cli",
               "agent": null,
-              "claim": {
-                "agent": "lm-built",
-                "at": "2026-10-26T17:02:00.000Z",
-                "pending": false
-              },
               "id": "bl_ccccc05",
               "start_line": "once-upon backlog start bl_ccccc05 --branch larmor-built",
               "started": {
@@ -158,11 +153,6 @@
             "backlog": {
               "added_by": "cli",
               "agent": null,
-              "claim": {
-                "agent": "ou-fix",
-                "at": "2026-10-26T17:02:00.000Z",
-                "pending": false
-              },
               "id": "bl_ccccc01",
               "start_line": "once-upon backlog start bl_ccccc01 --branch fix-round",
               "started": {
@@ -252,11 +242,6 @@
             "backlog": {
               "added_by": "cli",
               "agent": null,
-              "claim": {
-                "agent": "ou-wrong",
-                "at": "2026-10-26T17:02:00.000Z",
-                "pending": false
-              },
               "id": "bl_ccccc02",
               "start_line": "once-upon backlog start bl_ccccc02 --branch wrong-repo",
               "started": {
@@ -349,11 +334,6 @@
             "backlog": {
               "added_by": "cli",
               "agent": null,
-              "claim": {
-                "agent": "ou-old",
-                "at": "2026-10-26T17:02:00.000Z",
-                "pending": false
-              },
               "id": "bl_ccccc04",
               "start_line": "once-upon backlog start bl_ccccc04 --branch mixed-rows",
               "started": {
@@ -467,11 +447,6 @@
             "backlog": {
               "added_by": "cli",
               "agent": null,
-              "claim": {
-                "agent": "ou-story",
-                "at": "2026-10-26T17:02:00.000Z",
-                "pending": false
-              },
               "id": "bl_ccccc06",
               "start_line": "once-upon backlog start bl_ccccc06 --branch story-told",
               "started": {
@@ -567,11 +542,6 @@
             "backlog": {
               "added_by": "cli",
               "agent": null,
-              "claim": {
-                "agent": "ou-built",
-                "at": "2026-10-26T17:02:00.000Z",
-                "pending": false
-              },
               "id": "bl_ccccc03",
               "start_line": "once-upon backlog start bl_ccccc03 --branch built-it",
               "started": {

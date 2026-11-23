@@ -85,8 +85,6 @@ test('agent start on a card: a typed repo is checked only when the card has none
   const store = new BacklogStore(home);
   const bare = store.add({ title: 'No repo yet' });
   const withRepo = store.add({ title: 'On widgets', repo: WIDGETS });
-  store.claim(bare.id, { agent: 'one' });
-  store.claim(withRepo.id, { agent: 'two' });
   const first = await cli(
     'agent',
     'start',
@@ -144,7 +142,7 @@ test('backlog add, start, edit and claim with a typed repo on no known lane warn
     assert.equal(quiet.code, 0, quiet.stderr);
     assert.equal(quiet.stderr, '', `edit --repo "${repo}"`);
   }
-  // a card with no repo takes the typed one on start and on claim --branch; a card with one is not asked
+  // a card with no repo takes the typed one on start and on the retired claim --branch; a card with one is not asked
   const bare = new BacklogStore(home).add({ title: 'Bare' });
   const started = await cli(
     'backlog',
@@ -196,8 +194,6 @@ test('agent finish naming another card than its start warns and writes; a start 
   const store = new BacklogStore(home);
   const one = store.add({ title: 'One', repo: WIDGETS, branch: 'feat/one' });
   const two = store.add({ title: 'Two', repo: WIDGETS, branch: 'feat/two' });
-  store.claim(one.id, { agent: 'ou-a' });
-  store.claim(two.id, { agent: 'ou-b' });
   await cli('agent', 'start', 'ou-a', '--role', 'author', '--card', one.id, '--task', 't');
   const mismatch = await cli('agent', 'finish', 'ou-a', '--card', two.id, '--outcome', 'ok');
   assert.equal(mismatch.code, 0, mismatch.stderr);
@@ -300,7 +296,7 @@ test('no live flow is refused: the agent and backlog row shapes of the 11/6 cens
   const { home, cli, rows } = world();
   const store = new BacklogStore(home);
 
-  // a card, as the editor makes and claims it (no --sid on a claim: 52 of 279 live claims; --sid on the editor's)
+  // a card, as the editor makes it; `claim` is retired but an old editor still calls it (no --sid on a claim: 52 of 279 live claims)
   const added = await cli(
     'backlog',
     'add',
@@ -332,7 +328,7 @@ test('no live flow is refused: the agent and backlog row shapes of the 11/6 cens
   fail('drop', await cli('backlog', 'drop', other.id));
   fail('reopen', await cli('backlog', 'reopen', other.id));
 
-  // an author on its claimed card: restarts as a fix round, plan stop, a beat, finish with the 11/5 flags
+  // an author on its card: restarts as a fix round, plan stop, a beat, finish with the 11/5 flags
   fail(
     'start author',
     await cli(

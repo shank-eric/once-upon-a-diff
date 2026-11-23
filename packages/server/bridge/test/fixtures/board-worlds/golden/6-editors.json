@@ -529,11 +529,6 @@
                 },
                 "tried": false
               },
-              "claim": {
-                "agent": "e-claimed",
-                "at": "2026-10-26T16:01:00.000Z",
-                "pending": false
-              },
               "id": "bl_ddddd01",
               "start_line": "once-upon backlog start bl_ddddd01 --branch <branch>",
               "started": null

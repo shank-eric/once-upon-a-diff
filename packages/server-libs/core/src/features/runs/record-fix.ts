@@ -10,7 +10,7 @@
  */
 import { commitOf, commitTime, isAncestor } from '@once-upon-a-diff/adapters/git';
 import { BACKLOG_NOTE_MAX } from '@once-upon-a-diff/terms/text';
-import { BacklogStore, cardLookup } from '@once-upon-a-diff/state/queues/backlog/backlog';
+import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { ensureCard, findCard } from '@once-upon-a-diff/state/queues/backlog/ensure';
 import {
   coveringRun,
@@ -107,12 +107,6 @@ export async function recordFix(
     );
   }
   const name = `fix-${flat(branch)}`.slice(0, 60);
-  // a fixer needs a claimed card; a claim someone holds is never replaced (an author's stays, the fixer starts under it). A card
-  // that is no stored card (an old run's `ic_` id before `card backfill`) has nothing to claim
-  const stored = cardLookup(store)(card);
-  if (stored && !stored.claimed) {
-    store.claim(card, { agent: name, sid, session: input.session, by: 'fixer' });
-  }
   // backdated to the work's start so `carryApproval` counts a commit made after it; never before the card's last work run began
   const began = Date.parse(input.since ?? '') || (commitTime(dir, sha)?.getTime() ?? nowMs);
   const startedAt = new Date(

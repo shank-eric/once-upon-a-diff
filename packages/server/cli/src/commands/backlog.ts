@@ -1,21 +1,13 @@
 /*
- * The backlog from the terminal: `once-upon backlog add|list|show|edit|start|claim|done|land|hold|skip-critic|someday|drop|reopen`. It reads and writes the backlog file
+ * The backlog from the terminal: `once-upon backlog add|list|show|edit|start|done|land|hold|skip-critic|someday|drop|reopen`. It reads and writes the backlog file
  * (state/src/queues/backlog/backlog.ts) in-process, so nothing goes over HTTP; the board shows the items as its Backlog column.
  */
-import path from 'node:path';
 import { formatTime, isFeatureBranch } from '@once-upon-a-diff/foundation/settings';
 import { repoOfCheckout, currentBranch, sameRepo } from '@once-upon-a-diff/foundation/repos';
 
-import {
-  BacklogStore,
-  cardLookup,
-  claimHint,
-  isListed,
-} from '@once-upon-a-diff/state/queues/backlog/backlog';
+import { BacklogStore, cardLookup, isListed } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { dropRunsProblem, runsOf } from '@once-upon-a-diff/state/queues/backlog/phase';
-import { claimWorktreeProblem } from '@once-upon-a-diff/state/queues/backlog/claim-worktree';
 import { moveBranch } from '@once-upon-a-diff/core/features/runs/service';
-import { ownSession } from '@once-upon-a-diff/core/features/listeners/service';
 import { landItems, recordedTips } from '@once-upon-a-diff/state/queues/backlog/landing';
 import { liveCardIds } from '@once-upon-a-diff/state/queues/backlog/implicit';
 import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
@@ -32,7 +24,6 @@ const USAGE =
   '       once-upon backlog show ID\n' +
   '       once-upon backlog edit ID [--title TEXT] [--note TEXT | --note-file PATH | --note -] [--repo owner/name] [--story ID]\n' +
   '       once-upon backlog start ID [--branch NAME] [--repo owner/name] [--by NAME]\n' +
-  '       once-upon backlog claim ID --agent NAME [--sid SID8] [--branch NAME] [--worktree PATH] [--repo owner/name] [--by NAME]\n' +
   '       once-upon backlog branch ID NEW-BRANCH [--by NAME]\n' +
   '       once-upon backlog move ID --before ID | --top | --bottom\n' +
   '       once-upon backlog done ID [--sha SHA] [--by NAME]\n' +
@@ -129,21 +120,15 @@ function callOf(home: string, opts: CliOpts, words: string[]): Call {
     const adopted = store.adopt(card.id, { title, note, by: who ?? card.added_by });
     return { card, adopted };
   };
-  // a card with a branch is started on it, as `claim --branch` does, so it reads as work done or under way: no Assign while its
-  // author runs, and a built card on a branch reaches Ready instead of leaving the board. Start needs a branch, so a card with
-  // none stays open in the Backlog (its runs still decide its column), and is not claimed: a claim with no branch would show
-  // "claimed, pending" in Working for two hours with nobody on it. With a branch the card is claimed for its first run, so the
-  // same author can start a fix round on it (an author on a card with no claim is refused)
+  // a card with a branch is started on it, so it reads as work done or under way: no Assign while its author runs, and a built
+  // card on a branch reaches Ready instead of leaving the board. Start needs a branch, so a card with none stays open in the
+  // Backlog (its runs still decide its column)
   const adoptStarted = (id: string | undefined, title: string | null, note?: string | null) => {
     const { card, adopted } = adoptCard(id, title, note);
     if (card.branch) {
       const first = runsOf(card, new AgentRegistry(home).agents())[0];
       const adder = who ?? first?.name ?? card.added_by;
       store.start(adopted.id, { branch: card.branch, repo: card.repo, by: adder });
-      // a card an author started already carries the claim its start wrote
-      if (!card.claim && first) {
-        store.claim(adopted.id, { agent: first.name, sid: first.sid, by: adder });
-      }
     }
     return adopted;
   };
@@ -307,9 +292,7 @@ function start({ home, opts, store, who, found }: Call) {
       repoOfCheckout(process.cwd()),
     by: who,
   });
-  return out(
-    `${started.id} started on ${started.branch}: ${started.title}\n${claimHint(started.id)}`,
-  );
+  return out(`${started.id} started on ${started.branch}: ${started.title}`);
 }
 
 /** `branch ID NEW`: the author renamed or switched its branch. */
@@ -326,55 +309,30 @@ function branch({ home, words, who, found }: Call) {
   );
 }
 
-/** A claim takes the card's repo (ADR-25), so it cannot move the card to another one; a --worktree is checked against git when given. */
-function checkClaim(item: BacklogItem, opts: CliOpts): void {
+/**
+ * `claim` is retired (ADR-29): a card's runs say who works it, so `dispatch` and `agent start --card` need no claim first. The
+ * verb stays so an editor that still calls it keeps working: it writes nothing, and `--branch` starts the card, as it always did.
+ * Remove it once no editor session still runs the old skill.
+ */
+function claim({ home, opts, store, who, found }: Call) {
+  const item = found();
+  const branch = text(opts.branch);
   const typedRepo = text(opts.repo);
   if (typedRepo && item.repo && !sameRepo(typedRepo, item.repo)) {
     throw new Error(`${item.id} is on ${item.repo}, not ${typedRepo}: edit the card's repo first`);
   }
-  // the claimer's full session is the editor's: its slots count the cards it claimed (state/src/queues/backlog/slots.ts). A worktree is
-  // checked against git only when given: the author makes its worktree after the claim
-  const worktree = text(opts.worktree);
-  const problem =
-    worktree &&
-    claimWorktreeProblem(worktree, { repo: item.repo, branch: text(opts.branch) ?? item.branch });
-  if (problem) {
-    throw new Error(problem);
+  const note = 'claim is retired: dispatch and agent start no longer need it';
+  if (!branch) {
+    return out(`${note}\n${item.id}: ${item.title}`);
   }
-}
-
-function claim({ home, opts, store, who, found }: Call) {
-  // the agent (named as the ledger names it) owns the card: the board links the two by this and nothing else. --branch
-  // also starts the card on that branch, so it rides on the branch's work card
-  const item = found();
-  const agent = text(opts.agent);
-  if (!agent) {
-    throw new Error('whose card? pass --agent NAME, the name the agent has in the ledger');
-  }
-  checkClaim(item, opts);
-  const typedRepo = text(opts.repo);
-  const branch = text(opts.branch);
-  const worktree = text(opts.worktree);
-  // --repo cannot differ from a card that has one (refused above); on a card with none it is kept by --branch's start
-  warnTypedRepo(home, item.repo || !branch ? null : typedRepo, process.cwd());
-  const claimed = store.claim(item.id, {
-    agent,
-    sid: text(opts.sid),
-    session: ownSession(),
-    worktree: worktree ? path.resolve(worktree) : null,
-    by: who ?? agent,
+  // on a card with no repo, --repo is kept by the start
+  warnTypedRepo(home, item.repo ? null : typedRepo, process.cwd());
+  store.start(item.id, {
+    branch,
+    repo: cardRepoOf(home, typedRepo, process.cwd()) ?? item.repo ?? repoOfCheckout(process.cwd()),
+    by: who ?? text(opts.agent) ?? 'cli',
   });
-  if (branch) {
-    store.start(item.id, {
-      branch,
-      repo:
-        cardRepoOf(home, typedRepo, process.cwd()) ?? claimed.repo ?? repoOfCheckout(process.cwd()),
-      by: who ?? agent,
-    });
-  }
-  return out(
-    `${item.id} claimed by ${agent}${branch ? `, started on ${branch}` : ''}: ${item.title}`,
-  );
+  return out(`${note}\n${item.id} started on ${branch}: ${item.title}`);
 }
 
 function move({ opts, store, who, found }: Call) {
@@ -456,7 +414,7 @@ function skipCritic({ opts, store, who, found }: Call) {
 
 function someday({ home, opts, store, who, found }: Call) {
   const item = found();
-  // the ledger says whether the card's claim is live (an agent working it)
+  // the ledger says whether the card's run is open (an agent working it)
   const maybe = store.someday(item.id, !opts.off, who, new AgentRegistry(home).agents());
   return out(
     maybe.someday
@@ -600,8 +558,7 @@ export const backlogCommands: Command[] = [
       '  once-upon backlog move ID --before ID | --top | --bottom                        reorder: new items go to the bottom',
       "  once-upon backlog start ID [--branch NAME]                                       work began: the card moves onto that branch's work card",
       '  once-upon backlog branch ID NEW-BRANCH                                           the branch was renamed or switched: the card and its open runs move to it, so the board keeps its worktree and story',
-      '  once-upon backlog claim ID --agent NAME [--sid SID8] [--branch NAME]            an agent takes the card: the board links card and agent only by this (--branch also starts it)',
-      "                                                                                   it records the claimer's full session (the editor's, whose slots count its cards) and --worktree PATH, checked against git worktree list when given",
+      "  once-upon backlog claim ID [--branch NAME]                                       retired: writes nothing (a card's runs say who works it); --branch still starts the card",
     ],
     run: backlog,
   },

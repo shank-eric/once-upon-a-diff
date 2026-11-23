@@ -248,11 +248,10 @@ export class Board {
     });
   }
 
-  /** Puts an open backlog item in the Someday section, or back (a card's Someday button). The registry says whether its claim is live. */
+  /** Puts an open backlog item in the Someday section, or back (a card's Someday button). The registry says whether its run is open. */
   somedayBacklog(id: string, aside: boolean, who: string): BacklogItem {
-    const now = (this.options.now || (() => new Date()))();
     const { agents } = readAgents(this.home);
-    const item = this.backlog.someday(id, aside, who, agents, now.getTime());
+    const item = this.backlog.someday(id, aside, who, agents);
     this.invalidate();
     return item;
   }

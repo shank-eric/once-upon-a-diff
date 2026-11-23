@@ -175,15 +175,10 @@ export interface BoardCard {
     /** the CLI line to paste into a session to start it */
     start_line: string;
     /**
-     * an open item whose claimed agent is in the registry (no `start` needed): what is working it, and whether the agent
+     * an open item whose run is in the registry (no `start` needed): what is working it, and whether the agent
      * only tried it (failed, stopped, or finished long ago) so the card is back in Backlog
      */
     agent?: { links: BoardStartedLinks; tried: boolean } | null;
-    /**
-     * who claimed it (`once-upon backlog claim ID --agent NAME`), while the claim is in force. `pending`: the agent has
-     * no registered event yet, so the card says "claimed, not started" until it does (or the claim is old and drops)
-     */
-    claim?: { agent: string; at: string | null; pending: boolean } | null;
   } | null;
   /** the card this local story's work card began as landed (`backlog done`), and when: the story is Done, then off the board */
   landed?: { card: string; at: string };
@@ -254,7 +249,7 @@ export interface BoardWorktree {
 export interface BoardStartedLinks {
   worktrees: { path: string; name: string }[];
   sessions: { id: string; title: string }[];
-  /** the registered agent that holds the item's claim (`once-upon backlog claim`), with its latest beat */
+  /** the registered agent whose run names the item, with its latest beat */
   agent: {
     name: string;
     state: BoardAgent['state'];

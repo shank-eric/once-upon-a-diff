@@ -21,7 +21,7 @@ They met in `cardOnBranch` (repo and branch name equal, `state/src/queues/backlo
 - **A card is one folded record, and every piece of work has one.** Whatever created it (`backlog add`, `agent start`, a session, a PR, a story, a build request), a card is an `add` event in `backlog.jsonl` and the later events on its id. The file keeps its name (ADR-26: a spelling change is a migration, so none is made). The id of a new card is `bl_` and a suffix whatever its source (`newId('bl')`). An `ic_` id already on run rows stays valid (`BACKLOG_ID_RE` is unchanged) and is stored by `card backfill`; nothing mints one any more.
 - **The record.** What `BacklogItem` already had (id, title, note, repo, branch, state open|started|dropped, started_at, landed_at, landed_sha, hold, someday, added_by, added_at) plus:
   - `source`: `backlog` | `agent` | `session` | `pr` | `story`, what created it. Old rows read as `backlog`. It decides whether a card is listed (below), never a column.
-  - `worktree`: the checkout the work is in (a path). `agent start` stores it only when git says the run's cwd is on the run's branch (a dispatched author starts in the main checkout and makes its worktree after, so there is none yet); dispatch links the verified worktree of a fixer; the keeper links the worktree a session is on. It defaults to the claim's, and finish reads it.
+  - `worktree`: the checkout the work is in (a path). `agent start` stores it only when git says the run's cwd is on the run's branch (a dispatched author starts in the main checkout and makes its worktree after, so there is none yet); dispatch links the verified worktree of a fixer; the keeper links the worktree a session is on. An old claim row's worktree is the default, and finish reads it.
   - `pr`: the PR number, written only from a GitHub answer (or by `card link --pr N`, which checks gh's head branch), never from an agent's typed value; the repo is the card's.
   - `story`: the story id, written by the keeper from the story on the work, by a storyteller's finish or hand-back, and by `backlog edit --story` for a repair. Stories keep no card id (Eric, 11/17: a card exists long before any story).
   - `session`: the full id of the Claude session that made a `session` or `agent` card.
@@ -35,7 +35,7 @@ They met in `cardOnBranch` (repo and branch name equal, `state/src/queues/backlo
 | `backlog add` (CLI, board Add) | `BacklogStore.add` | on add | `add` source `backlog` |
 | `agent start` with no `--card` (author, helper, research; not critic, fixer, storyteller) | `startRun` (core), before the run row | every start | `ensureCard` with source `agent`; the id goes on the run row. A start on a branch whose card is still open joins that card and says so (`--new-card` makes another). The registry no longer mints; a refused start leaves an idle `source: agent` card, which the board never shows and compaction removes |
 | `agent start` on a card | `startRun` | after the registry accepts the start | `link` branch, repo and (when git agrees) worktree, as ADR-25's "run first, then the card" |
-| `dispatch` of a fixer | `dispatchRun` | when it takes the card | `link` the fixer's worktree, the one it verified (`claimWorktreeProblem`) |
+| `dispatch` of a fixer | `dispatchRun` | when it takes the card | `link` the fixer's worktree, the one it verified (`worktreeProblem`) |
 | `agent finish` | the registry's `finish`, and `finishRun`'s `beforeFinish` | every finish | an author's finish `done` reads git in the card's worktree (else the run's cwd) when it is on a feature branch equal to the run's: HEAD is the commit unless the typed `--commit` is HEAD or behind it; a typed commit that is not in its history is replaced, with a warning. The card with no branch takes the one git found, before the finish row |
 | a live Claude session with no run of its own, on a feature branch of a repo GitHub's lookup answered for | the card keeper, after a board build | the first build that sees it | `ensureCard` source `session`, with its session id |
 | a PR of yours opened in the last 24 hours, or a PR with work (a story or local story, a build in flight, a session on it) | the card keeper | the build that first sees it | `ensureCard` source `pr` (a PR GitHub answered for), else `story`, else `session`; or `link` on the card already on its branch |
@@ -52,7 +52,7 @@ They met in `cardOnBranch` (repo and branch name equal, `state/src/queues/backlo
 - **Git is the truth for git facts.** At finish the commit, branch and push state come from git in the card's worktree. The agent still says when it is done and gives its outcome, question or findings. Any fact git cannot give (no checkout, gone, detached, slow, or a run that is not an author finishing `done`) falls back to what was typed, with no warning.
 - **The build stays pure, and the bridge keeps the cards.** `buildBoard` returns what it learned (`LearnedCards`: works, sessions, PRs ended and open) beside the board and writes nothing; `Board` hands that to the card keeper after each build, and the keeper is the bridge's own writer, as the watcher is for `reviewed.json`. This is the one exception to ADR-26's "a board snapshot never writes", which now reads: the build writes nothing; `Board` writes through the keeper. No route that reads writes, and the CLI never calls the keeper (ADR-15). At bridge start, with the keeper on, `card backfill` (stored ids only, not `--cardless`) runs first, so the keeper never stores a second card on a branch an `ic_` card already holds.
 - **Compaction keeps the file small.** `doctor --fix` drops a whole card (all its events) only when `source` is not `backlog`, no run in the retained `agents.jsonl` names it, no `move` names it as `before`, and it is closed (dropped or landed) more than 14 days ago, or is an idle `agent` or `session` card with no PR and no story whose latest event is that old and whose session is not live. A card with a PR or story goes only by closing.
-- **The claim goes.** A card's owner is its latest open run. The `claim` and `assign` events are read as before and nothing is to write them; `liveClaim`, `CLAIM_GRACE_HOURS`, the "claimed, pending" Working and the "has no claim" refusal go. A second author is refused by the open-author check that already exists. An editor's slots read the run's launching `sid`. Not built yet (below): until it is, the claim is written and read as ADR-25 left it.
+- **The claim goes (built 11/23, `drop-claim`).** A card's owner is its latest open run. The `claim` and `assign` events are read as before (a claim row gives the card its worktree until a `link` says another, and ends someday) and nothing writes them; `liveClaim`, `CLAIM_GRACE_HOURS`, the "claimed, pending" Working and the "has no claim" refusal are gone. A second author is refused by the open-author check that already existed (`refuseSecondAuthor`): it blocks a running, plan or fixing author, so a dispatch is allowed while the card's author is parked at a question or a story review, as a fixer always was. An editor's slots read the run's launching `session`, else its `sid`. `backlog claim` stays one release as a no-op (`--branch` still starts the card).
 - **Wire shape.** `BoardCard.kind` stays `work | session | agent | backlog`, so the pages do not change.
 
 ### Where the card record comes from, and what the board reads
@@ -68,7 +68,7 @@ flowchart TB
     direction TB
     HS["hook status"]
     AG["agents.jsonl<br/>runs: card id, sid, name, kind, outcome"]
-    CARD["card record in backlog.jsonl (every source)<br/>repo, branch, worktree, PR#, story id, session<br/>claim: going away, bl_mwtge2wj38f7d4"]
+    CARD["card record in backlog.jsonl (every source)<br/>repo, branch, worktree, PR#, story id, session<br/>no claim (built 11/23)"]
     GA["github-answers.json"]
     ST["story folder + state/"]
   end
@@ -95,11 +95,11 @@ flowchart TB
   CARD -->|"links + state"| VIEW
 ```
 
-An arrow marked "once" is written onto the card the first time someone learns the fact, and a "live" one is read fresh on every board build, never stored. The card keeper reads GitHub's answers and the stories, not GitHub itself. The claim on the card is the part [Not built here](#built-and-not-built-here) says goes: card `bl_mwtge2wj38f7d4`.
+An arrow marked "once" is written onto the card the first time someone learns the fact, and a "live" one is read fresh on every board build, never stored. The card keeper reads GitHub's answers and the stories, not GitHub itself. A card has no claim: its runs say who works it.
 
 ### Migration (nothing is rewritten)
 
-- `bl_` rows: no change; a fold defaults `source` to `backlog` and takes `worktree` from the claim. PR, story and session links are learned by the keeper as it sees them.
+- `bl_` rows: no change; a fold defaults `source` to `backlog` and takes `worktree` from an old claim row. PR, story and session links are learned by the keeper as it sees them.
 - `ic_` cards: `once-upon card backfill` appends an `add` (source `agent`, same id, its first run's task as title and note, repo, latest branch, time of its first run) for every `ic_` id on a start row that has no card; the bridge runs it at start. An adopted one already has its `add` and is left as it is. `doctor` warns (Stored cards) while any is missing.
 - Runs with no card (the 170 of ADR-27's census and any since): `card backfill --cardless` groups the open ones and those ended within 7 days by `sid:name`, writes one card each and moves the runs to it with the existing `card` event (`agents.jsonl` is not rewritten). It moves runs on the board, so it is by hand, never at start. Older ones are shown nowhere and are left.
 - Work, session and agent cards that were only ever rebuilt: no history exists; the keeper makes each from what is live at its first build, so a PR merged hours ago and no longer listed never gets a card.
@@ -112,11 +112,10 @@ An arrow marked "once" is written onto the card the first time someone learns th
 
 ## Built, and not built here
 
-Built, one commit each: A (`stored-card`): the record, the filter, `ensureCard` and `link`, `agent start` storing its card, finish from git, `card link`. B (`stored-card-keeper`): compaction, the keeper in shadow, `card backfill`. C1 to C3: the board reads stored cards (agents, sessions, works), and every new card is a `bl_` card. D1: a merged PR lands once on its card.
+Built, one commit each: A (`stored-card`): the record, the filter, `ensureCard` and `link`, `agent start` storing its card, finish from git, `card link`. B (`stored-card-keeper`): compaction, the keeper in shadow, `card backfill`. C1 to C3: the board reads stored cards (agents, sessions, works), and every new card is a `bl_` card. D1: a merged PR lands once on its card. E (`drop-claim`): the claim is gone.
 
 Not built:
 
-- **Dropping the claim** (the plan's step 9): the decision above stands, and `claim`, `liveClaim`, the "claimed, pending" Working and dispatch's claim write are as ADR-25 left them. It is card `bl_mwtge2wj38f7d4`.
 - **Keying builds, inbox and `state/` by card id** (the plan's step 10, Eric's Q9): a follow-up card. It resolves card to `card.story` to the state key, with no folder renamed and no row rewritten (ADR-26: no spelling migration).
 - **A session's second no-card start sharing the session's card:** joining the open card on the branch covers every start with a feature branch; a branchless helper or research start still gets a card of its own.
 - **`backlog list --implicit`** keeps its name; it lists the `source: agent` cards no one adopted.

@@ -239,7 +239,6 @@
             "backlog": {
               "added_by": "cli",
               "agent": null,
-              "claim": null,
               "id": "ic_eeeee04",
               "start_line": "once-upon backlog start ic_eeeee04 --branch adopted-work",
               "started": {

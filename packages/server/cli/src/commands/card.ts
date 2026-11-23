@@ -160,7 +160,6 @@ function statusJson({ item, stored, runs, phase }: Status): string {
       state: item.state,
       repo: item.repo,
       branch: item.branch,
-      claim: item.claim,
       hold: item.hold,
       someday: item.someday,
       source: stored?.source ?? null,
@@ -191,14 +190,6 @@ function stateLine(item: BacklogItem): string {
   const marks = [item.hold && 'hold', item.someday && 'someday'].filter(Boolean);
   const state = item.landed_at && item.state !== 'dropped' ? 'done' : item.state;
   return `state: ${state}${marks.length ? ` (${marks.join(', ')})` : ''}${where ? `  ${where}` : ''}`;
-}
-
-function claimLine(item: BacklogItem, home: string): string {
-  if (!item.claim) {
-    return 'claim: none';
-  }
-  const session = item.claim.sid ? ` (session ${item.claim.sid})` : '';
-  return `claim: ${item.claim.agent}${session}, ${formatTime(item.claim.at, home)}`;
 }
 
 /** The stored record's own facts, none when the card is only its runs. */
@@ -236,7 +227,6 @@ function statusText(home: string, { item, stored, runs, phase }: Status): string
   return [
     `${item.id}  ${item.title}`,
     stateLine(item),
-    claimLine(item, home),
     ...recordLines(stored),
     runs.length ? 'runs, oldest first:' : 'runs: none',
     ...runs.map(

@@ -4,10 +4,10 @@
  *
  *   worktrees   any git worktree on that branch, in the checkouts the board knows for the item's repo
  *   sessions    any live session on that branch, or working inside such a worktree
- *   agent       the registered agent that holds the item's claim (`once-upon backlog claim`, claims.ts), with its latest
+ *   agent       the registered agent whose run names the item (phase.ts), with its latest
  *               progress beat. Never guessed from `by`, a worktree folder's name or the agent's task text
  *
- * and whether the branch's work has merged. An open item with a claim is linked by the agent alone (`agentLinks`). The
+ * and whether the branch's work has merged. An open item with a run is linked by the agent alone (`agentLinks`). The
  * one place for those rules. Pure: board.ts gathers the facts.
  */
 import { repoKey } from '@once-upon-a-diff/terms/ids';
@@ -56,7 +56,7 @@ export interface LinkFacts {
 const insideOf = (dir: string, parent: string): boolean =>
   dir === parent || dir.startsWith(parent + path.sep);
 
-/** The link for an open item with a claimed agent: the agent only (a branch comes with a `start`, which `claim --branch` writes). */
+/** The link for an open item a run names: the agent only (a branch comes with a `start`). */
 export function agentLinks(
   item: BacklogItem,
   facts: Pick<LinkFacts, 'agents'>,

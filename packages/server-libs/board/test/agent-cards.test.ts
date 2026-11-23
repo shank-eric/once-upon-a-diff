@@ -53,8 +53,6 @@ function claimWorld(runs: AgentRun[], now: Date = NOW) {
   return { home, store, cards };
 }
 
-const CLAIM_WHILE_RUNNING = '2026-10-26T18:35:00Z';
-
 const holders = (cards: BoardCard[], name: string) =>
   cards.filter((card) => card.agents.some((agent) => agent.name === name));
 
@@ -174,7 +172,6 @@ test('an agent whose run names a card sets that card’s column whatever it is d
     const { home, store, cards } = claimWorld([]);
     const item = store.add({ title: 'Build x', repo: 'acme/widgets' });
     store.start(item.id, { branch: 'feat/x', repo: 'acme/widgets' });
-    claimAt(store, item.id, 'builder', CLAIM_WHILE_RUNNING);
     registerRuns(home, { ...run, card: item.id });
     const all = await cards();
     const pr = all.find((card) => card.id === 'pr:acme/widgets#7') as BoardCard;
@@ -193,7 +190,6 @@ test('after the card is marked done an agent whose run names it shows once, on t
   const { home, store, cards } = claimWorld([]);
   const item = store.add({ title: 'Build x', repo: 'acme/widgets' });
   store.start(item.id, { branch: 'feat/x', repo: 'acme/widgets' });
-  claimAt(store, item.id, 'builder', CLAIM_WHILE_RUNNING);
   registerRuns(home, {
     sid: '54736864',
     name: 'builder',
@@ -216,7 +212,7 @@ test('after the card is marked done an agent whose run names it shows once, on t
   assert.equal(all.filter((card) => card.kind === 'agent').length, 0, 'no card of its own');
 });
 
-test('a claim finds no run: a finished card stays Done beside a cardless run, and a claimed card is Working through a run naming it', async () => {
+test('a finished card stays Done beside a cardless run, and a card nobody runs is Backlog until a run names it', async () => {
   const build: AgentRun = {
     sid: '54736864',
     name: 'ou-build',
@@ -225,7 +221,6 @@ test('a claim finds no run: a finished card stays Done beside a cardless run, an
   };
   const { home, store, cards } = claimWorld([], new Date('2026-10-26T20:15:00Z'));
   const item = store.add({ title: 'The first job', repo: 'acme/gadgets' });
-  claimAt(store, item.id, 'ou-build', '2026-10-26T17:00:00Z');
   registerRuns(
     home,
     {
@@ -249,18 +244,18 @@ test('a claim finds no run: a finished card stays Done beside a cardless run, an
   const own = all.filter((one) => one.kind === 'agent');
   assert.equal(own.length, 1, 'the other run names no card: a card of its own');
   assert.equal(own[0].column, 'working');
-  // a second card claimed by the same name is Working only through a run that names it
+  // a second card, claimed by the same name in an old row, is Working only through a run that names it
   const second = store.add({ title: 'The second job', repo: 'acme/gadgets' });
   claimAt(store, second.id, 'ou-build', '2026-10-26T20:05:00Z');
-  const pending = await cards();
-  assert.equal(pending.find((one) => one.backlog?.id === second.id)?.column, 'working', 'pending');
+  const waiting = await cards();
+  assert.equal(waiting.find((one) => one.backlog?.id === second.id)?.column, 'backlog');
   registerRuns(home, { ...build, task: 'second', card: second.id, started: etAt(16, 10) });
   const both = await cards();
   assert.equal(both.find((one) => one.backlog?.id === second.id)?.column, 'working');
   assert.equal(both.find((one) => one.backlog?.id === item.id)?.column, 'done');
 });
 
-test('claiming before the agent’s run starts, with an older finished run of that name, leaves the card Working and pending', async () => {
+test('an old claim row names no run: a card with one and no run naming it stays in Backlog, with no claim on it', async () => {
   const now = new Date();
   const { store, cards } = claimWorld(
     [
@@ -276,11 +271,11 @@ test('claiming before the agent’s run starts, with an older finished run of th
     now,
   );
   const item = store.add({ title: 'A new job', repo: 'acme/gadgets' });
-  store.claim(item.id, { agent: 'ou-late' });
+  claimAt(store, item.id, 'ou-late', new Date().toISOString());
   const card = (await cards()).find((one) => one.backlog?.id === item.id) as BoardCard;
   assert.ok(card, 'the card is on the board');
-  assert.equal(card.column, 'working');
-  assert.equal(card.backlog?.claim?.pending, true);
+  assert.equal(card.column, 'backlog');
+  assert.equal('claim' in (card.backlog ?? {}), false);
 });
 
 test('plan and fixing are gates until the run goes on, and a running critic is one too', () => {

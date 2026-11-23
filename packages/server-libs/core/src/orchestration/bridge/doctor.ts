@@ -46,7 +46,7 @@ import {
   cardRunProblems,
   duplicateCardProblems,
 } from '@once-upon-a-diff/state/queues/backlog/phase';
-import { claimWorktreeProblems } from '@once-upon-a-diff/state/queues/backlog/claim-worktree';
+import { openRunWorktreeProblems } from '@once-upon-a-diff/state/queues/backlog/worktree-check';
 import { readAgents } from '@once-upon-a-diff/state/records/agents/read';
 import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
 import { StoryStore } from '@once-upon-a-diff/stories/store';
@@ -525,8 +525,8 @@ const backlogCheck: Check = ({ home, items, agents }) => {
       now,
       new Set(new BacklogStore(home).items().map((item) => item.id)),
     ),
-    ...cardBranchProblems(items(), now),
-    ...claimWorktreeProblems(items()),
+    ...cardBranchProblems(items(), agents()),
+    ...openRunWorktreeProblems(items(), agents()),
   ];
   // a backlog card and an implicit card on one repo and branch are a pair to merge by hand
   const duplicates = duplicateCardProblems(items(), agents(), new BacklogStore(home).items());
@@ -538,7 +538,7 @@ const backlogCheck: Check = ({ home, items, agents }) => {
     lookAt(
       'Card runs',
       runs,
-      'every run names a card that holds, and every claimed card has a branch',
+      'every run names a card that holds, every started card has a branch, and an open run’s worktree exists',
     ),
     {
       level: unstored ? 'WARN' : 'PASS',

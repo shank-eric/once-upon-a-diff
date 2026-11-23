@@ -1,6 +1,6 @@
 /**
  * The ADR-25 flip: a run's `card` is the only link between a card and its runs. A run on a card takes its repo and branch from the
- * card (the flags that say otherwise are refused), an author needs its card claimed first or a branch to name its own card, a
+ * card (the flags that say otherwise are refused), an author names its card or a branch to make its own, a
  * lane tag is read by nothing, and the claim-to-run guessing is gone.
  */
 import { test } from 'node:test';
@@ -11,6 +11,7 @@ import { runCli, tmp } from './helpers.ts';
 import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
 import * as claims from '@once-upon-a-diff/state/queues/backlog/claims';
+import * as slots from '@once-upon-a-diff/state/queues/backlog/slots';
 import * as phase from '@once-upon-a-diff/state/queues/backlog/phase';
 import * as backlogQueue from '@once-upon-a-diff/state/queues/backlog/backlog';
 import * as laneKey from '@once-upon-a-diff/terms/lane-key';
@@ -20,22 +21,19 @@ const env = { CLAUDE_CODE_SESSION_ID: `${SID}-1111-4222-8333-444444444444` };
 const agent = (home: string, ...args: string[]) => runCli(home, ['agent', ...args], env);
 const agentsFile = (home: string) => path.join(home, 'agents.jsonl');
 
-/** A started card (repo and branch) and, when asked, its claim for `name`. */
-function card(home: string, branch: string | null, claimFor: string | null = null) {
+/** A started card (repo and branch). */
+function card(home: string, branch: string | null) {
   const store = new BacklogStore(home);
   const item = store.add({ title: 'A job', repo: 'acme/widgets' });
   if (branch) {
     store.start(item.id, { branch, repo: 'acme/widgets' });
-  }
-  if (claimFor) {
-    store.claim(item.id, { agent: claimFor, sid: SID });
   }
   return item.id;
 }
 
 test('beside --card the flags the card answers are refused, each named, and nothing is written', async () => {
   const home = tmp('flip-refusals');
-  const id = card(home, 'feat/x', 'ou-a');
+  const id = card(home, 'feat/x');
   const typed = await agent(
     home,
     'start',
@@ -85,7 +83,7 @@ test('beside --card the flags the card answers are refused, each named, and noth
 
 test('a card with no branch still takes --branch from the run, and --pr only while it has no branch', async () => {
   const home = tmp('flip-no-branch');
-  const id = card(home, null, 'ou-a');
+  const id = card(home, null);
   const done = await agent(
     home,
     'start',
@@ -100,7 +98,7 @@ test('a card with no branch still takes --branch from the run, and --pr only whi
     'build',
   );
   assert.equal(done.code, 0, done.stderr);
-  const withBranch = card(home, 'feat/z', 'ou-b');
+  const withBranch = card(home, 'feat/z');
   const pr = await agent(
     home,
     'start',
@@ -162,29 +160,9 @@ test('an author with no card needs --branch, which mints its implicit card; a fi
   assert.match(named.stdout.trim().split(' ')[2], /^bl_/);
 });
 
-test('an author on a card with no claim is refused: the claim comes first, then the start, then a fix round', async () => {
+test('an author starts on a card with no claim row, then a fix round on the same card', async () => {
   const home = tmp('flip-claim-first');
   const id = card(home, 'feat/x');
-  const refused = await agent(
-    home,
-    'start',
-    'ou-a',
-    '--card',
-    id,
-    '--role',
-    'author',
-    '--task',
-    'b',
-  );
-  assert.notEqual(refused.code, 0);
-  assert.match(refused.stderr, /has no claim/);
-  assert.equal(existsSync(agentsFile(home)), false);
-  const claimed = await runCli(
-    home,
-    ['backlog', 'claim', id, '--agent', 'ou-a', '--sid', SID],
-    env,
-  );
-  assert.equal(claimed.code, 0, claimed.stderr);
   const started = await agent(
     home,
     'start',
@@ -221,7 +199,7 @@ test('an author on a card with no claim is refused: the claim comes first, then 
   assert.deepEqual(cards, [id, id, id]);
 });
 
-test('backlog adopt claims the card it makes, so the adopted card’s author can start a fix round', async () => {
+test('backlog adopt writes no claim: the adopted card’s runs name it', async () => {
   const home = tmp('flip-adopt');
   const made = await agent(
     home,
@@ -238,11 +216,11 @@ test('backlog adopt claims the card it makes, so the adopted card’s author can
   const implicit = made.stdout.trim().split(' ')[2];
   const adopted = await runCli(home, ['backlog', 'adopt', implicit, '--title', 'Adopted'], env);
   assert.equal(adopted.code, 0, adopted.stderr);
-  const claim = new BacklogStore(home).items().find((one) => one.id === implicit)?.claim;
-  assert.equal(claim?.agent, 'ou-a');
+  assert.equal(readFileSync(new BacklogStore(home).file, 'utf8').includes('"op":"claim"'), false);
+  assert.equal(new AgentRegistry(home).agents()[0].card, implicit);
 });
 
-test('what the flip deleted is gone: the claim-to-run helpers, the lane resolver and the critic-hold guess', () => {
+test('what the flip deleted is gone: the claim-to-run helpers, the claim readers, the lane resolver and the critic-hold guess', () => {
   const gone = [
     'claimedRun',
     'claimedAgents',
@@ -253,8 +231,12 @@ test('what the flip deleted is gone: the claim-to-run helpers, the lane resolver
     'heldKeys',
     'resolveLane',
     'repoLanes',
+    'liveClaim',
+    'CLAIM_GRACE_HOURS',
+    'claimSessionOf',
+    'claimHint',
   ];
-  for (const mod of [claims, phase, backlogQueue, laneKey]) {
+  for (const mod of [claims, phase, backlogQueue, slots, laneKey]) {
     for (const name of gone) {
       assert.equal(name in mod, false, `${name} is still exported`);
     }

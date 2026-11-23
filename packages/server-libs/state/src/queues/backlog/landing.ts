@@ -10,7 +10,7 @@ import { sameRepo } from '@once-upon-a-diff/foundation/repos';
 import { STALE_MS, movesWith, runIsOpen, type AgentEvent } from '../../records/agents/events.ts';
 import { lastActivity, type LedgerAgent } from '../../records/agents/ledger.ts';
 import type { BacklogItem } from './types.ts';
-import { isWorkRun, runsOf } from './phase.ts';
+import { isWorkRun, namedByRuns, runsOf } from './phase.ts';
 
 /**
  * Each card's tip from the raw finish events (the folded registry keeps only a run's last result, and a rerun hides the
@@ -58,7 +58,7 @@ export function recordedTips(events: AgentEvent[]): Map<string, string> {
  * Whether a work run of the card is still going: an open run (a fix round included) that is not stale (no event for STALE_MS,
  * the rule the registry and the board use), so a crashed agent does not hold its card forever.
  */
-function claimInProgress(item: BacklogItem, agents: LedgerAgent[], nowMs: number): boolean {
+function workInProgress(item: BacklogItem, agents: LedgerAgent[], nowMs: number): boolean {
   return runsOf(item, agents)
     .filter(isWorkRun)
     .some((run) => runIsOpen(run) && nowMs - (lastActivity(run)?.getTime() ?? nowMs) <= STALE_MS);
@@ -159,10 +159,10 @@ export function landItems(
       continue;
     }
     const mine = !item.repo || !repoName || sameRepo(item.repo, repoName);
-    if (mine && !item.hold && (item.claim || item.state === 'started')) {
+    if (mine && !item.hold && (namedByRuns(item, agents) || item.state === 'started')) {
       result.open.push({
         item,
-        why: whyOpen(recorded, tip, claimInProgress(item, agents, nowMs)),
+        why: whyOpen(recorded, tip, workInProgress(item, agents, nowMs)),
       });
     }
   }

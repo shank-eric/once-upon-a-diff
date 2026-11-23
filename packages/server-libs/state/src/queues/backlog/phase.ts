@@ -1,12 +1,11 @@
 /**
  * The card owns its runs (ADR-25). A run names its card when it starts (`agent start --card ID`, the `card` of its start
- * row in agents.jsonl), and everything about the card's work is read from the runs that name it: no claim to find the
- * run by, no name, no time window, no copy of the repo or branch typed on the run. The card's repo and branch are the
+ * row in agents.jsonl), and everything about the card's work is read from the runs that name it: no name, no time window, no copy of the repo or branch typed on the run. The card's repo and branch are the
  * run's. `runsOf` is the card's runs, and `cardPhase` is the one table that turns them into the column.
  *
  * A run of an agent restarted under the same sid and name (a fix round) is a second run of the card, kept in the agent's
  * `earlier` (events.ts). A run whose `card` is unknown or dropped is nobody's: it is an agent card of its own (agent-home.ts).
- * A run with no `card` at all (a row from before ADR-25, a helper) is read by nothing here: the claim finds no run.
+ * A run with no `card` at all (a row from before ADR-25, a helper) is read by nothing here.
  * Pure: the board gathers the facts.
  */
 import type { BoardColumn } from '@once-upon-a-diff/contracts/types';
@@ -19,7 +18,7 @@ import {
   lastActivity,
   type LedgerAgent,
 } from '../../records/agents/ledger.ts';
-import { CLAIM_GRACE_HOURS, OPEN, agentKey } from './claims.ts';
+import { OPEN, agentKey } from './claims.ts';
 import { UNKNOWN_READY, readyColumn, type ReadyFacts } from './ready.ts';
 import type { BacklogItem } from './types.ts';
 
@@ -181,7 +180,7 @@ const msOf = (date: Date | null | undefined): number | null => (date ? date.getT
  *
  * A critic that finished done with no findings count (an old row) reads as a pass, as it always did; `agent finish` no
  * longer takes a carded critic's done without one. Null when the card is past its Done hour, or has nothing to say (no
- * work run and not started on a branch): the card keeps its own state, or shows pending on its claim.
+ * work run and not started on a branch): the card keeps its own state.
  */
 export function cardPhase(
   item: Pick<BacklogItem, 'state' | 'repo' | 'branch' | 'critic_skipped'> &
@@ -339,35 +338,33 @@ export function cardRunProblems(
   return problems;
 }
 
+/** Whether a card is being worked: started, or a work run on it is open. */
+const isWorked = (item: BacklogItem, agents: LedgerAgent[]): boolean => {
+  const run = workAgent(item, agents);
+  return item.state === 'started' || (!!run && runIsOpen(run));
+};
+
 /**
- * The cards past the backlog that carry no branch, one line each, for `once-upon doctor`: the board joins a card to its
- * worktree, PR and story by the card's branch, so a card an agent holds with none is joined to nothing. A started card
- * always has one (a start names it), so this finds a card claimed for longer than CLAIM_GRACE_HOURS that is still open with
- * none: an agent that took it and never registered a branch. An open, someday or landed card is exempt; so is a fresh
- * claim, whose author has not made its branch yet.
+ * The cards being worked that carry no branch, one line each, for `once-upon doctor`: the board joins a card to its worktree,
+ * PR and story by the card's branch, so a card with none is joined to nothing. A dispatch always names a branch, so this is an
+ * old row, or a run started on a branchless card with no `--branch`. A dropped, someday or landed card is exempt.
  */
-export function cardBranchProblems(items: BacklogItem[], nowMs: number): string[] {
-  const problems: string[] = [];
-  for (const item of items) {
-    if (item.state === 'dropped' || item.landed_at || item.someday || item.branch) {
-      continue;
-    }
-    const since = item.claim ? Date.parse(item.claim.at) : Number.NaN;
-    if (
-      item.state === 'started' ||
-      (item.claim && !Number.isNaN(since) && nowMs - since > CLAIM_GRACE_HOURS * 3600 * 1000)
-    ) {
-      problems.push(
-        `${item.id} has no branch (${item.state === 'started' ? 'started' : `claimed by ${item.claim?.agent}`}): backlog branch ${item.id} <branch>`,
-      );
-    }
-  }
-  return problems;
+export function cardBranchProblems(items: BacklogItem[], agents: LedgerAgent[] = []): string[] {
+  return items
+    .filter(
+      (item) =>
+        item.state !== 'dropped' &&
+        !item.landed_at &&
+        !item.someday &&
+        !item.branch &&
+        isWorked(item, agents),
+    )
+    .map((item) => `${item.id} has no branch (worked): backlog branch ${item.id} <branch>`);
 }
 
 /**
  * The duplicates a join at write time would have prevented, one per pair, for `once-upon doctor`: a backlog card with a branch and
- * no run, no claim and no drop, and a stored agent card (an `ic_` one, or any a run made) with a run on its repo and branch that was live when the backlog card was
+ * no run and no drop, and a stored agent card (an `ic_` one, or any a run made) with a run on its repo and branch that was live when the backlog card was
  * added (a run open, or the card added no later than the last run's activity). A card added after that work ended, on a branch
  * name it reused, is its own. Each carries the `backlog drop ID --into CARD` that merges the pair; nothing is merged here.
  */
@@ -383,7 +380,6 @@ export function duplicateCardProblems(
       item.state !== 'dropped' &&
       !!item.branch &&
       !item.landed_at &&
-      !item.claim &&
       !item.someday &&
       runsOf(item, agents).length === 0,
   );

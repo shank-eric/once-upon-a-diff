@@ -8,7 +8,6 @@ import path from 'node:path';
 import { repoOfCheckout } from '@once-upon-a-diff/foundation/repos';
 import { readSettings } from '@once-upon-a-diff/foundation/settings';
 import { ownSession } from '@once-upon-a-diff/core/features/listeners/service';
-import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { slotsInUse } from '@once-upon-a-diff/state/queues/backlog/slots';
 import { runIsOpen } from '@once-upon-a-diff/state/records/agents/events';
 import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
@@ -80,7 +79,7 @@ function editor(home: string, _cfg: Config, opts: CliOpts) {
       }
       throw new Error(`no editor registered${who}: once-upon editor start --slots N`);
     }
-    const used = slotsInUse(found, registry.agents(), new BacklogStore(home).listed(), Date.now());
+    const used = slotsInUse(found, registry.agents(), Date.now());
     if (opts.json) {
       return out(
         JSON.stringify(

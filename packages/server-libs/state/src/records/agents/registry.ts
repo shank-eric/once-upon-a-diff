@@ -86,8 +86,6 @@ export interface StartInput extends Target {
   newCard?: boolean;
   /** the id of the card the caller already stored for the run this start would mint (ADR-29); required when the start mints */
   mintedCard?: string | null;
-  /** the caller claims the card for this author once the start is accepted (a start that joined an unclaimed card): the claim check is waived */
-  claimsOnStart?: boolean;
   /** what the run does on a card (`--role`): checked at start, and kept on the start row (a fixer's finish can carry an approval) */
   role?: AgentRole | null;
   /** the name of the earlier run of this session that this one retries: once this run is done, a failed one of that name is off the board */
@@ -153,8 +151,6 @@ export interface CardFacts {
   closed: 'dropped' | 'landed' | null;
   repo: string | null;
   branch: string | null;
-  /** whether an agent has claimed it */
-  claimed: boolean;
   /** the checkout the card's work is in, when a link says (ADR-29): where a finish reads git */
   worktree?: string | null;
   /** an agent made the card (a start with no card stored it, ADR-29): its runs may name another card on finish */
@@ -539,12 +535,6 @@ export class AgentRegistry {
       }
       if (kind === 'author') {
         this.refuseSecondAuthor(cardId, sid, name, input.at);
-        // the claim comes before the first start: the launcher claims the card for the agent, then registers it
-        if (!card.claimed && !input.claimsOnStart) {
-          throw new Error(
-            `${cardId} has no claim: claim it first, once-upon backlog claim ${cardId} --agent ${name} (the claim comes before agent start)`,
-          );
-        }
       }
       // the card's repo and branch are the run's: a typed one is refused, not guessed over. A card carried over from the
       // earlier run takes no typed branch, PR or lane either; its repo is filled from the checkout, so it is not "typed"
@@ -612,7 +602,7 @@ export class AgentRegistry {
     );
     if (other) {
       throw new Error(
-        `${cardId} already has an open author run (${agentId(other.sid, other.name)}): finish it first, then start the fixer or the next author under a fresh name`,
+        `${cardId} already has an open author run (${agentId(other.sid, other.name)}): finish it first (once-upon handback ${other.name}), then start the fixer or the next author under a fresh name`,
       );
     }
   }

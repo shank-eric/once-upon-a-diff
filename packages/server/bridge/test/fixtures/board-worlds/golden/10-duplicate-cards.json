@@ -58,11 +58,6 @@
             "backlog": {
               "added_by": "cli",
               "agent": null,
-              "claim": {
-                "agent": "ou-dup",
-                "at": "2026-10-26T18:30:00.000Z",
-                "pending": false
-              },
               "id": "ic_ddddd01",
               "start_line": "once-upon backlog start ic_ddddd01 --branch dup-a",
               "started": {
@@ -109,7 +104,6 @@
             "backlog": {
               "added_by": "cli",
               "agent": null,
-              "claim": null,
               "id": "bl_ddddd02",
               "start_line": "once-upon backlog start bl_ddddd02 --branch dup-other",
               "started": null
@@ -138,11 +132,6 @@
             "backlog": {
               "added_by": "cli",
               "agent": null,
-              "claim": {
-                "agent": "ou-claimer",
-                "at": "2026-10-26T17:02:00.000Z",
-                "pending": true
-              },
               "id": "bl_ddddd03",
               "start_line": "once-upon backlog start bl_ddddd03 --branch dup-a",
               "started": null
@@ -151,7 +140,7 @@
             "build": null,
             "building": null,
             "can_focus": false,
-            "column": "working",
+            "column": "backlog",
             "detail": "Claimed on dup-a: the note",
             "focus_session": null,
             "id": "backlog:bl_ddddd03",
@@ -162,7 +151,7 @@
             "pr": null,
             "repo": "acme/widgets",
             "sessions": [],
-            "since": "2026-10-26T17:02:00.000Z",
+            "since": "2026-10-26T17:00:00.000Z",
             "story": null,
             "title": "Claimed on dup-a"
           },
@@ -209,7 +198,6 @@
                 },
                 "tried": false
               },
-              "claim": null,
               "id": "bl_ddddd04",
               "start_line": "once-upon backlog start bl_ddddd04 --branch dup-named",
               "started": null

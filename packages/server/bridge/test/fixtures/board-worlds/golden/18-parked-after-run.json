@@ -28,7 +28,6 @@
                 },
                 "tried": false
               },
-              "claim": null,
               "id": "bl_parkdone",
               "start_line": "once-upon backlog start bl_parkdone --branch feat/park-done",
               "started": null
@@ -73,7 +72,6 @@
                 },
                 "tried": true
               },
-              "claim": null,
               "id": "bl_parkfailed",
               "start_line": "once-upon backlog start bl_parkfailed --branch feat/park-failed",
               "started": null
@@ -118,7 +116,6 @@
                 },
                 "tried": false
               },
-              "claim": null,
               "id": "bl_parkheld",
               "start_line": "once-upon backlog start bl_parkheld --branch feat/park-held",
               "started": null
@@ -206,7 +203,6 @@
                 },
                 "tried": false
               },
-              "claim": null,
               "id": "bl_parknew",
               "start_line": "once-upon backlog start bl_parknew --branch feat/park-new",
               "started": null

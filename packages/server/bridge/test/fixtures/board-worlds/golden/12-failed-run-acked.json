@@ -58,7 +58,6 @@
             "backlog": {
               "added_by": "cli",
               "agent": null,
-              "claim": null,
               "id": "bl_ackedrun",
               "start_line": "once-upon backlog start bl_ackedrun --branch feat/acked",
               "started": {
@@ -127,7 +126,6 @@
             "backlog": {
               "added_by": "cli",
               "agent": null,
-              "claim": null,
               "id": "bl_openrun",
               "start_line": "once-upon backlog start bl_openrun --branch feat/open",
               "started": {

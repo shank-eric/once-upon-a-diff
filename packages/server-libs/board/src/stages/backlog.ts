@@ -36,11 +36,11 @@ import { dirOf } from './worktrees.ts';
 import { branchOfWork } from './works.ts';
 
 /**
- * Puts each claimed agent on the work or session card of its started item's branch, before the columns are decided
+ * Puts each agent whose run names a card on the work or session card of its started item's branch, before the columns are decided
  * (placeCards), so a running, gated or questioning author puts that card where its agent's state says. It changes the
  * cards given. The agent is held out of placeAgents, so this is the one place it appears. `views` is by item id.
  */
-export function nestClaimedAgents(
+export function nestCardAgents(
   items: BacklogItem[],
   cards: BoardCard[],
   views: Map<string, BoardAgent[]>,
@@ -201,7 +201,7 @@ export interface LinkFacts {
 }
 
 /**
- * What is working each started item, and each open item with a claimed agent: its worktrees (looked up per repo, every checkout the board can learn of), the
+ * What is working each started item, and each open item a run names: its worktrees (looked up per repo, every checkout the board can learn of), the
  * sessions in them, its agent, and whether its branch merged. Keyed by item id; an item nothing is found for has none.
  */
 export async function readBacklogLinks(
@@ -322,7 +322,7 @@ export async function readBacklogLinks(
       links.set(item.id, found);
     }
   }
-  // an open item with a claimed agent is linked by the agent alone (a branch comes with a `start`: `claim --branch`)
+  // an open item a run names is linked by the agent alone (a branch comes with a `start`)
   for (const item of backlogItems) {
     const found = item.state === 'open' ? agentLinks(item, linkFacts) : null;
     if (found) {

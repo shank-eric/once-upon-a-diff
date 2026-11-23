@@ -158,7 +158,6 @@ test('a finished run says it already finished', async () => {
 test('handback runs the finish stamp: a branchless card takes the branch the run made', async () => {
   const ctx = world();
   const bare = ctx.store.add({ title: 'No branch', repo: 'acme/widgets' });
-  ctx.store.claim(bare.id, { agent: 'bare-run', sid: SID });
   const tree = ctx.fixture.add('feat-bare');
   ctx.fixture.commit(tree, 'one');
   await startRun(ctx.home, {

@@ -52,12 +52,11 @@ const STARTED = '2026-10-26T18:30:00Z';
 /** The agents the runs register, as the board reads them. */
 const agentsOf = (...runs: AgentRun[]) => registerRuns(tmp('links-agents'), ...runs).agents();
 
-test('startedLinks: a worktree on the branch, a session in it, the agent that claimed the card, and a merge', () => {
+test('startedLinks: a worktree on the branch, a session in it, the agent whose run names the card, and a merge', () => {
   const home = tmp('links-unit');
   const store = new BacklogStore(home);
   const made = store.add({ title: 'Retire the inbox page?', repo: 'acme/widgets' });
   store.start(made.id, { branch: 'kill-inbox', by: 'Ou-Kill-Inbox' });
-  store.claim(made.id, { agent: 'ou-kill-inbox' });
   const item = store.items()[0];
   const card = made.id;
   const facts = {

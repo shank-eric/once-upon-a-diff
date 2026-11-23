@@ -10,21 +10,20 @@
  *   {op:'start', id, branch, repo, by, at}     work began on that branch
  *   {op:'link',  id, repo?, branch?, worktree?, pr?, story?, session?, source?, by, at}   a fact learned about the card, written once onto it. Sets only the
  *                                              fields it carries, on a card that is not dropped or landed; never touches the state, `started_at`, `landed_*`,
- *                                              the claim or `someday`. `source` only as `backlog`: `backlog adopt` lists a card an agent made
+ *                                              or `someday`. `source` only as `backlog`: `backlog adopt` lists a card an agent made
  *   {op:'done',  id, sha?, merged_at?, by, at} the work landed (`merged_at`: when its PR merged, so `landed_at` is that time; a local deploy, or the bridge seeing the card's PR merge: land-merged.ts); an open item can land too
  *   {op:'drop',  id, by, at}
  *   {op:'reopen', id, by, at}                  a dropped item is open again (a new `start` after a drop is still ignored)
  *   {op:'move',  id, before | edge, by, at}   `before` is another item's id; `edge` is 'top' or 'bottom'
  *   {op:'edit',  id, title?, note?, repo?, story?, by, at}   only the fields that changed; an empty note, repo or story clears it. An open item only; a started one takes the story alone
- *   {op:'claim', id, agent, sid?, session?, worktree?, by, at}   an agent (named as it registered) owns the card: the one link from a card to an
- *                                              agent (claims.ts). The latest claim wins; a `done` or a reopen clears it. `session` is the
- *                                              claimer's full session id (the editor's: slots.ts) and `worktree` the checkout path
+ *   {op:'claim', id, agent, sid?, session?, worktree?, by, at}   retired (ADR-29: a card's runs say who works it): nothing writes it now, an old row is read for
+ *                                              its `worktree` (the card's checkout until a `link` says another) and ends someday
  *   {op:'hold',  id, on, by, at}              the card lands by hand: a deploy or a merged PR never marks it done (landing.ts, land-merged.ts), only `done ID` does.
- *                                              `on:false` clears it; a reopen clears it too. Sticky across claims
+ *                                              `on:false` clears it; a reopen clears it too
  *   {op:'skip_critic', id, on, by, at}        the card's critic is skipped by hand: a built card with no passing critic reads Ready (phase.ts row 5)
  *                                              instead of Waiting. `on:false` clears it; a reopen clears it too
- *   {op:'someday', id, on, by, at}            maybe someday: an open card with no live claim leaves the main list for the Someday section,
- *                                              keeping its place in the order (`on:false` puts it back there). A start, a claim, a done,
+ *   {op:'someday', id, on, by, at}            maybe someday: an open card nobody is working leaves the main list for the Someday section,
+ *                                              keeping its place in the order (`on:false` puts it back there). A start, a done,
  *                                              a drop or a reopen clears it: work on the card brings it back
  *
  * The items come back in order: an add goes to the bottom, and a move puts one item before another or at an edge.
@@ -38,10 +37,8 @@
  */
 import {
   BACKLOG_ID_RE,
-  AGENT_NAME_RE,
   CARD_BRANCH_RE,
   SESSION_RE,
-  SID_RE,
   STORY_ID_RE,
 } from '@once-upon-a-diff/terms/patterns';
 import { canonicalRepo } from '@once-upon-a-diff/terms/ids';
@@ -54,7 +51,7 @@ import { tailLog } from '@once-upon-a-diff/adapters/stores/fs/tail-log';
 import { withLock } from '@once-upon-a-diff/adapters/stores/fs/lock';
 import { appendBacklogEvent } from '@once-upon-a-diff/adapters/stores/backlog-file';
 import path from 'node:path';
-import { OPEN, liveClaim, sameAgentView } from './claims.ts';
+import { OPEN, sameAgentView } from './claims.ts';
 import { DONE_HOURS, workAgent, type CardPhase } from './phase.ts';
 import { REPO_RE, sameRepo } from '@once-upon-a-diff/foundation/repos';
 import { newId } from '@once-upon-a-diff/foundation/ids';
@@ -79,15 +76,6 @@ export interface EditInput {
   note?: string | null;
   repo?: string | null;
   story?: string | null;
-}
-
-/** What a claim records: the agent, and who claimed it (its first 8 and full session) and where the work is, when known. */
-export interface ClaimInput {
-  agent: string;
-  sid?: string | null;
-  session?: string | null;
-  worktree?: string | null;
-  by?: string | null;
 }
 
 export interface AddInput {
@@ -153,16 +141,9 @@ export interface BacklogStorage {
   drop(id: string, who?: string | null): BacklogItem;
   reopen(id: string, who?: string | null): BacklogItem;
   done(id: string, input?: DoneInput): BacklogItem;
-  claim(id: string, input: ClaimInput): BacklogItem;
   hold(id: string, held: boolean, who?: string | null): BacklogItem;
   skipCritic(id: string, skipped: boolean, who?: string | null): BacklogItem;
-  someday(
-    id: string,
-    aside: boolean,
-    who?: string | null,
-    agents?: LedgerAgent[],
-    nowMs?: number,
-  ): BacklogItem;
+  someday(id: string, aside: boolean, who?: string | null, agents?: LedgerAgent[]): BacklogItem;
   move(id: string, where: MoveTo, who?: string | null): BacklogItem;
   edit(id: string, input: EditInput, who?: string | null): BacklogItem;
 }
@@ -215,7 +196,6 @@ export function foldBacklogEvents(events: BacklogEvent[]): BacklogItem[] {
         dropped_at: null,
         landed_at: null,
         landed_sha: null,
-        claim: null,
         hold: false,
         critic_skipped: false,
         someday: false,
@@ -248,9 +228,6 @@ export function foldBacklogEvents(events: BacklogEvent[]): BacklogItem[] {
         found.landed_at = landedAt;
       }
       found.landed_sha = found.landed_sha || event.sha || null;
-      // the claim ends when the card lands, whatever its agent is doing. A later claim is recorded, but holds nothing
-      // until a `start` reopens the work (liveClaim ignores a landed card)
-      found.claim = null;
       found.someday = false;
     } else if (found && found.state !== 'dropped' && !found.landed_at && event.op === 'link') {
       // a fact learned about the work: only the fields the event carries are set, nothing else about the card moves
@@ -262,16 +239,8 @@ export function foldBacklogEvents(events: BacklogEvent[]): BacklogItem[] {
       found.session = event.session || found.session;
       found.source = event.source ?? found.source;
     } else if (found && found.state !== 'dropped' && event.op === 'claim') {
-      // (the claim's checkout is the card's until a `link` says another)
+      // an old row (nothing writes one now): its checkout is the card's until a `link` says another, and it ends someday
       found.worktree ??= event.worktree || null;
-      found.claim = {
-        agent: event.agent,
-        sid: event.sid ?? null,
-        session: event.session ?? null,
-        worktree: event.worktree ?? null,
-        by: who,
-        at: when,
-      };
       found.someday = false;
     } else if (found && found.state !== 'dropped' && event.op === 'hold') {
       found.hold = event.on !== false;
@@ -296,7 +265,6 @@ export function foldBacklogEvents(events: BacklogEvent[]): BacklogItem[] {
       found.landed_sha = null;
       found.branch = added.get(id)?.branch ?? null;
       found.repo = added.get(id)?.repo ?? null;
-      found.claim = null;
       found.hold = false;
       found.critic_skipped = false;
       found.someday = false;
@@ -338,7 +306,7 @@ export function foldBacklogEvents(events: BacklogEvent[]): BacklogItem[] {
   }
   for (const [id, mark] of marks) {
     const item = items.get(id) as BacklogItem;
-    // a mark counts while it stands: a start or a claim ends someday, and hold or someday off end theirs
+    // a mark counts while it stands: a start ends someday, and hold or someday off end theirs
     const times = [
       mark.reopened,
       item.hold ? mark.hold : undefined,
@@ -520,35 +488,6 @@ export class BacklogStore implements BacklogStorage {
     return this.find(id);
   }
 
-  /**
-   * Records that an agent owns the card: the board links the card to that agent and to nothing else. The check and the
-   * append run under the log's lock, so claims take turns; the latest claim wins either way, and nothing more is promised.
-   */
-  claim(id: string, input: ClaimInput): BacklogItem {
-    return withLock(this.file, () => this.claimLocked(id, input));
-  }
-
-  private claimLocked(id: string, input: ClaimInput): BacklogItem {
-    const item = this.find(id);
-    if (item.state === 'dropped') {
-      throw new Error(`${id} was dropped`);
-    }
-    const agent = optional(input.agent, 'the agent', AGENT_NAME_RE);
-    if (!agent) {
-      throw new Error('an agent name is needed (--agent NAME, as the ledger names it)');
-    }
-    this.append({
-      op: 'claim',
-      id,
-      agent,
-      sid: optional(input.sid, 'the session id', SID_RE),
-      session: optional(input.session, 'the session', SESSION_RE),
-      worktree: clean(input.worktree, 'the worktree', 500) || null,
-      by: clean(input.by, 'the name', BY_MAX) || 'cli',
-    });
-    return this.find(id);
-  }
-
   /** Marks the card as landing by hand (or clears that): a deploy leaves it open, `done ID` closes it. */
   hold(id: string, held: boolean, who?: string | null): BacklogItem {
     const item = this.find(id);
@@ -576,14 +515,13 @@ export class BacklogStore implements BacklogStorage {
 
   /**
    * Puts an open card in the Someday section (or back in the main list, in its old place). Refused for a started, done or
-   * dropped card, and for one whose claim is live (its agent's run is open, or it was just given the card): `agents` is the registry's.
+   * dropped card, and for one whose run is open (the card's runs say it is worked): `agents` is the registry's.
    */
   someday(
     id: string,
     aside: boolean,
     who?: string | null,
     agents: LedgerAgent[] = [],
-    nowMs: number = Date.now(),
   ): BacklogItem {
     const item = this.find(id);
     if (aside && (item.state !== 'open' || item.landed_at)) {
@@ -591,12 +529,10 @@ export class BacklogStore implements BacklogStorage {
         `${id} is ${item.landed_at ? 'done' : item.state}, only an open card can be someday`,
       );
     }
-    // live: its run is open, or it was just made and the agent's first line has not landed (a finished run's card is free)
+    // a finished run's card is free; dispatch registers its run in the same call, so a card just handed out has one
     const run = workAgent(item, agents);
-    if (aside && (run ? OPEN.includes(run.state) : liveClaim(item, null, nowMs))) {
-      throw new Error(
-        `${id} is claimed by ${item.claim?.agent}, who is working it: it can be someday once that run is over`,
-      );
+    if (aside && run && OPEN.includes(run.state)) {
+      throw new Error(`${id} is worked by ${run.name}: it can be someday once that run is over`);
     }
     this.append({ op: 'someday', id, on: aside, by: clean(who, 'the name', BY_MAX) || 'cli' });
     return this.find(id);
@@ -720,17 +656,11 @@ export const cardLookup =
           closed,
           repo: item.repo,
           branch: item.branch,
-          // a card an agent or a session made has no claim row: its first run's session holds it, as an implicit card's does
-          claimed: !!item.claim || !isListed(item),
           worktree: item.worktree,
           agentMade: item.source === 'agent',
         }
       : null;
   };
-
-/** What to tell whoever takes a card: the claim says who took it, and comes before the agent's start. */
-export const claimHint = (id: string): string =>
-  `Claim it first: once-upon backlog claim ${id} --agent NAME (the agent's name in the ledger), plus --branch BRANCH when it has one`;
 
 /** The line a card shows for starting an item, to paste into a session. */
 export const startLine = (item: Pick<BacklogItem, 'id' | 'branch'>): string =>
@@ -813,7 +743,7 @@ export function mergeIntoWork(
  *                finished with a branch, it is Ready; failed or stopped, it is back in Backlog
  *
  * A card is one card: the agents whose runs name it have no card of their own (stages/agents.ts holds them out) and show on
- * this one, in `agents` (`views`, by item id). A claim no run names yet is Working, marked pending, for CLAIM_GRACE_HOURS.
+ * this one, in `agents` (`views`, by item id).
  * Dropped items are not shown.
  */
 export function backlogCards(
@@ -837,9 +767,7 @@ export function backlogCards(
     let since: string | null = item.added_at || null;
     let tried = false;
     let outside: CardPhase['outside'];
-    const agent = link?.agent ?? null;
     const itemViews = views.get(item.id) ?? [];
-    const claim = liveClaim(original, agent, nowMs);
     if (item.state === 'started' && item.branch) {
       const work = cardOnBranch(item, cards);
       if (work) {
@@ -863,10 +791,6 @@ export function backlogCards(
       } else if (placed.when !== null) {
         since = new Date(placed.when).toISOString();
       }
-    } else if (claim?.pending && (item.state === 'open' || item.state === 'started')) {
-      // claimed (`backlog claim --branch` starts the card too), and its agent's first event has not landed yet
-      column = 'working';
-      since = claim.claim.at || since;
     }
     if (item.state === 'started') {
       const started = Date.parse(item.started_at ?? '');
@@ -924,11 +848,8 @@ export function backlogCards(
           ? { someday: true as const }
           : {}),
         start_line: startLine(item),
-        // an open item whose claimed agent is in the registry: what is working it, or who tried it
+        // an open item whose run is in the registry: what is working it, or who tried it
         agent: original.state === 'open' && !derived && link?.agent ? { links: link, tried } : null,
-        claim: claim
-          ? { agent: claim.claim.agent, at: claim.claim.at || null, pending: claim.pending }
-          : null,
       },
     });
   }

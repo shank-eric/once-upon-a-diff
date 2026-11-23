@@ -1138,7 +1138,6 @@ test('agent start --kind storyteller and --role storyteller both store kind stor
   const env = { CLAUDE_CODE_SESSION_ID: `${SID}-0000-4000-8000-000000000000` };
   const backlog = new BacklogStore(home);
   const card = backlog.add({ title: 'x', branch: 'x-branch' }).id;
-  backlog.claim(card, { agent: 'tell-b' });
   // --kind storyteller names a PR or branch (a card refuses --kind); --role storyteller names the card
   const byKind = await runCli(
     home,

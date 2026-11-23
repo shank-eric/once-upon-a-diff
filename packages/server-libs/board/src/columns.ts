@@ -172,8 +172,8 @@ export function columnOf(input: ColumnInput): BoardColumn {
   if (pr?.state === 'merged' || isLandedLocal(input)) {
     return 'done';
   }
-  // a failed agent on the card (nested by its branch, PR or card, or the claimed author) is Error, as its own card is
-  // (finishedColumn); an acknowledged one is no line on the card (claimViews), so it never gets here
+  // a failed agent on the card (nested by its branch, PR or card, or the author on the card) is Error, as its own card is
+  // (finishedColumn); an acknowledged one is no line on the card (runViews), so it never gets here
   if (agents.some((agent) => agent.state === 'failed')) {
     return 'error';
   }

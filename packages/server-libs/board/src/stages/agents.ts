@@ -150,9 +150,9 @@ const AGENT_COLUMN: Record<LedgerAgent['state'], BoardColumn> = {
 /**
  * The views of the agents on each card, by the id of the card: what the card shows in place of agent cards of its own
  * (backlog.ts's backlogCards). A card named by runs (`card` on an agent's start) shows each of those agents, its latest run
- * on the card, critics and fix rounds included; a claim finds none.
+ * on the card, critics and fix rounds included.
  */
-export function claimViews(
+export function runViews(
   items: BacklogItem[],
   agents: LedgerAgent[],
   nowMs: number,

@@ -69,7 +69,6 @@ function world(check: MergedCheck, askMs?: number) {
 test('a started card whose branch has a merged PR lands at the merge commit, whatever its recorded tip', async () => {
   const ctx = world(async () => merged());
   const id = ctx.started('fix-thing');
-  ctx.store.claim(id, { agent: 'author-1' });
   const registry = new AgentRegistry(ctx.home);
   registry.start({ name: 'author-1', sid: 'abcdef01', kind: 'author', task: 'build', card: id });
   registry.finish('author-1', { sid: 'abcdef01', result: { commit: TIP, card: id } });
@@ -80,7 +79,6 @@ test('a started card whose branch has a merged PR lands at the merge commit, wha
   const item = ctx.item(id);
   assert.equal(item.landed_sha, MERGE);
   assert.ok(item.landed_at);
-  assert.equal(item.claim, null);
   assert.deepEqual(ctx.asked, ['acme/widgets@fix-thing']);
 });
 
@@ -102,7 +100,7 @@ test('a PR merged before the card started, or none, lands nothing', async () => 
   assert.deepEqual(ctx.dones(), []);
 });
 
-test('a card that is held, dropped, landed, someday, unclaimed with no run or has no repo is never asked about', async () => {
+test('a card that is held, dropped, landed, someday, with no run or has no repo is never asked about', async () => {
   const ctx = world(async () => merged());
   const held = ctx.started('held');
   ctx.store.hold(held, true);
@@ -118,20 +116,7 @@ test('a card that is held, dropped, landed, someday, unclaimed with no run or ha
   assert.equal(ctx.dones().length, 1, 'only the landing the test wrote');
 });
 
-test('an open card with a branch lands when it is claimed and its PR merged after the claim, not when before', async () => {
-  const ctx = world(async (_repo, branch) => merged(branch === 'old-name' ? -60 * MIN : 1000));
-  const fresh = ctx.planned('fresh');
-  const old = ctx.planned('old-name');
-  ctx.store.claim(fresh, { agent: 'author-1' });
-  ctx.store.claim(old, { agent: 'author-2' });
-  assert.equal(ctx.item(fresh).state, 'open', 'a claim without --branch never starts the card');
-  assert.equal(await ctx.lander.kick(), 1);
-  assert.equal(ctx.item(fresh).landed_sha, MERGE);
-  assert.equal(ctx.item(old).landed_at, null);
-  assert.deepEqual(ctx.asked.sort(), ['acme/widgets@fresh', 'acme/widgets@old-name']);
-});
-
-test('an open card with a branch that a run names, and no claim, lands by the run start', async () => {
+test('an open card with a branch that a run names lands by the run start', async () => {
   const ctx = world(async () => merged());
   const id = ctx.planned('run-only');
   const quiet = ctx.planned('quiet');

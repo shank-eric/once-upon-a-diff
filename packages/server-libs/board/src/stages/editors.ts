@@ -1,15 +1,13 @@
 /**
  * Editors: the sessions running a repo's build queue (`/once-upon-editor`), and the authors each controls. An
  * editor registers itself (`once-upon editor start --slots N`), so the board knows it and its slots from fields. An author is
- * linked to its editor by the session that claimed its card (the claim's `session`), else by the session it was launched
- * from (its registered sid): one owner each, never by its name or its task: an author (registered `--kind author`) launched under an
+ * linked to its editor by the session its run was launched from (the run's `session`), else by its registered sid: one owner each, never by its name or its task: an author (registered `--kind author`) launched under an
  * editor's session is that editor's author. Critics, storytellers and helpers are not authors. The slots in use are
  * `slotsInUse`'s (state/src/queues/backlog/slots.ts), which `once-upon editor slots` answers with too.
  */
 import { agentKey } from '@once-upon-a-diff/state/queues/backlog/claims';
 import type { LedgerAgent } from '@once-upon-a-diff/state/records/agents/ledger';
-import { claimSessionOf, slotsInUse } from '@once-upon-a-diff/state/queues/backlog/slots';
-import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
+import { slotsInUse } from '@once-upon-a-diff/state/queues/backlog/slots';
 import type { LiveSession } from '@once-upon-a-diff/adapters/claude-sessions/live-sessions';
 import type { BoardAgentEditor, BoardEditor } from '@once-upon-a-diff/contracts/types';
 import { laneOf } from './lanes.ts';
@@ -38,8 +36,6 @@ export interface EditorFacts {
   /** the registered editors (`kind: 'editor'`), read apart from the agents */
   editors: LedgerAgent[];
   agents: LedgerAgent[];
-  /** the backlog's items, whose claims name the session that took each card */
-  items?: Pick<BacklogItem, 'id' | 'claim'>[];
   live: LiveSession[];
   /** whether a session's tab can be brought forward (the status source knows it, as a session card's focus) */
   canFocus: (session: string) => boolean;
@@ -59,7 +55,6 @@ export function editorsOf(facts: EditorFacts): {
   relabel: (labels: Map<string, string>) => void;
 } {
   const { agents, nowMs } = facts;
-  const items = facts.items ?? [];
   const links = new Map<string, BoardAgentEditor>();
   const bySession = new Map<string, BoardAgentEditor>();
   const shown: BoardEditor[] = [];
@@ -75,7 +70,7 @@ export function editorsOf(facts: EditorFacts): {
     };
     links.set(editor.sid, link);
     bySession.set(session, link);
-    const { slots, in_use, authors } = slotsInUse(editor, agents, items, nowMs);
+    const { slots, in_use, authors } = slotsInUse(editor, agents, nowMs);
     shown.push({
       ...link,
       name: editor.name,
@@ -116,13 +111,14 @@ export function editorsOf(facts: EditorFacts): {
       shown.sort((first, second) => first.label.localeCompare(second.label));
     },
     editors: shown,
-    // an author of any state (a finished one keeps its editor on its card): by the session that claimed its card, else its launching session
+    // an author of any state (a finished one keeps its editor on its card): by the session its run was launched from, else its registered sid
     editorOf: (agent) => {
       if (agent.kind !== 'author') {
         return null;
       }
-      const claimed = claimSessionOf(agent, items);
-      return (claimed ? bySession.get(claimed) : undefined) ?? links.get(agent.sid) ?? null;
+      return (
+        (agent.session ? bySession.get(agent.session) : undefined) ?? links.get(agent.sid) ?? null
+      );
     },
   };
 }

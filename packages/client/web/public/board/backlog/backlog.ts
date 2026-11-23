@@ -13,11 +13,7 @@ import { Chips } from '/assets/ui-kit/components/chip.ts';
 import { Banner } from '/assets/ui-kit/components/banner.ts';
 import { ActionButton, useBusy } from '/assets/ui-kit/components/action-button.ts';
 import { ago } from '/assets/terms/time.ts';
-import {
-  agentOnlyChips,
-  pendingClaimChip,
-  startedChips,
-} from '/assets/board/backlog/started-chips.ts';
+import { agentOnlyChips, startedChips } from '/assets/board/backlog/started-chips.ts';
 import { BACKLOG_NOTE_MAX, repoName } from '/assets/terms/text.ts';
 
 /** The ids of the Backlog cards in a card's lane, in the order the board shows them. */
@@ -159,14 +155,13 @@ export function BacklogCard(props: { card: BoardCard; now: number; api: Api; dnd
     ${card.detail && html`<div class="ou-board-detail ou-board-note" title=${card.detail}>${card.detail}</div>`}
     ${item?.started && html`<${Chips} items=${startedChips(item.started)} />`}
     ${item?.agent && !item.started && html`<${Chips} items=${agentOnlyChips(item.agent)} />`}
-    ${item?.claim?.pending && html`<${Chips} items=${[pendingClaimChip(item.claim.agent)]} />`}
     ${card.outside && html`<${Chips} items=${[OUTSIDE_CHIP]} />`}
-    ${item && !item.started && !(item.claim && !item.agent?.tried) && html`<div class="ou-board-startline"><code>${item.start_line}</code></div>`}
+    ${item && !item.started && !(item.agent && !item.agent.tried) && html`<div class="ou-board-startline"><code>${item.start_line}</code></div>`}
     <${CardTrees} card=${card} now=${now} api=${api} />
     <div class="ou-board-actions">
       ${card.outside && html`<${RecordFix} card=${card} api=${api} />`}
       ${item && !item.started && !editing && html`<button type="button" data-backlog-edit=${item.id} onClick=${() => setEditing(true)} title="Change its title, note or repo">Edit</button>`}
-      ${item && card.column === 'backlog' && !item.started && !item.claim?.pending && html`<${ActionButton} attrs=${{ 'data-backlog-someday': item.id }} onClick=${() => someday(item.id, !item.someday)} title=${item.someday ? 'Back in the main Backlog, in its old place' : 'Maybe someday: out of the main Backlog, into the Someday section'}>${item.someday ? 'Back to backlog' : 'Someday'}</${ActionButton}>`}
+      ${item && card.column === 'backlog' && !item.started && html`<${ActionButton} attrs=${{ 'data-backlog-someday': item.id }} onClick=${() => someday(item.id, !item.someday)} title=${item.someday ? 'Back in the main Backlog, in its old place' : 'Maybe someday: out of the main Backlog, into the Someday section'}>${item.someday ? 'Back to backlog' : 'Someday'}</${ActionButton}>`}
       ${item && html`<${ActionButton} attrs=${{ 'data-backlog-drop': item.id }} onClick=${() => drop(item.id)} title="Drop it from the backlog (the line stays in the file)">Drop</${ActionButton}>`}
     </div>
   </li>`;

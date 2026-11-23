@@ -33,7 +33,6 @@ test('link sets branch, worktree, pr and story and leaves the state, start time 
   assert.equal(linked.state, 'started');
   assert.equal(linked.started_at, started.started_at);
   assert.equal(linked.landed_at, null);
-  assert.equal(linked.claim, null);
   // a repeat of what the card has writes nothing
   store.link(card.id, { worktree: '/work/feat-a', pr: 12 });
   assert.equal(rowsOf(store.file).filter((row) => row.op === 'link').length, 1);
@@ -247,7 +246,7 @@ test('listed() drops every card another source made, and keeps one adopted into 
   );
 });
 
-test('cardLookup answers for a stored agent card as it did for the implicit one: claimed, with its repo and branch', () => {
+test('cardLookup answers for a stored agent card as it did for the implicit one: with its repo and branch', () => {
   const store = new BacklogStore(tmp('lookup'));
   ensureCard(store, {
     id: 'ic_aaaaaa1111',
@@ -256,18 +255,15 @@ test('cardLookup answers for a stored agent card as it did for the implicit one:
     repo: REPO,
     branch: 'feat-a',
   });
-  const backlog = store.add({ title: 'plain', repo: REPO });
   const lookup = cardLookup(store);
   assert.deepEqual(lookup('ic_aaaaaa1111'), {
     id: 'ic_aaaaaa1111',
     closed: null,
     repo: REPO,
     branch: 'feat-a',
-    claimed: true,
     worktree: null,
     agentMade: true,
   });
-  assert.equal(lookup(backlog.id)?.claimed, false);
   assert.equal(lookup('ic_nothere1111'), null);
 });
 

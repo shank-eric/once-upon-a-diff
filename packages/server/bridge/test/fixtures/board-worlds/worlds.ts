@@ -1371,7 +1371,7 @@ async function record(
   await record('5-card-runs', board);
 }
 
-// ---- 6. editors: slots in use counted by the one function, a claim that names the editor's session, a run the sweep closed
+// ---- 6. editors: slots in use counted by the one function, a run launched from the editor's session, a run the sweep closed
 {
   const home = tmp('home');
   const sessions = tmp('sessions');
@@ -1434,7 +1434,7 @@ async function record(
     outcome: 'plan ready',
     at: new Date(NOW.getTime() - 30 * 3600 * 1000),
   });
-  // an author launched from another session, on a card the editor's session claimed: the editor's too, through the claim
+  // an author launched from another session, whose run records the editor's full session: the editor's too, through its `session`
   writeFileSync(
     path.join(home, 'backlog.jsonl'),
     [
@@ -1467,9 +1467,10 @@ async function record(
     kind: 'author',
     task: 'build e-claimed',
     card: 'bl_ddddd01',
+    session: fullId(editorChild.pid),
     at: et(13, 5),
   });
-  // the editor has 4 slots and 4 authors hold them (e-run, e-plan, e-fix and e-claimed, whose card its session claimed):
+  // the editor has 4 slots and 4 authors hold them (e-run, e-plan, e-fix and e-claimed, whose run its session launched):
   // `in_use` 4 of 4. Not counted: e-ask and e-story (handed back), e-critic, e-swept (stopped by the sweep) and e-stale
   runs.sweep({ at: NOW });
   const { watcher } = fakeWatcher([], {});
@@ -1759,8 +1760,8 @@ async function record(
     extra = {},
   ) => runs.start({ sid: sid8, name, kind, task: `${name}'s task`, card, at, ...extra });
   // a: an ad-hoc author that built on branch dup-a (an implicit card), and its critic; `backlog add --branch dup-a` then adopted
-  // the implicit card with the add's title and note (an add under the implicit id, started on the branch and claimed for the
-  // author), so it is one card
+  // the implicit card with the add's title and note (an add under the implicit id, started on the branch, with an old claim
+  // row for the author, which the fold still reads), so it is one card
   start('ou-dup', 'ic_ddddd01', 'author', et(14, 20), { repo: 'acme/widgets', branch: 'dup-a' });
   runs.finish('ou-dup', {
     sid: sid8,
@@ -1772,7 +1773,7 @@ async function record(
     repo: 'acme/widgets',
     branch: 'dup-a',
   });
-  // b: a card on another branch, one that is claimed, and one a run names: each is its own card, not part of a
+  // b: a card on another branch, one an old claim row names (nothing works it: it is Backlog), and one a run names: each is its own card, not part of a
   const item = (id: string, title: string, branch: string | null, at = et(13, 0)) => ({
     op: 'add',
     id,
@@ -2664,7 +2665,7 @@ export async function storedCardsChangeNothing(): Promise<
 
 /**
  * The gate for ADR-29's branch B: the card keeper changes no board. For every world, the board is built, a started backlog card is put
- * on a branch the world has a story on (its `worktree` unset, which the fold defaults from its claim), a keeper is attached, and the
+ * on a branch the world has a story on (its `worktree` unset, which the fold defaults from an old claim row), a keeper is attached, and the
  * board is built twice more. The three builds are returned by world name, with how many lines the keeper wrote; the second build of
  * the keeper writes nothing, so its count is the first's.
  */

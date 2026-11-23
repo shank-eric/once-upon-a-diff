@@ -6,7 +6,7 @@ Five requests, followed from the click or the command to the file written and ba
 2. [Ask](#2-ask)
 3. [Board refresh](#3-board-refresh)
 4. [Start listening](#4-start-listening)
-5. [An agent's claim, through to its card landing](#5-an-agents-claim-through-to-its-card-landing)
+5. [An agent's run, through to its card landing](#5-an-agents-run-through-to-its-card-landing)
 
 ## Reading the tables
 
@@ -198,8 +198,8 @@ flowchart LR
 | 17 | `service` | cards for the works, with PR details from what the GitHub watcher last heard | `packages/server-libs/board/src/stages/index.ts` (`buildCards`) |
 | 18 | `service` | each card's column | `packages/server-libs/board/src/stages/cards.ts` (`columnOf`) |
 | 19 | `service` | the column rules | `packages/server-libs/board/src/columns.ts` (`columnOf`) |
-| 20 | `service` | every stored card, folded from **`backlog.jsonl`** (claims included); the listed ones (`source: backlog`) are the Backlog's items, and the rest are joined to runs, sessions and works by id (ADR-29) | `packages/server-libs/board/src/stages/index.ts` (`state.backlog.items(`) |
-| 21 | `service` | which agent claimed which Backlog card | `packages/server-libs/board/src/stages/index.ts` (`claimViews`) |
+| 20 | `service` | every stored card, folded from **`backlog.jsonl`** (old claim rows included); the listed ones (`source: backlog`) are the Backlog's items, and the rest are joined to runs, sessions and works by id (ADR-29) | `packages/server-libs/board/src/stages/index.ts` (`state.backlog.items(`) |
+| 21 | `service` | which agents' runs name which Backlog card | `packages/server-libs/board/src/stages/index.ts` (`runViews`) |
 | 22 | `service` | the lanes, by repo | `packages/server-libs/board/src/stages/index.ts` (`groupLanes`) |
 | 23 | `contracts` | back: the answer's shape | `packages/domain/contracts/src/board/types.ts` (`BoardData`) |
 | 24 | `app` | the root component draws the regions, and Preact's keyed diff keeps focus, scroll and typed text | `packages/client/web/public/board.ts` (`Columns`) |
@@ -246,14 +246,14 @@ flowchart LR
 | 16 | `app` | back: the pulse says whether a listener is live for the story or its repo | `packages/server/server/src/routes/story.ts` (`Listening`) |
 | 17 | `library` | the light turns green | `packages/client/panel/src/shell/overlay.ts` (`moved`) |
 
-## 5. An agent's claim, through to its card landing
+## 5. An agent's run, through to its card landing
 
-A launching session registers an agent and claims a Backlog card for it (an agent started with no card stores one of its own first, ADR-29). The agent beats as it works and finishes with the commit it made. A deploy then marks the card done by that commit; where there is no deploy, the bridge marks it by its branch when the PR merged (hops 24 to 27). Every step is a CLI command over append-only files: no HTTP.
+A launching session registers an agent's run on a Backlog card, which is all it takes to hold the card: there is no claim (ADR-29), and the card's runs say who works it (an agent started with no card stores one of its own first). The agent beats as it works and finishes with the commit it made. A deploy then marks the card done by that commit; where there is no deploy, the bridge marks it by its branch when the PR merged (hops 24 to 27). Every step is a CLI command over append-only files: no HTTP.
 
 ```mermaid
 flowchart LR
   start["agent start"] --> reg[("agents.jsonl")]
-  claim["backlog claim"] --> bl[("backlog.jsonl")]
+  link["dispatch of a fixer: link"] --> bl[("backlog.jsonl")]
   beats["once-upon beat"] --> reg
   finish["agent finish --commit"] --> reg
   board["board (flow 3)"] -.->|reads| reg
@@ -263,18 +263,18 @@ flowchart LR
   land -->|done events| bl
 ```
 
-**Register and claim**
+**Register**
 
 | # | Layer | Hop | At |
 |---|---|---|---|
 | 1 | `app` | `once-upon agent start <name> --role author --card <id> …` (a parent session's own work: `once-upon agent start --self --role author --card <id> …`, which mints the name `self-XXXXXX`; with no `--card`, an author, helper or research start first stores a card, `source: agent`, or joins the open card on its branch) | `packages/server/cli/src/commands/agent.ts` (`startRun(`), which runs `packages/server-libs/core/src/features/runs/start-run.ts` (`registry.start(`) |
-| 2 | `service` | `AgentRegistry.start` checks the fields (the card exists and is open and claimed, one author at a time, a critic or fixer names its card, the card's repo and branch are the run's and a typed `--kind`, `--repo`, `--branch`, `--pr` or `--lane` beside `--card` is refused: ADR-25) and gives the run an id | `packages/server-libs/state/src/records/agents/registry.ts` (`AgentRegistry`) |
+| 2 | `service` | `AgentRegistry.start` checks the fields (the card exists and is open, one author at a time, a critic or fixer names its card, the card's repo and branch are the run's and a typed `--kind`, `--repo`, `--branch`, `--pr` or `--lane` beside `--card` is refused: ADR-25) and gives the run an id | `packages/server-libs/state/src/records/agents/registry.ts` (`AgentRegistry`) |
 | 3 | `adapter` | **appends a `start` event to `agents.jsonl`** | `packages/server-libs/adapters/src/stores/agents-file.ts` (`appendAgentEvent`) |
 | 4 | `service` | and a log line to the ledger file through the adapter's `appendLine`, when `board_ledger_file` is set (a mirror for the status line, the iTerm hook and people; the board never reads it) | `packages/server-libs/state/src/records/agents/registry.ts` (`appendLine`) |
-| 5 | `app` | `once-upon backlog claim <id> --agent <name> --branch <b>` | `packages/server/cli/src/commands/backlog.ts` (`store.claim(`) |
-| 6 | `service` | `BacklogStore.claim` refuses a dropped card | `packages/server-libs/state/src/queues/backlog/backlog.ts` (`claim`) |
-| 7 | `adapter` | **appends a `claim` event to `backlog.jsonl`** | `packages/server-libs/adapters/src/stores/backlog-file.ts` (`appendBacklogEvent`) |
-| 8 | `app` | `--branch` also starts the card on that branch | `packages/server/cli/src/commands/backlog.ts` (`store.start(`) |
+| 5 | `app` | the editor launches an agent with `once-upon dispatch <card> --role author …`, which makes hops 1 to 4 for it and prints the Agent call and its brief | `packages/server/cli/src/commands/dispatch.ts` (`dispatchRun(`) |
+| 6 | `service` | `dispatchRun` writes nothing else for an author (a second open author is the registry's refusal at hop 2); a fixer's start links the worktree it verified to the card | `packages/server-libs/core/src/features/runs/dispatch.ts` (`store.link(`) |
+| 7 | `adapter` | **appends a `link` event to `backlog.jsonl`** (a fixer only) | `packages/server-libs/adapters/src/stores/backlog-file.ts` (`appendBacklogEvent`) |
+| 8 | `app` | `once-upon backlog start <id> --branch <b>` starts a card on a branch (the retired `backlog claim --branch` did the same) | `packages/server/cli/src/commands/backlog.ts` (`store.start(`) |
 
 **Work and beats**
 
@@ -283,7 +283,7 @@ flowchart LR
 | 9 | `outside` | the agent runs `once-upon beat <name> N/M <step> "<note>"` (`fnm exec --using=24 once-upon beat …` from a shell not on Node 24) |  |
 | 10 | `app` | `beat`, which also writes the progress line for an agent that has no open run (`agent beat` is the same without that) | `packages/server/cli/src/commands/beat.ts` (`registry.beatOrLog(`) |
 | 11 | `service` | **appends a `beat` event** | `packages/server-libs/state/src/records/agents/registry.ts` (`beat`) |
-| 12 | `service` | the board reads both files on each build (flow 3, hops 13–14 and 20): the card its runs name sits in the column its runs say, with its agents on it (`claimViews`) | `packages/server-libs/board/src/stages/agents.ts` (`claimViews`) |
+| 12 | `service` | the board reads both files on each build (flow 3, hops 13–14 and 20): the card its runs name sits in the column its runs say, with its agents on it (`runViews`) | `packages/server-libs/board/src/stages/agents.ts` (`runViews`) |
 | 13 | `service` | once the author finishes, the card waits for its critic before Ready to ship, and an open fix round keeps it Working (the table: `packages/server-libs/state/src/queues/backlog/phase.ts` (`cardPhase`)) | `packages/server-libs/board/src/stages/backlog.ts` (`cardPhase`) |
 
 **Finish and land**
@@ -308,6 +308,6 @@ A card the script couldn't match is printed, to close by hand with `once-upon ba
 | # | Layer | Hop | At |
 |---|---|---|---|
 | 24 | `service` | each board build (every 2 s at most) kicks the landing in the background and never waits for it | `packages/server-libs/board/src/board.ts` (`landMerged`) |
-| 25 | `service` | one run at a time; an unheld card with a repo and branch and its work begun (started, claimed or named by a run) is asked about once per 10 minutes, 20 at most a kick, each ask timed out | `packages/server-libs/state/src/queues/backlog/land-merged.ts` (`private async run(`) |
+| 25 | `service` | one run at a time; an unheld card with a repo and branch and its work begun (started or named by a run) is asked about once per 10 minutes, 20 at most a kick, each ask timed out | `packages/server-libs/state/src/queues/backlog/land-merged.ts` (`private async run(`) |
 | 26 | `adapter` | `gh api graphql` asks for the merged PRs of the card's branch: head in the card's repo, into the default branch | `packages/server-libs/state/src/records/github/merged-pr.ts` (`ghMergedCheck`) |
 | 27 | `service` | merged at or after the card's work began: **appends a `done` event** at the merge commit with `merged_at`, `by: merged-pr` (the card's `landed_at` is the merge time), and the board drops its kept answer | `packages/server-libs/state/src/queues/backlog/land-merged.ts` (`this.store.done(`) |

@@ -34,15 +34,12 @@ const warnings = () => {
   const lines: string[] = [];
   return { lines, io: { warn: (line: string) => lines.push(line) } satisfies RunIo };
 };
-/** A card with a repo and, unless `branch` is null, a branch; claimed for `claim` when given. */
-function card(dir: string, branch: string | null = 'feat/x', claim: string | null = null) {
+/** A card with a repo and, unless `branch` is null, a branch. */
+function card(dir: string, branch: string | null = 'feat/x') {
   const store = new BacklogStore(dir);
   const item = store.add({ title: 'A card', repo: 'acme/widgets' });
   if (branch) {
     store.start(item.id, { branch, repo: 'acme/widgets' });
-  }
-  if (claim) {
-    store.claim(item.id, { agent: claim, sid: SID });
   }
   return item.id;
 }
@@ -52,7 +49,7 @@ const refused = (promise: Promise<unknown>, pattern: RegExp) =>
 
 test('the role table: a fixer runs as an author and keeps its role on the start row', async () => {
   const dir = home('roles');
-  const id = card(dir, 'feat/x', 'ou-a');
+  const id = card(dir, 'feat/x');
   await startRun(dir, input({ card: id, role: 'author' }));
   finishRun(dir, 'ou-a', { sid: SID });
   await startRun(dir, input({ name: 'fix-a', card: id, role: 'fixer' }));
@@ -122,16 +119,18 @@ test('flags a card answers are refused all at once, and nothing is written', asy
   assert.equal(new BacklogStore(dir).items()[0].branch, 'feat/x', 'the card is as it was');
 });
 
-test('an author needs the card claimed first, and one author runs on a card at a time', async () => {
+test('an author starts on a card with no claim, and one author runs on a card at a time', async () => {
   const dir = home('claim');
   const id = card(dir);
-  await refused(startRun(dir, input({ card: id, role: 'author' })), /has no claim/);
-  new BacklogStore(dir).claim(id, { agent: 'ou-a', sid: SID });
   await startRun(dir, input({ card: id, role: 'author' }));
-  new BacklogStore(dir).claim(id, { agent: 'ou-b', sid: SID });
+  assert.equal(
+    readFileSync(new BacklogStore(dir).file, 'utf8').includes('"op":"claim"'),
+    false,
+    'no claim row is written',
+  );
   await refused(
     startRun(dir, input({ name: 'ou-b', card: id, role: 'author' })),
-    /already has an open author|one author/,
+    /already has an open author/,
   );
 });
 
@@ -145,7 +144,7 @@ test('an unknown card is refused', async () => {
 
 test('a typed branch stamps a card that has none, after the run is accepted', async () => {
   const dir = home('stamp-branch');
-  const id = card(dir, null, 'ou-a');
+  const id = card(dir, null);
   const started = await startRun(dir, input({ card: id, role: 'author', branch: 'feat/typed' }));
   assert.deepEqual(started.stamped, { branch: 'feat/typed', repo: 'acme/widgets' });
   assert.equal(new BacklogStore(dir).items()[0].branch, 'feat/typed');
@@ -154,7 +153,7 @@ test('a typed branch stamps a card that has none, after the run is accepted', as
 
 test('--pr stamps the card with the PR head branch from gh', async () => {
   const dir = home('stamp-pr');
-  const id = card(dir, null, 'ou-a');
+  const id = card(dir, null);
   const asked: unknown[] = [];
   const started = await startRun(dir, input({ card: id, role: 'author', pr: '42' }), {
     prHead: async (repo, pr) => {
@@ -186,13 +185,14 @@ test('gh failing warns and starts anyway, except for a storyteller with nothing 
 test('a refused start leaves the card untouched: the run is written first, the card second', async () => {
   const dir = home('write-order');
   const id = card(dir, null);
-  // no claim: the registry refuses the author before anything is written
+  await startRun(dir, input({ name: 'ou-a', card: id, role: 'author' }));
+  // another author is open: the registry refuses the second before anything is written
   await refused(
-    startRun(dir, input({ card: id, role: 'author', branch: 'feat/typed' })),
-    /has no claim/,
+    startRun(dir, input({ name: 'ou-b', card: id, role: 'author', branch: 'feat/typed' })),
+    /already has an open author/,
   );
   assert.equal(new BacklogStore(dir).items()[0].branch, null);
-  assert.equal(existsSync(agentsFile(dir)), false);
+  assert.equal(starts(dir).length, 1);
 });
 
 test('mirror none writes no ledger or progress line; ledger writes the ledger only', async () => {
@@ -217,7 +217,7 @@ test('mirror none writes no ledger or progress line; ledger writes the ledger on
 
 test('moveBranch writes the card first, then each open run, and says unchanged when nothing moved', async () => {
   const dir = home('move');
-  const id = card(dir, 'feat/old', 'ou-a');
+  const id = card(dir, 'feat/old');
   await startRun(dir, input({ card: id, role: 'author' }));
   await startRun(dir, input({ name: 'rev-a', card: id, role: 'critic' }));
   finishRun(dir, 'rev-a', { sid: SID, findings: 0 });

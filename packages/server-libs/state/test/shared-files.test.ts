@@ -6,7 +6,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { copyFileSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, copyFileSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import '@once-upon-a-diff/test-kit/env';
@@ -224,7 +224,11 @@ test('everything the stores write reads back through the formats, and none of it
     const item = backlog.add({ title: 'a', note: 'n', repo: 'acme/widgets' });
     const other = backlog.add({ title: 'b' });
     backlog.start(item.id, { branch: 'feat-x' });
-    backlog.claim(item.id, { agent: 'author-x', sid });
+    // a claim row nothing writes now: it still reads back through the format and folds
+    appendFileSync(
+      backlog.file,
+      `${JSON.stringify({ op: 'claim', id: item.id, agent: 'author-x', sid, by: 'test', at: '2026-10-26T18:35:00.000Z' })}\n`,
+    );
     backlog.hold(item.id, true);
     backlog.move(other.id, { edge: 'top' });
     backlog.move(other.id, { before: item.id });

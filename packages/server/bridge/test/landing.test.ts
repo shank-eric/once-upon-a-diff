@@ -74,7 +74,6 @@ test('a branch name that matches is not a landing: the card stays open when its 
   const lab = world();
   const item = lab.store.add({ title: 'Build x', repo: 'acme/widgets' });
   lab.store.start(item.id, { branch: 'feat/x', repo: 'acme/widgets' });
-  lab.store.claim(item.id, { agent: 'ou-x', sid: SID });
   lab.branch('feat/x');
   const tip = lab.edit(3, 'x change');
   lab.run('ou-x', item.id, tip);
@@ -90,7 +89,6 @@ test('a branch name that matches is not a landing: the card stays open when its 
 test('a fast-forward deploy lands the card whose tip is in the range, a short sha as recorded', () => {
   const lab = world();
   const item = lab.store.add({ title: 'Build y', repo: 'acme/widgets' });
-  lab.store.claim(item.id, { agent: 'ou-y', sid: SID });
   lab.branch('feat/y');
   const tip = lab.edit(3, 'y change');
   lab.run('ou-y', item.id, tip.slice(0, 9));
@@ -98,7 +96,7 @@ test('a fast-forward deploy lands the card whose tip is in the range, a short sh
   assert.deepEqual(
     found.landed.map((one) => [one.item.id, one.sha]),
     [[item.id, tip]],
-    'a claimed card with no start lands too',
+    'a card with a run and no start lands too',
   );
   // a tip that was already live before the range is not this deploy's
   assert.deepEqual(lab.land(lab.store, tip, tip).landed, []);
@@ -107,7 +105,6 @@ test('a fast-forward deploy lands the card whose tip is in the range, a short sh
 test('a cherry-picked card lands as the picked commit, by patch', () => {
   const lab = world();
   const item = lab.store.add({ title: 'Build z', repo: 'acme/widgets' });
-  lab.store.claim(item.id, { agent: 'ou-z', sid: SID });
   lab.branch('feat/z');
   const tip = lab.edit(3, 'z change');
   lab.run('ou-z', item.id, tip);
@@ -126,7 +123,6 @@ test('a cherry-picked card lands as the picked commit, by patch', () => {
 test('a rebased tip (same patch, new sha) in a fast-forward range lands', () => {
   const lab = world();
   const item = lab.store.add({ title: 'Build r', repo: 'acme/widgets' });
-  lab.store.claim(item.id, { agent: 'ou-r', sid: SID });
   lab.branch('feat/r');
   const tip = lab.edit(3, 'r change');
   lab.run('ou-r', item.id, tip);
@@ -146,7 +142,6 @@ test('a rebased tip (same patch, new sha) in a fast-forward range lands', () => 
 test('an amended tip is tracked: two runs, the newer commit is the card’s', () => {
   const lab = world();
   const item = lab.store.add({ title: 'Build a', repo: 'acme/widgets' });
-  lab.store.claim(item.id, { agent: 'ou-a', sid: SID });
   lab.branch('feat/a');
   const first = lab.edit(3, 'a change');
   lab.run('ou-a', item.id, first);
@@ -181,7 +176,6 @@ test('a finish with no --card takes its run’s start card; a finish with no com
 test('a batch pick whose patch changed lands through the picked sha; an empty commit never matches an empty one', () => {
   const lab = world();
   const item = lab.store.add({ title: 'Build p', repo: 'acme/widgets' });
-  lab.store.claim(item.id, { agent: 'ou-p', sid: SID });
   // the branch's change sits next to a line that main changes: the pick still applies, with different context
   lab.branch('feat/p');
   const tip = lab.edit(10, 'p change');
@@ -197,7 +191,6 @@ test('a batch pick whose patch changed lands through the picked sha; an empty co
   assert.equal(viaPicked.landed[0].sha, picked, 'the commit that went live, not the branch commit');
 
   const empty = lab.store.add({ title: 'Build e', repo: 'acme/widgets' });
-  lab.store.claim(empty.id, { agent: 'ou-e', sid: SID });
   lab.branch('feat/e');
   git(lab.repo, 'commit', '-q', '--allow-empty', '-m', 'empty one');
   const emptyTip = git(lab.repo, 'rev-parse', 'HEAD');
@@ -214,7 +207,6 @@ test('a batch pick whose patch changed lands through the picked sha; an empty co
 test('a batch pick whose patch is unchanged records the pick, not the branch commit', () => {
   const lab = world();
   const item = lab.store.add({ title: 'Build q', repo: 'acme/widgets' });
-  lab.store.claim(item.id, { agent: 'ou-q2', sid: SID });
   lab.branch('feat/q');
   const tip = lab.edit(3, 'q change');
   lab.run('ou-q2', item.id, tip);
@@ -227,10 +219,9 @@ test('a batch pick whose patch is unchanged records the pick, not the branch com
   assert.notEqual(found.landed[0].sha, tip);
 });
 
-test('a claimed card whose agent is still running is "still in progress", not "finished without a tip"', () => {
+test('a card whose agent is still running is "still in progress", not "finished without a tip"', () => {
   const lab = world();
   const busy = lab.store.add({ title: 'Busy', repo: 'acme/widgets' });
-  lab.store.claim(busy.id, { agent: 'ou-busy', sid: SID });
   lab.registry.start({
     name: 'ou-busy',
     sid: SID,
@@ -240,7 +231,6 @@ test('a claimed card whose agent is still running is "still in progress", not "f
     at: new Date(),
   });
   const done = lab.store.add({ title: 'Done unmatched', repo: 'acme/widgets' });
-  lab.store.claim(done.id, { agent: 'ou-fin', sid: SID });
   lab.run('ou-fin', done.id, null);
   lab.branch('feat/b');
   const tip = lab.edit(3, 'b change');
@@ -251,11 +241,10 @@ test('a claimed card whose agent is still running is "still in progress", not "f
   assert.match(why.get(done.id) ?? '', /no recorded tip/);
 });
 
-test('"still in progress" reads the card’s runs: a fix round that is not the claimed run counts', () => {
+test('"still in progress" reads the card’s runs: a fix round that is not the first run counts', () => {
   const lab = world();
   const { item, tip } = (() => {
     const made = lab.store.add({ title: 'Fix round', repo: 'acme/widgets' });
-    lab.store.claim(made.id, { agent: 'ou-fix', sid: SID });
     lab.branch('feat/f');
     return { item: made, tip: lab.edit(3, 'f change') };
   })();
@@ -276,18 +265,17 @@ test('"still in progress" reads the card’s runs: a fix round that is not the c
   assert.match(found.open.find((one) => one.item.id === item.id)?.why ?? '', /still in progress/);
 });
 
-/** a card claimed by `agent` (claim made now), with the deploy range ready so its reason can be read */
-function claimedCard(lab: ReturnType<typeof world>, agent: string) {
-  const item = lab.store.add({ title: 'Claimed', repo: 'acme/widgets' });
-  lab.store.claim(item.id, { agent, sid: SID });
+/** a card with the deploy range ready so its reason can be read */
+function workedCard(lab: ReturnType<typeof world>) {
+  const item = lab.store.add({ title: 'Worked', repo: 'acme/widgets' });
   lab.branch('feat/c');
   const tip = lab.edit(3, 'c change');
   return { item, tip };
 }
 
-test('"still in progress" is about the run that holds the claim, not a later run of the same agent', () => {
+test('"still in progress" is about the run that names the card, not a later run of the same agent', () => {
   const lab = world();
-  const { item, tip } = claimedCard(lab, 'ou-again');
+  const { item, tip } = workedCard(lab);
   const now = Date.now();
   const start = (card: string, when: number) =>
     lab.registry.start({
@@ -298,7 +286,7 @@ test('"still in progress" is about the run that holds the claim, not a later run
       card,
       at: new Date(when),
     });
-  // the claimed run ends with no commit, then the same agent starts a run for another card
+  // the card's run ends with no commit, then the same agent starts a run for another card
   start(item.id, now);
   lab.registry.finish('ou-again', { sid: SID, at: new Date(now + 60000) });
   start('bl_0123456789ab', now + 120000);
@@ -307,9 +295,9 @@ test('"still in progress" is about the run that holds the claim, not a later run
   assert.doesNotMatch(found.open[0].why, /still in progress/);
 });
 
-test('"still in progress" is not said of a claimed run that has gone stale', () => {
+test('"still in progress" is not said of a run that has gone stale', () => {
   const lab = world();
-  const { item, tip } = claimedCard(lab, 'ou-crashed');
+  const { item, tip } = workedCard(lab);
   const now = Date.now();
   // its last sign of life was 25 hours ago, and it never finished
   lab.registry.start({
@@ -335,7 +323,6 @@ test('"still in progress" is not said of a claimed run that has gone stale', () 
 test('a held card is never marked by a deploy, hold --off clears it, and done closes it by hand', () => {
   const lab = world();
   const item = lab.store.add({ title: 'Cutover', repo: 'acme/widgets' });
-  lab.store.claim(item.id, { agent: 'ou-h', sid: SID });
   assert.equal(lab.store.hold(item.id, true).hold, true);
   lab.branch('feat/h');
   const tip = lab.edit(3, 'h change');
@@ -346,8 +333,6 @@ test('a held card is never marked by a deploy, hold --off clears it, and done cl
     held.held.map((one) => one.id),
     [item.id],
   );
-  // hold is sticky across a new claim
-  assert.equal(lab.store.claim(item.id, { agent: 'ou-h2' }).hold, true);
   assert.equal(lab.store.hold(item.id, false).hold, false);
   assert.equal(lab.land(lab.store, lab.base, tip).landed.length, 1);
   lab.store.hold(item.id, true);
@@ -359,15 +344,14 @@ test('a held card is never marked by a deploy, hold --off clears it, and done cl
   assert.equal(lab.store.reopen(other.id).hold, false);
 });
 
-test('a claimed card with no tip, or a tip from another repo, is reported and left alone', () => {
+test('a card with a run and no tip, or a tip from another repo, is reported and left alone', () => {
   const lab = world();
   const none = lab.store.add({ title: 'No tip', repo: 'acme/widgets' });
-  lab.store.claim(none.id, { agent: 'ou-n', sid: SID });
+  lab.run('ou-n', none.id, null);
   const foreign = lab.store.add({ title: 'Elsewhere', repo: 'acme/widgets' });
-  lab.store.claim(foreign.id, { agent: 'ou-f', sid: SID });
   lab.run('ou-f', foreign.id, 'deadbeefdeadbeef');
   const other = lab.store.add({ title: 'Other repo', repo: 'acme/gadgets' });
-  lab.store.claim(other.id, { agent: 'ou-g', sid: SID });
+  lab.run('ou-g', other.id, null);
   lab.branch('feat/n');
   const tip = lab.edit(3, 'n change');
   const found = lab.land(lab.store, lab.base, tip);
@@ -385,9 +369,8 @@ test('a claimed card with no tip, or a tip from another repo, is reported and le
 test('the CLI: land marks and reports without a branch, --dry-run writes nothing, done --branch is gone', async () => {
   const lab = world();
   const item = lab.store.add({ title: 'Build cli', repo: 'acme/widgets' });
-  lab.store.claim(item.id, { agent: 'ou-cli', sid: SID });
   const quiet = lab.store.add({ title: 'Quiet', repo: 'acme/widgets' });
-  lab.store.claim(quiet.id, { agent: 'ou-q', sid: SID });
+  lab.run('ou-q', quiet.id, null);
   lab.branch('feat/cli');
   const tip = lab.edit(3, 'cli change');
   lab.run('ou-cli', item.id, tip);
@@ -409,13 +392,11 @@ test('the CLI: land marks and reports without a branch, --dry-run writes nothing
   assert.equal(lab.store.items().find((one) => one.id === quiet.id)?.hold, true);
 });
 
-test('a landed card is done with its claim ended, whether its agent is still waiting or finished', async () => {
+test('a landed card is done whether its agent is still waiting or finished', async () => {
   const lab = world();
   const parked = lab.store.add({ title: 'Parked on review', repo: 'acme/widgets' });
-  lab.store.claim(parked.id, { agent: 'ou-wait', sid: SID });
   lab.store.start(parked.id, { branch: 'feat/w', repo: 'acme/widgets' });
   const finished = lab.store.add({ title: 'Finished', repo: 'acme/widgets' });
-  lab.store.claim(finished.id, { agent: 'ou-fin', sid: SID });
   lab.store.start(finished.id, { branch: 'feat/f', repo: 'acme/widgets' });
   lab.branch('feat/w');
   const first = lab.edit(3, 'w change');
@@ -442,21 +423,16 @@ test('a landed card is done with its claim ended, whether its agent is still wai
     const item = JSON.parse(shown.stdout);
     assert.equal(item.state, 'done', `${id} reads done`);
     assert.equal(item.landed_sha, sha);
-    assert.equal(item.claim, null, `${id}'s claim ended when it landed`);
   }
-  // a fix round's claim after the landing is recorded, and a start reopens the work
-  lab.store.claim(parked.id, { agent: 'ou-wait', sid: SID });
-  const reclaimed = lab.store.items().find((one) => one.id === parked.id);
-  assert.equal(reclaimed?.claim?.agent, 'ou-wait');
+  // a start reopens the work
   const restarted = lab.store.start(parked.id, { branch: 'feat/w', repo: 'acme/widgets' });
   assert.equal(restarted.state, 'started', 'a start reopens the work');
-  assert.equal(restarted.claim?.agent, 'ou-wait');
+  assert.equal(restarted.landed_at, null);
 });
 
 test('the CLI reports a landed then dropped card as dropped, and the open list leaves out a card that landed with no start', async () => {
   const lab = world();
-  const unstarted = lab.store.add({ title: 'Claimed, never started', repo: 'acme/widgets' });
-  lab.store.claim(unstarted.id, { agent: 'ou-u', sid: SID });
+  const unstarted = lab.store.add({ title: 'Landed, never started', repo: 'acme/widgets' });
   lab.store.done(unstarted.id, { sha: 'abc1234' });
   const gone = lab.store.add({ title: 'Landed then dropped', repo: 'acme/widgets' });
   lab.store.done(gone.id, { sha: 'abc1234' });

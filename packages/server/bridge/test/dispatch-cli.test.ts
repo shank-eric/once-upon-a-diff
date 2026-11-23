@@ -57,7 +57,7 @@ test('dispatch prints the Agent call first, then the brief, with the run’s nam
   }
   const [run] = ctx.runs();
   assert.equal(run.name, 'feat-x');
-  assert.equal(ctx.store.items()[0].claim?.agent, 'feat-x');
+  assert.equal(run.card, ctx.card);
 });
 
 test('--json prints the call’s fields and the prompt; an unknown role and a missing card are refused', async () => {
@@ -116,7 +116,7 @@ test('dispatch, then handback from the agent’s own session: the finish row hol
   assert.equal(run?.state, 'done');
   assert.deepEqual(run?.result, { commit: tip, branch: 'feat-x', card: ctx.card });
   assert.equal(run?.outcome, 'built');
-  // nothing was claimed or started by hand: the card's own status reads its runs
+  // the card's own status reads its runs
   const status = await ctx.cli(['card', 'status', ctx.card]);
   assert.equal(status.code, 0, status.stderr);
   assert.match(status.stdout, /feat-x/);

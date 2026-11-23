@@ -34,7 +34,6 @@
             "backlog": {
               "added_by": "cli",
               "agent": null,
-              "claim": null,
               "id": "bl_aaaaaa4",
               "start_line": "once-upon backlog start bl_aaaaaa4 --branch <branch>",
               "started": null
@@ -366,7 +365,6 @@
             "backlog": {
               "added_by": "cli",
               "agent": null,
-              "claim": null,
               "id": "bl_aaaaaa2",
               "start_line": "once-upon backlog start bl_aaaaaa2 --branch old-one",
               "started": {
@@ -444,7 +442,6 @@
             "backlog": {
               "added_by": "cli",
               "agent": null,
-              "claim": null,
               "id": "bl_aaaaaa3",
               "start_line": "once-upon backlog start bl_aaaaaa3 --branch <branch>",
               "started": null
@@ -473,7 +470,6 @@
             "backlog": {
               "added_by": "cli",
               "agent": null,
-              "claim": null,
               "id": "bl_aaaaaa5",
               "start_line": "once-upon backlog start bl_aaaaaa5 --branch <branch>",
               "started": null
@@ -502,7 +498,6 @@
             "backlog": {
               "added_by": "cli",
               "agent": null,
-              "claim": null,
               "id": "bl_aaaaaa7",
               "start_line": "once-upon backlog start bl_aaaaaa7 --branch ghost-branch",
               "started": {
@@ -543,7 +538,6 @@
             "backlog": {
               "added_by": "cli",
               "agent": null,
-              "claim": null,
               "id": "bl_aaaaaa8",
               "someday": true,
               "start_line": "once-upon backlog start bl_aaaaaa8 --branch <branch>",
@@ -588,11 +582,6 @@
                   "worktrees": []
                 },
                 "tried": true
-              },
-              "claim": {
-                "agent": "ou-tried",
-                "at": "2026-10-26T18:35:00.000Z",
-                "pending": false
               },
               "id": "bl_aaaaaa9",
               "someday": true,

@@ -1,4 +1,4 @@
-// what the tests that drive the agent registry share: the isolation env, and the claim event and the runs with a chosen time
+// what the tests that drive the agent registry share: the isolation env, an old claim row and the runs with a chosen time
 import '@once-upon-a-diff/test-kit/env';
 import { appendFileSync } from 'node:fs';
 import { BacklogStore } from '../src/queues/backlog/backlog.ts';
@@ -8,8 +8,8 @@ import { AgentRegistry } from '../src/records/agents/registry.ts';
 import type { AgentKind, AgentResult } from '../src/records/agents/agent-types.ts';
 
 /**
- * A claim event stamped `stamp`: the store stamps the real clock, and a fixture's ledger is days old, so a test that needs the
- * claim made while a fixture run was going writes it with the time it means.
+ * An old claim row stamped `stamp`. Nothing writes claim rows now (a card's runs say who works it, ADR-29), but the file still
+ * holds them and the fold still reads them (a worktree default, someday off), so a test of that writes one by hand.
  */
 export function claimAt(
   store: { file: string },
@@ -17,11 +17,19 @@ export function claimAt(
   agent: string,
   stamp: string,
   sid?: string,
+  worktree?: string,
 ): void {
   appendFileSync(
     store.file,
-    JSON.stringify({ op: 'claim', id, agent, ...(sid ? { sid } : {}), by: 'test', at: stamp }) +
-      '\n',
+    JSON.stringify({
+      op: 'claim',
+      id,
+      agent,
+      ...(sid ? { sid } : {}),
+      ...(worktree ? { worktree } : {}),
+      by: 'test',
+      at: stamp,
+    }) + '\n',
   );
 }
 

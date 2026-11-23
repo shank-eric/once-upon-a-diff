@@ -2,7 +2,7 @@
  * Implicit cards (ADR-27): work that did not start in the backlog is its own card, and the card is the run. `agent start` with
  * no `--card` mints an `ic_` id on its start row (registry.ts), and every later run that names the id is on that card. There
  * is no row for the card anywhere: it is read here, from the runs, so a start is one row in one file. The first run's start row is
- * the card: its task is the title, its repo the card's, its session the one that holds the claim. A later run may fill a branch
+ * the card: its task is the title, its repo the card's, its session the one that started it. A later run may fill a branch
  * the card has none of. `backlog adopt` writes the card into backlog.jsonl under the same id, after which the backlog's is the
  * card and this one drops out (queues/backlog/implicit.ts). Pure.
  */
@@ -22,7 +22,7 @@ export interface ImplicitCard {
   repo: string | null;
   /** the latest branch any run named: a later run fills one the first had none of */
   branch: string | null;
-  /** the first run's launching session and name: the claim */
+  /** the first run's launching session and name */
   sid: string;
   agent: string;
   /** when the first run started, as an ISO time */

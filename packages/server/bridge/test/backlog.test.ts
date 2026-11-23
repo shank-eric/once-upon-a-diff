@@ -4,6 +4,7 @@ import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
 import {
+  claimAt,
   tmp,
   writeJson,
   startBridge,
@@ -346,11 +347,10 @@ const phaseFor = (
   ]);
 };
 
-test('a claimed started item is one Working card with its agent on it; with a work card on its branch it rides there', () => {
+test('a started item with a run is one Working card with its agent on it; with a work card on its branch it rides there', () => {
   const store = new BacklogStore(tmp('backlog-agent-fold'));
   const item = store.add({ title: 'Hold a spoken line', repo: 'acme/larmor' });
   store.start(item.id, { branch: 'voice/hold', by: 'hold-speech' });
-  store.claim(item.id, { agent: 'hold-speech' });
   const view = {
     key: 'aaaaaaaa:hold-speech',
     name: 'hold-speech',
@@ -365,7 +365,7 @@ test('a claimed started item is one Working card with its agent on it; with a wo
   assert.equal(shown[0].title, 'Hold a spoken line');
   assert.equal(shown[0].column, 'working');
   assert.deepEqual(shown[0].agents, [view]);
-  assert.equal(shown[0].backlog?.claim?.agent, 'hold-speech');
+  assert.equal('claim' in (shown[0].backlog ?? {}), false, 'a card carries no claim');
   // a work card on its branch takes the item and the agent, and keeps its own title
   const inside = work('acme/larmor', 'voice/hold', {
     agents: [],
@@ -984,10 +984,9 @@ test('reopen brings a dropped item back with the same id; only a dropped item ca
   assert.equal(store.items()[0].state, 'started');
 });
 
-test('an open item with a claimed agent: one card in the agent’s column while it works, then what it produced', () => {
+test('an open item with a run: one card in the agent’s column while it works, then what it produced', () => {
   const store = new BacklogStore(tmp('backlog-open-agent'));
   const item = store.add({ title: 'Look into a thing', repo: 'acme/widgets' });
-  store.claim(item.id, { agent: 'hold-speech' });
   const hour = 3600 * 1000;
   const ended = new Date(NOW - 10 * 60 * 1000).toISOString();
   const cardsFor = (state: BoardAgentState, endedAt: string | null, now = NOW) =>
@@ -1005,8 +1004,7 @@ test('an open item with a claimed agent: one card in the agent’s column while 
     running.map((card) => card.column),
     ['working'],
   );
-  assert.equal(running[0].backlog?.claim?.agent, 'hold-speech');
-  assert.equal(running[0].backlog?.claim?.pending, false);
+  assert.equal(running[0].backlog?.agent?.links.agent?.name, 'hold-speech');
   // a question waits on you; a plan stop waits on the editor's check, so it is in Agent checks
   for (const [state, column] of [
     ['plan', 'checks'],
@@ -1040,23 +1038,10 @@ test('an open item with a claimed agent: one card in the agent’s column while 
     );
     assert.equal(back[0].backlog?.agent?.tried, tried);
   }
-  // a claim whose agent has no ledger line yet: Working, pending, until the grace is over
-  const pending = backlogCards(
-    store.items(),
-    [],
-    Date.parse(store.items()[0].claim?.at as string) + hour,
-  );
+  // nothing names the card (an old claim row finds no run): it is Backlog, however recent the claim
+  claimAt(store, item.id, 'hold-speech', new Date(NOW).toISOString());
   assert.deepEqual(
-    pending.map((card) => [card.column, card.backlog?.claim?.pending]),
-    [['working', true]],
-  );
-  const stale = backlogCards(
-    store.items(),
-    [],
-    Date.parse(store.items()[0].claim?.at as string) + 3 * hour,
-  );
-  assert.deepEqual(
-    stale.map((card) => [card.column, card.backlog?.claim]),
+    backlogCards(store.items(), [], NOW + hour).map((card) => [card.column, card.backlog?.agent]),
     [['backlog', null]],
   );
 });
@@ -1182,9 +1167,15 @@ test('someday: an open card carries the flag on its board card, keeps its place,
     'back in its old place',
   );
 
-  // work on a someday card brings it back: a claim, a start, a done, a reopen
+  // work on a someday card brings it back: an old claim row, a start, a done, a reopen
   for (const [name, act] of [
-    ['claim', (id: string) => store.claim(id, { agent: 'ou-x' })],
+    [
+      'claim',
+      (id: string) => {
+        claimAt(store, id, 'ou-x', new Date().toISOString());
+        return store.items().find((one) => one.id === id) as BacklogItem;
+      },
+    ],
     ['start', (id: string) => store.start(id, { branch: 'b' })],
     ['done', (id: string) => store.done(id)],
     [
@@ -1205,7 +1196,7 @@ test('someday: an open card carries the flag on its board card, keeps its place,
   store.someday(dropping.id, true);
   assert.equal(store.drop(dropping.id).someday, false);
 
-  // only an open card: a started, done or dropped one is refused (and a claimed one, below)
+  // only an open card: a started, done or dropped one is refused (and one whose run is open, below)
   const started = store.add({ title: 'Started' });
   store.start(started.id, { branch: 'c' });
   assert.throws(() => store.someday(started.id, true), /only an open card can be someday/);
@@ -1218,17 +1209,13 @@ test('someday: an open card carries the flag on its board card, keeps its place,
   assert.throws(() => store.someday('bl_nothere1', true), /no backlog item/);
 });
 
-test('someday refuses a card whose claim is live, and takes one whose agent has finished', () => {
+test('someday refuses a card whose run is open, and takes one whose agent has finished', () => {
   const home = tmp('backlog-someday-claim');
   const store = new BacklogStore(home);
   const registry = new AgentRegistry(home);
-  const item = store.add({ title: 'Claimed', repo: 'acme/widgets' });
-  store.claim(item.id, { agent: 'ou-claimed', sid: 'aaaaaaaa' });
-  // claimed a moment ago, and its agent has no ledger line yet: pending, so live
-  assert.throws(
-    () => store.someday(item.id, true, null, registry.agents()),
-    /claimed by ou-claimed, who is working it/,
-  );
+  const item = store.add({ title: 'Worked', repo: 'acme/widgets' });
+  // an old claim row names no run: the card is free
+  claimAt(store, item.id, 'ou-claimed', new Date().toISOString(), 'aaaaaaaa');
   registry.start({
     name: 'ou-claimed',
     sid: 'aaaaaaaa',
@@ -1236,7 +1223,10 @@ test('someday refuses a card whose claim is live, and takes one whose agent has 
     task: 'try it',
     card: item.id,
   });
-  assert.throws(() => store.someday(item.id, true, null, registry.agents()), /is working it/);
+  assert.throws(
+    () => store.someday(item.id, true, null, registry.agents()),
+    /is worked by ou-claimed: it can be someday once that run is over/,
+  );
   registry.finish('ou-claimed', { sid: 'aaaaaaaa', state: 'failed' });
   // the run is over: the card is back in Backlog and can be set aside
   assert.equal(store.someday(item.id, true, null, registry.agents()).someday, true);
@@ -1278,11 +1268,17 @@ test('the CLI: someday takes a card out of list, list --someday shows the sectio
     'Nothing is someday.',
   );
 
-  // a card an agent was just given is not someday
-  await runCli(home, ['backlog', 'claim', ids[0], '--agent', 'ou-busy']);
+  // a card an agent is running is not someday
+  new AgentRegistry(home).start({
+    name: 'ou-busy',
+    sid: 'abcdef01',
+    kind: 'author',
+    task: 't',
+    card: ids[0],
+  });
   const refused = await runCli(home, ['backlog', 'someday', ids[0]]);
   assert.notEqual(refused.code, 0);
-  assert.match(refused.stderr, /claimed by ou-busy/);
+  assert.match(refused.stderr, /worked by ou-busy/);
   assert.notEqual((await runCli(home, ['backlog', 'someday', 'bl_nothere1'])).code, 0);
 });
 
@@ -1332,12 +1328,10 @@ test('POST /api/board/backlog/someday moves a card in and out of the Someday sec
   );
 });
 
-test('a someday card whose claimed agent finished: someday while its column is Backlog, plain once the run is Done', () => {
+test('a someday card whose agent finished: someday while its column is Backlog, plain once the run is Done', () => {
   const store = new BacklogStore(tmp('backlog-someday-finished'));
   const item = store.add({ title: 'Tried', repo: 'acme/widgets' });
-  store.claim(item.id, { agent: 'hold-speech' });
-  // the claim is old by now, so the store takes the flag
-  store.someday(item.id, true, null, [], Date.now() + 3 * 3600 * 1000);
+  store.someday(item.id, true, null, []);
   // the run ends after the someday mark (the mark is stamped now): new work after a park leaves Backlog
   const later = Date.now() + 5 * 3600 * 1000;
   const ended = new Date(later - 10 * 60 * 1000).toISOString();

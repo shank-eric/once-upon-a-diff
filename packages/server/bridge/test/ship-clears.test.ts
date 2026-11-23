@@ -12,7 +12,7 @@ import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { AutoReview } from '@once-upon-a-diff/core/features/review/github-watcher';
 import { localEntries } from '@once-upon-a-diff/core/features/review/story-lists';
 import { columnOf } from '@once-upon-a-diff/board/columns';
-import { markLandedWorks, nestClaimedAgents } from '@once-upon-a-diff/board/stages/backlog';
+import { markLandedWorks, nestCardAgents } from '@once-upon-a-diff/board/stages/backlog';
 
 // The card's side of Approve: approving finishes the card's story run, and a fixer's finish carries the approval to its
 // commit. (The landed card going to Done is the 8-landed-ship board world.)
@@ -705,10 +705,10 @@ test('a landed card whose item is still open shows its running agent', () => {
   };
   const work = { kind: 'work', repo: 'acme/widgets', branch: 'feature', agents: [] as unknown[] };
   const view = { key: 'aaaaaaaa:ou-x', name: 'ou-x', state: 'running' };
-  nestClaimedAgents([item] as never, [work] as never, new Map([['bl_one', [view]]]) as never);
+  nestCardAgents([item] as never, [work] as never, new Map([['bl_one', [view]]]) as never);
   assert.deepEqual(work.agents, [view]);
   const unlanded = { ...work, agents: [] as unknown[] };
-  nestClaimedAgents(
+  nestCardAgents(
     [{ ...item, landed_at: null }] as never,
     [unlanded] as never,
     new Map([['bl_one', [view]]]) as never,

@@ -430,7 +430,6 @@ test('--card with a typed --branch on a card with no branch stamps the card, and
   const home = tmp('card-branch-card-typed');
   const store = new BacklogStore(home);
   const item = store.add({ title: 'Typed branch', repo: REPO });
-  store.claim(item.id, { agent: 'ou-t' });
   const started = await runCli(home, [
     'agent',
     'start',
@@ -537,26 +536,41 @@ test('--card with --pr on a card with no branch stamps the card from the PR’s 
   assert.equal(cardOf(store, other.id)?.branch, 'feat/own');
 });
 
-test('doctor: a card claimed past the grace with no branch is flagged; a fresh claim, open, someday and landed cards are not', () => {
+test('doctor: a started card with no branch is flagged; an old claim row, an open, someday and a landed card are not', () => {
   const store = new BacklogStore(tmp('card-branch-doctor'));
-  const now = Date.now();
-  const hours = (count: number) => new Date(now - count * 3600 * 1000).toISOString();
   store.add({ title: 'Open', repo: REPO });
   const someday = store.add({ title: 'Someday', repo: REPO });
   store.someday(someday.id, true);
-  const stale = store.add({ title: 'Claimed long ago, no branch', repo: REPO });
-  claimAt(store, stale.id, 'someone', hours(5), SID);
-  const fresh = store.add({ title: 'Just claimed', repo: REPO });
-  claimAt(store, fresh.id, 'someone-else', hours(0.1), SID);
+  const claimed = store.add({ title: 'Claimed long ago, no branch', repo: REPO });
+  claimAt(store, claimed.id, 'someone', new Date(Date.now() - 5 * 3600 * 1000).toISOString(), SID);
   const landed = store.add({ title: 'Landed', repo: REPO });
   store.start(landed.id, { branch: 'feat/l' });
   store.done(landed.id, { sha: 'abc1234' });
   const fine = store.add({ title: 'Fine', repo: REPO });
   store.start(fine.id, { branch: 'feat/fine' });
-  claimAt(store, fine.id, 'third', hours(5), SID);
-  const lines = cardBranchProblems(store.items(), now);
+  assert.deepEqual(cardBranchProblems(store.items()), []);
+  // a started card with no branch (an old row) is what it finds
+  const stray = { ...fine, id: 'bl_stray0001', state: 'started' as const, branch: null };
+  const lines = cardBranchProblems([...store.items(), stray]);
   assert.equal(lines.length, 1, lines.join('\n'));
-  assert.match(lines[0], new RegExp(`${stale.id} has no branch`));
+  assert.match(lines[0], /bl_stray0001 has no branch/);
+});
+
+test('doctor: an open card an open author run works, with no branch, is flagged; a finished run is not', () => {
+  const home = tmp('card-branch-doctor-run');
+  const store = new BacklogStore(home);
+  const worked = store.add({ title: 'Worked, no branch', repo: REPO });
+  const idle = store.add({ title: 'Idle, run finished', repo: REPO });
+  const registry = new AgentRegistry(home, { ledger: null, progress: null }, cardLookup(store));
+  registry.start({ name: 'work', sid: SID, kind: 'author', task: 'work', card: worked.id });
+  registry.start({ name: 'past', sid: SID, kind: 'author', task: 'past', card: idle.id });
+  registry.finish('past', { sid: SID, outcome: 'done' });
+  const lines = cardBranchProblems(
+    new BacklogStore(home).items(),
+    new AgentRegistry(home).agents(),
+  );
+  assert.equal(lines.length, 1, lines.join('\n'));
+  assert.match(lines[0], new RegExp(`${worked.id} has no branch`));
 });
 
 test('fix 1: a renamed card whose earlier run finished on the old branch gets no typed-branch line', async () => {
@@ -564,7 +578,6 @@ test('fix 1: a renamed card whose earlier run finished on the old branch gets no
   const store = new BacklogStore(home);
   const item = store.add({ title: 'Renamed with history', repo: REPO });
   store.start(item.id, { branch: 'feat/old', repo: REPO });
-  store.claim(item.id, { agent: 'plan' });
   const registry = new AgentRegistry(home, { ledger: null, progress: null }, cardLookup(store));
   registry.start({ name: 'plan', sid: SID, kind: 'author', task: 'plan', card: item.id });
   registry.finish('plan', { sid: SID, outcome: 'planned' });

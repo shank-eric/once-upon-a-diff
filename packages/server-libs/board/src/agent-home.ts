@@ -204,7 +204,7 @@ export function landedFor(
 }
 
 /**
- * A finished agent's own card in brief. `did` is its claimed card's title, else its task, and null when that is only the
+ * A finished agent's own card in brief. `did` is its card's title, else its task, and null when that is only the
  * agent's name (its card's title). `why` is the first that fits, from its fields only (no outcome text): failed, stopped,
  * a critic's findings, its card's landing for this run (landedFor; not for a research run), its result's commit (with ", not
  * pushed" or ", no PR" when it waits on your review: pendingReview), PR or branch, a research run, an author's miss, done.

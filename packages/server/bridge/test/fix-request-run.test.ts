@@ -1,8 +1,8 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { writeFileSync } from 'node:fs';
-import { claimAt, git, localRepo, registerRuns, runCli, tmp, writeJson } from './helpers.ts';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { git, localRepo, registerRuns, runCli, tmp, writeJson } from './helpers.ts';
 import { createLocalStory } from '@once-upon-a-diff/stories/local-story';
 import { StoryStore } from '@once-upon-a-diff/stories/store';
 import { readApproval } from '@once-upon-a-diff/stories/approval';
@@ -16,8 +16,8 @@ const AUTHOR = 'cafe0001';
 /** a card that exists only as its runs: no backlog row */
 const IMPLICIT = 'ic_mwlegacy000001';
 
-/** A local story of `feature` in acme/widgets, with a card on the branch and a fix request claimed a moment ago. */
-function scene(options: { card?: boolean; claimed?: boolean; squash?: boolean } = {}) {
+/** A local story of `feature` in acme/widgets, with a card on the branch and a fix request claimed (the queue's claim) a moment ago. */
+function scene(options: { card?: boolean; squash?: boolean } = {}) {
   const home = tmp('home');
   writeJson(path.join(home, 'config.json'), { board_sessions_dir: tmp('sessions') });
   const { repo, base } = localRepo();
@@ -45,9 +45,6 @@ function scene(options: { card?: boolean; claimed?: boolean; squash?: boolean } 
   if (options.card !== false) {
     const item = backlog.add({ title: 'The work', repo: 'acme/widgets' });
     backlog.start(item.id, { branch: 'feature' });
-    if (options.claimed !== false) {
-      claimAt(backlog, item.id, 'the-author', new Date().toISOString(), AUTHOR);
-    }
     card = item.id;
   }
   const request = 'f_test000001';
@@ -94,23 +91,8 @@ describe('fixed --sha records the fix as a run on the branch’s card', () => {
     assert.equal(run.card, fixture.card);
     assert.equal(run.result?.commit, sha);
     assert.equal(readFixes(fixture.home)[fixture.request].run, run.run);
-    // the author's claim is never replaced
-    assert.equal(
-      fixture.backlog.items().find((one) => one.id === fixture.card)?.claim?.agent,
-      'the-author',
-    );
-  });
-
-  test('a stored card nobody claimed is claimed for the fixer, so the registry takes the run', async () => {
-    const fixture = scene({ claimed: false });
-    const sha = fixture.commit('fix.txt');
-    const done = await fixture.cli('fixed', '--request', fixture.request, '--sha', sha);
-    assert.equal(done.code, 0, done.stderr);
-    assert.equal(fixture.runs()[0].card, fixture.card);
-    assert.equal(
-      fixture.backlog.items().find((one) => one.id === fixture.card)?.claim?.agent,
-      'fix-feature',
-    );
+    // no claim row is written for the fixer: its run is what names the card
+    assert.equal(readFileSync(fixture.backlog.file, 'utf8').includes('fix-feature'), false);
   });
 
   test('a run still going on the branch accounts for the fix: nothing is recorded and the request names it', async () => {

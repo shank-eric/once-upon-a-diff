@@ -18,7 +18,7 @@ import {
 import { isFeatureBranch } from '@once-upon-a-diff/foundation/settings';
 import { BACKLOG_NOTE_MAX } from '@once-upon-a-diff/terms/text';
 import { prHeadBranch } from '@once-upon-a-diff/foundation/gh';
-import { canonicalKind, runIsOpen } from '@once-upon-a-diff/state/records/agents/events';
+import { canonicalKind } from '@once-upon-a-diff/state/records/agents/events';
 import type { AgentKind } from '@once-upon-a-diff/state/records/agents/agent-types';
 import {
   flagsBesideCard,
@@ -260,53 +260,6 @@ function beginStart(home: string, input: RunStartInput, warn: Start['warn']): St
   return start;
 }
 
-/**
- * Whether a card's claim is another session's: the claim is held by another, and not a stale one (a claim a session's own run
- * took, by 'self', whose run has ended, as one of a gone session does by the sweep, is stale).
- */
-function claimedByAnother(item: Item, sid: string, registry: AgentRegistry): boolean {
-  const held = item.claim;
-  if (!held) {
-    return false;
-  }
-  const own = (held.sid ?? held.session?.slice(0, 8)) === sid;
-  const runOpen = registry.agents().some((one) => one.name === held.agent && runIsOpen(one));
-  return !own && !(isSelfName(held.agent) && !runOpen);
-}
-
-/**
- * A session's own author claims the card it starts on, as this run, since it has no launcher to do it: a card claimed by
- * another session is theirs, and the registry's one-author check says the rest. The claim comes before the start, so a
- * start the registry then refuses leaves a claim, which the next claim of the card replaces.
- */
-function claimSelfAuthor(run: Start, registry: AgentRegistry): void {
-  const { card } = run;
-  if (!run.input.self || run.role !== 'author' || !card) {
-    return;
-  }
-  const item = run.store.listed().find((one) => one.id === card);
-  if (!item || !isLive(item)) {
-    return;
-  }
-  if (claimedByAnother(item, run.sid, registry)) {
-    throw new Error(
-      `${card} is claimed by ${item.claim?.agent}: a --self run does not take another session’s card`,
-    );
-  }
-  // (an open author on the card is the registry's to refuse: it names the run, and the claim stays as it was)
-  const busy = registry
-    .agents()
-    .some((one) => one.card === card && one.kind === 'author' && runIsOpen(one));
-  if (!busy) {
-    run.store.claim(card, {
-      agent: run.name,
-      sid: run.sid,
-      session: run.input.session,
-      by: 'self',
-    });
-  }
-}
-
 /** The PR's head branch, or null (with a warning) when gh cannot say; a storyteller with no card has nothing else to read, so it is refused. */
 async function askPrHead(run: Start, repo: string | null, options: RunIo): Promise<string | null> {
   try {
@@ -512,7 +465,7 @@ function runOnJoinedCard(
 /** The card the start made or joined: `minted` when the registry is to make it, `join` when it joined an open one. */
 interface CardPlan {
   minted: string | null;
-  join: (Join & { claimOnStart: boolean }) | null;
+  join: Join | null;
 }
 
 /**
@@ -541,11 +494,7 @@ function planCard(
     return { minted, join: null };
   }
   runOnJoinedCard(run, startInput, found.joined.card);
-  // an author takes a card with no claim as its own, since the dispatcher that would claim it is not here; the claim is
-  // written once the registry has accepted the start, so a refused start leaves no claim
-  const claimOnStart = run.kind === 'author' && !run.lookup(found.joined.card)?.claimed;
-  startInput.claimsOnStart = claimOnStart;
-  return { minted: null, join: { ...found, claimOnStart } };
+  return { minted: null, join: found };
 }
 
 /** Asks the registry to start the run; a start that joined a card with an open author says how to make another. */
@@ -630,7 +579,6 @@ export async function startRun(
     liveSids: await (options.liveSids ?? (() => trustedLiveSids(home)))(),
     lastWrite: await liveWrites(home, registry.agents()),
   });
-  claimSelfAuthor(run, registry);
   const onPr = await branchOfPr(run, options);
   const { branch, pr } = onPr;
   const stamp = onPr.stamp ?? stampOfBranch(run);
@@ -638,17 +586,9 @@ export async function startRun(
   const startInput = startInputOf(run, { branch, pr });
   const plan = planCard(run, registry, startInput, branch);
   const started = registryStart(run, registry, startInput, plan, branch);
-  // the join's writes, now that the start is accepted: what the card lacked, and the claim of an author
+  // the join's writes, now that the start is accepted: what the card lacked
   if (plan.join?.link) {
     run.store.link(plan.join.joined.card, { ...plan.join.link, by: run.name.slice(0, 40) });
-  }
-  if (plan.join?.claimOnStart) {
-    run.store.claim(plan.join.joined.card, {
-      agent: run.name,
-      sid: run.sid,
-      session: input.session,
-      by: 'join',
-    });
   }
   const onCard = teachCard(run, started, stamp, { branch, repo: startInput.repo ?? null });
   if (stamp) {

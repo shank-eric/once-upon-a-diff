@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import '@once-upon-a-diff/test-kit/env';
 import { tmp } from '@once-upon-a-diff/test-kit/files';
@@ -10,8 +10,8 @@ import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
 import { dispatchRun, finishRun } from '../src/features/runs/service.ts';
 
 /*
- * dispatchRun: claim (author and fixer), start the run and render the brief, in one call. The registry's own refusals
- * (a second open author, a critic with no branch) are not copied: a refused start after the claim leaves the claim.
+ * dispatchRun: start the run and render the brief, in one call. The run is what takes the card (no claim row is written), and
+ * the registry's own refusals (a second open author, a critic with no branch) are not copied: a refused start writes nothing.
  */
 
 const SID = 'abcdef01';
@@ -47,18 +47,21 @@ function world(
     agents: () => new AgentRegistry(home).agents(),
   };
 }
-const claimOf = (ctx: ReturnType<typeof world>) =>
-  ctx.store.items().find((one) => one.id === ctx.card)!.claim;
+/** The backlog file as written: a dispatch appends no claim row, and a refused one appends nothing. */
+const backlogText = (ctx: ReturnType<typeof world>) => readFileSync(ctx.store.file, 'utf8');
+const claimRows = (ctx: ReturnType<typeof world>) =>
+  backlogText(ctx)
+    .split('\n')
+    .filter((line) => line.includes('"op":"claim"'));
 const refused = (promise: Promise<unknown>, pattern: RegExp) =>
   assert.rejects(promise, (err: Error) => pattern.test(err.message));
 
-test('an author on an unclaimed card claims it, starts its run and prints a brief naming both', async () => {
+test('an author starts its run on the card, writes no claim and prints a brief naming both', async () => {
   const ctx = world();
   const done = await ctx.dispatch();
   assert.equal(done.name, 'feat-x');
   assert.equal(done.subagentType, 'once-upon-author');
-  assert.equal(claimOf(ctx)?.agent, 'feat-x');
-  assert.equal(claimOf(ctx)?.sid, SID);
+  assert.deepEqual(claimRows(ctx), []);
   const [run] = ctx.agents();
   assert.equal(run.name, 'feat-x');
   assert.equal(run.card, ctx.card);
@@ -91,8 +94,8 @@ test('a preflight refusal writes nothing: no card, a dropped or landed card, a h
   for (const one of [ctx, dropped]) {
     assert.deepEqual(one.agents(), []);
   }
-  assert.equal(claimOf(ctx), null);
-  assert.equal(claimOf(dropped), null);
+  assert.deepEqual(claimRows(ctx), []);
+  assert.deepEqual(claimRows(dropped), []);
 });
 
 test('a card with no branch needs --branch, which stamps the card; a critic with no branch is refused before any write', async () => {
@@ -100,36 +103,53 @@ test('a card with no branch needs --branch, which stamps the card; a critic with
   await refused(ctx.dispatch(), /no branch.*--branch/);
   await refused(ctx.dispatch({ role: 'critic' }), /no branch.*--branch/);
   assert.deepEqual(ctx.agents(), []);
-  assert.equal(claimOf(ctx), null);
   await ctx.dispatch({ branch: 'feat-y' });
   assert.equal(ctx.store.items().find((one) => one.id === ctx.card)?.branch, 'feat-y');
   assert.equal(ctx.agents()[0].name, 'feat-y');
 });
 
-test('a card claimed by another live agent is refused; once that run is finished it may be taken', async () => {
+test('a second dispatch while the first author runs is refused naming it, writes nothing, and may go once that run is finished', async () => {
   const ctx = world();
-  ctx.store.claim(ctx.card, { agent: 'someone-else', sid: SID });
-  await refused(ctx.dispatch(), /claimed by someone-else/);
-  assert.deepEqual(ctx.agents(), []);
-  assert.equal(claimOf(ctx)?.agent, 'someone-else', 'the refusal left the claim as it was');
-  // its run is open: still live
-  new AgentRegistry(ctx.home).start({
-    name: 'someone-else',
-    sid: SID,
-    kind: 'author',
-    task: 't',
-    branch: 'feat-x',
-    card: ctx.card,
-    cwd: ctx.fixture.main,
-    role: 'author',
-  });
-  await refused(ctx.dispatch(), /claimed by someone-else/);
-  finishRun(ctx.home, 'someone-else', { sid: SID });
-  await ctx.dispatch();
-  assert.equal(claimOf(ctx)?.agent, 'feat-x');
+  await ctx.dispatch({ name: 'first-author' });
+  const before = backlogText(ctx);
+  const agentsBefore = ctx.agents();
+  await refused(
+    ctx.dispatch({ name: 'second-author' }),
+    /already has an open author run \(\w+:first-author\).*once-upon handback first-author/,
+  );
+  assert.equal(backlogText(ctx), before, 'the refusal left backlog.jsonl byte-equal');
+  assert.deepEqual(ctx.agents(), agentsBefore);
+  finishRun(ctx.home, 'first-author', { sid: SID });
+  await ctx.dispatch({ name: 'second-author' });
+  assert.deepEqual(
+    ctx.agents().map((one) => one.name),
+    ['first-author', 'second-author'],
+  );
 });
 
-test('a second open author under another name is the registry’s refusal; a card with no earlier claim keeps the new one, and the message says it has no run', async () => {
+test('two dispatches of one card at once leave one open author', async () => {
+  const ctx = world();
+  const outcomes = await Promise.allSettled([
+    ctx.dispatch({ name: 'one' }),
+    ctx.dispatch({ name: 'two' }),
+  ]);
+  assert.equal(outcomes.filter((one) => one.status === 'fulfilled').length, 1);
+  assert.equal(ctx.agents().length, 1);
+});
+
+test('an author parked at a question or a story review does not block the next dispatch (only a running one does)', async () => {
+  const ctx = world();
+  await ctx.dispatch({ name: 'first-author' });
+  new AgentRegistry(ctx.home).state('first-author', {
+    sid: SID,
+    state: 'review',
+    outcome: 'story ready',
+  });
+  await ctx.dispatch({ name: 'second-author' });
+  assert.equal(ctx.agents().length, 2);
+});
+
+test('a second open author under another name is the registry’s refusal, and nothing is written for it', async () => {
   const ctx = world();
   new AgentRegistry(ctx.home).start({
     name: 'hand-started',
@@ -141,25 +161,17 @@ test('a second open author under another name is the registry’s refusal; a car
     cwd: ctx.fixture.main,
     role: 'author',
   });
-  await refused(
-    ctx.dispatch({ name: 'other-author' }),
-    /already has an open author|stays claimed by other-author/,
-  );
-  assert.equal(claimOf(ctx)?.agent, 'other-author');
-  assert.match(
-    await ctx.dispatch({ name: 'other-author' }).then(
-      () => '',
-      (err: Error) => err.message,
-    ),
-    /stays claimed by other-author/,
-  );
+  const before = backlogText(ctx);
+  await refused(ctx.dispatch({ name: 'other-author' }), /already has an open author/);
+  await refused(ctx.dispatch({ name: 'other-author' }), /once-upon handback hand-started/);
+  assert.equal(backlogText(ctx), before);
   // the same name started again (a restart of the one open run) is not a second author
   finishRun(ctx.home, 'hand-started', { sid: SID });
   await ctx.dispatch({ name: 'other-author' });
   await ctx.dispatch({ name: 'other-author' });
 });
 
-test('a fixer starts under fix-<branch> after the author finished and renames the claim; its claim carries the worktree', async () => {
+test('a fixer starts under fix-<branch> after the author finished, and the card is linked to its worktree', async () => {
   const ctx = world('feat-x');
   ctx.fixture.add('feat-x');
   await ctx.dispatch();
@@ -170,8 +182,11 @@ test('a fixer starts under fix-<branch> after the author finished and renames th
     check: 'tests pass',
   });
   assert.equal(fixer.name, 'fix-feat-x');
-  assert.equal(claimOf(ctx)?.agent, 'fix-feat-x');
-  assert.equal(claimOf(ctx)?.worktree, path.join(ctx.fixture.trees, 'feat-x'));
+  assert.deepEqual(claimRows(ctx), []);
+  assert.equal(
+    ctx.store.items().find((one) => one.id === ctx.card)?.worktree,
+    path.join(ctx.fixture.trees, 'feat-x'),
+  );
   const run = ctx.agents().find((one) => one.name === 'fix-feat-x');
   assert.equal(run?.role, 'fixer');
   assert.match(fixer.prompt, /\/tmp\/findings\.md/);
@@ -186,7 +201,7 @@ test('a branch with a slash names its run and worktree with a dash', async () =>
   assert.match(done.prompt, /git worktree add -b feat\/x /);
 });
 
-test('--from-notes is the fresh build author: <branch>-build, re-claimed for it, with the notes path in its brief', async () => {
+test('--from-notes is the fresh build author: <branch>-build, with the notes path in its brief', async () => {
   const ctx = world();
   const planner = await ctx.dispatch({ plan: true, check: undefined });
   assert.match(planner.prompt, /handback feat-x --sid abcdef01 --plan/);
@@ -195,7 +210,6 @@ test('--from-notes is the fresh build author: <branch>-build, re-claimed for it,
   const notes = path.join(ctx.fixture.trees, 'feat-x.notes.md');
   const build = await ctx.dispatch({ fromNotes: notes });
   assert.equal(build.name, 'feat-x-build');
-  assert.equal(claimOf(ctx)?.agent, 'feat-x-build');
   assert.ok(build.prompt.includes(`Build from ${notes}`));
   assert.match(build.prompt, /Plan check/);
 });
@@ -209,16 +223,14 @@ test('a plan and --from-notes together are refused', async () => {
   assert.deepEqual(ctx.agents(), []);
 });
 
-test('a helper writes no claim; a critic names its findings file and finishes with --findings', async () => {
+test('a helper starts a run; a critic names its findings file and finishes with --findings', async () => {
   const ctx = world();
   const helper = await ctx.dispatch({ role: 'helper', check: undefined, task: 'check the plan' });
   assert.equal(helper.name, 'check-feat-x');
   assert.equal(helper.subagentType, 'once-upon-helper');
-  assert.equal(claimOf(ctx), null);
   const critic = await ctx.dispatch({ role: 'critic', check: undefined, task: undefined });
   assert.equal(critic.name, 'review-feat-x');
   assert.equal(critic.model, 'opus');
-  assert.equal(claimOf(ctx), null);
   assert.match(critic.prompt, /handback review-feat-x --sid abcdef01 --findings <N>/);
   assert.match(critic.prompt, /\/reviews\/\d{4}-\d{2}-\d{2}-feat-x-agent-review\.md/);
   assert.match(critic.prompt, /git diff main\.\.\.HEAD/);
@@ -232,7 +244,6 @@ test('fan-out chapter writers and the finisher register as storyteller runs and 
   assert.equal(writer.subagentType, 'once-upon-helper');
   assert.equal(ctx.agents().find((one) => one.name === 'fw-feat-x-k1')?.role, 'storyteller');
   assert.ok(writer.prompt.includes(`${dir}/fragments/k1.json`));
-  assert.equal(claimOf(ctx), null);
   finishRun(ctx.home, 'fw-feat-x-k1', { sid: SID, state: 'done' });
   const finisher = await ctx.dispatch({
     role: 'finisher',
@@ -285,10 +296,11 @@ test('<home>/editor/brief-extra.md is appended to every brief and swaps the Agen
   assert.equal(extra.subagentType, 'general-purpose');
 });
 
-test('a worktree that is gone refuses a fixer’s claim and says so, leaving no claim', async () => {
+test('a worktree that is gone refuses a fixer and says so, writing nothing', async () => {
   const ctx = world('feat-x');
+  const before = backlogText(ctx);
   await refused(ctx.dispatch({ role: 'fixer', check: 'ok' }), /worktree/);
-  assert.equal(claimOf(ctx), null);
+  assert.equal(backlogText(ctx), before);
   assert.deepEqual(ctx.agents(), []);
 });
 
@@ -320,42 +332,4 @@ test('a general-purpose launch (brief-extra, or --general) carries the role’s 
   assert.equal(author.subagentType, 'general-purpose');
   assert.match(author.prompt, /100 tool calls/);
   assert.ok(author.prompt.trimEnd().endsWith('Forward results.'), 'the extra stays last');
-});
-
-test('a start the registry refuses after the claim puts the earlier claim back, so the card is not blocked', async () => {
-  const ctx = world();
-  // an earlier author claimed the card and finished
-  await ctx.dispatch({ name: 'first-author' });
-  finishRun(ctx.home, 'first-author', { sid: SID });
-  // a hand-started author is open, so the registry refuses a second one after the claim is written
-  new AgentRegistry(ctx.home).start({
-    name: 'hand-started',
-    sid: SID,
-    kind: 'author',
-    task: 't',
-    branch: 'feat-x',
-    card: ctx.card,
-    cwd: ctx.fixture.main,
-    role: 'author',
-  });
-  await refused(ctx.dispatch({ name: 'other-author' }), /already has an open author/);
-  assert.equal(claimOf(ctx)?.agent, 'first-author', 'the earlier claim is back');
-});
-
-test('a claim whose start was refused (no run) does not block the same launcher’s next dispatch under another name', async () => {
-  const ctx = world();
-  new AgentRegistry(ctx.home).start({
-    name: 'hand-started',
-    sid: SID,
-    kind: 'author',
-    task: 't',
-    branch: 'feat-x',
-    card: ctx.card,
-    cwd: ctx.fixture.main,
-    role: 'author',
-  });
-  await refused(ctx.dispatch({ name: 'other-author' }), /already has an open author/);
-  finishRun(ctx.home, 'hand-started', { sid: SID });
-  await ctx.dispatch({ name: 'third-author' });
-  assert.equal(claimOf(ctx)?.agent, 'third-author');
 });

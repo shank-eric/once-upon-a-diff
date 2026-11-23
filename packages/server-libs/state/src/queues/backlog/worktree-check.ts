@@ -1,13 +1,16 @@
 /**
- * The worktree a claim names (`backlog claim ID --worktree PATH`): it is checked against `git worktree list` when given, and
- * only then (the author makes its worktree after the editor claims, so a claim with none says nothing about one). The path
- * itself must be a worktree's root, on the claim's branch, and a checkout of the card's repo.
+ * Whether a path is the worktree of a card's work: git lists it (`git worktree list`), it is the root of one, on the card's
+ * branch, and a checkout of the card's repo. `dispatch` checks a fixer's worktree with it (the one it verified becomes the
+ * card's, ADR-29), and `once-upon doctor` checks the worktree an open run's card is linked to.
  */
 import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { worktreeList } from '@once-upon-a-diff/adapters/git';
 import { repoOfCheckout, sameRepo } from '@once-upon-a-diff/foundation/repos';
 import { parseWorktreeEntries } from '../../records/worktrees/worktrees.ts';
+import { runIsOpen } from '../../records/agents/events.ts';
+import type { LedgerAgent } from '../../records/agents/ledger.ts';
+import { workAgent } from './phase.ts';
 import type { BacklogItem } from './types.ts';
 
 const real = (dir: string): string => {
@@ -19,7 +22,7 @@ const real = (dir: string): string => {
 };
 
 /** What is wrong with the path as the worktree of a card's work (its repo and branch, each checked when known), or null when nothing is. */
-export function claimWorktreeProblem(
+export function worktreeProblem(
   dir: string,
   want: { repo?: string | null; branch?: string | null } = {},
 ): string | null {
@@ -44,16 +47,17 @@ export function claimWorktreeProblem(
   return null;
 }
 
-/** For `once-upon doctor`: each live claim whose worktree git no longer lists (removed, moved, or never made), one line each. */
-export function claimWorktreeProblems(
-  items: Pick<BacklogItem, 'id' | 'state' | 'landed_at' | 'claim'>[],
+/** For `once-upon doctor`: each card with an open work run whose linked worktree git no longer lists (removed, moved, or never made), one line each. */
+export function openRunWorktreeProblems(
+  items: Pick<BacklogItem, 'id' | 'state' | 'landed_at' | 'worktree'>[],
+  agents: LedgerAgent[],
 ): string[] {
   return items.flatMap((item) => {
-    const dir = item.claim?.worktree;
-    if (!dir || item.state === 'dropped' || item.landed_at) {
+    const run = workAgent(item, agents);
+    if (!item.worktree || item.state === 'dropped' || item.landed_at || !run || !runIsOpen(run)) {
       return [];
     }
-    const problem = claimWorktreeProblem(dir);
-    return problem ? [`${item.id}'s claim names a worktree that is gone: ${problem}`] : [];
+    const problem = worktreeProblem(item.worktree);
+    return problem ? [`${item.id}'s run ${run.name} has a worktree that is gone: ${problem}`] : [];
   });
 }

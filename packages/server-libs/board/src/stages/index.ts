@@ -42,14 +42,14 @@ import type { SubagentLiveness } from '@once-upon-a-diff/adapters/claude-session
 import type { SessionTitles } from '@once-upon-a-diff/adapters/claude-sessions/titles';
 import type { WorktreeScanner } from '@once-upon-a-diff/state/records/worktrees/worktrees';
 import type { BoardData } from '@once-upon-a-diff/contracts/types';
-import { claimViews, placeAgents } from './agents.ts';
+import { runViews, placeAgents } from './agents.ts';
 import { editorsOf } from './editors.ts';
 import { carriedKeys } from '@once-upon-a-diff/state/queues/backlog/phase';
 import {
   addBacklogCards,
   ignoreStoriesBeforePark,
   markLandedWorks,
-  nestClaimedAgents,
+  nestCardAgents,
   keepWorkWorking,
   readBacklogLinks,
 } from './backlog.ts';
@@ -154,18 +154,17 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
   // cards for the works: PR details from what GitHub last said
   const cards = buildCards(ctx, cardFacts, works, sessionCards);
 
-  // an agent whose run names a card that exists is that card's (phase.ts); a claim finds no agent
+  // an agent whose run names a card that exists is that card's (phase.ts)
   const held = carriedKeys(backlogItems, agents);
   // the editors, and which agent each controls: by the session an agent was launched from (editors.ts)
   const editing = editorsOf({
     editors: read.editors,
     agents,
-    items: backlogItems,
     live,
     canFocus: (session) => read.known.get(session)?.tab === true,
     nowMs,
   });
-  const claimed = claimViews(backlogItems, agents, nowMs, editing.editorOf);
+  const views = runViews(backlogItems, agents, nowMs, editing.editorOf);
 
   // agents: nested in the card their registered repo, branch, PR or card point to, else a card of their own on their own lane
   cards.push(
@@ -182,8 +181,8 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
     }),
   );
 
-  // a claimed agent goes on its card's branch's card now, so its state counts when the columns are decided
-  nestClaimedAgents(backlogItems, cards, claimed);
+  // an agent whose run names a card goes on its branch's card now, so its state counts when the columns are decided
+  nestCardAgents(backlogItems, cards, views);
   keepWorkWorking(backlogItems, cards);
   const byStory = new Map<string, StoryFacts>(
     [...stories, ...localStoryList].map((story) => [story.id, story]),
@@ -236,7 +235,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
       backlogItems,
       links,
       { trees: settings.worktrees ? state.scanner.read().items : [] },
-      claimed,
+      views,
       agents,
     ),
   );

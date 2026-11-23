@@ -4,10 +4,9 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { claimAt, registerRuns, runCli, tmp, writeJson, type AgentRun } from './helpers.ts';
 import { worktreeFixture } from '@once-upon-a-diff/test-kit/git';
-import { claimWorktreeProblems } from '@once-upon-a-diff/state/queues/backlog/claim-worktree';
+import { openRunWorktreeProblems } from '@once-upon-a-diff/state/queues/backlog/worktree-check';
 import { Board, noPrWatcher } from '@once-upon-a-diff/board/board';
 import { BacklogStore, backlogCards } from '@once-upon-a-diff/state/queues/backlog/backlog';
-import { CLAIM_GRACE_HOURS } from '@once-upon-a-diff/state/queues/backlog/claims';
 import { startedLinks } from '@once-upon-a-diff/state/queues/backlog/backlog-links';
 import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
 import { registrySource } from '@once-upon-a-diff/core/features/sessions/sources';
@@ -26,13 +25,13 @@ const RUNNING = (name: string, task = 'do a thing', sid = '54736864'): AgentRun 
 });
 
 /** The agents the runs register, as the board reads them. */
-const agentsOf = (...runs: AgentRun[]) => registerRuns(tmp('claim-agents'), ...runs).agents();
+const agentsOf = (...runs: AgentRun[]) => registerRuns(tmp('owner-agents'), ...runs).agents();
 
 function world(...runs: AgentRun[]) {
-  const home = tmp('claim-home');
+  const home = tmp('owner-home');
   registerRuns(home, ...runs);
   writeJson(path.join(home, 'config.json'), {
-    board_sessions_dir: tmp('claim-sessions'),
+    board_sessions_dir: tmp('owner-sessions'),
     repos: { larmor: { skips_review: true } },
   });
   const cards = async (now = NOW): Promise<BoardCard[]> =>
@@ -45,55 +44,56 @@ function world(...runs: AgentRun[]) {
   return { home, cards, store: new BacklogStore(home) };
 }
 
-test('a claim event folds: the latest wins, reopen clears it, a dropped item cannot be claimed', () => {
-  const store = new BacklogStore(tmp('claim-fold'));
+/*
+ * ADR-29: a card's runs say who works it, so there is no claim. Old `claim` rows are still in backlog.jsonl and still fold: they
+ * give a card its worktree until a `link` says another, and end someday. Nothing else reads them.
+ */
+
+test('an old claim row folds: it starts nothing, takes no owner, and a dropped card ignores it', () => {
+  const store = new BacklogStore(tmp('owner-fold'));
   const item = store.add({ title: 'A thing', repo: 'acme/widgets' });
-  assert.equal(item.claim, null);
-  const first = store.claim(item.id, { agent: 'ou-one', sid: '54736864', by: 'main' });
-  assert.equal(first.claim?.agent, 'ou-one');
-  assert.equal(first.claim?.sid, '54736864');
-  assert.equal(first.state, 'open', 'a claim alone does not start it');
-  assert.equal(store.claim(item.id, { agent: 'ou-two' }).claim?.agent, 'ou-two');
-  // one agent may hold several cards
-  const other = store.add({ title: 'Another', repo: 'acme/widgets' });
-  assert.equal(store.claim(other.id, { agent: 'ou-two' }).claim?.agent, 'ou-two');
-  assert.throws(() => store.claim(item.id, { agent: 'two words' }), /not valid/);
-  assert.throws(() => store.claim(item.id, { agent: '' }), /agent/);
-  assert.throws(() => store.claim('bl_nothere1', { agent: 'ou-x' }), /no backlog item/);
+  claimAt(store, item.id, 'ou-one', '2026-10-26T18:35:00Z', '54736864');
+  const [shown] = store.items();
+  assert.equal(shown.state, 'open', 'a claim row alone does not start it');
+  assert.equal('claim' in shown, false, 'a card has no claim');
   store.drop(item.id);
-  assert.throws(() => store.claim(item.id, { agent: 'ou-x' }), /dropped/);
-  assert.equal(store.reopen(item.id).claim, null);
-  // an event line is append-only: the claim is its own op
-  const lines = readFileSync(store.file, 'utf8').trim().split('\n');
-  assert.ok(lines.some((line) => JSON.parse(line).op === 'claim'));
+  claimAt(store, item.id, 'ou-two', '2026-10-26T18:40:00Z');
+  assert.equal(store.items()[0].state, 'dropped');
+  assert.equal(store.reopen(item.id).state, 'open');
+  assert.equal('claim' in store, false, 'the store has no claim method');
 });
 
-test('an edited card can be claimed, and a claimed card can be edited: both events fold', () => {
-  const store = new BacklogStore(tmp('claim-edit'));
+test('an old claim row gives the card its worktree until a link says another, and ends someday', () => {
+  const store = new BacklogStore(tmp('owner-worktree'));
+  const item = store.add({ title: 'Wt card', repo: 'acme/widgets' });
+  store.someday(item.id, true);
+  claimAt(store, item.id, 'ou-wt', '2026-10-26T18:35:00Z', undefined, '/work/old-claim');
+  assert.equal(store.items()[0].worktree, '/work/old-claim');
+  assert.equal(store.items()[0].someday, false, 'a claim row ends someday');
+  const linked = store.link(item.id, { worktree: '/work/linked' });
+  assert.equal(linked.worktree, '/work/linked');
+  claimAt(store, item.id, 'ou-wt', '2026-10-26T18:50:00Z', undefined, '/work/later-claim');
+  assert.equal(store.items()[0].worktree, '/work/linked', 'a later old row never replaces a link');
+});
+
+test('an edited card folds an old claim row: the edit and the claim both stand', () => {
+  const store = new BacklogStore(tmp('owner-edit'));
   const item = store.add({ title: 'First title', note: 'old note', repo: 'acme/widgets' });
   store.edit(item.id, { title: 'Better title', repo: 'acme/gadgets' });
-  const claimed = store.claim(item.id, { agent: 'ou-editor', sid: '54736864' });
-  assert.equal(claimed.title, 'Better title');
-  assert.equal(claimed.repo, 'acme/gadgets');
-  assert.equal(claimed.note, 'old note');
-  assert.equal(claimed.claim?.agent, 'ou-editor');
-  // edit after the claim keeps the claim
+  claimAt(store, item.id, 'ou-editor', '2026-10-26T18:35:00Z', '54736864');
   const again = store.edit(item.id, { note: 'new note' });
   assert.equal(again.note, 'new note');
-  assert.equal(again.claim?.agent, 'ou-editor');
   assert.equal(again.title, 'Better title');
-  // a drop and a reopen clear the claim and go back to the edited repo
   store.drop(item.id);
   const back = store.reopen(item.id);
-  assert.equal(back.claim, null);
   assert.equal(back.repo, 'acme/gadgets');
 });
 
-test('startedLinks finds its agent only through the run’s card: not by the claim, `by`, a folder name or the task text', () => {
-  const store = new BacklogStore(tmp('claim-links'));
+test('startedLinks finds its agent only through the run’s card: not by an old claim row, `by`, a folder name or the task text', () => {
+  const store = new BacklogStore(tmp('owner-links'));
   const made = store.add({ title: 'T', repo: 'acme/widgets' });
   store.start(made.id, { branch: 'kill-inbox', by: 'ou-kill-inbox' });
-  store.claim(made.id, { agent: 'ou-kill-inbox' });
+  claimAt(store, made.id, 'ou-kill-inbox', '2026-10-26T18:35:00Z');
   const named = [
     RUNNING('ou-kill-inbox', 'build in widgets-worktrees/kill-inbox'),
     RUNNING('kill-inbox'),
@@ -104,7 +104,7 @@ test('startedLinks finds its agent only through the run’s card: not by the cla
     agents,
     merged: () => null,
   });
-  // the claim finds no run (ADR-25, the flip)
+  // a claim row finds no run (ADR-25, the flip)
   assert.equal(startedLinks(store.items()[0], facts(agentsOf(...named)))?.agent, null);
   const carded = [{ ...named[0], card: made.id }, named[1]];
   assert.equal(
@@ -113,10 +113,9 @@ test('startedLinks finds its agent only through the run’s card: not by the cla
   );
 });
 
-test('a claimed card is ONE Working card with its agent, and the agent has no card of its own', async () => {
+test('a card a run names is ONE Working card with its agent, and the agent has no card of its own', async () => {
   const { store, cards, home } = world();
   const item = store.add({ title: 'Research the thing', repo: 'acme/widgets' });
-  store.claim(item.id, { agent: 'ou-scout' });
   registerRuns(home, {
     ...RUNNING('ou-scout', 'research the thing'),
     card: item.id,
@@ -131,12 +130,11 @@ test('a claimed card is ONE Working card with its agent, and the agent has no ca
     mine[0].agents.map((agent) => agent.name),
     ['ou-scout'],
   );
-  assert.equal(mine[0].backlog?.claim?.agent, 'ou-scout');
-  assert.equal(mine[0].backlog?.claim?.pending, false);
+  assert.equal('claim' in (mine[0].backlog ?? {}), false, 'the card has no claim');
   assert.equal(mine[0].backlog?.agent?.links.agent?.beat?.step, 'plan');
 });
 
-test('an unclaimed agent with `card bl_x` in its task, its `by` name or its folder name does NOT link', async () => {
+test('an agent with `card bl_x` in its task, its `by` name or its folder name does NOT link', async () => {
   const { store, cards, home } = world();
   const item = store.add({ title: 'Look into it', repo: 'acme/widgets' });
   store.start(item.id, { branch: 'look-into', repo: 'acme/widgets', by: 'ou-look' });
@@ -151,7 +149,6 @@ test('an unclaimed agent with `card bl_x` in its task, its `by` name or its fold
   const card = all.find((one) => one.backlog?.id === open.id);
   assert.equal(card?.column, 'backlog');
   assert.equal(card?.backlog?.agent, null);
-  assert.equal(card?.backlog?.claim, null);
   assert.equal(
     all.filter((one) => one.kind === 'agent').length,
     3,
@@ -161,38 +158,24 @@ test('an unclaimed agent with `card bl_x` in its task, its `by` name or its fold
   assert.equal(started?.backlog?.started?.links?.agent, null);
 });
 
-test('a claim whose agent is not registered yet is Working, pending, for CLAIM_GRACE_HOURS', async () => {
+test('an old claim row with no run naming the card is Backlog, never Working, however fresh it is', async () => {
   const { store, cards } = world();
   const item = store.add({ title: 'Waiting for its agent', repo: 'acme/widgets' });
-  store.claim(item.id, { agent: 'ou-late' });
+  const started = store.add({ title: 'Started with a claim', repo: 'acme/widgets' });
+  store.start(started.id, { branch: 'claimed-started', repo: 'acme/widgets' });
   const real = new Date();
-  const pending = (await cards(real)).find((one) => one.backlog?.id === item.id);
-  assert.equal(pending?.column, 'working');
-  assert.equal(pending?.backlog?.claim?.pending, true);
-  const later = new Date(real.getTime() + (CLAIM_GRACE_HOURS + 1) * 3600 * 1000);
-  const back = (await cards(later)).find((one) => one.backlog?.id === item.id);
-  assert.equal(back?.column, 'backlog');
-  assert.equal(back?.backlog?.claim, null);
+  claimAt(store, item.id, 'ou-late', real.toISOString());
+  claimAt(store, started.id, 'ou-slow', real.toISOString());
+  const all = await cards(real);
+  assert.equal(all.find((one) => one.backlog?.id === item.id)?.column, 'backlog');
+  const slow = all.find((one) => one.backlog?.id === started.id);
+  assert.equal(slow?.column, 'backlog', 'started, no session yet');
+  assert.equal(slow?.agents.length, 0);
 });
 
-test('a started card claimed with --branch and no run yet is Working, pending, then Backlog after the grace', async () => {
-  const { store, cards } = world();
-  const item = store.add({ title: 'Claimed and started', repo: 'acme/widgets' });
-  store.claim(item.id, { agent: 'ou-slow' });
-  store.start(item.id, { branch: 'claimed-started', repo: 'acme/widgets' });
-  const real = new Date();
-  const pending = (await cards(real)).find((one) => one.backlog?.id === item.id);
-  assert.equal(pending?.column, 'working');
-  assert.equal(pending?.backlog?.claim?.pending, true);
-  const later = new Date(real.getTime() + (CLAIM_GRACE_HOURS + 1) * 3600 * 1000);
-  const back = (await cards(later)).find((one) => one.backlog?.id === item.id);
-  assert.equal(back?.column, 'backlog');
-});
-
-test('a claimed agent that fails puts its card in Error', async () => {
+test('an agent that fails puts its card in Error', async () => {
   const { store, cards, home } = world();
   const item = store.add({ title: 'Try it', repo: 'acme/widgets' });
-  claimAt(store, item.id, 'ou-scout', '2026-10-26T18:35:00Z');
   registerRuns(home, {
     ...RUNNING('ou-scout'),
     card: item.id,
@@ -204,11 +187,10 @@ test('a claimed agent that fails puts its card in Error', async () => {
   assert.equal((await cards()).filter((one) => one.kind === 'agent').length, 0);
 });
 
-test('a claimed agent on a card whose branch has a work card rides on that card, with the agent in it', () => {
-  const store = new BacklogStore(tmp('claim-rides'));
+test('an agent on a card whose branch has a work card rides on that card, with the agent in it', () => {
+  const store = new BacklogStore(tmp('owner-rides'));
   const item = store.add({ title: 'Build it', repo: 'acme/widgets' });
   store.start(item.id, { branch: 'build-it' });
-  store.claim(item.id, { agent: 'ou-build' });
   const agent = agentsOf({ ...RUNNING('ou-build'), card: item.id })[0];
   const view = { name: 'ou-build', state: 'running' } as BoardCard['agents'][number];
   const workCard = {
@@ -235,25 +217,30 @@ test('a claimed agent on a card whose branch has a work card rides on that card,
   assert.equal(workCard.from_backlog?.[0].id, item.id);
 });
 
-test('`backlog claim` writes the claim, and --branch also starts the card', async () => {
-  const home = tmp('claim-cli');
+test('`backlog claim` is retired: it prints a note and writes no row, and --branch still starts the card', async () => {
+  const home = tmp('owner-cli');
   const store = new BacklogStore(home);
   const item = store.add({ title: 'Claim me', repo: 'acme/widgets' });
   const run = (...args: string[]) => runCli(home, ['backlog', ...args]);
-  assert.equal((await run('claim', item.id, '--agent', 'ou-claimer', '--sid', '54736864')).code, 0);
-  assert.equal(store.items()[0].claim?.agent, 'ou-claimer');
-  assert.equal(store.items()[0].claim?.sid, '54736864');
+  const before = readFileSync(store.file, 'utf8');
+  const bare = await run('claim', item.id, '--agent', 'ou-claimer', '--sid', '54736864');
+  assert.equal(bare.code, 0, bare.stderr);
+  assert.match(bare.stdout, /claim is retired/);
+  assert.equal(readFileSync(store.file, 'utf8'), before, 'no row is written');
   assert.equal(store.items()[0].state, 'open');
-  assert.equal(
-    (await run('claim', item.id, '--agent', 'ou-claimer', '--branch', 'claim-me')).code,
-    0,
-  );
+  const started = await run('claim', item.id, '--agent', 'ou-claimer', '--branch', 'claim-me');
+  assert.equal(started.code, 0, started.stderr);
+  assert.match(started.stdout, /claim is retired/);
   assert.equal(store.items()[0].state, 'started');
   assert.equal(store.items()[0].branch, 'claim-me');
   assert.equal(store.items()[0].started_by, 'ou-claimer');
-  const missing = await run('claim', item.id);
-  assert.notEqual(missing.code, 0);
-  assert.match(missing.stderr, /agent/);
+  assert.equal(readFileSync(store.file, 'utf8').includes('"op":"claim"'), false);
+  // no --agent is needed now
+  assert.equal((await run('claim', item.id)).code, 0);
+  // `start` no longer tells whoever starts a card to claim it first
+  const other = store.add({ title: 'Start me', repo: 'acme/widgets' });
+  const plain = await run('start', other.id, '--branch', 'start-me');
+  assert.doesNotMatch(plain.stdout, /claim/i);
 });
 
 test('a finished card in any repo waits in Waiting until its critic has passed, holds in Agent checks while a critic runs or fixes are due, then is Ready to ship (Larmor, skips_review) or Ready for review (others)', async () => {
@@ -268,7 +255,6 @@ test('a finished card in any repo waits in Waiting until its critic has passed, 
       new Date(Date.parse('2026-11-03T15:00:00Z') + minutes * 60000);
     const item = store.add({ title: 'Build it', repo });
     store.start(item.id, { branch: 'build-it' });
-    claimAt(store, item.id, 'ou-build', stamp(0).toISOString(), 'aaaaaaaa');
     const author = { name: 'ou-build', sid: 'aaaaaaaa', card: item.id } as const;
     const critic = { name: 'review-build-it', sid: 'aaaaaaaa', card: item.id } as const;
     const columnAt = async (minutes: number) =>
@@ -312,7 +298,6 @@ test('a critic that passed with no findings leaves a finished card in Ready to s
     const name = `ou-${repo.split('/')[1]}`;
     const item = store.add({ title: `Work in ${repo}`, repo });
     store.start(item.id, { branch: 'feat-x' });
-    claimAt(store, item.id, name, stamp(0).toISOString(), 'bbbbbbbb');
     registry.start({
       name,
       sid: 'bbbbbbbb',
@@ -340,14 +325,13 @@ test('a critic that passed with no findings leaves a finished card in Ready to s
   });
 });
 
-test('a claimed author at a plan stop is in Agent checks with a plan check label, one asking is in Waiting, and one fixing stays in Working', async () => {
+test('an author at a plan stop is in Agent checks with a plan check label, one asking is in Waiting, and one fixing stays in Working', async () => {
   const { home, cards, store } = world();
   const registry = new AgentRegistry(home);
   const repo = 'naveenvasou/larmor';
   const stamp = (minutes: number) => new Date(Date.parse('2026-11-05T15:00:00Z') + minutes * 60000);
   const item = store.add({ title: 'Plan it', repo });
   store.start(item.id, { branch: 'plan-it' });
-  claimAt(store, item.id, 'ou-plan', stamp(0).toISOString(), 'cccccccc');
   registry.start({
     name: 'ou-plan',
     sid: 'cccccccc',
@@ -384,7 +368,7 @@ test('a claimed author at a plan stop is in Agent checks with a plan check label
 
   registry.state('ou-plan', { sid: 'cccccccc', state: 'fixing', findings: 2, at: stamp(20) });
   const fixing = await cardAt(21);
-  // (unchanged by the plan column: a claimed run's fix round shows its fixing chip on the card in Working)
+  // (unchanged by the plan column: a run's fix round shows its fixing chip on the card in Working)
   assert.equal(fixing?.column, 'working');
   assert.deepEqual(
     fixing?.agents.map((agent) => agent.gate),
@@ -392,75 +376,27 @@ test('a claimed author at a plan stop is in Agent checks with a plan check label
   );
 });
 
-const EDITOR_SESSION = 'abcdef01-1111-4222-8333-444444444444';
-
-test('a claim records the editor’s full session, and an old claim with none folds with a null one', async () => {
-  const home = tmp('claim-session');
+test('doctor lists a card whose open run has a linked worktree git no longer knows, and none for one that is there or whose run is over', () => {
+  const home = tmp('owner-doctor');
   const store = new BacklogStore(home);
-  const old = store.add({ title: 'Old style', repo: 'acme/widgets' });
-  store.claim(old.id, { agent: 'ou-old' });
-  assert.equal(store.items()[0].claim?.session ?? null, null);
-  assert.equal(store.items()[0].claim?.worktree ?? null, null);
-  const item = store.add({ title: 'Edited', repo: 'acme/widgets' });
-  const claimed = await runCli(
-    home,
-    ['backlog', 'claim', item.id, '--agent', 'ou-new', '--sid', 'abcdef01'],
-    { CLAUDE_CODE_SESSION_ID: EDITOR_SESSION },
-  );
-  assert.equal(claimed.code, 0, claimed.stderr);
-  const claim = store.items().find((one) => one.id === item.id)?.claim;
-  assert.equal(claim?.session, EDITOR_SESSION);
-  assert.equal(claim?.sid, 'abcdef01');
-  assert.equal(claim?.agent, 'ou-new');
-});
-
-test('claim --worktree must be a worktree on the claimed branch of the card’s repo; without it nothing is checked', async () => {
-  const home = tmp('claim-worktree');
-  const store = new BacklogStore(home);
-  const { main, add } = worktreeFixture();
-  const tree = add('feat-x');
-  add('other-branch');
-  const item = store.add({ title: 'Wt card', repo: 'acme/widgets' });
-  const claim = (...args: string[]) =>
-    runCli(home, ['backlog', 'claim', item.id, '--agent', 'ou-wt', ...args], {
-      CLAUDE_CODE_SESSION_ID: EDITOR_SESSION,
-    });
-  const notATree = await claim('--branch', 'feat-x', '--worktree', tmp('not-a-worktree'));
-  assert.notEqual(notATree.code, 0);
-  assert.match(notATree.stderr, /worktree/);
-  // a folder inside a worktree is not a worktree
-  const inside = await claim('--branch', 'feat-x', '--worktree', path.join(tree, 'sub'));
-  assert.notEqual(inside.code, 0);
-  const wrongBranch = await claim('--branch', 'feat-y', '--worktree', tree);
-  assert.notEqual(wrongBranch.code, 0);
-  assert.match(wrongBranch.stderr, /feat-x/);
-  assert.equal(store.items()[0].claim, null, 'a refused claim writes nothing');
-  const ok = await claim('--branch', 'feat-x', '--worktree', tree);
-  assert.equal(ok.code, 0, ok.stderr);
-  assert.equal(store.items()[0].claim?.worktree, tree);
-  // the main checkout is a worktree too, but of another repo's card it is refused
-  const other = store.add({ title: 'Other repo', repo: 'acme/gadgets' });
-  const wrongRepo = await runCli(
-    home,
-    ['backlog', 'claim', other.id, '--agent', 'ou-wt2', '--worktree', main],
-    { CLAUDE_CODE_SESSION_ID: EDITOR_SESSION },
-  );
-  assert.notEqual(wrongRepo.code, 0);
-  assert.match(wrongRepo.stderr, /acme\/gadgets/);
-  // no --worktree: nothing to check
-  const bare = await runCli(home, ['backlog', 'claim', other.id, '--agent', 'ou-wt2']);
-  assert.equal(bare.code, 0, bare.stderr);
-});
-
-test('doctor lists a live claim whose worktree git no longer knows, and none for one that is there', () => {
-  const store = new BacklogStore(tmp('claim-doctor'));
   const { add } = worktreeFixture();
   const tree = add('feat-x');
   const here = store.add({ title: 'There', repo: 'acme/widgets' });
   const gone = store.add({ title: 'Gone', repo: 'acme/widgets' });
-  store.claim(here.id, { agent: 'ou-a', worktree: tree });
-  store.claim(gone.id, { agent: 'ou-b', worktree: path.join(tree, '..', 'removed') });
-  const problems = claimWorktreeProblems(store.items());
-  assert.equal(problems.length, 1);
-  assert.match(problems[0], new RegExp(gone.id));
+  const done = store.add({ title: 'Done run', repo: 'acme/widgets' });
+  store.link(here.id, { worktree: tree });
+  store.link(gone.id, { worktree: path.join(tree, '..', 'removed') });
+  store.link(done.id, { worktree: path.join(tree, '..', 'also-removed') });
+  const registry = new AgentRegistry(home);
+  for (const [name, card] of [
+    ['ou-a', here.id],
+    ['ou-b', gone.id],
+    ['ou-c', done.id],
+  ]) {
+    registry.start({ name, sid: 'aaaaaaaa', kind: 'author', task: 't', card });
+  }
+  registry.finish('ou-c', { sid: 'aaaaaaaa' });
+  const problems = openRunWorktreeProblems(store.items(), registry.agents());
+  assert.equal(problems.length, 1, problems.join('\n'));
+  assert.match(problems[0], new RegExp(`${gone.id}'s run ou-b`));
 });

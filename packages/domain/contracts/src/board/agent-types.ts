@@ -71,7 +71,7 @@ export interface BoardAgent {
   /** a finished agent's card in Waiting leaves the board at this time, unless it does something more first (null on any other agent) */
   clears_at: string | null;
   /**
-   * A finished agent's own card, in brief (null on any other agent): what it did (its claimed card's title, else its
+   * A finished agent's own card, in brief (null on any other agent): what it did (its card's title, else its
    * task; null when that would only repeat the card's title) and why it is done, from its fields, never its outcome text
    */
   summary: { did: string | null; why: string } | null;

@@ -328,7 +328,6 @@
             "backlog": {
               "added_by": "cli",
               "agent": null,
-              "claim": null,
               "id": "bl_selfrund",
               "start_line": "once-upon backlog start bl_selfrund --branch feat/self-gone",
               "started": {

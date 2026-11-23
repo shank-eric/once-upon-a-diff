@@ -1,12 +1,11 @@
 /**
  * The one answer to "how many slots is an editor using": the authors it controls that are working (running, at the plan
- * check, or fixing), by the session they were launched from or by the session that claimed their card.
+ * check, or fixing), by the session their run was launched from (recorded on the run), else by their sid.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { tmp } from '@once-upon-a-diff/test-kit/files';
 import { AgentRegistry } from '../src/records/agents/registry.ts';
-import { BacklogStore } from '../src/queues/backlog/backlog.ts';
 import { DEFAULT_SLOTS, slotsInUse } from '../src/queues/backlog/slots.ts';
 
 const NOW = new Date('2026-11-06T12:00:00Z');
@@ -17,7 +16,6 @@ const EDITOR_SESSION = `${EDITOR_SID}-1111-4222-8333-444444444444`;
 function world() {
   const home = tmp('slots');
   const registry = new AgentRegistry(home);
-  const store = new BacklogStore(home);
   registry.start({
     name: 'editor-one',
     sid: EDITOR_SID,
@@ -27,14 +25,14 @@ function world() {
     slots: 3,
     at: ago(600),
   });
-  const author = (name: string, sid = EDITOR_SID, minutes = 60, card?: string) =>
-    registry.start({ name, sid, kind: 'author', task: name, card, at: ago(minutes) });
+  const author = (name: string, sid = EDITOR_SID, minutes = 60) =>
+    registry.start({ name, sid, kind: 'author', task: name, at: ago(minutes) });
   const answer = () => {
     const agents = registry.agents();
     const editor = agents.find((one) => one.name === 'editor-one');
-    return slotsInUse(editor as NonNullable<typeof editor>, agents, store.items(), NOW.getTime());
+    return slotsInUse(editor as NonNullable<typeof editor>, agents, NOW.getTime());
   };
-  return { registry, store, author, answer };
+  return { registry, author, answer };
 }
 
 test('running, plan and fixing authors hold a slot; waiting, review and finished ones, critics and helpers do not', () => {
@@ -77,22 +75,37 @@ test('an author silent for a day is dead and holds nothing, a beat is a sign of 
   assert.equal(found.free, 1);
 });
 
-test('an author launched from another session is the editor’s when the editor’s session claimed its card', () => {
-  const { store, author, answer } = world();
-  const card = store.add({ title: 'A card', repo: 'acme/widgets' });
-  store.claim(card.id, { agent: 'ou-claimed', session: EDITOR_SESSION });
-  author('ou-claimed', '22222222', 60, card.id);
-  const other = store.add({ title: 'Another', repo: 'acme/widgets' });
-  store.claim(other.id, { agent: 'ou-elsewhere', session: '99999999-1111-4222-8333-444444444444' });
-  author('ou-elsewhere', '33333333', 60, other.id);
+test('an author launched from another session is the editor’s when its run records the editor’s session', () => {
+  const { registry, author, answer } = world();
+  // dispatch records the full session it launched the run from; no claim row says it
+  registry.start({
+    name: 'ou-launched',
+    sid: '22222222',
+    session: EDITOR_SESSION,
+    kind: 'author',
+    task: 'x',
+    at: ago(60),
+  });
+  // a run launched from another session (not an editor's) with its own sid is nobody's here
+  registry.start({
+    name: 'ou-elsewhere',
+    sid: '33333333',
+    session: '99999999-1111-4222-8333-444444444444',
+    kind: 'author',
+    task: 'x',
+    at: ago(60),
+  });
+  author('ou-by-sid');
   assert.deepEqual(
-    answer().authors.map((one) => one.name),
-    ['ou-claimed'],
+    answer()
+      .authors.map((one) => one.name)
+      .sort(),
+    ['ou-by-sid', 'ou-launched'],
   );
 });
 
-test('one author fills one editor’s pool: the claim’s session when the card is claimed, else the launching session', () => {
-  const { registry, store, author } = world();
+test('one author fills one editor’s pool: the session its run was launched from, else its sid', () => {
+  const { registry, author } = world();
   const second = '22222222-1111-4222-8333-444444444444';
   registry.start({
     name: 'editor-two',
@@ -106,21 +119,28 @@ test('one author fills one editor’s pool: the claim’s session when the card 
   const count = (name: string) => {
     const agents = registry.agents();
     const found = agents.find((one) => one.name === name);
-    return slotsInUse(
-      found as NonNullable<typeof found>,
-      agents,
-      store.items(),
-      NOW.getTime(),
-    ).authors.map((one) => one.name);
+    return slotsInUse(found as NonNullable<typeof found>, agents, NOW.getTime()).authors.map(
+      (one) => one.name,
+    );
   };
-  // launched from the first editor's session, but its card was claimed by the second editor's
-  const card = store.add({ title: 'A card', repo: 'acme/widgets' });
-  store.claim(card.id, { agent: 'ou-shared', session: second });
-  author('ou-shared', EDITOR_SID, 60, card.id);
-  // launched from the first editor's session, on a card claimed by a session that is no editor: the launcher's
-  const other = store.add({ title: 'Another', repo: 'acme/widgets' });
-  store.claim(other.id, { agent: 'ou-main', session: '99999999-1111-4222-8333-444444444444' });
-  author('ou-main', EDITOR_SID, 60, other.id);
+  // the first editor's sid, but launched from the second editor's session: the session wins
+  registry.start({
+    name: 'ou-shared',
+    sid: EDITOR_SID,
+    session: second,
+    kind: 'author',
+    task: 'x',
+    at: ago(60),
+  });
+  // the first editor's sid, launched from a session that is no editor: the sid's editor
+  registry.start({
+    name: 'ou-main',
+    sid: EDITOR_SID,
+    session: '99999999-1111-4222-8333-444444444444',
+    kind: 'author',
+    task: 'x',
+    at: ago(60),
+  });
   author('ou-plain');
   assert.deepEqual(count('editor-one').sort(), ['ou-main', 'ou-plain']);
   assert.deepEqual(count('editor-two'), ['ou-shared']);

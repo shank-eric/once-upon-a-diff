@@ -5,7 +5,7 @@ import { tmp, writeJson } from '@once-upon-a-diff/test-kit/files';
 import path from 'node:path';
 import { readSettings } from '@once-upon-a-diff/foundation/settings';
 import { finishedColumn, landedFor } from '../src/agent-home.ts';
-import { NO_PARENT, claimViews, placeAgents } from '../src/stages/agents.ts';
+import { NO_PARENT, runViews, placeAgents } from '../src/stages/agents.ts';
 import { columnOf } from '../src/columns.ts';
 import { worktreeSection } from '../src/stages/worktrees.ts';
 import { markFinished, readFinished } from '@once-upon-a-diff/adapters/stores/finished-agents';
@@ -17,7 +17,7 @@ import type { PrWatcher } from '../src/stages/pr-watcher.ts';
 import { backlogCards } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { agentLinks } from '@once-upon-a-diff/state/queues/backlog/backlog-links';
 import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
-import { nestClaimedAgents } from '../src/stages/backlog.ts';
+import { nestCardAgents } from '../src/stages/backlog.ts';
 import type { BuildContext } from '../src/stages/types.ts';
 import type { LedgerAgent } from '@once-upon-a-diff/state/records/agents/ledger';
 import type { BoardAgent, BoardCard } from '@once-upon-a-diff/contracts/types';
@@ -278,7 +278,6 @@ const started = (id: string, branch: string): BacklogItem =>
     repo: 'acme/widgets',
     branch,
     state: 'started',
-    claim: null,
     landed_at: null,
   }) as unknown as BacklogItem;
 const view = (sid: string, name: string): BoardAgent =>
@@ -287,13 +286,13 @@ const view = (sid: string, name: string): BoardAgent =>
 test('two agents of one name in different sessions are two agents on a card, and one agent is still listed once', () => {
   const item = started('bl_bbbbbb222222', 'feat/x');
   const target = card({ branch: 'feat/x', agents: [view('bbbbbbbb', 'ou-x')] });
-  // the claimed agent of the same name, from another session
-  nestClaimedAgents([item], [target], new Map([[item.id, [view('aaaaaaaa', 'ou-x')]]]));
+  // the agent of the same name, from another session
+  nestCardAgents([item], [target], new Map([[item.id, [view('aaaaaaaa', 'ou-x')]]]));
   assert.deepEqual(
     target.agents.map((one) => one.key),
     ['bbbbbbbb:ou-x', 'aaaaaaaa:ou-x'],
   );
-  nestClaimedAgents([item], [target], new Map([[item.id, [view('aaaaaaaa', 'ou-x')]]]));
+  nestCardAgents([item], [target], new Map([[item.id, [view('aaaaaaaa', 'ou-x')]]]));
   assert.equal(target.agents.length, 2, 'the same agent is not listed twice');
 
   // the Backlog column's own nesting (backlogCards) says the same
@@ -302,7 +301,7 @@ test('two agents of one name in different sessions are two agents on a card, and
   assert.equal(other.agents.length, 2);
   // a view with no key is nobody's twin
   const keyless = card({ branch: 'feat/x', agents: [{ name: 'ou-x' } as BoardAgent] });
-  nestClaimedAgents([item], [keyless], new Map([[item.id, [{ name: 'ou-x' } as BoardAgent]]]));
+  nestCardAgents([item], [keyless], new Map([[item.id, [{ name: 'ou-x' } as BoardAgent]]]));
   assert.equal(keyless.agents.length, 2);
 });
 
@@ -1124,7 +1123,7 @@ test('an acked failed run on a backlog card is no line on it, and its chip reads
       ...(acked ? { acked: new Date(NOW - 30000) } : {}),
     });
   const linesOf = (acked: boolean) =>
-    claimViews([item], [run(acked)], NOW)
+    runViews([item], [run(acked)], NOW)
       .get(item.id)
       ?.map((one) => one.state);
   assert.deepEqual(linesOf(false), ['failed']);
