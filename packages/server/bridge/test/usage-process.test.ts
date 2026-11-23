@@ -34,6 +34,9 @@ async function serve(home: string) {
   while (!log.includes('listening') && Date.now() < until) {
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
+  if (!log.includes('listening')) {
+    child.kill('SIGKILL'); // the caller's try/finally starts after this returns
+  }
   assert.ok(log.includes('listening'), log);
   const call = (method: string, route: string, body?: unknown) =>
     fetch(`http://127.0.0.1:${port}${route}`, {

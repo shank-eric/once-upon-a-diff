@@ -17,11 +17,39 @@ const LIB = fileURLToPath(new URL('../../../../scripts/lib/respawn-bridge.sh', i
 const STUB = `import http from 'node:http';
 if (process.argv[2] !== 'serve') process.exit(1);
 http.createServer((_q, r) => r.end('ok')).listen(Number(process.env.STUB_PORT), '127.0.0.1');
+// a stub nobody stopped (a killed or timed-out run never reaches the after hook) ends itself
+setTimeout(() => process.exit(0), 120_000);
 `;
 
 const kids = new Set<number>();
+const bases: string[] = [];
+
+/** a folder is its own or a child of dir, never a sibling that only shares dir's prefix */
+const isInside = (folder: string, dir: string) =>
+  folder === dir || folder.startsWith(dir + path.sep);
+
+/** pids of every process whose working folder is inside one of the fixtures: the stubs respawn_bridge or the fake launchctl started */
+function pidsRunningIn(folders: string[]): number[] {
+  let listing = '';
+  try {
+    listing = execFileSync('lsof', ['-a', '-d', 'cwd', '-Fpn'], { encoding: 'utf8' });
+  } catch {
+    return [];
+  }
+  const found: number[] = [];
+  let pid = 0;
+  for (const line of listing.split('\n')) {
+    if (line.startsWith('p')) {
+      pid = Number(line.slice(1));
+    } else if (line.startsWith('n') && folders.some((dir) => isInside(line.slice(1), dir))) {
+      found.push(pid);
+    }
+  }
+  return found;
+}
+
 after(() => {
-  for (const pid of kids) {
+  for (const pid of [...kids, ...pidsRunningIn(bases)]) {
     try {
       process.kill(pid, 'SIGKILL');
     } catch {
@@ -41,6 +69,7 @@ const freePort = (): Promise<number> =>
 /** A fake main with a stub bridge, a worktree of it, a temp HOME, a log of launchctl's calls and a port. */
 async function makeWorld() {
   const repoFixture = worktreeFixture('once-upon-a-diff');
+  bases.push(repoFixture.base);
   const stub = path.join(repoFixture.main, 'packages/server/bridge/bin/once-upon.mjs');
   mkdirSync(path.dirname(stub), { recursive: true });
   writeFileSync(stub, STUB);
