@@ -2,6 +2,8 @@
 
 > Paths in this ADR are as of its date. The code has moved since; `docs/flows.md` and ADR-26 cite where it lives now.
 
+> Superseded in full by [ADR-29](adr-29-one-stored-card-record.md) (11/23): an implicit card is a stored card, an `add` in `backlog.jsonl` with `source: agent`, written by `agent start` with a `bl_` id; an `ic_` id on an old run row is stored by `card backfill`. What follows is as it was decided on 11/6.
+
 Decided 11/6 by Eric (the plan's questions 1, 2 and 5, notes/research `2026-11-06-ou-implicit-cards-plan.md`), built in the commit that adds this file, and descriptive of the code on main at that commit. It finishes the implicit-card half of the follow-up (a) in [ADR-25](adr-25-the-card-owns-its-runs.md) (Not built here); the editors half is built there.
 
 ## Context

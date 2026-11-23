@@ -2,6 +2,8 @@
 
 > Paths in this ADR are as of its date. The code has moved since; `docs/flows.md` and ADR-26 cite where it lives now.
 
+> Partly superseded by [ADR-29](adr-29-one-stored-card-record.md): its claim paragraph (below) and its follow-up (a), implicit cards. A run still names its card and the phase table stands.
+
 Decided 11/5 by Eric (option A of the draft `2026-11-05-adr-card-as-key`, with the D3 store plan). Built in the commit that adds this file (11/6), and descriptive of the code on main at that commit. It supersedes, in part, [ADR-04](adr-04-json-files-as-store.md) on what `agents.jsonl` and `backlog.jsonl` are joined by, and the claim-to-run rules in the header of `state/src/queues/backlog/claims.ts`. The flip (11/6) is built too: the typed flags beside a card, an unclaimed author and a cardless author or fixer are refused, and the guessing paths are deleted (see Reading old rows and Write checks). What it leaves for later cards is under Not built here.
 
 ## Context
@@ -20,7 +22,7 @@ Each is a join by name, time or a typed copy. The fix is that a run says which c
 - **A fix round is a run of the card.** A restart of the same sid and name is the card's next run (the registry keeps the run before it as `earlier`, and carries its `card` over to the restart, as it does the kind, while that card is open), and a card shows every agent that has a run on it, critics included.
 - **One table reads the card.** `cardPhase` (`state/src/queues/backlog/phase.ts`) maps the card's runs to its column. It replaces `agentColumn`, `criticHold` and the claim-to-run time window, which the flip (11/6) deleted.
 - **Where runs are stored: `agents.jsonl`, with `card` a required, checked key.** The draft's option A stored run events in `backlog.jsonl`. That was dropped here (Eric, 11/6): it would put one `agent start` in two files with no atomicity, `backlog.jsonl` has no incremental reader and would triple in size (start, state and finish rows are about 540 of the 895 KB of `agents.jsonl`), and `records/` cannot import `queues/`, so the registry would have needed a collaborator to write another tier's file. The board behaves the same either way, because it reads runs by card id. D3 holds: JSON and JSONL for now, with checks at write; the linking core (cards, claims, runs) moves to SQLite later behind `BacklogStore` and `AgentRegistry`.
-- **The claim keeps its shape and loses its job.** A claim still says who took the card and shows "claimed, pending" for 2 hours before the agent's first row lands. It no longer finds the card's runs: a card that runs name is never read by its claim. Since the flip (11/6) a card no work run names is a started or pending card and nothing is guessed for it: the claim finds no run, and `claimedRun`, `criticHold` and the claim-to-run window are gone.
+- **The claim no longer finds the card's runs.** It still says who took the card and shows "claimed, pending" for 2 hours before the agent's first row lands, but a card that runs name is never read by its claim. Since the flip (11/6) a card no work run names is a started or pending card and nothing is guessed for it: `claimedRun`, `criticHold` and the claim-to-run window are gone. *Superseded by [ADR-29](adr-29-one-stored-card-record.md) (11/23): the claim itself goes, a card's owner is its latest open run, and "claimed, pending" with it. ADR-29 says what is built and what is not.*
 
 ## The phase table
 
