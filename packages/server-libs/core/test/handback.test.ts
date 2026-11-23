@@ -4,10 +4,11 @@ import '@once-upon-a-diff/test-kit/env';
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { tmp } from '@once-upon-a-diff/test-kit/files';
+import { githubStory } from '@once-upon-a-diff/test-kit/stories';
 import { git, worktreeFixture } from '@once-upon-a-diff/test-kit/git';
 import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
-import { dispatchRun, handbackRun, startRun } from '../src/features/runs/service.ts';
+import { dispatchRun, finishRun, handbackRun, startRun } from '../src/features/runs/service.ts';
 
 /*
  * handbackRun records what a run made from the run's branch ref, never the HEAD of the folder it was registered in (the main
@@ -172,4 +173,42 @@ test('handback runs the finish stamp: a branchless card takes the branch the run
   assert.equal(stored()?.branch, null);
   handbackRun(ctx.home, 'bare-run', {});
   assert.equal(stored()?.branch, 'feat-bare');
+});
+
+test('a storyteller parking its story for review links that story to the card; a non-story outcome links nothing', async () => {
+  const ctx = world();
+  githubStory(path.join(ctx.home, 'story-one'));
+  const stored = () => new BacklogStore(ctx.home).items().find((one) => one.id === ctx.card);
+  await ctx.dispatch({ role: 'storyteller', check: undefined });
+  assert.equal(stored()?.story, null);
+  handbackRun(ctx.home, 'story-feat-x', { state: 'waiting', outcome: 'which chapter order?' });
+  assert.equal(stored()?.story, null, 'a question names no story');
+  handbackRun(ctx.home, 'story-feat-x', { state: 'review', outcome: 'story-one' });
+  assert.equal(stored()?.story, 'story-one');
+});
+
+test('a storyteller finishing (hand-back or agent finish) with the story id links it to the card', async () => {
+  const ctx = world();
+  githubStory(path.join(ctx.home, 'story-two'));
+  const stored = () => new BacklogStore(ctx.home).items().find((one) => one.id === ctx.card);
+  await ctx.dispatch({ role: 'storyteller', check: undefined });
+  handbackRun(ctx.home, 'story-feat-x', { outcome: 'story-two built' });
+  assert.equal(stored()?.story, 'story-two');
+  assert.equal(ctx.run('story-feat-x').state, 'done');
+
+  const other = world();
+  githubStory(path.join(other.home, 'story-three'));
+  await other.dispatch({ role: 'storyteller', check: undefined });
+  finishRun(other.home, 'story-feat-x', { outcome: 'story-three', sid: SID });
+  const linked = new BacklogStore(other.home).items().find((one) => one.id === other.card);
+  assert.equal(linked?.story, 'story-three');
+});
+
+test('an author naming a story in its outcome does not link it: only a storyteller does', async () => {
+  const ctx = world();
+  githubStory(path.join(ctx.home, 'story-four'));
+  await ctx.dispatch();
+  handbackRun(ctx.home, 'feat-x', { state: 'review', outcome: 'story-four' });
+  const card = new BacklogStore(ctx.home).items().find((one) => one.id === ctx.card);
+  assert.equal(card?.story, null);
 });

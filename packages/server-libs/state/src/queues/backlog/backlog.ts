@@ -15,7 +15,7 @@
  *   {op:'drop',  id, by, at}
  *   {op:'reopen', id, by, at}                  a dropped item is open again (a new `start` after a drop is still ignored)
  *   {op:'move',  id, before | edge, by, at}   `before` is another item's id; `edge` is 'top' or 'bottom'
- *   {op:'edit',  id, title?, note?, repo?, by, at}   only the fields that changed; an empty note or repo clears it. An open item only
+ *   {op:'edit',  id, title?, note?, repo?, story?, by, at}   only the fields that changed; an empty note, repo or story clears it. An open item only; a started one takes the story alone
  *   {op:'claim', id, agent, sid?, session?, worktree?, by, at}   an agent (named as it registered) owns the card: the one link from a card to an
  *                                              agent (claims.ts). The latest claim wins; a `done` or a reopen clears it. `session` is the
  *                                              claimer's full session id (the editor's: slots.ts) and `worktree` the checkout path
@@ -78,6 +78,7 @@ export interface EditInput {
   title?: string;
   note?: string | null;
   repo?: string | null;
+  story?: string | null;
 }
 
 /** What a claim records: the agent, and who claimed it (its first 8 and full session) and where the work is, when known. */
@@ -288,18 +289,28 @@ export function foldBacklogEvents(events: BacklogEvent[]): BacklogItem[] {
       found.hold = false;
       found.critic_skipped = false;
       found.someday = false;
-    } else if (found && found.state === 'open' && !found.landed_at && event.op === 'edit') {
-      // only the fields the event carries change (a note or repo of '' clears it); a title is never blanked
-      if (event.title) {
+    } else if (
+      found &&
+      (found.state === 'open' || found.state === 'started') &&
+      !found.landed_at &&
+      event.op === 'edit'
+    ) {
+      // only the fields the event carries change (a note or repo of '' clears it); a title is never blanked.
+      // A started card takes the story only: its title, note and repo stay what its work began with
+      const open = found.state === 'open';
+      if (open && event.title) {
         found.title = event.title;
       }
-      if (typeof event.note === 'string') {
+      if (open && typeof event.note === 'string') {
         found.note = event.note || null;
       }
-      if (typeof event.repo === 'string') {
+      if (open && typeof event.repo === 'string') {
         found.repo = event.repo || null;
         // a reopen goes back to the repo the item has now, not the one it was added with
         added.set(id, { branch: added.get(id)?.branch ?? null, repo: found.repo });
+      }
+      if (typeof event.story === 'string') {
+        found.story = event.story || null;
       }
     } else if (found && event.op === 'move') {
       // a target that is gone or unknown leaves the item where it was
@@ -598,11 +609,14 @@ export class BacklogStore implements BacklogStorage {
 
   /**
    * Changes an open card's title, note or repo, appending only what differs from now (nothing appended when nothing does).
-   * A started, done or dropped item is refused.
+   * A started, done or dropped item is refused, except that a started card that has not landed takes its story (a repair).
    */
   edit(id: string, input: EditInput, who?: string | null): BacklogItem {
     const item = this.find(id);
-    if (item.state !== 'open' || item.landed_at) {
+    const storyOnly =
+      input.title === undefined && input.note === undefined && input.repo === undefined;
+    const editable = item.state === 'open' || (item.state === 'started' && storyOnly);
+    if (!editable || item.landed_at) {
       throw new Error(
         `${id} is ${item.landed_at ? 'done' : item.state}, only an open card can be edited`,
       );
@@ -627,6 +641,12 @@ export class BacklogStore implements BacklogStorage {
       const repo = optional(input.repo, 'the repo', REPO_RE) ?? '';
       if (repo !== (item.repo ?? '')) {
         changes.repo = repo;
+      }
+    }
+    if (input.story !== undefined) {
+      const story = optional(input.story, 'the story', STORY_ID_RE) ?? '';
+      if (story !== (item.story ?? '')) {
+        changes.story = story;
       }
     }
     if (Object.keys(changes).length) {

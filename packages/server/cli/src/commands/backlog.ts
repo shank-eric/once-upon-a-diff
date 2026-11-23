@@ -32,7 +32,7 @@ const USAGE =
   '       once-upon backlog list [--all] [--json] [--someday] [--implicit]\n' +
   '       once-upon backlog adopt ID [--title TEXT] [--by NAME]\n' +
   '       once-upon backlog show ID\n' +
-  '       once-upon backlog edit ID [--title TEXT] [--note TEXT | --note-file PATH | --note -] [--repo owner/name]\n' +
+  '       once-upon backlog edit ID [--title TEXT] [--note TEXT | --note-file PATH | --note -] [--repo owner/name] [--story ID]\n' +
   '       once-upon backlog start ID [--branch NAME] [--repo owner/name] [--by NAME]\n' +
   '       once-upon backlog claim ID --agent NAME [--sid SID8] [--branch NAME] [--worktree PATH] [--repo owner/name] [--by NAME]\n' +
   '       once-upon backlog branch ID NEW-BRANCH [--by NAME]\n' +
@@ -259,10 +259,15 @@ function show({ words, implicit, found }: Call) {
 
 function edit({ home, opts, store, who, found }: Call) {
   const item = found();
-  // a flag left out stays; an empty --note or --repo clears it (a flag with no value reads as true, so it is not text)
-  const changes = { title: text(opts.title), note: text(opts.note), repo: text(opts.repo) };
-  if (changes.title === null && changes.note === null && changes.repo === null) {
-    throw new Error('change something: --title, --note or --repo');
+  // a flag left out stays; an empty --note, --repo or --story clears it (a flag with no value reads as true, so it is not text)
+  const changes = {
+    title: text(opts.title),
+    note: text(opts.note),
+    repo: text(opts.repo),
+    story: text(opts.story),
+  };
+  if (Object.values(changes).every((value) => value === null)) {
+    throw new Error('change something: --title, --note, --repo or --story');
   }
   warnTypedRepo(home, changes.repo, process.cwd());
   const edited = store.edit(
@@ -271,6 +276,7 @@ function edit({ home, opts, store, who, found }: Call) {
       title: changes.title ?? undefined,
       note: changes.note ?? undefined,
       repo: changes.repo ?? undefined,
+      story: changes.story ?? undefined,
     },
     who,
   );
@@ -581,7 +587,7 @@ export const backlogCommands: Command[] = [
     ],
     usage: [
       '  once-upon backlog add "TITLE" [--note TEXT] [--repo owner/name] [--branch NAME]  keep something for later: a card in the board\'s Backlog column',
-      '  once-upon backlog edit ID [--title TEXT] [--note TEXT] [--repo owner/name]      change an open card in place (an empty --note or --repo clears it; a long note: --note-file PATH or --note -)',
+      '  once-upon backlog edit ID [--title TEXT] [--note TEXT] [--repo owner/name] [--story ID]  change an open card in place (an empty --note, --repo or --story clears it; a long note: --note-file PATH or --note -; --story links its story, for a repair)',
       '  once-upon backlog list [--all] [--json] [--someday] | show ID | drop ID [--into CARD] | reopen ID  the items in board order (open ones, or all), one item, drop one (an implicit card too; a card with an open run needs --into CARD, which moves it first), or bring a dropped one back',
       '  once-upon backlog done ID [--sha SHA]                                            the work landed: the card goes to Done for an hour',
       '  once-upon backlog land [PICKED_SHA...] --from REF --to REF [--dry-run]           a deploy: mark done the cards whose recorded commit (agent finish --commit) is in the range (a repo with no deploy lands by merged PR: the bridge does it)',

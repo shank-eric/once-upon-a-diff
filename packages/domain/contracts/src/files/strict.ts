@@ -27,6 +27,7 @@ import {
   regex,
   safeParse,
   string,
+  union,
   unknown,
   variant,
   type GenericSchema,
@@ -206,6 +207,8 @@ const StrictBacklogEvent = variant('op', [
     note: maybe(text),
     // an empty repo clears it
     repo: maybe(pipe(string(), regex(/^$|^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/))),
+    // an empty story clears it
+    story: maybe(union([literal(''), story])),
   }),
 ]);
 

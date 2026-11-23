@@ -12,7 +12,7 @@ import type { AgentResult } from '@once-upon-a-diff/state/records/agents/agent-t
 import type { LedgerAgent } from '@once-upon-a-diff/state/records/agents/ledger';
 import { isImplicitCard } from '@once-upon-a-diff/terms/ids';
 import { defaultBranch } from './checkout.ts';
-import { teachCard } from './finish-run.ts';
+import { linkStory, teachCard } from './finish-run.ts';
 import { runRegistry, type Mirror } from './registry.ts';
 
 export interface HandbackInput {
@@ -74,6 +74,7 @@ export function handbackRun(
       { state: state as 'waiting', outcome, findings: input.findings, sid, prefer: input.prefer },
       warn,
     );
+    linkStory(home, moved, outcome);
     return { run: moved, ended: false, warnings };
   }
   const run = runs.filter((one) => !sid || one.sid === sid).find(runIsOpen);
@@ -106,7 +107,7 @@ export function handbackRun(
       result,
       findings: input.findings,
       noCommit: input.noCommit,
-      beforeFinish: teachCard(home, name),
+      beforeFinish: teachCard(home, name, outcome),
       sid,
       prefer: input.prefer,
     },

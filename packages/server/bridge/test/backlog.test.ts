@@ -831,7 +831,7 @@ test('edit changes an open card in place: the CLI, the board key and the board a
   assert.equal(cleared.repo, null);
   const nothing = await runCli(home, ['backlog', 'edit', id]);
   assert.notEqual(nothing.code, 0);
-  assert.match(nothing.stderr, /--title, --note or --repo/);
+  assert.match(nothing.stderr, /--title, --note, --repo or --story/);
   const lines = () =>
     readFileSync(path.join(home, 'backlog.jsonl'), 'utf8').trim().split('\n').length;
   const before = lines();
@@ -842,6 +842,19 @@ test('edit changes an open card in place: the CLI, the board key and the board a
   assert.match(empty.stderr, /a title is needed/);
   const badRepo = await runCli(home, ['backlog', 'edit', id, '--repo', 'not a repo']);
   assert.notEqual(badRepo.code, 0);
+
+  // --story links a story to the card for a repair, `show` lists it and an empty --story clears it
+  assert.equal(JSON.parse((await runCli(home, ['backlog', 'show', id])).stdout).story, null);
+  const linked = await runCli(home, ['backlog', 'edit', id, '--story', 'my-story_1']);
+  assert.equal(linked.code, 0, linked.stderr);
+  assert.equal(
+    JSON.parse((await runCli(home, ['backlog', 'show', id])).stdout).story,
+    'my-story_1',
+  );
+  const badStory = await runCli(home, ['backlog', 'edit', id, '--story', 'not a story']);
+  assert.notEqual(badStory.code, 0);
+  assert.equal((await runCli(home, ['backlog', 'edit', id, '--story', ''])).code, 0);
+  assert.equal(JSON.parse((await runCli(home, ['backlog', 'show', id])).stdout).story, null);
 
   // the board's column shows the new values, through the board key's route
   const bridge = await startBridge({ home });
@@ -902,6 +915,17 @@ test('edit changes an open card in place: the CLI, the board key and the board a
   const live = store.add({ title: 'Live' });
   store.start(live.id, { branch: 'feat/x' });
   assert.throws(() => store.edit(live.id, { title: 'Nope' }), /is started, only an open card/);
+  assert.throws(() => store.edit(live.id, { note: 'Nope' }), /is started, only an open card/);
+  assert.throws(() => store.edit(live.id, { repo: 'a/b' }), /is started, only an open card/);
+  assert.throws(
+    () => store.edit(live.id, { title: 'Nope', story: 'a-story' }),
+    /is started, only an open card/,
+  );
+  // a started card that has not landed takes its story alone, and `show` lists it
+  assert.equal(store.edit(live.id, { story: 'a-story' }).story, 'a-story');
+  const liveShown = JSON.parse((await runCli(home, ['backlog', 'show', live.id])).stdout);
+  assert.equal(liveShown.story, 'a-story');
+  assert.equal(liveShown.title, 'Live');
   store.done(live.id);
   assert.throws(() => store.edit(live.id, { title: 'Nope' }), /is done, only an open card/);
 

@@ -30,7 +30,7 @@ const stamped = { id, at: lenient(string()), by: lenient(string()) };
  *   {op:'done',  id, sha?, merged_at?, by, at} the work landed (`merged_at`: when its PR merged, when GitHub said so)
  *   {op:'drop' | 'reopen', id, by, at}
  *   {op:'move',  id, before | edge, by, at}    `before` is another item's id; `edge` is 'top' or 'bottom'
- *   {op:'edit',  id, title?, note?, repo?, by, at}
+ *   {op:'edit',  id, title?, note?, repo?, story?, by, at}
  *   {op:'claim', id, agent, sid?, session?, worktree?, by, at}   an agent (named as it registered) owns the card; `session` is the
  *                                              claimer's full session id (the editor's) and `worktree` the checkout path, when given
  *   {op:'hold' | 'someday' | 'skip_critic', id, on, by, at}
@@ -99,6 +99,7 @@ const BacklogEventSchema = variant('op', [
     title: lenient(string()),
     note: lenient(string()),
     repo: lenient(string()),
+    story: lenient(string()),
   }),
 ]);
 export const readBacklogEvent = reader(BacklogEventSchema);
