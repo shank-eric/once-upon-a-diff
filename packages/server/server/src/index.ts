@@ -86,6 +86,7 @@ import {
 } from '@once-upon-a-diff/state/records/github/github-checks';
 import { ghMergedCheck, type MergedCheck } from '@once-upon-a-diff/state/records/github/merged-pr';
 import { UNPACKED_EXTENSION_ID, readSettings } from '@once-upon-a-diff/foundation/settings';
+import { warmRepos } from '@once-upon-a-diff/foundation/repos';
 import type { ApiRoute, App, Body, Call, Send, StoryRoute } from './types.ts';
 
 export { relOfPath } from '@once-upon-a-diff/stories/diff';
@@ -208,11 +209,14 @@ export function createBridge({
     }
   }
   const stories = new StoryStore({ home });
+  // the first board build after a start must not spend a sync `git remote get-url` per story checkout on the loop
+  void warmRepos(stories.list().map((story) => story.repo_path)).catch(() => undefined);
   const inbox = new Inbox(home);
   const autoReview = new AutoReview(stories, checkPr, undefined, checkBranch, checkRequested, home);
   const builds = new Builds(home);
   const board = new Board(home, stories, autoReview, builds, {
     checkMerged,
+    log,
     ...(keeper ? { keeper: new CardKeeper(home, log) } : {}),
   });
   const portOf = () => (server.address() as { port: number }).port;
@@ -588,6 +592,7 @@ export function createBridge({
     retireBridge(home);
     app.usage.flush();
     unhookUsage();
+    board.close();
   });
   return Object.assign(server, {
     stories,

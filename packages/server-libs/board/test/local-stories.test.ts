@@ -29,7 +29,7 @@ import {
   registry,
   reviewedBy,
 } from '@once-upon-a-diff/state/test/board-fixtures';
-import { fakeWatcher, prInfo, sourceSaying } from './board-fixtures.ts';
+import { fakeWatcher, prInfo, sourceSaying, until } from './board-fixtures.ts';
 
 const metaOf = (dir: string) =>
   JSON.parse(readFileSync(path.join(dir, 'meta.json'), 'utf8')) as Record<string, unknown>;
@@ -303,22 +303,25 @@ test('a story approved at a head the branch has left is Ready for your review, e
   writeJson(path.join(home, 'state', 'local-told', 'review.json'), {
     approval: { at: iso(NOW.getTime() - 60000), head_oid: approvedHead, base_oid: null },
   });
-  const columnOf = async () => {
-    const cards = (
-      await new Board(home, stories, noPrWatcher, new Builds(home), {
-        source: registrySource,
-        now: () => NOW,
-      }).snapshot()
-    ).lanes.flatMap((lane) => lane.cards);
-    return cards.find((card) => card.story?.id === 'local-told')?.column;
+  // the board keeps where the branch is from a background look, so a first build does not wait on git (and holds the approval):
+  // the look drops the snapshot when the tip is not what it was thought, and the next poll shows it
+  const columnOf = async (expect: string) => {
+    const board = new Board(home, stories, noPrWatcher, new Builds(home), {
+      source: registrySource,
+      now: () => NOW,
+    });
+    const column = async () =>
+      (await board.snapshot()).lanes
+        .flatMap((lane) => lane.cards)
+        .find((card) => card.story?.id === 'local-told')?.column;
+    return until(column, (found) => found === expect, 5);
   };
   // the branch is still at the approved head
-  assert.equal(await columnOf(), 'ship');
+  assert.equal(await columnOf('ship'), 'ship');
   // a fix round amends the branch: meta.json has not been refreshed (no page is polling), the approval still names the old head
   git(checkout, 'commit', '-q', '--allow-empty', '--amend', '-m', 'first, fixed');
   assert.notEqual(git(checkout, 'rev-parse', 'HEAD').trim(), approvedHead);
-  forgetTips(); // where the branch is stays known for 2 s
-  assert.equal(await columnOf(), 'ready');
+  assert.equal(await columnOf('ready'), 'ready');
 });
 
 test('an approved story whose ref git cannot resolve (the branch deleted, the checkout gone) stays Ready to ship', async () => {

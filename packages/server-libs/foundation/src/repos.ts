@@ -132,6 +132,29 @@ export function repoOfCheckout(dir: string | null | undefined): string | null {
   return repo;
 }
 
+/** How many checkouts `warmRepos` looks at at once. */
+const WARM_AT_ONCE = 4;
+
+/**
+ * Fills the per-process answer of `repoOfCheckout` for these checkouts without blocking: run once at start, so the first
+ * board build after a restart does not spend a `git remote get-url` per checkout on the loop (the build stands still for
+ * it, about 1.5 s for a hundred stories). A checkout already answered, or whose look fails, is left to `repoOfCheckout`.
+ */
+export async function warmRepos(dirs: (string | null | undefined)[]): Promise<void> {
+  const todo = [...new Set(dirs)].filter((dir): dir is string => !!dir && !byDir.has(dir));
+  const next = async (): Promise<void> => {
+    for (let dir = todo.pop(); dir; dir = todo.pop()) {
+      const out = await runGitAsync(dir, ['remote', 'get-url', 'origin'], {
+        timeout: REPO_LOOKUP_TIMEOUT_MS,
+      });
+      if (out.code === 0 && !byDir.has(dir)) {
+        byDir.set(dir, repoOfRemote(out.stdout));
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: WARM_AT_ONCE }, next));
+}
+
 /** How long one `git remote get-url` may take before it counts as a failure (a hung mount must not hold anything up). */
 const REPO_LOOKUP_TIMEOUT_MS = 3000;
 /** How long an answer, or a failure, is kept before the next look. */

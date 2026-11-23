@@ -480,6 +480,26 @@ export function commitOf(repo: string, ref: string, timeoutMs?: number): string 
   }
 }
 
+/**
+ * `commitOf` without blocking the bridge: the commit a ref names (null when git has no such ref), and whether git was
+ * killed for running past the timeout (then the null says nothing about the ref).
+ */
+export async function commitOfAsync(
+  repo: string,
+  ref: string,
+  timeout = 3000,
+): Promise<{ tip: string | null; killed: boolean }> {
+  const out = await runGitAsync(
+    repo,
+    ['rev-parse', '--verify', '--quiet', '--end-of-options', `${ref}^{commit}`],
+    { timeout },
+  );
+  return {
+    tip: out.code === 0 ? out.stdout.trim() || null : null,
+    killed: out.killed === true,
+  };
+}
+
 /** When a commit was committed (its committer date), or null when the checkout has no such commit. */
 export function commitTime(repo: string, ref: string): Date | null {
   try {

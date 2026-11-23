@@ -19,6 +19,7 @@ import { registrySource } from '@once-upon-a-diff/core/features/sessions/sources
 import { StoryStore } from '@once-upon-a-diff/stories/store';
 import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
 import type { BoardCard } from '@once-upon-a-diff/contracts/types';
+import { until } from './board-fixtures.ts';
 
 test('pathsIn takes absolute and ~/ paths from a task, and leaves dates, urls, and/or and relative paths', () => {
   const task =
@@ -148,6 +149,12 @@ test('worktreesOf keeps the last good list when git times out, and gives none fo
   });
   const listed = async () => {
     clock += 60000; // past the few seconds a list is kept
+    // the stale list answers at once and git is asked again in the background: wait for that, then read what it kept
+    await board['worktreesOf']('/d/widgets', clock);
+    await until(
+      () => board['refreshing'].size,
+      (running) => running === 0,
+    );
     const trees = await board['worktreesOf']('/d/widgets', clock);
     return trees.map((one) => one.path);
   };

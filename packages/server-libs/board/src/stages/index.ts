@@ -71,6 +71,7 @@ import { addSubagentRows } from './subagents.ts';
 import { assignCards, collectWorks } from './works.ts';
 import { cardHomes } from './homes.ts';
 import { worktreeSection } from './worktrees.ts';
+import { StageClock, type StageTimes } from './clock.ts';
 
 /** What the Board keeps between builds and hands to one. */
 export interface BoardState {
@@ -96,6 +97,8 @@ export interface BuiltBoard {
   seen: BoardState['seen'];
   /** what the build learned for the card keeper (stages/learned.ts): nothing unless `state.learn` */
   learned: LearnedCards;
+  /** how long each stage took (for the slow-build log line) */
+  times: StageTimes;
 }
 
 /**
@@ -106,8 +109,11 @@ export interface BuiltBoard {
  */
 export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<BuiltBoard> {
   const { now, nowMs, settings } = ctx;
+  const clock = new StageClock();
   const unreadById = unreadAnswers(ctx.home, new Inbox(ctx.home), nowMs);
+  clock.mark('unreadAnswers');
   const read = await readLive(ctx, state.liveness);
+  clock.mark('readLive');
   // a standing helper is no card, no running work and no owner of a backlog card: it is held out of every stage's agents
   // and has its row only (helpers.ts)
   const standing = read.agents.filter(isStandingHelper);
@@ -119,6 +125,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
   const storedCards = state.backlog.items();
   const backlogItems = storedCards.filter(isListed);
   const collected = collectWorks(ctx, storedCards);
+  clock.mark('collectWorks');
   const { works, stories, localStoryList } = collected;
   const cardFacts: CardFacts = {
     unreadById,
@@ -131,6 +138,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
     titles: state.titles,
     listenerSessions: state.listenerSessions,
   });
+  clock.mark('readSessionFacts');
   const {
     waits,
     parents,
@@ -147,16 +155,19 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
   const placed = placeSessions(ctx, liveFacts, facts, works, state.seen, storedCards);
   const { sessionCards, quietViews, blankViews, repoBySession } = placed;
   const pin = placed.pin;
+  clock.mark('placeSessions');
   // the pinned voice session's last lines, from voice_ctl: asked only when the strip is shown
   const lines =
     pin && settings.larmorDir
       ? await voiceLines(settings.larmorDir, pin.view.id, !!voiceFiles?.on)
       : [];
+  clock.mark('voiceLines');
 
   // the works the sessions started are on their stored cards too (a work a session found has no card id until now)
   assignCards(works, storedCards, ctx.review);
   // cards for the works: PR details from what GitHub last said
   const cards = buildCards(ctx, cardFacts, works, sessionCards);
+  clock.mark('buildCards');
   // where each stored card is shown, so the stages below join a card to its work, session and agents by its id (homes.ts)
   const homes = cardHomes(works, cards, placed.joinedCards);
 
@@ -171,6 +182,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
     nowMs,
   });
   const views = runViews(backlogItems, agents, nowMs, editing.editorOf);
+  clock.mark('editorsAndRunViews');
 
   // agents: nested in the card their registered repo, branch, PR or card point to, else a card of their own on their own lane
   cards.push(
@@ -187,6 +199,8 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
       trees: settings.worktrees ? state.scanner.read().items : [],
     }),
   );
+
+  clock.mark('placeAgents');
 
   // an agent whose run names a card goes on its branch's card now, so its state counts when the columns are decided
   nestCardAgents(backlogItems, cards, views, homes);
@@ -212,6 +226,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
     placed.launched,
   );
 
+  clock.mark('placeCards');
   const { listening, sessionViews } = markListening(ctx, cards, {
     waits,
     parents,
@@ -225,6 +240,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
     trees: settings.worktrees ? state.scanner.read().items : [],
   });
 
+  clock.mark('markListening');
   // the Backlog column: open items, and started ones are marked onto the work cards they became
   const links = await readBacklogLinks(ctx, {
     items: backlogItems,
@@ -235,6 +251,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
     repoBySession,
     sessionViews,
   });
+  clock.mark('readBacklogLinks');
   cards.push(
     ...addBacklogCards(
       ctx,
@@ -248,6 +265,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
     ),
   );
 
+  clock.mark('addBacklogCards');
   const worktrees = settings.worktrees
     ? worktreeSection({
         scanner: state.scanner,
@@ -264,6 +282,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
       })
     : null;
 
+  clock.mark('worktreeSection');
   // lanes: one per repo, the cards grouped by the page into columns; the labels are the board's one
   // answer, the short name unless two lanes share it (the Worktrees lane's rows carry theirs)
   const labels = laneLabels([
@@ -307,7 +326,10 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
     usage: statusLines.usage,
   };
   // the subagents nobody registered, as light rows on their session's card or strip entry (subagents.ts)
+  clock.mark('labelsAndLanes');
   await addSubagentRows(ctx, state.liveness, data, [...read.agents, ...read.editors]);
+  clock.mark('addSubagentRows');
   const learned = state.learn ? await learnCards(ctx, works, placed.learned) : NOTHING_LEARNED;
-  return { data, listening, seen: placed.seen, learned };
+  clock.mark('learnCards');
+  return { data, listening, seen: placed.seen, learned, times: clock.times };
 }

@@ -48,6 +48,9 @@ const TIP_TIMEOUT_MS = 3000;
 const TIP_KEEP_MS = 2000;
 const tips = new Map<string, { at: number; tip: string | null }>();
 
+/** Where a ref is now (null when not known): `tipOf` asks git; the board passes the tips it keeps from background looks. */
+export type TipReader = (repo: string, ref: string) => string | null;
+
 /** Forgets the kept answers (a test that moves a branch and asks again at once). */
 export const forgetTips = (): void => tips.clear();
 
@@ -76,6 +79,7 @@ export function approvalAtTip(
   id: string,
   meta: { head_oid?: unknown; head?: unknown; repo_path?: unknown },
   now = Date.now(),
+  tipReader: TipReader = tipOf,
 ): Approval | null {
   const counted = approvalOf(
     stories,
@@ -86,6 +90,6 @@ export function approvalAtTip(
   if (!counted || typeof meta.repo_path !== 'string' || typeof meta.head !== 'string') {
     return counted;
   }
-  const tip = tipOf(meta.repo_path, meta.head);
+  const tip = tipReader(meta.repo_path, meta.head);
   return tip && tip !== counted.head_oid && tip !== counted.carried?.from ? null : counted;
 }

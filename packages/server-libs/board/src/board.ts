@@ -13,7 +13,12 @@ import {
   repoOfCheckoutAsync,
   typedRepoNote,
 } from '@once-upon-a-diff/foundation/repos';
-import { branchMovedPastAsync, isAncestorAsync, runGitAsync } from '@once-upon-a-diff/adapters/git';
+import {
+  branchMovedPastAsync,
+  commitOfAsync,
+  isAncestorAsync,
+  runGitAsync,
+} from '@once-upon-a-diff/adapters/git';
 import { aheadOf } from '@once-upon-a-diff/stories/pull-request';
 import { lastActivity } from '@once-upon-a-diff/state/records/agents/ledger';
 import { dropRunsProblem } from '@once-upon-a-diff/state/queues/backlog/phase';
@@ -61,6 +66,9 @@ import type { SeenSession } from './stages/sessions.ts';
 import { liveSessions } from '@once-upon-a-diff/adapters/claude-sessions/live-sessions';
 import { noPrWatcher, type PrWatcher } from './stages/pr-watcher.ts';
 import type { BuildContext, Lookups } from './stages/types.ts';
+import { onBackgroundChange } from '@once-upon-a-diff/adapters/change-signal';
+import type { StageTimes } from './stages/clock.ts';
+import { takeLoopDelay } from './loop-delay.ts';
 import { Sessions } from '@once-upon-a-diff/core/features/sessions/sessions';
 
 /**
@@ -78,8 +86,14 @@ export type { PrWatcher };
 
 /** The board's answers are kept this long, so several open pages cost one round of reads. */
 const CACHE_MS = 2000;
+/** A build over this long logs one line: its total, the stages that took 50 ms or more, and the longest the event loop stood still. */
+const SLOW_BUILD_MS = 500;
 
 const BRANCH_CACHE_MS = 10000;
+/** How often a story's ref is looked at again (git rev-parse): the board is a poll or two behind a moved branch, the story page is not. */
+const TIP_MS = 5000;
+/** how many tip looks run at once: a first build asks the rest on later polls */
+const TIPS_AT_ONCE = 6;
 /** How often a branch's commits-ahead count is looked at again (git ls-remote each time). */
 const AHEAD_MS = 60000;
 /** how many moved-past looks run at once: a first build over many Ready cards asks the rest on later polls */
@@ -96,6 +110,8 @@ export class Board {
   /** a checkout's worktrees (git worktree list), kept a few seconds */
   private trees = new Map<string, { at: number; list: Worktree[] }>();
   private cache: { at: number; data: BoardData } | null = null;
+  /** the background looks on kept answers gone stale (refreshKept), by what they look at */
+  private refreshing = new Set<string>();
   /** a voice_ctl call (phone, start or stop) is running */
   private phoneBusy = false;
   /** a voice_ctl pause or resume is running */
@@ -108,6 +124,10 @@ export class Board {
   private aheads = new Map<string, { at: number; count: number | null }>();
   /** whether a tip moved past a commit, by the pair of shas (immutable, so an answer is never stale); a null (the look failed or timed out) is asked again after BRANCH_CACHE_MS */
   private moves = new Map<string, { at: number; moved: boolean | null; asking: boolean }>();
+  /** where each story's ref was last seen, looked up in the background (tipOf) */
+  private tips = new Map<string, { at: number; tip: string | null; asking: boolean }>();
+  /** a tip changed since the snapshot was last dropped */
+  private tipsMoved = false;
   /** Bumped when what a build read is out of date, so a build that started before it does not fill the cache. */
   private generation = 0;
   private blank = new BlankSessions();
@@ -123,6 +143,7 @@ export class Board {
   /** every git worktree, scanned in the background (worktrees.ts): a build reads what it has and never waits */
   private scanner: WorktreeScanner;
 
+  private stopBackground: () => void;
   private home: string;
   private stories: StoryStore;
   private review: PrWatcher;
@@ -135,6 +156,8 @@ export class Board {
     aheadOf?: typeof aheadOf;
     /** how a branch is found to have moved past a commit (tests answer without git) */
     movedPast?: typeof branchMovedPastAsync;
+    /** how a ref's commit is found (tests answer without git) */
+    tipOf?: (repo: string, ref: string) => Promise<{ tip: string | null; killed: boolean }>;
     /** runs the worktree scan's git and du (tests count calls or hold one up) */
     worktreeRun?: Runner;
     /** runs `git worktree list` (tests answer with a timeout or a failure without git) */
@@ -145,6 +168,8 @@ export class Board {
     checkMerged?: MergedCheck;
     /** what a build learned about the work it saw, handed on after the build (the card keeper: ADR-29); with none, nothing is worked out */
     keeper?: { apply(learned: LearnedCards): void };
+    /** where a slow build's line goes (the bridge log); with none, nothing is logged */
+    log?: (line: string) => void;
   };
 
   /** whether `repoOf` last answered for a folder in time, as against the last known repo */
@@ -158,6 +183,7 @@ export class Board {
     worktreesOf: (cwd, now) => this.worktreesOf(cwd, now),
     mergedLocally: (trees, branch, now) => this.mergedLocally(trees, branch, now),
     aheadFor: (found, branch) => this.aheadFor(found, branch),
+    tipOf: (repo, ref) => this.tipOf(repo, ref),
     movedPast: (checkout, told, tip, defaultBranch) =>
       this.movedPast(checkout, told, tip, defaultBranch),
   };
@@ -175,15 +201,19 @@ export class Board {
       typeLine?: typeof typeLine;
       aheadOf?: typeof aheadOf;
       movedPast?: typeof branchMovedPastAsync;
+      tipOf?: (repo: string, ref: string) => Promise<{ tip: string | null; killed: boolean }>;
       worktreeRun?: Runner;
       worktreeListMs?: number;
       worktreeListRun?: typeof runGitAsync;
       checkMerged?: MergedCheck;
       keeper?: { apply(learned: LearnedCards): void };
+      log?: (line: string) => void;
     } = {},
   ) {
     this.home = home;
     this.stories = stories;
+    // a background look in an adapter (iTerm's tabs, Larmor's lines) that found a change: the next poll must show it
+    this.stopBackground = onBackgroundChange(() => this.invalidate());
     this.review = review;
     this.builds = builds;
     this.options = options;
@@ -322,6 +352,11 @@ export class Board {
     return this.snapshot();
   }
 
+  /** Stops listening for background changes (the bridge closing): a closed board's cache is no longer dropped. */
+  close(): void {
+    this.stopBackground();
+  }
+
   /** Drop the kept answer, and keep a build already running from refilling it with what it read before the change. */
   private invalidate(): void {
     this.generation += 1;
@@ -413,12 +448,83 @@ export class Board {
     return null;
   }
 
+  /**
+   * Where a story's ref is, as the last background look saw it (Lookups.tipOf). The build never waits on git: the look
+   * (git rev-parse) runs a few at a time, at most every TIP_MS for a checkout and ref, and a tip that moved drops the kept
+   * snapshot once the lookups in flight are in, so an approval the branch has left lapses on the next poll.
+   */
+  private tipOf(repo: string, ref: string): string | null {
+    const key = `${repo}\0${ref}`;
+    const kept = this.tips.get(key);
+    const now = Date.now();
+    const due = !kept || (!kept.asking && now - kept.at >= TIP_MS);
+    if (due && [...this.tips.values()].filter((one) => one.asking).length < TIPS_AT_ONCE) {
+      this.tips.set(key, { at: now, tip: kept?.tip ?? null, asking: true });
+      this.askTip(key, repo, ref);
+    }
+    return kept?.tip ?? null;
+  }
+
+  private askTip(key: string, repo: string, ref: string): void {
+    const ask = this.options.tipOf || commitOfAsync;
+    void ask(repo, ref).then((answer) => {
+      const last = this.tips.get(key);
+      // a look git was killed in (under load) keeps the last answer; a ref git can't resolve is null, as on the page (the approval stands)
+      const tip = answer.killed ? (last?.tip ?? null) : answer.tip;
+      this.tips.set(key, { at: Date.now(), tip, asking: false });
+      if (tip !== (last?.tip ?? null)) {
+        this.tipsMoved = true;
+      }
+      if (this.tipsMoved && ![...this.tips.values()].some((one) => one.asking)) {
+        this.tipsMoved = false;
+        this.invalidate();
+      }
+    });
+  }
+
   /** A checkout's current branch (null when detached or not a repo), kept a few seconds. */
   private async branchOf(cwd: string, now: number): Promise<string | null> {
     const kept = this.branches.get(cwd);
     if (kept && now - kept.at < BRANCH_CACHE_MS) {
       return kept.branch;
     }
+    if (kept) {
+      // stale: answer with it and look again in the background, so one build in a few never waits on git
+      this.refreshKept(`branch\0${cwd}`, async () => {
+        const branch = await this.lookBranch(cwd, kept);
+        this.branches.set(cwd, { at: now, branch });
+        return branch !== kept.branch;
+      });
+      return kept.branch;
+    }
+    const branch = await this.lookBranch(cwd, kept);
+    this.branches.set(cwd, { at: now, branch });
+    return branch;
+  }
+
+  /**
+   * Runs `look` in the background for a kept answer gone stale, one per key at a time, and drops the kept snapshot when
+   * it says the answer changed (true).
+   */
+  private refreshKept(key: string, look: () => Promise<boolean>): void {
+    if (this.refreshing.has(key)) {
+      return;
+    }
+    this.refreshing.add(key);
+    look()
+      .then((changed) => {
+        if (changed) {
+          this.invalidate();
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => this.refreshing.delete(key));
+  }
+
+  private async lookBranch(
+    cwd: string,
+    kept: { branch: string | null } | undefined,
+  ): Promise<string | null> {
     // symbolic-ref also answers on a branch with no commits yet, and fails when HEAD is detached
     const out = await runGitAsync(cwd, ['symbolic-ref', '--short', 'HEAD'], { timeout: 3000 });
     // a lookup that timed out under load keeps the last good branch; any other failure (detached, not a repo) is no branch
@@ -428,7 +534,6 @@ export class Board {
     } else if (out.killed) {
       branch = kept?.branch ?? null;
     }
-    this.branches.set(cwd, { at: now, branch });
     return branch;
   }
 
@@ -438,6 +543,20 @@ export class Board {
     if (kept && now - kept.at < BRANCH_CACHE_MS) {
       return kept.list;
     }
+    if (kept) {
+      this.refreshKept(`trees\0${cwd}`, async () => {
+        const list = await this.lookWorktrees(cwd, kept.list);
+        this.trees.set(cwd, { at: now, list });
+        return JSON.stringify(list) !== JSON.stringify(kept.list);
+      });
+      return kept.list;
+    }
+    const list = await this.lookWorktrees(cwd, undefined);
+    this.trees.set(cwd, { at: now, list });
+    return list;
+  }
+
+  private async lookWorktrees(cwd: string, kept: Worktree[] | undefined): Promise<Worktree[]> {
     const out = await (this.options.worktreeListRun || runGitAsync)(
       cwd,
       ['worktree', 'list', '--porcelain'],
@@ -449,9 +568,8 @@ export class Board {
     if (out.code === 0) {
       list = parseWorktrees(out.stdout);
     } else if (out.killed) {
-      list = kept?.list ?? [];
+      list = kept ?? [];
     }
-    this.trees.set(cwd, { at: now, list });
     return list;
   }
 
@@ -474,6 +592,23 @@ export class Board {
     if (kept && now - kept.at < BRANCH_CACHE_MS) {
       return kept.merged ? { at: kept.mergedAt } : null;
     }
+    if (kept) {
+      this.refreshKept(`landed\0${key}`, async () => {
+        const looked = await this.lookMerged(main, branch);
+        this.landed.set(key, { at: now, ...looked });
+        return looked.merged !== kept.merged || looked.mergedAt !== kept.mergedAt;
+      });
+      return kept.merged ? { at: kept.mergedAt } : null;
+    }
+    const looked = await this.lookMerged(main, branch);
+    this.landed.set(key, { at: now, ...looked });
+    return looked.merged ? { at: looked.mergedAt } : null;
+  }
+
+  private async lookMerged(
+    main: Worktree,
+    branch: string,
+  ): Promise<{ merged: boolean; mergedAt: number | null }> {
     const log = await runGitAsync(
       main.path,
       ['reflog', 'show', '--format=%H', `refs/heads/${branch}`],
@@ -505,12 +640,12 @@ export class Board {
         mergedAt = Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : null;
       }
     }
-    this.landed.set(key, { at: now, merged, mergedAt });
-    return merged ? { at: mergedAt } : null;
+    return { merged, mergedAt };
   }
 
   private async build(now: Date): Promise<BoardData> {
     const nowMs = now.getTime();
+    const started = performance.now();
     const settings = readSettings(this.home);
     const ctx: BuildContext = {
       home: this.home,
@@ -535,6 +670,7 @@ export class Board {
       learn: !!this.options.keeper,
     });
     this.seen = built.seen;
+    this.logIfSlow(performance.now() - started, built.times);
     this.listeningNow = { input: built.listening };
     // what the build learned goes to the keeper, which writes stored cards and never throws: nothing it does reaches the board
     try {
@@ -543,6 +679,21 @@ export class Board {
       /* the keeper logs its own failures */
     }
     return built.data;
+  }
+
+  /** One line when a build passed SLOW_BUILD_MS: where the time went, and whether the event loop was held (other requests waiting). */
+  private logIfSlow(took: number, times: StageTimes): void {
+    const loop = takeLoopDelay();
+    if (took < SLOW_BUILD_MS || !this.options.log) {
+      return;
+    }
+    const stages = times
+      .filter(([, spent]) => spent >= 50)
+      .map(([stage, spent]) => `${stage} ${spent}`)
+      .join(', ');
+    this.options.log(
+      `board build ${Math.round(took)} ms (${stages || 'no stage over 50 ms'}); event loop max ${loop.max} ms, p99 ${loop.p99} ms since the last build`,
+    );
   }
 
   /**

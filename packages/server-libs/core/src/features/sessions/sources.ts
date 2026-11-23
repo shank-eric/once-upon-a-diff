@@ -5,7 +5,7 @@
  * which adds `tab` to what the hook source says and never changes a status. A source gets the live sessions (with their
  * ttys) and answers for the ones it knows; the board uses the registry's busy/idle for the rest.
  */
-import { findIt2, itermTabs } from '@once-upon-a-diff/adapters/iterm';
+import { findIt2, keptItermTabs } from '@once-upon-a-diff/adapters/iterm';
 import {
   hookFileCount,
   readHookStatuses,
@@ -37,7 +37,7 @@ function hookWithTabs(home: string, it2: string): StatusSource {
     async statuses(sessions) {
       const [hooked, tabbed] = await Promise.all([
         hook.statuses(sessions),
-        itermTabs(it2, sessions),
+        keptItermTabs(it2, sessions),
       ]);
       const found = new Map(hooked);
       for (const live of sessions) {

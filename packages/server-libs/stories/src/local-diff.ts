@@ -169,15 +169,43 @@ export function refreshLocal(dir: string, given: LocalMeta): LocalMeta {
   return next;
 }
 
+/** How long a pinned story's moved tips are kept: the page's first burst (pulse, freshness, version, drafts) asks the same question four times. */
+const MOVED_KEEP_MS = 2000;
+const movedKept = new Map<string, { at: number; moved: LocalMoved | null }>();
+
+/** Forgets the kept answers (a test that moves a branch and asks again at once). */
+export const forgetMoved = (): void => movedKept.clear();
+
 /**
  * For a pinned story, where its base (the merge-base of the base ref and head, as told) and head refs are now when that is not where the story was told: the current
  * commit of each ref that moved (the other is null), or null when nothing moved, the story follows HEAD, or a ref
  * can't be read (the repo or branch is gone).
  */
 export function movedSince(meta: LocalMeta): LocalMoved | null {
+  return movedKeptOrNow(meta, false);
+}
+
+/** `movedSince` read from git now, never from the kept answer: what a write (Approve) decides on. It refreshes the kept answer. */
+export function movedNow(meta: LocalMeta): LocalMoved | null {
+  return movedKeptOrNow(meta, true);
+}
+
+function movedKeptOrNow(meta: LocalMeta, fresh: boolean): LocalMoved | null {
   if (followsHead(meta) || !meta.base_oid || !meta.head_oid) {
     return null;
   }
+  const key = JSON.stringify([meta.repo_path, meta.head, meta.base, meta.base_oid, meta.head_oid]);
+  const kept = movedKept.get(key);
+  const asked = Date.now();
+  if (!fresh && kept && asked - kept.at < MOVED_KEEP_MS) {
+    return kept.moved;
+  }
+  const moved = lookMoved(meta);
+  movedKept.set(key, { at: asked, moved });
+  return moved;
+}
+
+function lookMoved(meta: LocalMeta): LocalMoved | null {
   try {
     const head = revParse(meta.repo_path, meta.head);
     const base = baseOidOf(meta.repo_path, meta.base, head);

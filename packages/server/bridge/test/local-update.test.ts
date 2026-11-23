@@ -1,4 +1,5 @@
 import { test, describe } from 'node:test';
+import { forgetMoved } from '@once-upon-a-diff/stories/local-diff';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -26,6 +27,7 @@ function tell(home: string, repo: string, base: string, head = 'HEAD') {
 const amendTwo = (repo: string, body = 'export const two = 3;\n') => {
   writeFileSync(path.join(repo, 'lib/two.js'), body);
   git(repo, 'commit', '-q', '-a', '--amend', '--no-edit');
+  forgetMoved(); // where a pinned story's branch is stays known for 2 s
 };
 
 const freshnessOf = async (bridge: Awaited<ReturnType<typeof startBridge>>) =>

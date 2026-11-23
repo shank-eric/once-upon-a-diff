@@ -16,25 +16,33 @@ import { withLayout, type Layout } from '/assets/panel/shell/layout.ts';
 const app = document.getElementById('ou-local-app') as HTMLElement; // the page's shell has it
 
 async function start() {
-  page.hljs = await import('/assets/highlight.mjs').then(
+  // all four requests go out together: the story and the saved state do not wait for highlight.js to load and parse
+  const loadHljs = import('/assets/highlight.mjs').then(
     (module) => module.default,
     () => null,
   );
-  let story: LocalStoryData;
-  try {
-    story = (await bridge.ask(ROUTES.story, { params: PARAMS })) as LocalStoryData;
-  } catch (err) {
-    store.set({ loadError: (err as Error).message });
+  const loadStory = bridge.ask(ROUTES.story, { params: PARAMS }).then(
+    (data) => ({ story: data as LocalStoryData }),
+    (err: Error) => ({ error: err }),
+  );
+  const loadSaved = bridge
+    .ask(ROUTES.storyUiRead, { params: PARAMS })
+    .catch(() => ({})) as Promise<InitialUi>;
+  const loadPrefs = bridge
+    .ask(ROUTES.storyPrefsRead, { params: PARAMS })
+    .catch(() => null) as Promise<{
+    layout?: Layout;
+  } | null>;
+  page.hljs = await loadHljs;
+  const loaded = await loadStory;
+  if ('error' in loaded) {
+    store.set({ loadError: loaded.error.message });
     drawInto(app);
     return;
   }
+  const { story } = loaded;
   document.title = story.title;
-  const [saved, prefs] = await Promise.all([
-    bridge.ask(ROUTES.storyUiRead, { params: PARAMS }).catch(() => ({})) as Promise<InitialUi>,
-    bridge.ask(ROUTES.storyPrefsRead, { params: PARAMS }).catch(() => null) as Promise<{
-      layout?: Layout;
-    } | null>,
-  ]);
+  const [saved, prefs] = await Promise.all([loadSaved, loadPrefs]);
   // the story's own step and folds, at the size last dragged on any story
   page.layout = prefs?.layout || null;
   page.lastUi = withLayout(saved, page.layout);

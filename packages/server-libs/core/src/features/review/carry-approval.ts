@@ -34,7 +34,7 @@ import {
 import { sameRepo } from '@once-upon-a-diff/foundation/repos';
 import { StoryStore } from '@once-upon-a-diff/stories/store';
 import { readMeta } from '@once-upon-a-diff/stories/meta';
-import { movedSince, refreshLocal } from '@once-upon-a-diff/stories/local-diff';
+import { movedNow, refreshLocal } from '@once-upon-a-diff/stories/local-diff';
 import { approvalFresh, readApproval } from '@once-upon-a-diff/stories/approval';
 import type { LocalMeta } from '@once-upon-a-diff/stories/types';
 import type { LocalCommit } from '@once-upon-a-diff/contracts/types';
@@ -142,7 +142,7 @@ export function rebasedOnto(
  * story never told.
  */
 export function approvableTip(meta: LocalMeta): { tip: string; base: string } | 'stale' | null {
-  const tip = movedSince(meta)?.head_oid;
+  const tip = movedNow(meta)?.head_oid;
   if (!tip) {
     return null;
   }

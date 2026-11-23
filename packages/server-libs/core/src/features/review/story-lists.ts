@@ -16,7 +16,7 @@ import { readMeta, storyRepo, stateKeyOf } from '@once-upon-a-diff/stories/meta'
 import { readReads } from '@once-upon-a-diff/stories/reads';
 import { unwrittenCount } from '@once-upon-a-diff/stories/skeleton';
 import { isStoryless } from '@once-upon-a-diff/stories/local-story';
-import { approvalAtTip, type Approval } from '@once-upon-a-diff/stories/approval';
+import { approvalAtTip, type Approval, type TipReader } from '@once-upon-a-diff/stories/approval';
 import {
   isDecided,
   markOf,
@@ -27,6 +27,9 @@ import { updateReviewRecord } from './review-record.ts';
 import type { StoryStore } from '@once-upon-a-diff/stories/store';
 import type { InboxLocalStory, InboxStory, ReviewedBy } from '@once-upon-a-diff/contracts/types';
 import { prUrl } from '@once-upon-a-diff/terms/github-urls';
+
+/** What `StoryStore.list` answers: a build lists once and hands it to each reader of the stories. */
+export type StoryList = ReturnType<StoryStore['list']>;
 
 /** How long after it was built a PR story stays in the inbox. */
 const STORY_DAYS = 30;
@@ -44,11 +47,15 @@ const latestOf = (times: (string | null | undefined)[]): string | null =>
 /** The PR stories (newest first), or only a repo's (owner/name). */
 export function prStories(
   stories: StoryStore,
-  { repo = null, now = Date.now() }: { repo?: string | null; now?: number } = {},
+  {
+    repo = null,
+    now = Date.now(),
+    list = stories.list(),
+  }: { repo?: string | null; now?: number; list?: StoryList } = {},
 ): InboxStory[] {
   const cutoff = now - STORY_DAYS * 24 * 3600 * 1000;
   const found: InboxStory[] = [];
-  for (const story of stories.list()) {
+  for (const story of list) {
     const number = Number(story.number);
     if (
       story.kind !== 'github' ||
@@ -123,24 +130,42 @@ export const isLocalStory = (
 ): boolean => story.kind === 'local' && !story.turn;
 
 /**
+ * When a story was told, from meta.json: the folder's newest file time moves whenever a page remakes the diff after
+ * HEAD or the base moves, which is not a rebuild. Stories made before built_at was kept fall back to it.
+ */
+function builtOf(story: { version: string }, meta: { built_at?: unknown }): number {
+  const toldAt = Date.parse(typeof meta.built_at === 'string' ? meta.built_at : '');
+  return Number.isNaN(toldAt) ? Number(story.version) : toldAt;
+}
+
+/**
  * The local stories (newest first), or only a repo's (owner/name), with what the checks look at. A story left by the
  * retired turn capture is not one.
  */
 export function localEntries(
   stories: StoryStore,
-  { repo = null, now = Date.now() }: { repo?: string | null; now?: number } = {},
+  {
+    repo = null,
+    now = Date.now(),
+    list = stories.list(),
+    tips,
+  }: {
+    repo?: string | null;
+    now?: number;
+    /** the stories, when the caller listed them already (a build lists once) */
+    list?: StoryList;
+    /** where a story's ref is, when the caller keeps tips (the board's build, which must not run git); default: ask git */
+    tips?: TipReader;
+  } = {},
 ): LocalEntry[] {
   const cutoff = now - STORY_DAYS * 24 * 3600 * 1000;
   const found: LocalEntry[] = [];
-  for (const story of stories.list()) {
+  for (const story of list) {
     if (!isLocalStory(story)) {
       continue;
     }
     const meta = readMeta(story.dir);
-    // when it was told, from meta.json: the folder's newest file time moves whenever a page remakes the diff after
-    // HEAD or the base moves, which is not a rebuild. Stories made before built_at was kept fall back to it.
-    const toldAt = Date.parse(meta.built_at || '');
-    const built = Number.isNaN(toldAt) ? Number(story.version) : toldAt;
+    const built = builtOf(story, meta);
     if (!built || built < cutoff) {
       continue;
     }
@@ -158,7 +183,13 @@ export function localEntries(
     const position = stories.readState<{ at?: string } | null>(story.id, 'position.json', null);
     const builtAt = new Date(built).toISOString();
     const unwritten = unwrittenCount(story.dir);
-    const approved = approvalAtTip(stories, story.id, { ...meta, repo_path: story.repo_path }, now);
+    const approved = approvalAtTip(
+      stories,
+      story.id,
+      { ...meta, repo_path: story.repo_path },
+      now,
+      tips,
+    );
     // an approval that counts is shown as the `approved` mark; it goes with the approval (a new commit, or a week), so the
     // story is back in Ready at once instead of when the background check next lapses it
     const shown = markOf(record, approved);
@@ -208,6 +239,19 @@ export function localStories(
   return localEntries(stories, options).map((entry) => entry.story);
 }
 
+/**
+ * Whether the id is a listed local story (a local one, not the retired turn capture's, told in the last STORY_DAYS days),
+ * the answer `localStory` gives, from the one story's folder: no approval or git work, which a link to the story does not need.
+ */
+export function isListedLocalStory(stories: StoryStore, id: string, now = Date.now()): boolean {
+  const story = stories.get(id);
+  if (!story || !isLocalStory(story)) {
+    return false;
+  }
+  const built = builtOf(story, readMeta(story.dir));
+  return !!built && built >= now - STORY_DAYS * 24 * 3600 * 1000;
+}
+
 /** One local story by id, or null when the id isn't a listed one's. */
 export function localStory(stories: StoryStore, id: string): InboxLocalStory | null {
   return localStories(stories).find((story) => story.id === id) || null;
@@ -227,10 +271,14 @@ export interface MergedStory {
 /** The stories whose PR merged in the last `hours` hours: merged.json's `merged_at`, else when the bridge noticed. */
 export function mergedStories(
   stories: StoryStore,
-  { hours = 1, now = Date.now() }: { hours?: number; now?: number } = {},
+  {
+    hours = 1,
+    now = Date.now(),
+    list = stories.list(),
+  }: { hours?: number; now?: number; list?: StoryList } = {},
 ): MergedStory[] {
   const found: MergedStory[] = [];
-  for (const story of stories.list()) {
+  for (const story of list) {
     const done = stories.readState<{ at?: string; why?: string; merged_at?: string | null } | null>(
       story.id,
       MERGED,

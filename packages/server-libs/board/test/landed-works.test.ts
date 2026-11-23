@@ -18,6 +18,7 @@ const ctxOf = (rows: Row[], merged: Record<string, unknown> = {}) =>
     now: new Date(NOW),
     review: noPrWatcher,
     builds: { pending: () => [] },
+    lookups: { tipOf: () => null },
     stories: {
       home: tmp('landed-works-home'),
       list: () => rows,

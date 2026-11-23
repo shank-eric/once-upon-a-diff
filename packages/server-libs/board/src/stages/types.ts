@@ -71,6 +71,11 @@ export interface Lookups {
     branch: string,
     now: number,
   ): Promise<{ at: number | null } | null>;
+  /**
+   * Where a story's ref (in its checkout) was last seen, null until the background look answers or when git cannot say.
+   * It never runs git for the caller: an approval is held against the tip, and a null leaves it standing.
+   */
+  tipOf(repo: string, ref: string): string | null;
   /** a PR card's commits ahead of origin, as the checkout of a local story of its branch has them */
   aheadFor(found: { story: string; checkout: string }, branch: string): BoardCard['ahead'];
   /**

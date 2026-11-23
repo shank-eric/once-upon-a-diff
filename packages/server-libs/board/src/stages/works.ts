@@ -379,7 +379,9 @@ function startStoredWorks(
 export function collectWorks(ctx: BuildContext, stored: BacklogItem[] = []): CollectedWorks {
   const { nowMs, review } = ctx;
   // the units of work: every built PR story, and the PRs merged in the last day
-  const stories = prStories(ctx.stories, { now: nowMs });
+  // listed once: each of the three readers below would list the story folders again
+  const list = ctx.stories.list();
+  const stories = prStories(ctx.stories, { now: nowMs, list });
   review.kick(stories, nowMs);
   const works = new Map<string, Work>();
   const start: Start = (work) => startWork(works, work);
@@ -395,7 +397,7 @@ export function collectWorks(ctx: BuildContext, stored: BacklogItem[] = []): Col
       built: true,
     });
   }
-  for (const merged of mergedStories(ctx.stories, { hours: MERGED_HOURS, now: nowMs })) {
+  for (const merged of mergedStories(ctx.stories, { hours: MERGED_HOURS, now: nowMs, list })) {
     start({
       key: prWorkKey(merged.repo, merged.number),
       repo: merged.repo,
@@ -408,7 +410,7 @@ export function collectWorks(ctx: BuildContext, stored: BacklogItem[] = []): Col
     });
   }
   startRequestedWorks(ctx, works, start);
-  const localEntryList = localEntries(ctx.stories, { now: nowMs });
+  const localEntryList = localEntries(ctx.stories, { now: nowMs, list, tips: ctx.lookups.tipOf });
   review.kickLocal(localEntryList, nowMs);
   const localCheckouts = checkoutsOf(localEntryList);
   const localStoryList = localEntryList.map((entry) => entry.story);

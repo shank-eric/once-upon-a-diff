@@ -32,15 +32,38 @@ export const isWorkRun = (run: Pick<LedgerAgent, 'kind'>): boolean =>
 /** One run's start time, for ordering (a run with none sorts first). */
 const startedAt = (run: LedgerAgent): number => run.started?.getTime() ?? 0;
 
+/** The runs of each card in one agents list, oldest first (built once per list: a build asks for every card). */
+const runsByCard = new WeakMap<
+  LedgerAgent[],
+  { size: number; byCard: Map<string, LedgerAgent[]> }
+>();
+
+function runIndex(agents: LedgerAgent[]): Map<string, LedgerAgent[]> {
+  const kept = runsByCard.get(agents);
+  if (kept && kept.size === agents.length) {
+    return kept.byCard;
+  }
+  const byCard = new Map<string, LedgerAgent[]>();
+  for (const run of agents.flatMap((agent) => [...(agent.earlier ?? []), agent])) {
+    if (run.card) {
+      const runs = byCard.get(run.card) ?? [];
+      runs.push(run);
+      byCard.set(run.card, runs);
+    }
+  }
+  for (const runs of byCard.values()) {
+    runs.sort((first, second) => startedAt(first) - startedAt(second));
+  }
+  runsByCard.set(agents, { size: agents.length, byCard });
+  return byCard;
+}
+
 /**
  * Every run on the card, oldest first: the latest run of each agent and the runs before it, whose registered `card` is the
  * item's id. A run is as it stood when it ended, so a fix round's run is its own entry.
  */
 export function runsOf(item: Pick<BacklogItem, 'id'>, agents: LedgerAgent[]): LedgerAgent[] {
-  return agents
-    .flatMap((agent) => [...(agent.earlier ?? []), agent])
-    .filter((run) => run.card === item.id)
-    .sort((first, second) => startedAt(first) - startedAt(second));
+  return [...(runIndex(agents).get(item.id) ?? [])];
 }
 
 /** Every run of the repo's branch, whatever card it names, oldest first: what covers a branch that has moved (`coveringRun`). */

@@ -30,6 +30,26 @@ function childDirs(dir: string): string[] {
   }
 }
 
+/** What `list` says of one story: its meta's headline fields, its folder, and its version. */
+function entryOf(id: string, dir: string) {
+  const meta = readMeta(dir);
+  return {
+    id,
+    kind: meta.kind,
+    title: meta.title,
+    repo: meta.repo || null,
+    number: meta.number || null,
+    url: meta.url || null,
+    head_ref: typeof meta.head_ref === 'string' ? meta.head_ref : null,
+    /** a local story's: its checkout, the branch, and the turn it is the story of (a story the retired turn capture left, which the inbox skips) */
+    repo_path: typeof meta.repo_path === 'string' ? meta.repo_path : null,
+    branch: typeof meta.branch === 'string' ? meta.branch : null,
+    turn: typeof meta.turn === 'string' ? meta.turn : null,
+    dir,
+    version: storyVersion(dir),
+  };
+}
+
 export class StoryStore {
   declare home: string;
   constructor({ home }: { home: string }) {
@@ -67,24 +87,13 @@ export class StoryStore {
   }
 
   list() {
-    return this.dirs().map(({ id, dir }) => {
-      const meta = readMeta(dir);
-      return {
-        id,
-        kind: meta.kind,
-        title: meta.title,
-        repo: meta.repo || null,
-        number: meta.number || null,
-        url: meta.url || null,
-        head_ref: typeof meta.head_ref === 'string' ? meta.head_ref : null,
-        /** a local story's: its checkout, the branch, and the turn it is the story of (a story the retired turn capture left, which the inbox skips) */
-        repo_path: typeof meta.repo_path === 'string' ? meta.repo_path : null,
-        branch: typeof meta.branch === 'string' ? meta.branch : null,
-        turn: typeof meta.turn === 'string' ? meta.turn : null,
-        dir,
-        version: storyVersion(dir),
-      };
-    });
+    return this.dirs().map(({ id, dir }) => entryOf(id, dir));
+  }
+
+  /** One story's list entry, or null when the id isn't a story (the cost of one story, not of all of them). */
+  get(id: string) {
+    const hit = STORY_ID_RE.test(String(id)) ? this.dirs().find((one) => one.id === id) : null;
+    return hit ? entryOf(hit.id, hit.dir) : null;
   }
 
   /** The newest GitHub story for owner/repo#number. Repo names compare case-insensitively, as GitHub's do. */

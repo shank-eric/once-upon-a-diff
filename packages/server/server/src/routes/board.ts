@@ -48,7 +48,7 @@ import { publicOriginOf } from '@once-upon-a-diff/state/records/page-links/addre
 import { BoardError } from '@once-upon-a-diff/foundation/errors';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
-import { localStory } from '@once-upon-a-diff/core/features/review/story-lists';
+import { isListedLocalStory } from '@once-upon-a-diff/core/features/review/story-lists';
 import { reviewBranch } from '@once-upon-a-diff/stories/local-story';
 import { recordFix } from '@once-upon-a-diff/core/features/runs/service';
 import { carryApproval } from '@once-upon-a-diff/core/features/review/carry-approval';
@@ -118,11 +118,11 @@ function listenQueue({ app, body, send }: Call) {
 
 /** POST {story}: the page link of a local story on a card, which has no URL of its own like a PR story's. */
 function openStory({ app, body, send }: Call) {
-  const story = localStory(app.stories, parseBody('boardOpenStory', body).story);
-  if (!story) {
+  const id = parseBody('boardOpenStory', body).story;
+  if (!isListedLocalStory(app.stories, id)) {
     throw new HttpError(404, 'no local story with that id');
   }
-  return send(200, { url: app.links.story(story.id) });
+  return send(200, { url: app.links.story(id) });
 }
 
 /** POST {card}: Review, a storyless review of the card's branch, and its page link. */

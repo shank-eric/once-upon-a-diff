@@ -4,10 +4,11 @@ import path from 'node:path';
 import { readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmp, git, githubStory, localRepo, writeJson, startBridge, TOKEN } from './helpers.ts';
 import { createLocalStory } from '@once-upon-a-diff/stories/local-story';
-import { refreshLocal, movedSince } from '@once-upon-a-diff/stories/local-diff';
+import { forgetMoved, refreshLocal, movedSince } from '@once-upon-a-diff/stories/local-diff';
 import { StoryStore } from '@once-upon-a-diff/stories/store';
 import { pageKey } from '@once-upon-a-diff/state/records/page-links/page-key';
 import { prStories, localStories } from '@once-upon-a-diff/core/features/review/story-lists';
+import { approvableTip } from '@once-upon-a-diff/core/features/review/carry-approval';
 import type { LocalMeta } from '@once-upon-a-diff/stories/types';
 
 const metaOf = (dir: string) =>
@@ -56,6 +57,7 @@ test('a story over a branch is pinned to the commits it was told over: a new com
   // a commit on the branch
   git(repo, 'switch', '-q', 'stack/1');
   commit(repo, 'late.txt');
+  forgetMoved(); // where a pinned story's branch is stays known for 2 s
   const later = git(repo, 'rev-parse', 'HEAD');
   assert.equal(refreshLocal(dir, metaOf(dir)).head_oid, tip, 'refresh keeps the stored commit');
   assert.equal(diffOf(dir), told, 'the diff is the one it was told');
@@ -66,6 +68,7 @@ test('a story over a branch is pinned to the commits it was told over: a new com
   commit(repo, 'other.txt');
   const other = git(repo, 'rev-parse', 'HEAD');
   git(repo, 'branch', '-f', 'stack/1', other);
+  forgetMoved();
   assert.equal(refreshLocal(dir, metaOf(dir)).head_oid, tip);
   assert.equal(diffOf(dir), told);
   assert.deepEqual(movedSince(metaOf(dir)), { base_oid: null, head_oid: other });
@@ -80,10 +83,12 @@ test('a story over a branch is pinned to the commits it was told over: a new com
 
   // a base that moved is told too
   git(repo, 'branch', '-f', 'stack/1', tip);
+  forgetMoved();
   assert.equal(movedSince(metaOf(dir)), null, 'back where it was told');
   git(repo, 'branch', 'mid', base);
   const onBase = createLocalStory({ home, repo, base: 'mid', head: 'stack/1', id: 'by-ref' });
   git(repo, 'branch', '-f', 'mid', tip);
+  forgetMoved();
   assert.deepEqual(movedSince(metaOf(onBase.dir)), { base_oid: tip, head_oid: null });
 });
 
@@ -160,6 +165,7 @@ test('the page polls a version that changes when the pinned branch moves, and it
     assert.doesNotMatch(before, /-m/);
     git(repo, 'switch', '-q', 'stack/1');
     commit(repo, 'late.txt');
+    forgetMoved();
     const after = await version();
     assert.match(after, /-m[0-9a-f]{7}/);
     const loaded = await bridge.call<{ local: { moved: { head_oid: string } | null } }>(
@@ -172,4 +178,28 @@ test('the page polls a version that changes when the pinned branch moves, and it
   } finally {
     await bridge.close();
   }
+});
+
+test('Approve reads where the branch is from git, not from the 2 s answer kept for the page polls', () => {
+  const home = tmp('home');
+  const { repo, base } = localRepo();
+  git(repo, 'branch', 'stack/1', 'HEAD');
+  const { dir } = createLocalStory({ home, repo, base, head: 'stack/1' });
+  forgetMoved();
+  assert.equal(movedSince(metaOf(dir)), null, 'the page asked: nothing moved, and that is kept');
+  // the branch moves inside the kept window
+  git(repo, 'switch', '-q', 'stack/1');
+  commit(repo, 'late.txt');
+  const later = git(repo, 'rev-parse', 'HEAD');
+  assert.equal(movedSince(metaOf(dir)), null, 'the page still reads the kept answer');
+  assert.equal(
+    approvableTip(metaOf(dir)),
+    'stale',
+    'Approve saw the new tip (a new commit is no rebase)',
+  );
+  assert.deepEqual(
+    movedSince(metaOf(dir)),
+    { base_oid: null, head_oid: later },
+    'and the page now agrees',
+  );
 });

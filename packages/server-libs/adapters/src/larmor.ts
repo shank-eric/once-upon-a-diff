@@ -17,6 +17,7 @@ import { existsSync } from 'node:fs';
 import { execFile } from 'node:child_process';
 import path from 'node:path';
 import type { BoardVoiceLine } from '@once-upon-a-diff/contracts/types';
+import { announceChange } from './change-signal.ts';
 
 export interface VoiceFiles {
   session: string;
@@ -113,8 +114,14 @@ const START_TIMEOUT_MS = 70 * 1000;
 export interface VoiceWaits {
   coldWaitMs: number;
   quickTimeoutMs: number;
+  /** how long a build with stale lines and voice on waits for the refresh (a voice_ctl log is 70 to 90 ms) before going on with them */
+  freshWaitMs: number;
 }
-const DEFAULT_WAITS: VoiceWaits = { coldWaitMs: 1000, quickTimeoutMs: QUICK_TIMEOUT_MS };
+const DEFAULT_WAITS: VoiceWaits = {
+  coldWaitMs: 1000,
+  quickTimeoutMs: QUICK_TIMEOUT_MS,
+  freshWaitMs: 250,
+};
 let waits: VoiceWaits = DEFAULT_WAITS;
 /** For tests only: widen the cold wait and the quick-call kill, or pass null for the board's own. */
 export function setVoiceWaits(next: Partial<VoiceWaits> | null): void {
@@ -288,7 +295,12 @@ function refreshStatus(larmorDir: string): Promise<void> {
         statusRunning.delete(larmorDir);
       }
       if (generation === statusGeneration) {
+        const before = statusKept.get(larmorDir);
         statusKept.set(larmorDir, { value, at: Date.now() });
+        // a build used the old answer: the next poll must have this one
+        if (before && JSON.stringify(before.value) !== JSON.stringify(value)) {
+          announceChange();
+        }
       }
     });
   statusRunning.set(larmorDir, call);
@@ -410,6 +422,8 @@ interface KeptLog {
 }
 const logKept = new Map<string, KeptLog>();
 const logRunning = new Map<string, Promise<void>>();
+/** The sessions whose refresh a build is waiting on right now: it takes the lines itself, so the board need not be told. */
+const logAwaited = new Set<string>();
 
 function refreshLog(larmorDir: string, session: string, live: boolean): Promise<void> {
   const key = `${larmorDir}\n${session}`;
@@ -455,17 +469,49 @@ function refreshLog(larmorDir: string, session: string, live: boolean): Promise<
         }
       }
       const newestAt = newest.length ? newest[newest.length - 1][1].at / 1000 : 0;
+      const lines = [...keptEntries.values()].slice(-VOICE_LINES);
       logKept.set(key, {
         entries: keptEntries,
-        lines: [...keptEntries.values()].slice(-VOICE_LINES),
+        lines,
         at: Date.now(),
         failed,
         newest: failed ? (kept?.newest ?? 0) : newestAt,
         settled: !failed && !live,
       });
+      // new lines, and no build waiting for this call (voiceLines): the next poll must show them
+      if (kept && !logAwaited.has(key) && JSON.stringify(kept.lines) !== JSON.stringify(lines)) {
+        announceChange();
+      }
     });
   logRunning.set(key, call);
   return call;
+}
+
+/**
+ * With voice on, lines gone stale are refreshed before the build answers, for up to waits.freshWaitMs (a `voice_ctl log` takes
+ * 70 to 90 ms), so a line just spoken shows on this poll, not the next. Slower than that, the build goes on with the kept
+ * lines and the call, when it lands with news, tells the board (announceChange).
+ */
+async function freshLines(
+  larmorDir: string,
+  session: string,
+  key: string,
+  keptLines: BoardVoiceLine[],
+): Promise<BoardVoiceLine[]> {
+  logAwaited.add(key);
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    await Promise.race([
+      refreshLog(larmorDir, session, true),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, waits.freshWaitMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+    logAwaited.delete(key);
+  }
+  return logKept.get(key)?.lines ?? keptLines;
 }
 
 /**
@@ -485,7 +531,11 @@ export function voiceLines(
     // with voice off and the lines fetched once since it ended, nothing new can come: no more calls until voice is on again
     const idle = kept.settled && !live;
     if (!idle && Date.now() - kept.at >= (kept.failed ? STATUS_RETRY_MS : STATUS_FRESH_MS)) {
+      if (live && !kept.failed) {
+        return freshLines(larmorDir, session, key, kept.lines);
+      }
       void refreshLog(larmorDir, session, live);
+      return Promise.resolve(kept.lines);
     }
     return Promise.resolve(kept.lines);
   }
