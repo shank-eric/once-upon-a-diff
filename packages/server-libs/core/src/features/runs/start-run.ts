@@ -26,7 +26,7 @@ import {
   type LinkInput,
 } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { newId, newRunId } from '@once-upon-a-diff/foundation/ids';
-import { ensureCard, findCard } from '@once-upon-a-diff/state/queues/backlog/ensure';
+import { cardsOnBranch, ensureCard } from '@once-upon-a-diff/state/queues/backlog/ensure';
 import { implicitTitle } from '@once-upon-a-diff/state/records/agents/implicit';
 import { SESSION_RE } from '@once-upon-a-diff/terms/patterns';
 import { isAbsolute } from 'node:path';
@@ -114,6 +114,8 @@ interface Start {
   typedPr: string | null;
   typedBranch: string | null;
   sid: string;
+  /** the open card on the run's branch that a critic or fixer with no --card was put on */
+  joinedCard?: NonNullable<StartedRun['joined']>;
 }
 
 /** A card that is not landed or dropped. */
@@ -167,6 +169,41 @@ function refuseFlagsBesideCard(run: Start): void {
   }
 }
 
+/**
+ * A critic or fixer works on a card: one with no --card but a --branch (or a checkout of a feature branch) is on the open card
+ * that branch has, and the card gives the branch and repo from here on. Several open cards are the run's to choose between,
+ * and none leaves the missing card for refuseNoWork to say.
+ */
+function joinCardOfBranch(run: Start): void {
+  const { input } = run;
+  if (run.card || (run.role !== 'critic' && run.role !== 'fixer')) {
+    return;
+  }
+  // a critic or fixer never makes a card, so --new-card has nothing to do for it: say so, not drop it
+  if (input.newCard) {
+    throw new Error(
+      `a ${run.role} works on an existing card, so --new-card is not taken: pass --card ID`,
+    );
+  }
+  const branch = run.typedBranch ?? worktreeFacts(input.cwd)?.branch ?? null;
+  const repo = text(input.repo) ?? repoOfCheckout(input.cwd);
+  const found =
+    branch && !run.typedPr
+      ? onlyCardOn(run, repo && REPO_RE.test(repo) ? repo : null, branch)
+      : undefined;
+  if (!found) {
+    return;
+  }
+  run.card = found.id;
+  run.typedBranch = null;
+  run.joinedCard = { card: found.id, title: found.title, branch: found.branch ?? '' };
+  // the lane is the repo's from here on: dropped with a warning, as on any joined run, not refused beside the card
+  if (text(input.lane)) {
+    run.warn('once-upon: --lane is ignored: a run’s lane is its repo’s');
+  }
+  run.input = { ...input, repo: null, lane: null };
+}
+
 /** The roles that need work to read, and the run a story agent's name gives away. */
 function refuseNoWork({ role, card, typedPr, typedBranch, name }: Start): void {
   // (a storyteller reads a PR or a branch, so either names its work with no card: the board joins it by that)
@@ -204,6 +241,7 @@ function beginStart(home: string, input: RunStartInput, warn: Start['warn']): St
     sid: text(input.sid) ?? input.session?.slice(0, 8) ?? '',
   };
   refuseFlagsBesideCard(start);
+  joinCardOfBranch(start);
   refuseNoWork(start);
   return start;
 }
@@ -375,11 +413,22 @@ interface Join {
   link: Pick<LinkInput, 'repo' | 'branch' | 'worktree' | 'session'> | null;
 }
 
+/** The one open card on the branch, none, or a refusal when several are (the run names its own with --card). */
+function onlyCardOn(run: Start, repo: string | null, branch: string): Item | undefined {
+  const cards = cardsOnBranch(run.store.items(), repo, branch);
+  if (cards.length > 1) {
+    throw new Error(
+      `${cards.length} open cards are on ${branch} (${cards.map((one) => one.id).join(', ')}): pass --card ID to say which`,
+    );
+  }
+  return cards[0];
+}
+
 /**
  * The open stored card on the branch: finding it writes nothing, so a start the registry then refuses leaves the card as it was.
  */
 function openCardOn(run: Start, repo: string | null, branch: string): Join | null {
-  const open = findCard(run.store.items(), { source: 'agent', repo, branch });
+  const open = onlyCardOn(run, repo, branch);
   if (!open) {
     return null;
   }
@@ -594,6 +643,6 @@ export async function startRun(
   return {
     ...started,
     stamped: run.card && stamp ? stamp : null,
-    joined: plan.join?.joined ?? null,
+    joined: plan.join?.joined ?? run.joinedCard ?? null,
   };
 }

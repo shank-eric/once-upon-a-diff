@@ -28,6 +28,20 @@ const open = (item: BacklogItem): boolean => item.state !== 'dropped' && !item.l
 const rank = (item: BacklogItem): number =>
   (item.story || item.pr ? 2 : 0) + (item.source === 'backlog' ? 1 : 0);
 
+/** Every open card on this repo and branch (none for a branch that is not a feature branch), in store order. */
+export function cardsOnBranch(
+  items: BacklogItem[],
+  repo: string | null | undefined,
+  branch: string | null | undefined,
+): BacklogItem[] {
+  if (!isFeatureBranch(branch)) {
+    return [];
+  }
+  return items
+    .filter(open)
+    .filter((item) => item.branch === branch && (repo ? sameRepo(item.repo, repo) : !item.repo));
+}
+
 /** The card these facts are about, or undefined: by explicit id, then repo and PR number, then repo and branch, then (for a session's card) the session. */
 export function findCard(
   items: BacklogItem[],
@@ -41,14 +55,10 @@ export function findCard(
     input.repo ? sameRepo(item.repo, input.repo) : !item.repo;
   return (
     (input.pr ? live.find((item) => item.pr === input.pr && sameWork(item)) : undefined) ??
-    (isFeatureBranch(input.branch)
-      ? live
-          .filter((item) => item.branch === input.branch && sameWork(item))
-          .reduce<BacklogItem | undefined>(
-            (best, item) => (!best || rank(item) > rank(best) ? item : best),
-            undefined,
-          )
-      : undefined) ??
+    cardsOnBranch(items, input.repo, input.branch).reduce<BacklogItem | undefined>(
+      (best, item) => (!best || rank(item) > rank(best) ? item : best),
+      undefined,
+    ) ??
     // a session that moved to another feature branch is on other work: its card on the old branch stays there
     (input.source === 'session' && input.session
       ? live.find(

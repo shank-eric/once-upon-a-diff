@@ -906,3 +906,118 @@ test('a start with --pr and no branch joins the card on the PR’s head branch',
   assert.equal(run.card, first.card);
   assert.equal(run.joined?.card, first.card);
 });
+
+test('a fixer or critic with --branch and no --card joins the branch’s one open card: no new card, and it says which', async () => {
+  const home = tmp('join-fixer');
+  const first = await start(home, 'ou-one', ...AUTHOR, '--branch', 'feat-fx', '--task', 'build');
+  assert.equal((await agent(home, 'finish', 'ou-one', '--commit', 'abc1234')).code, 0);
+  const adds = rowsOf(home).filter((row) => row.op === 'add').length;
+  const [line, joined] = await startOut(
+    home,
+    'fix-fx',
+    '--role',
+    'fixer',
+    '--repo',
+    'acme/widgets',
+    '--branch',
+    'feat-fx',
+    '--task',
+    'fix round',
+  );
+  assert.equal(line.split(' ')[2], first.card);
+  assert.match(joined, new RegExp(`^joined ${first.card} `));
+  assert.deepEqual(cardOf(home, 'fix-fx'), [first.card]);
+  assert.equal(rowsOf(home).filter((row) => row.op === 'add').length, adds, 'no second card');
+  const card = (await cardsOf(home)).find((one) => one.agents.some((one) => one.name === 'fix-fx'));
+  assert.deepEqual(card?.agents.map((one) => one.name).sort(), ['fix-fx', 'ou-one']);
+  // a critic on the same branch joins it too, and a branch with no open card is still refused
+  const critic = await startOut(
+    home,
+    'review-fx',
+    '--role',
+    'critic',
+    '--repo',
+    'acme/widgets',
+    '--branch',
+    'feat-fx',
+    '--task',
+    'review',
+  );
+  assert.equal(critic[0].split(' ')[2], first.card);
+  const none = await agent(
+    home,
+    'start',
+    'fix-none',
+    '--role',
+    'fixer',
+    '--branch',
+    'feat-none',
+    '--task',
+    'x',
+  );
+  assert.notEqual(none.code, 0);
+  assert.match(none.stderr, /--card/);
+});
+
+test('a fixer or critic start with --new-card is refused by name, not joined, and a joined one with --lane warns instead of naming --card', async () => {
+  const home = tmp('join-fixer-flags');
+  const first = await start(home, 'ou-fl', ...AUTHOR, '--branch', 'feat-fl', '--task', 'build');
+  assert.equal((await agent(home, 'finish', 'ou-fl', '--commit', 'abc1234')).code, 0);
+  const adds = rowsOf(home).filter((row) => row.op === 'add').length;
+  const fixerArgs = [
+    '--role',
+    'fixer',
+    '--repo',
+    'acme/widgets',
+    '--branch',
+    'feat-fl',
+    '--task',
+    'x',
+  ];
+  const fresh = await agent(home, 'start', 'fix-nc', ...fixerArgs, '--new-card');
+  assert.notEqual(fresh.code, 0);
+  assert.match(fresh.stderr, /--new-card/);
+  assert.equal(rowsOf(home).filter((row) => row.op === 'add').length, adds, 'no card made');
+  const laned = await agent(home, 'start', 'fix-ln', ...fixerArgs, '--lane', 'x');
+  assert.equal(laned.code, 0, laned.stderr);
+  assert.match(laned.stderr, /--lane is ignored/);
+  assert.doesNotMatch(laned.stderr, /--card/);
+  assert.match(laned.stdout, new RegExp(`joined ${first.card} `));
+  assert.doesNotMatch(laned.stdout, /--new-card/);
+});
+
+test('two open cards on one branch: agent start refuses and asks for --card, for a fixer and for a cardless author', async () => {
+  const home = tmp('join-ambiguous');
+  const store = new BacklogStore(home);
+  const cardA = store.add({ title: 'One', repo: 'acme/widgets', branch: 'feat-two' });
+  const cardB = store.add({ title: 'Two', repo: 'acme/widgets', branch: 'feat-two' });
+  const adds = rowsOf(home).length;
+  for (const args of [
+    ['fix-two', '--role', 'fixer'],
+    ['ou-two', ...AUTHOR],
+  ]) {
+    const done = await agent(
+      home,
+      'start',
+      ...args,
+      '--repo',
+      'acme/widgets',
+      '--branch',
+      'feat-two',
+      '--task',
+      'x',
+    );
+    assert.notEqual(done.code, 0);
+    assert.match(
+      done.stderr,
+      new RegExp(`2 open cards are on feat-two.*${cardA.id}.*${cardB.id}.*--card`),
+    );
+  }
+  assert.equal(rowsOf(home).length, adds, 'nothing written');
+  assert.deepEqual(new AgentRegistry(home).agents(), []);
+  // naming the card says which
+  assert.equal((await backlog(home, 'claim', cardA.id, '--agent', 'fix-two')).code, 0);
+  const named = await start(home, 'fix-two', '--role', 'fixer', '--card', cardA.id, '--task', 'x');
+  assert.equal(named.id.length > 0, true);
+  assert.deepEqual(cardOf(home, 'fix-two'), [cardA.id]);
+});
