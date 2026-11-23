@@ -55,7 +55,7 @@ function approve(home: string, cfg: Config, opts: CliOpts) {
   const finished = added
     ? finishStoryRuns(
         home,
-        { repo: storyRepo(meta), branch: meta.branch || null },
+        { repo: storyRepo(meta), branch: meta.branch || null, id },
         meta.head_oid,
         (line) => process.stderr.write(line + '\n'),
       )

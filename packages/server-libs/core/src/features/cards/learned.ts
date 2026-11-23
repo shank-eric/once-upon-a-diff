@@ -18,6 +18,13 @@ export interface LearnedCard {
   /** the PR number the work carries when GitHub has not answered for it (`pr` is then null), so the keeper still knows whose work it is */
   asked?: number | null;
   story: string | null;
+  /**
+   * `story` is the newest local story of this branch (a work with no PR story): the keeper moves the card's story to it when the card
+   * holds another, so the card's story follows the branch's newest one (a stored story stays when the branch has none)
+   */
+  newestLocal?: boolean;
+  /** with `newestLocal`: when that story was built, so the keeper picks one newest story when two works are on one stored card */
+  storyBuiltAt?: string;
   /** the full id of the first live session on the work */
   session: string | null;
 }

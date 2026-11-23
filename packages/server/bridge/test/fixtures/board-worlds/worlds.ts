@@ -2567,6 +2567,35 @@ export function scrubPids(text: string, all: number[]): string {
     );
     await record('23-stored-pr-landed', boardOf(home, fakeWatcher([], {}).watcher));
   }
+
+  // 24. a session whose run names a card whose PR head was renamed (ADR-29, key by card id): the card's stored branch is the old
+  // name, GitHub says the head is a new one, and the session still sits on the PR's work, joined by the card's id
+  {
+    const child = liveChild();
+    const cwd = checkoutOf('widgets', 'main');
+    const { home, sessions } = world([
+      {
+        op: 'add',
+        id: 'bl_renamedsess1',
+        title: 'Renamed head',
+        repo: 'acme/widgets',
+        branch: 'feat/old-name',
+      },
+      { op: 'start', id: 'bl_renamedsess1', repo: 'acme/widgets', branch: 'feat/old-name' },
+      { op: 'link', id: 'bl_renamedsess1', pr: 12 },
+    ]);
+    registry(sessions, child, { cwd, name: 'renamed-session', status: 'busy' });
+    new AgentRegistry(home).start({
+      sid: sid(child),
+      name: 'ou-renamed',
+      kind: 'author',
+      task: 'work on the renamed PR',
+      card: 'bl_renamedsess1',
+      at: et(14, 40),
+    });
+    const info = prInfo(12, { title: 'Renamed PR', branch: 'feat/new-name' });
+    await record('24-renamed-head-session', boardOf(home, fakeWatcher([info], {}).watcher));
+  }
 }
 
 // ---- normalize paths and pids

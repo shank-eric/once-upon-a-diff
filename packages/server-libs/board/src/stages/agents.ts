@@ -42,6 +42,7 @@ import type {
   BoardSession,
   BoardStatus,
 } from '@once-upon-a-diff/contracts/types';
+import { homeOf, NO_HOMES, type Homes } from './homes.ts';
 import type { BuildContext, PinnedVoice } from './types.ts';
 
 export const AGENT_OPEN = ['running', 'waiting', 'plan', 'fixing'];
@@ -201,6 +202,8 @@ export interface AgentFacts {
   editorOf?: (agent: LedgerAgent) => BoardAgentEditor | null;
   /** what the worktree scanner has (memory only): whether a finished author's branch is merged (pendingReview) */
   trees?: WorktreeFacts[];
+  /** where each stored card is shown (homes.ts): an agent card of an implicit card rides on its home */
+  homes?: Homes;
 }
 
 /** A pending commit whose branch moved, marked `outside` when no run of the branch accounts for the tip (`coveringRun`). */
@@ -418,17 +421,18 @@ function agentColumn(
 interface Landing {
   heads: Map<string, { card: BoardCard; agent: LedgerAgent; stale: boolean }>;
   cards: BoardCard[];
+  homes: Homes;
 }
 
 /**
- * Puts a run on the card it belongs to when there is one (and says so): an implicit card whose repo and branch already
- * have a work (or session) card rides on it, as a backlog card does (cardOnBranch): one piece of work, one card. A
+ * Puts a run on the card it belongs to when there is one (and says so): an implicit card that already has a work (or
+ * session) card rides on it, as a backlog card does (homes.ts): one piece of work, one card. A
  * storyteller started with --pr or --branch and no card joins its PR's work card the same way; any other run with no card
  * never nests. A later run of an implicit card goes on the card of its head, which keeps the head's column unless the head
  * is over and this run is still going: then it is this run's.
  */
 function joinExistingCard(
-  { heads, cards }: Landing,
+  { heads, cards, homes }: Landing,
   agent: LedgerAgent,
   view: BoardAgent,
   column: BoardColumn,
@@ -436,8 +440,11 @@ function joinExistingCard(
 ): boolean {
   const branch = agent.result?.branch ?? agent.branch;
   const joins = implicitId || (!agent.card && isStoryteller(agent));
-  const home =
-    joins && agent.repo && branch ? cardOnBranch({ repo: agent.repo, branch }, cards) : null;
+  const place = agent.repo && branch ? { repo: agent.repo, branch } : null;
+  let home: BoardCard | null | undefined = null;
+  if (joins && place) {
+    home = implicitId ? homeOf(homes, implicitId, place, cards) : cardOnBranch(place, cards);
+  }
   if (home) {
     home.agents.push(view);
     return true;
@@ -564,12 +571,13 @@ export function placeAgents(
     stored = items,
     editorOf = () => null,
     trees = [],
+    homes = NO_HOMES,
   }: AgentFacts,
 ): BoardCard[] {
   const { nowMs } = ctx;
   const cleared = readFinished(ctx.home);
   const added: BoardCard[] = [];
-  // the first agent card of each implicit card (ADR-27): its other runs (a critic of the work) are views on it
+  // the first agent card of each agent card (a stored `source: agent` card, ADR-29): its other runs (a critic of the work) are views on it
   const heads: Landing['heads'] = new Map();
   const cardsBySid = cardsBySession(cards);
   const pendingOf = pendingReviews(ctx, agents, trees);
@@ -591,7 +599,7 @@ export function placeAgents(
     // a run on a stored card nobody listed that already has its agent card goes on that card, not on a card of its own
     const kept = agent.card ? stored.find((one) => one.id === agent.card) : undefined;
     const implicitId = kept && !isListed(kept) ? kept.id : null;
-    if (joinExistingCard({ heads, cards }, agent, view, column, implicitId)) {
+    if (joinExistingCard({ heads, cards, homes }, agent, view, column, implicitId)) {
       continue;
     }
     const parent = parentOf(agent, cardsBySid, pin, editorViews);

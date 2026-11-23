@@ -1,8 +1,8 @@
 /**
  * Approve finishes the card's story run. The storyteller parks at `[review]` (the board's "your story review") and is
  * done once you have approved the story, so approving ends every parked storyteller run of the story's card (waiting on
- * the review or a question; one still running is writing, and is left): the runs that name a backlog card on the story's
- * repo and branch, and a run whose card is not in the backlog (an implicit `ic_` card) or has none, on that repo and branch
+ * the review or a question; one still running is writing, and is left): the runs that name a backlog card that holds the story
+ * (`card.story`, whatever branch the card has now) or is on the story's repo and branch, and a run whose card is not listed in the backlog (an agent's stored card) or has none, on that repo and branch
  * (started with `--branch` or `--pr`). Run by the page's Approve button and `once-upon approve`, after approveStory says it approved.
  * A story's open PR finishes only the storyteller its binding names (finishStoryRunsOnPr, run by the page's Create pull
  * request routes), and only when the PR was opened after that run last spoke (its park at `[review]`): a PR that was
@@ -16,7 +16,8 @@ import { BacklogStore, cardLookup } from '@once-upon-a-diff/state/queues/backlog
 import type { LedgerAgent } from '@once-upon-a-diff/state/records/agents/ledger';
 import { shortSha } from '@once-upon-a-diff/terms/text';
 
-type StoryRef = { repo: string | null; branch: string | null };
+/** The story approved: its repo and branch, and its id (the cards that hold it, whatever branch they have now). */
+type StoryRef = { repo: string | null; branch: string | null; id?: string };
 
 /** Finishes the story's open storyteller runs as done; returns how many. One that will not finish is warned, never fatal. */
 export function finishStoryRuns(
@@ -70,7 +71,7 @@ function finishParkedStorytellers(
   warn: (line: string) => void,
   accept: (run: LedgerAgent) => boolean = () => true,
 ): number {
-  if (!story.branch) {
+  if (!story.branch && !story.id) {
     return 0;
   }
   const backlog = new BacklogStore(home);
@@ -81,12 +82,16 @@ function finishParkedStorytellers(
     cardLookup(backlog),
   );
   const onStory = (repo: string | null, branch: string | null) =>
-    branch === story.branch && (story.repo ? sameRepo(repo, story.repo) : !repo);
+    !!story.branch && branch === story.branch && (story.repo ? sameRepo(repo, story.repo) : !repo);
   const items = backlog.listed();
   const known = new Set(items.map((item) => item.id));
   const cards = new Set(
     items
-      .filter((item) => item.state !== 'dropped' && onStory(item.repo, item.branch))
+      .filter(
+        (item) =>
+          item.state !== 'dropped' &&
+          ((!!story.id && item.story === story.id) || onStory(item.repo, item.branch)),
+      )
       .map((item) => item.id),
   );
   let finished = 0;

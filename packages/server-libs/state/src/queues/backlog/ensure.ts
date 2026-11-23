@@ -19,6 +19,11 @@ export interface EnsureInput extends AddInput {
   joinBranch?: boolean;
   /** the card keeper's: a worktree is never written onto a listed card, decided here under the lock (the keeper's own read may be stale) */
   keepListedClear?: boolean;
+  /**
+   * The story replaces the card's (a card keeps the first story it learned otherwise): the card keeper's, when the branch's newest
+   * local story is another one than the card holds.
+   */
+  moveStory?: boolean;
 }
 
 /** A card the work can still be on: not dropped, not landed. */
@@ -72,13 +77,17 @@ export function findCard(
 }
 
 /** The facts a found card lacks, from the input: a fact it has is left out (null), and a branch only when it is a feature branch. */
-function missingFacts(found: BacklogItem, input: EnsureInput, keepListedClear?: boolean) {
+function missingFacts(
+  found: BacklogItem,
+  input: EnsureInput,
+  { keepListedClear, moveStory }: { keepListedClear?: boolean; moveStory?: boolean },
+) {
   return {
     repo: found.repo ? null : input.repo,
     branch: found.branch || !isFeatureBranch(input.branch) ? null : input.branch,
     worktree: found.worktree || (keepListedClear && isListed(found)) ? null : input.worktree,
     pr: found.pr ? null : input.pr,
-    story: found.story ? null : input.story,
+    story: found.story && !moveStory ? null : input.story,
     session: found.session ? null : input.session,
     by: input.by,
   };
@@ -95,18 +104,48 @@ function foundCard(store: BacklogStore, input: EnsureInput) {
 }
 
 /**
+ * The stored card a piece of work is on (ADR-29): the board learns this once per build and every later join goes by the card's id.
+ * By repo and PR number, then repo and branch (a card of another PR is another work's: a reused branch name is a new card). An
+ * open card is the work's before a landed one, so a branch reused after a landing is the new card's; a dropped card never is.
+ */
+export function findWorkCard(
+  items: BacklogItem[],
+  work: { repo: string | null; number: number | null; branch: string | null | undefined },
+): BacklogItem | undefined {
+  const ofAnotherPr = (item: BacklogItem) => !!work.number && !!item.pr && item.pr !== work.number;
+  const mine = items.filter((item) => item.state !== 'dropped' && !ofAnotherPr(item));
+  const sameWork = (item: BacklogItem) => (work.repo ? sameRepo(item.repo, work.repo) : !item.repo);
+  const withNumber = (item: BacklogItem) => item.pr === work.number && sameWork(item);
+  // the PR's own number is the surest join: a newer open card on a reused branch is not this PR's
+  const byNumber = work.number
+    ? (mine.filter(open).find(withNumber) ?? mine.find(withNumber))
+    : undefined;
+  if (byNumber) {
+    return byNumber;
+  }
+  const facts = { source: 'pr' as const, repo: work.repo, pr: work.number, branch: work.branch };
+  const onBranch = findCard(mine, facts);
+  if (onBranch || !work.repo) {
+    return onBranch;
+  }
+  return isFeatureBranch(work.branch)
+    ? mine.find((item) => item.landed_at && sameWork(item) && item.branch === work.branch)
+    : undefined;
+}
+
+/**
  * The card for this work: the one found (given the facts it lacked) or a new one. `made` says which. A branch that is not a
  * feature branch is not stored on a new card either (it would join every card on main).
  */
 export function ensureCard(
   store: BacklogStore,
-  { keepListedClear, ...input }: EnsureInput,
+  { keepListedClear, moveStory, ...input }: EnsureInput,
 ): { item: BacklogItem; made: boolean; joined: boolean } {
   return withLock(store.file, () => {
     const { found, joined } = foundCard(store, input);
     if (found) {
       return {
-        item: store.link(found.id, missingFacts(found, input, keepListedClear)),
+        item: store.link(found.id, missingFacts(found, input, { keepListedClear, moveStory })),
         made: false,
         joined,
       };

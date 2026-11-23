@@ -18,6 +18,8 @@ import type {
   BoardWorktree,
   BoardWorktrees,
 } from '@once-upon-a-diff/contracts/types';
+import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
+import { NO_HOMES, type Homes } from './homes.ts';
 import type { PrWatcher } from './pr-watcher.ts';
 
 /** A path a task names as the folder it is in: itself when a folder, its folder when a file, null when it is not there. */
@@ -41,6 +43,9 @@ export interface WorktreeInput {
   agents: LedgerAgent[];
   keepBranches: string[];
   nowMs: number;
+  /** the stored cards and where each is shown (homes.ts): a worktree a card stored goes on that card by its id */
+  stored?: BacklogItem[];
+  homes?: Homes;
 }
 
 /**
@@ -57,6 +62,8 @@ export function worktreeSection({
   agents,
   keepBranches,
   nowMs,
+  stored = [],
+  homes = NO_HOMES,
 }: WorktreeInput): BoardWorktrees {
   // where to look: the folders of live sessions and of registered agents (never the text of a task), and the checkouts seen
   const seeds = [
@@ -81,19 +88,35 @@ export function worktreeSection({
   );
   const inside = (dir: string, parent: string) =>
     dir === parent || dir.startsWith(parent + path.sep);
+  // the checkout a stored card holds is on its card whatever branch it is on now (a renamed head, a detached one); a folder two
+  // cards stored (reused for a new branch) is the open card's before a landed one's, the newest first (the store is oldest first)
+  const isLanded = (item: BacklogItem) => !!item.landed_at || item.state === 'dropped';
+  const newestOpenFirst = [
+    ...stored.filter((item) => !isLanded(item)).reverse(),
+    ...stored.filter(isLanded).reverse(),
+  ];
+  const ownCard = new Map<string, BoardCard>();
+  for (const item of newestOpenFirst) {
+    const home = homes.byCard.get(item.id);
+    if (item.worktree && home && cards.includes(home) && !ownCard.has(item.worktree)) {
+      ownCard.set(item.worktree, home);
+    }
+  }
   const loose: BoardWorktree[] = [];
   for (const tree of judged) {
-    const card = cards.find(
-      (one) =>
-        (!!one.repo &&
-          !!tree.repo &&
-          isFeatureBranch(tree.branch) &&
-          sameRepo(one.repo, tree.repo) &&
-          one.branch === tree.branch) ||
-        one.sessions.some((session) => inside(session.cwd, tree.path)) ||
-        one.agents.some((agent) => usedBy(tree, agent)) ||
-        !!one.backlog?.started?.links?.worktrees.some((linked) => linked.path === tree.path),
-    );
+    const card =
+      ownCard.get(tree.path) ??
+      cards.find(
+        (one) =>
+          (!!one.repo &&
+            !!tree.repo &&
+            isFeatureBranch(tree.branch) &&
+            sameRepo(one.repo, tree.repo) &&
+            one.branch === tree.branch) ||
+          one.sessions.some((session) => inside(session.cwd, tree.path)) ||
+          one.agents.some((agent) => usedBy(tree, agent)) ||
+          !!one.backlog?.started?.links?.worktrees.some((linked) => linked.path === tree.path),
+      );
     if (card) {
       card.worktrees = [...(card.worktrees ?? []), tree];
     } else {

@@ -1,0 +1,121 @@
+{
+  "board": {
+    "at": "2026-10-26T19:00:00.000Z",
+    "blank": [],
+    "editors": [],
+    "helpers": [],
+    "lanes": [
+      {
+        "cards": [
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": null,
+                "gate": null,
+                "key": "<PID:26>:ou-renamed",
+                "kind": "author",
+                "model": null,
+                "name": "ou-renamed",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "<PID:26>",
+                "stale": false,
+                "started_at": "2026-10-26T18:40:00.000Z",
+                "state": "running",
+                "status": "working",
+                "summary": null,
+                "task": "work on the renamed PR"
+              }
+            ],
+            "ahead": null,
+            "branch": "feat/new-name",
+            "build": {
+              "blocked": "no iTerm tab",
+              "prompt": "/once-upon https://github.com/acme/widgets/pull/12",
+              "session": null
+            },
+            "building": null,
+            "can_focus": false,
+            "column": "working",
+            "detail": null,
+            "focus_session": "<PID:26>-aaaa-bbbb-cccc-dddddddddddd",
+            "from_backlog": [
+              {
+                "id": "bl_renamedsess1",
+                "title": "Renamed head"
+              }
+            ],
+            "id": "pr:acme/widgets#12",
+            "kind": "work",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": {
+              "approvals": 0,
+              "author": "octocat",
+              "branch": "feat/new-name",
+              "checks": null,
+              "draft": false,
+              "merge": null,
+              "merged_at": null,
+              "mine": true,
+              "number": 12,
+              "others_at": null,
+              "required": null,
+              "review": null,
+              "review_requested": false,
+              "state": "open",
+              "title": "Renamed PR",
+              "unresolved": 0,
+              "url": "https://github.com/acme/widgets/pull/12",
+              "viewer_at": null
+            },
+            "repo": "acme/widgets",
+            "sessions": [
+              {
+                "branch": "main",
+                "context": null,
+                "cwd": "<WORK>/checkout-76",
+                "detail": null,
+                "focus": false,
+                "id": "<PID:26>-aaaa-bbbb-cccc-dddddddddddd",
+                "rested_at": null,
+                "since": "2026-10-26T18:50:00.000Z",
+                "source": "registry",
+                "status": "working",
+                "title": "renamed-session"
+              }
+            ],
+            "since": "2026-10-26T18:40:00.000Z",
+            "story": null,
+            "title": "Renamed PR"
+          }
+        ],
+        "key": "acme/widgets",
+        "name": "widgets"
+      }
+    ],
+    "listeners": [],
+    "phone": null,
+    "status_source": "registry",
+    "usage": null,
+    "voice": null,
+    "voice_paused": false,
+    "voice_start": null,
+    "warning": null,
+    "worktrees": {
+      "at": null,
+      "items": [],
+      "on_cards": 0,
+      "prunable": [],
+      "removable": 0,
+      "scanning": true,
+      "size_kb": "<kb>",
+      "total": 0
+    }
+  }
+}

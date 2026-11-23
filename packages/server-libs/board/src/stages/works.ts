@@ -16,6 +16,7 @@ import {
 } from '@once-upon-a-diff/core/features/review/story-lists';
 import type { InboxLocalStory, InboxStory } from '@once-upon-a-diff/contracts/types';
 import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
+import { findWorkCard } from '@once-upon-a-diff/state/queues/backlog/ensure';
 import type { PrWatcher } from './pr-watcher.ts';
 import type { BuildContext, Work } from './types.ts';
 
@@ -30,6 +31,31 @@ export function startWork(works: Map<string, Work>, work: Omit<Work, 'sessions' 
 /** The branch a work is on: its own, else the one GitHub says its PR is from. */
 export const branchOfWork = (review: PrWatcher, work: Work): string | null | undefined =>
   work.branch ?? (work.repo && work.number ? review.info(work.repo, work.number)?.branch : null);
+
+/**
+ * Puts each work on its stored card (`Work.card`): the one place a work is matched to a card by its PR or branch, the first-learn
+ * lookup (ADR-29). Every later join goes by the id. A work already on a card keeps it, so a second call (after the sessions made
+ * works of their own) adds only the new ones. Two cards on one branch pick one the same way every build (`findWorkCard`).
+ */
+export function assignCards(
+  works: Map<string, Work>,
+  stored: BacklogItem[],
+  review: PrWatcher,
+): void {
+  for (const work of works.values()) {
+    if (work.card || !work.repo) {
+      continue;
+    }
+    const found = findWorkCard(stored, {
+      repo: work.repo,
+      number: work.number,
+      branch: branchOfWork(review, work),
+    });
+    if (found) {
+      work.card = found.id;
+    }
+  }
+}
 
 export interface CollectedWorks {
   works: Map<string, Work>;
@@ -400,5 +426,6 @@ export function collectWorks(ctx: BuildContext, stored: BacklogItem[] = []): Col
       entry.told_head_oid ? [[entry.story.id, entry.told_head_oid] as const] : [],
     ),
   );
+  assignCards(works, stored, review);
   return { works, stories, localStoryList, localCheckouts, toldHeads };
 }

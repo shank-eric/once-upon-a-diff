@@ -991,8 +991,12 @@ function backlogCardOf(
 }
 
 /** Whether a started item with a branch rode on the work or session card for that branch (its runs' views go there). */
-function mergedIntoWorkCard(item: BacklogItem, cards: BoardCard[], views: BoardAgent[]): boolean {
-  const work = item.state === 'started' && item.branch ? cardOnBranch(item, cards) : undefined;
+function mergedIntoWorkCard(
+  item: BacklogItem,
+  homeOf: (item: BacklogItem) => BoardCard | undefined,
+  views: BoardAgent[],
+): boolean {
+  const work = item.state === 'started' && item.branch ? homeOf(item) : undefined;
   if (work) {
     mergeIntoWork(work, item, views);
   }
@@ -1021,6 +1025,7 @@ export function backlogCards(
   links: Map<string, BoardStartedLinks> = new Map(),
   views: Map<string, BoardAgent[]> = new Map(),
   phases: Map<string, CardPhase | null> = new Map(),
+  homeOf: (item: BacklogItem) => BoardCard | undefined = (item) => cardOnBranch(item, cards),
 ): BoardCard[] {
   const shown: BoardCard[] = [];
   for (const original of items) {
@@ -1032,7 +1037,7 @@ export function backlogCards(
     const derived = original.state === 'open' && !!original.landed_at;
     const item: BacklogItem = derived ? { ...original, state: 'started' } : original;
     const itemViews = views.get(item.id) ?? [];
-    if (mergedIntoWorkCard(item, cards, itemViews)) {
+    if (mergedIntoWorkCard(item, homeOf, itemViews)) {
       continue;
     }
     const byRuns = placeByRuns(item, link, phases);

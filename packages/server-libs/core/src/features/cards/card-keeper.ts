@@ -1,12 +1,13 @@
 /*
- * The card keeper (ADR-29, branch B): turns what a board build learned (learned.ts) into stored cards, in shadow. It writes the
- * card for a PR, a story, a branch a session is on, or a build in flight, with the facts the build found; nothing reads those
- * cards yet, and listed cards (a backlog card) are only given the facts they lack, never a worktree. A failure never reaches the board.
+ * The card keeper (ADR-29, branch B): turns what a board build learned (learned.ts) into stored cards. It writes the card for a PR, a
+ * story, a branch a session is on, or a build in flight, with the facts the build found; the board then reads those cards (agents,
+ * sessions and works join them by id), and listed cards (a backlog card) are only given the facts they lack, never a worktree. A card's
+ * story follows the newest local story of its branch (`newestLocal`): the one fact the keeper replaces. A failure never reaches the board.
  *
  * How it stays cheap and quiet (`apply` runs on every board build, about every 2 s while a page polls):
  *   - it reads the cards once, lock-free, and takes the backlog lock (inside `ensureCard`) only for a card that lacks a fact the
  *     build has; an unchanged build writes nothing and takes no lock (the lock is synchronous: a waiter blocks the bridge);
- *   - a fact a card already has is never rewritten (`ensureCard` fills only what is missing), so "holds" means the card has SOME value
+ *   - a fact a card already has is never rewritten (`ensureCard` fills only what is missing; the story of `newestLocal` is the one it moves), so "holds" means the card has SOME value
  *     where the build has one, not the same value;
  *   - at most MAX_WRITES attempts a build, the rest wait for the next; a card whose write failed is left alone for RETRY_MS, and each
  *     such failure is logged once;
@@ -100,7 +101,7 @@ export class CardKeeper {
       // a listed card is a person's: the checkout of the work is not written onto it (an old claim row's is, and its readers lean on that)
       (!learned.worktree || !!item.worktree || isListed(item)) &&
       (!learned.pr || !!item.pr) &&
-      (!learned.story || !!item.story) &&
+      (!learned.story || (learned.newestLocal ? item.story === learned.story : !!item.story)) &&
       (!learned.session || !!item.session)
     );
   }
@@ -120,6 +121,38 @@ export class CardKeeper {
     return findCard(items, facts) ? { id: newId('bl') } : {};
   }
 
+  /**
+   * The learned cards whose `newestLocal` story loses to another work's on the same stored card (two works can resolve to one
+   * card: a PR renamed from the branch a local story is still listed on). Only the newest built story moves the card's story, so it
+   * does not flip between the two every build.
+   */
+  private olderStories(learned: LearnedCard[], items: BacklogItem[]): Set<LearnedCard> {
+    const newest = new Map<string, LearnedCard>();
+    const losers = new Set<LearnedCard>();
+    for (const raw of learned) {
+      const card = raw.newestLocal ? checked(raw) : null;
+      const found =
+        card &&
+        findCard(
+          items.filter((item) => !this.passedOver(item, card)),
+          { source: card.source, repo: card.repo, branch: card.branch, pr: card.pr },
+        );
+      const best = found ? newest.get(found.id) : undefined;
+      if (!found) {
+        continue;
+      }
+      if (best && (best.storyBuiltAt ?? '') >= (raw.storyBuiltAt ?? '')) {
+        losers.add(raw);
+        continue;
+      }
+      if (best) {
+        losers.add(best);
+      }
+      newest.set(found.id, raw);
+    }
+    return losers;
+  }
+
   /** Writes what `learned` has that the stored cards lack. Never throws. */
   apply(learned: LearnedCards, nowMs: number = Date.now()): void {
     try {
@@ -128,12 +161,16 @@ export class CardKeeper {
       }
       this.open = new Set(learned.open.map((one) => prKey(one.repo, one.number)));
       let items = this.store.items();
+      const olderStories = this.olderStories(learned.cards, items);
       let writes = 0;
       for (const raw of learned.cards) {
         if (writes >= MAX_WRITES) {
           break;
         }
         const card = checked(raw);
+        if (card && olderStories.has(raw)) {
+          card.newestLocal = false;
+        }
         const key = card && [card.repo, card.branch, card.pr, card.story, card.session].join('\0');
         if (!card || !key || (this.failed.get(key) ?? 0) > nowMs) {
           continue;
@@ -162,6 +199,7 @@ export class CardKeeper {
             by: 'keeper',
             worktree: found && isListed(found) ? null : card.worktree,
             keepListedClear: true,
+            moveStory: card.newestLocal,
             ...this.target(found, items, facts),
           } as EnsureInput);
           items = this.store.items();

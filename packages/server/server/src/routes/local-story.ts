@@ -113,7 +113,11 @@ function approve({ app, body: raw, send }: Call, story: ServedStory) {
     ...(moved && { rebasedFrom: headOid }),
   });
   if (added) {
-    finishStoryRuns(app.home, { repo: storyRepo(meta), branch: meta.branch || null }, approvedOid);
+    finishStoryRuns(
+      app.home,
+      { repo: storyRepo(meta), branch: meta.branch || null, id: story.id },
+      approvedOid,
+    );
   }
   app.board.refresh(); // its card moves to Ready to ship on the page's next poll
   return send(200, answer());

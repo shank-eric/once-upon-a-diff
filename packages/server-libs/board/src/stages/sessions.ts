@@ -272,6 +272,8 @@ export interface PlacedSessions {
   seen: Map<string, SeenSession>;
   /** the agents each session launched, by the first 8 of its id (dispatching.ts) */
   launched: Map<string, Launched>;
+  /** the session cards put on a stored card's branch by the card its session's runs name, by the card's id */
+  joinedCards: Map<string, BoardCard>;
   /** the sessions that ended as a card or on a work (not an editor, a listener, the voice session or a blank one) */
   learned: SessionLearned[];
 }
@@ -294,7 +296,8 @@ interface Sorting {
   blankViews: { lane: string; view: BoardSession }[];
   editorViews: { lane: string; view: BoardSession }[];
   sessionCards: BoardCard[];
-  joinedCards: Set<BoardCard>;
+  // the session cards that sit on a stored card's branch because the session's runs name that card, by the card's id
+  joinedCards: Map<BoardCard, string>;
   repoBySession: Map<string, string | null>;
   next: Map<string, SeenSession>;
   learned: SessionLearned[];
@@ -437,7 +440,7 @@ function isResearching(sort: Sorting, { session, restedAt }: One): boolean {
 function placeAlone(
   sort: Sorting,
   one: One,
-  placed: { repo: string | null; branch: string } | undefined,
+  placed: { repo: string | null; branch: string; card: string } | undefined,
   placeRepo: string | null,
   placeBranch: string | null,
 ): void {
@@ -458,18 +461,19 @@ function placeAlone(
   }
   const made = sessionCard(session, view, repo, placed);
   // a session joined to a card whose branch has no work, and another session checked out on that branch, are one card
-  const same = sort.sessionCards.find(
-    (card) =>
-      (placed || sort.joinedCards.has(card)) &&
-      card.branch === made.branch &&
-      sameRepo(card.repo, made.repo),
-  );
+  const same = sort.sessionCards.find((card) => {
+    const mine = sort.joinedCards.get(card);
+    if (placed && mine) {
+      return mine === placed.card;
+    }
+    return (placed || mine) && card.branch === made.branch && sameRepo(card.repo, made.repo);
+  });
   if (same) {
     same.sessions.push(view.card);
   } else {
     sort.sessionCards.push(made);
     if (placed) {
-      sort.joinedCards.add(made);
+      sort.joinedCards.set(made, placed.card);
     }
   }
   learn(sort, one, placeRepo, placeBranch, null);
@@ -492,7 +496,7 @@ function isOpenWork(ctx: BuildContext, candidate: Work): boolean {
 function workForBranch(
   sort: Sorting,
   session: LiveSession,
-  where: { repo: string; branch: string; kickable: boolean },
+  where: { repo: string; branch: string; kickable: boolean; card?: string },
 ): Work | undefined {
   const { ctx, works } = sort;
   const { repo: placeRepo, branch: placeBranch } = where;
@@ -502,14 +506,21 @@ function workForBranch(
       ctx.review.kickBranch(placeRepo, placeBranch, session.cwd, ctx.nowMs);
     }
   };
-  let work = [...works.values()].find(
-    (candidate) =>
-      candidate.repo &&
-      sameRepo(candidate.repo, placeRepo) &&
-      branchOfWork(ctx.review, candidate) === placeBranch &&
-      isOpenWork(ctx, candidate) &&
-      (candidate.number || candidate.story || candidate.local),
-  );
+  const hasWork = (candidate: Work) =>
+    isOpenWork(ctx, candidate) && !!(candidate.number || candidate.story || candidate.local);
+  // the work on the card its runs name, by the card's id (a head renamed since the card was stored is still its work), else the
+  // work on that branch
+  let work =
+    (where.card
+      ? [...works.values()].find((one) => one.card === where.card && hasWork(one))
+      : undefined) ??
+    [...works.values()].find(
+      (candidate) =>
+        candidate.repo &&
+        sameRepo(candidate.repo, placeRepo) &&
+        branchOfWork(ctx.review, candidate) === placeBranch &&
+        hasWork(candidate),
+    );
   if (!work) {
     const found = ctx.review.branchPr(placeRepo, placeBranch);
     kick();
@@ -569,7 +580,7 @@ function placeOne(sort: Sorting, session: LiveSession, index: number): void {
   const joined: SessionHome | undefined = sort.homes.get(session.session.slice(0, 8));
   const placeRepo = joined ? (joined.repo ?? repo) : repo;
   const placeBranch = joined ? joined.branch : branch;
-  const placed = joined && { repo: placeRepo, branch: joined.branch };
+  const placed = joined && { repo: placeRepo, branch: joined.branch, card: joined.card };
   // a registered session with no run open sits on no work's card: its runs say where its work is (unless a recent run names one)
   const stray = !joined && isStray(sort, session);
   if (!placeRepo || !isFeatureBranch(placeBranch) || stray) {
@@ -582,6 +593,7 @@ function placeOne(sort: Sorting, session: LiveSession, index: number): void {
     repo: placeRepo,
     branch: placeBranch,
     kickable: !joined || sameRepo(placeRepo, repo),
+    card: joined?.card,
   });
   if (work && isOpenWork(sort.ctx, work)) {
     // thinking marks a session card of its own (a work's column would read it as Thinking)
@@ -635,7 +647,7 @@ export function placeSessions(
     blankViews: [],
     editorViews: [],
     sessionCards: [],
-    joinedCards: new Set(),
+    joinedCards: new Map(),
     repoBySession: new Map(),
     next: new Map(),
     learned: [],
@@ -650,6 +662,7 @@ export function placeSessions(
     repoBySession: sort.repoBySession,
     seen: sort.next,
     launched: sort.launched,
+    joinedCards: new Map([...sort.joinedCards].map(([card, id]) => [id, card])),
     learned: sort.learned,
   };
 }

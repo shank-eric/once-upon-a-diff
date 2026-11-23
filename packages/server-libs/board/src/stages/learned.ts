@@ -99,6 +99,9 @@ export async function learnCards(
       pr,
       asked: pr ? null : (work.number ?? null),
       story,
+      ...(!work.story && work.local
+        ? { newestLocal: true as const, storyBuiltAt: work.local.built_at }
+        : {}),
       session: work.sessions[0]?.card.id ?? null,
     });
   }

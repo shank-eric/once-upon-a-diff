@@ -92,7 +92,7 @@ export function startedLinks(item: BacklogItem, facts: LinkFacts): BoardStartedL
     return null;
   }
   const worktrees = (facts.worktrees.get(repoKey(item.repo)) ?? [])
-    .filter((tree) => tree.branch === branch)
+    .filter((tree) => tree.branch === branch || (!!item.worktree && tree.path === item.worktree))
     .map((tree) => ({ path: tree.path, name: path.basename(tree.path) }));
   const sessions = facts.sessions
     .filter(

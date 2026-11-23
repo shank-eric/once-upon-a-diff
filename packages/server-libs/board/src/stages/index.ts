@@ -68,7 +68,8 @@ import { blankStrip, voiceOf } from './strips.ts';
 import type { BuildContext, StoryFacts } from './types.ts';
 import { movedCards } from './moved.ts';
 import { addSubagentRows } from './subagents.ts';
-import { collectWorks } from './works.ts';
+import { assignCards, collectWorks } from './works.ts';
+import { cardHomes } from './homes.ts';
 import { worktreeSection } from './worktrees.ts';
 
 /** What the Board keeps between builds and hands to one. */
@@ -151,8 +152,12 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
       ? await voiceLines(settings.larmorDir, pin.view.id, !!voiceFiles?.on)
       : [];
 
+  // the works the sessions started are on their stored cards too (a work a session found has no card id until now)
+  assignCards(works, storedCards, ctx.review);
   // cards for the works: PR details from what GitHub last said
   const cards = buildCards(ctx, cardFacts, works, sessionCards);
+  // where each stored card is shown, so the stages below join a card to its work, session and agents by its id (homes.ts)
+  const homes = cardHomes(works, cards, placed.joinedCards);
 
   // an agent whose run names a card that exists is that card's (phase.ts)
   const held = carriedKeys(backlogItems, agents);
@@ -176,19 +181,20 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
       items: backlogItems,
       stored: storedCards,
       editorOf: editing.editorOf,
+      homes,
       // with the scanner off its facts are not kept up, so no author waits on a merge state read from them
       trees: settings.worktrees ? state.scanner.read().items : [],
     }),
   );
 
   // an agent whose run names a card goes on its branch's card now, so its state counts when the columns are decided
-  nestCardAgents(backlogItems, cards, views);
-  keepWorkWorking(backlogItems, cards);
+  nestCardAgents(backlogItems, cards, views, homes);
+  keepWorkWorking(backlogItems, cards, homes);
   const byStory = new Map<string, StoryFacts>(
     [...stories, ...localStoryList].map((story) => [story.id, story]),
   );
-  markLandedWorks(backlogItems, cards, nowMs, byStory, agents);
-  ignoreStoriesBeforePark(backlogItems, cards, byStory, agents);
+  markLandedWorks(backlogItems, cards, nowMs, byStory, agents, homes);
+  ignoreStoriesBeforePark(backlogItems, cards, byStory, agents, homes);
 
   // the columns, now that every card has its sessions and agents; a Ready card whose branch moved past its story is Working
   placeCards(
@@ -237,6 +243,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
       { trees: settings.worktrees ? state.scanner.read().items : [] },
       views,
       agents,
+      homes,
     ),
   );
 
@@ -251,6 +258,8 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
         agents,
         keepBranches: settings.keepBranches,
         nowMs,
+        stored: storedCards,
+        homes,
       })
     : null;
 

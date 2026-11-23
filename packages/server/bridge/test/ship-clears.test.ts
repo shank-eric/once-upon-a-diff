@@ -97,6 +97,35 @@ test('approve finishes the card’s open story run, once, and --undo leaves it',
   assert.equal(runs().find((run) => run.name === 'tell-again')?.state, 'running');
 });
 
+test('approve finishes the story run of a card that holds the story, though its branch no longer matches', async () => {
+  const { id, card, cli, runs, startRun } = world();
+  assert.equal((await cli('backlog', 'edit', card, '--story', id)).code, 0);
+  assert.equal((await startRun('tell-it', 'storyteller')).code, 0);
+  assert.equal(
+    (
+      await cli(
+        'agent',
+        'state',
+        'tell-it',
+        '--state',
+        'review',
+        '--outcome',
+        'story',
+        '--sid',
+        SID,
+      )
+    ).code,
+    0,
+  );
+  // the card's branch was repaired to another name after the story was told
+  const moved = await cli('backlog', 'branch', card, 'feature-renamed');
+  assert.equal(moved.code, 0, moved.stderr);
+  const approved = await cli('approve', id);
+  assert.equal(approved.code, 0, approved.stderr);
+  assert.match(approved.stdout, /1 story run finished/);
+  assert.equal(runs().find((run) => run.name === 'tell-it')?.state, 'done');
+});
+
 test('no finish but a fixer’s own commit at the branch tip carries the approval', async () => {
   const { id, card, store, head, commit, cli, startRun, home } = world();
   assert.equal((await cli('approve', id)).code, 0);

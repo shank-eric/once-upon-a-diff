@@ -29,6 +29,11 @@ export interface Work {
   /** a story was built for this PR (even one whose PR has since merged) */
   built: boolean;
   sessions: SessionView[];
+  /**
+   * The stored card this work is on (ADR-29), found once a build by its PR number, else its branch (works.ts `assignCards`); every
+   * later join of the card to this work goes by the id, so a head renamed since the card was stored still joins
+   */
+  card?: string;
 }
 
 /** A live session with what the board worked out about it. */

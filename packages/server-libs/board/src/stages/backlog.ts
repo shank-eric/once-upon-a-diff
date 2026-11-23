@@ -29,6 +29,7 @@ import type {
   BoardStartedLinks,
 } from '@once-upon-a-diff/contracts/types';
 import { isLocalStoryCard } from '../columns.ts';
+import { homeOf, NO_HOMES, type Homes } from './homes.ts';
 import { AGENT_OPEN, forgotten } from './agents.ts';
 import type { BuildContext, StoryFacts, Work } from './types.ts';
 import { readyFactsFor } from './ready-facts.ts';
@@ -44,11 +45,12 @@ export function nestCardAgents(
   items: BacklogItem[],
   cards: BoardCard[],
   views: Map<string, BoardAgent[]>,
+  homes: Homes = NO_HOMES,
 ): void {
   for (const item of items) {
     // a landed item may still be `open` (a `done` with no `start`): its agents still ride its card
     const rides = item.state === 'started' || (item.state === 'open' && !!item.landed_at);
-    const card = rides && item.branch ? cardOnBranch(item, cards) : null;
+    const card = rides && item.branch ? homeOf(homes, item.id, item, cards) : null;
     for (const view of card ? (views.get(item.id) ?? []) : []) {
       if (card && !card.agents.some((one) => sameAgentView(one, view))) {
         card.agents.push(view);
@@ -62,11 +64,15 @@ export function nestCardAgents(
  * Working, not Thinking: `thinking` is set where the sessions are placed, before these join the card, so it is cleared here,
  * before the columns are decided (placeCards). It changes the cards given. A research or helper run on a card is no work.
  */
-export function keepWorkWorking(items: BacklogItem[], cards: BoardCard[]): void {
+export function keepWorkWorking(
+  items: BacklogItem[],
+  cards: BoardCard[],
+  homes: Homes = NO_HOMES,
+): void {
   const onWork = new Set<BoardCard>();
   for (const item of items) {
     const rides = item.state === 'started' || (item.state === 'open' && !!item.landed_at);
-    const card = rides && item.branch ? cardOnBranch(item, cards) : null;
+    const card = rides && item.branch ? homeOf(homes, item.id, item, cards) : null;
     if (card) {
       onWork.add(card);
     }
@@ -101,6 +107,7 @@ export function markLandedWorks(
   nowMs: number,
   stories: Map<string, StoryFacts>,
   agents: LedgerAgent[] = [],
+  homes: Homes = NO_HOMES,
 ): void {
   const silent = new Set(agents.filter((agent) => forgotten(agent, nowMs)).map(agentKey));
   const doneMs = DONE_HOURS * 3600 * 1000;
@@ -108,8 +115,8 @@ export function markLandedWorks(
     if (item.state === 'dropped' || !item.branch || !item.landed_at) {
       continue;
     }
-    const found = cardOnBranch(item, cards);
-    if (!found || found.kind !== 'work' || !isLocalStoryCard(found)) {
+    const found = homeOf(homes, item.id, item, cards);
+    if (!found || !cards.includes(found) || found.kind !== 'work' || !isLocalStoryCard(found)) {
       continue;
     }
     // the card as it is, not as narrowed: a long-landed one loses its story below
@@ -157,22 +164,24 @@ export function ignoreStoriesBeforePark(
   cards: BoardCard[],
   stories: Map<string, StoryFacts>,
   agents: LedgerAgent[] = [],
+  homes: Homes = NO_HOMES,
 ): void {
   for (const item of items) {
     const parkedMs = Date.parse(item.parked_at ?? '');
     if (item.state === 'dropped' || item.landed_at || Number.isNaN(parkedMs)) {
       continue;
     }
-    const places = [
-      item,
-      ...runsOf(item, agents).map((run) => ({
-        branch: run.branch ?? null,
-        repo: run.repo ?? item.repo,
-      })),
-    ].filter((place) => place.branch);
-    for (const place of places) {
-      const found = cardOnBranch(place, cards);
-      if (!found || found.kind !== 'work' || !isLocalStoryCard(found)) {
+    // the card's own home by id; each run's registered branch is another place, found by its branch
+    const runPlaces = runsOf(item, agents).map((run) => ({
+      branch: run.branch ?? null,
+      repo: run.repo ?? item.repo,
+    }));
+    const candidates = [
+      item.branch ? homeOf(homes, item.id, item, cards) : undefined,
+      ...runPlaces.filter((place) => place.branch).map((place) => cardOnBranch(place, cards)),
+    ];
+    for (const found of candidates) {
+      if (!found || !cards.includes(found) || found.kind !== 'work' || !isLocalStoryCard(found)) {
         continue;
       }
       const card: BoardCard = found;
@@ -351,6 +360,7 @@ export function addBacklogCards(
   { trees = [] }: AssignFacts,
   views: Map<string, BoardAgent[]> = new Map(),
   agents: LedgerAgent[] = [],
+  homes: Homes = NO_HOMES,
 ): BoardCard[] {
   const { nowMs } = ctx;
   // a card that a work run names is read by its runs (cardPhase); one no run names is a started or pending card
@@ -383,6 +393,8 @@ export function addBacklogCards(
       }
     }
   }
-  const added = backlogCards(backlogItems, cards, nowMs, links, views, phases);
+  const added = backlogCards(backlogItems, cards, nowMs, links, views, phases, (item) =>
+    homeOf(homes, item.id, item, cards),
+  );
   return added;
 }

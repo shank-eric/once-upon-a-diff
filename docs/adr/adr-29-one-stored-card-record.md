@@ -112,13 +112,24 @@ An arrow marked "once" is written onto the card the first time someone learns th
 
 ## Built, and not built here
 
-Built, one commit each: A (`stored-card`): the record, the filter, `ensureCard` and `link`, `agent start` storing its card, finish from git, `card link`. B (`stored-card-keeper`): compaction, the keeper in shadow, `card backfill`. C1 to C3: the board reads stored cards (agents, sessions, works), and every new card is a `bl_` card. D1: a merged PR lands once on its card. E (`drop-claim`): the claim is gone.
+Built, one commit each: A (`stored-card`): the record, the filter, `ensureCard` and `link`, `agent start` storing its card, finish from git, `card link`. B (`stored-card-keeper`): compaction, the keeper in shadow, `card backfill`. C1 to C3: the board reads stored cards (agents, sessions, works), and every new card is a `bl_` card. D1: a merged PR lands once on its card. E (`drop-claim`): the claim is gone. F (`key-by-card-id`): the board joins a card to its work, sessions, agents and worktree by the card's id, and a card id is accepted wherever a story id is.
 
 Not built:
 
-- **Keying builds, inbox and `state/` by card id** (the plan's step 10, Eric's Q9): a follow-up card. It resolves card to `card.story` to the state key, with no folder renamed and no row rewritten (ADR-26: no spelling migration).
 - **A session's second no-card start sharing the session's card:** joining the open card on the branch covers every start with a feature branch; a branchless helper or research start still gets a card of its own.
 - **`backlog list --implicit`** keeps its name; it lists the `source: agent` cards no one adopted.
+
+## Key by card id (branch F)
+
+Built from the plan's step 10 (Eric's Q9), narrowed by what the code showed: no `card` field on builds, inbox rows or `state/` (a build is keyed by its PR number or `story:<id>`, already stable; stories keep no card id, Eric 11/17). What shipped:
+
+- `Work.card` (`board/src/stages/works.ts`, `assignCards`): each work is put on its stored card once a build, by its PR number, else its branch (`findWorkCard` in `ensure.ts`: a card of another PR is not matched, an open card is taken before a landed one). This is the one join by branch name the board keeps, as ADR-29's Consequences says.
+- `homes.ts` (`cardHomes`, `homeOf`): a stored card's id maps to the work or session card it is shown on. `nestCardAgents`, `keepWorkWorking`, `markLandedWorks`, `ignoreStoriesBeforePark`, `backlogCards` and an agent card of a stored card go through it. A card with no home still falls back to `cardOnBranch` (a listed card nothing stored a PR or work for, a run from before runs named a card); deleting the fallback is gated on `card backfill --cardless`.
+- A session whose runs name a card joins the work with that card's id (`work.card === joined.card`) before the work on the card's stored branch, so a PR head renamed since the card was stored keeps its session (board world 24); two sessions of one card share one session card by the id. A worktree a card stored (`card.worktree`) goes on its card, and in `startedLinks`, whatever branch it is on now.
+- `--story <card id>` (`resolveStory`) is the story the card holds, so a question asked against the card lands in the same inbox story and `state/` folder; a card with no story is an error. Approve finishes the parked storyteller of every card that holds the story (`card.story`) as well as those on its branch; `carryApproval` finds the card's story by branch, then by `card.story`.
+- The keeper moves `card.story` to the newest local story of the card's branch (`newestLocal`, Eric 11/23): story ids are not stable per branch (a checkout folder's name is in the default id, an explicit `--id` or a renamed branch gives another), so the match is by the card's branch and the stored story stays the fallback when the branch has none. A local story is still found for a work by its branch (`works.ts`), which the keeper keeps in step with the card.
+
+Left on the branch, on purpose: `runsOnBranch` (a run with no card still accounts for a branch's tip), the worktree scanner and GitHub's branch lookups (git and GitHub facts by name), the first-learn lookups of `ensureCard` and the keeper.
 
 ## Not changed
 
@@ -136,6 +147,6 @@ Stories, `state/` folders, inbox and builds are keyed as they are; the registry'
 ## Consequences
 
 - One record per piece of work: `cat` and `jq` on `backlog.jsonl` answer "what is this work" for any card on the board that has work.
-- A join by branch name stays only as the keeper's and `ensureCard`'s lookup when a fact is first learned; the board joins by the card's id, a PR number or a run's `card`.
+- A join by branch name stays only as the keeper's and `ensureCard`'s lookup when a fact is first learned (the board's `assignCards` is the same lookup, once a build) and as the fallback for a card with no home; the board joins by the card's id, a PR number or a run's `card`.
 - `backlog.jsonl` grows faster, so compaction shipped with the keeper.
 - A wrong first write (a branch typed into a card by mistake) is read by everything; `card link` and `backlog branch` are the repair, and `doctor` lists the stored ids and runs that have no card.

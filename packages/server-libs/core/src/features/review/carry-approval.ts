@@ -239,16 +239,19 @@ export function carryApproval(
   if (run.role !== 'fixer' || run.state !== 'done' || !run.card || !commit) {
     return null;
   }
-  // an implicit card (ADR-27) has no backlog row: the run's own repo and branch are the card's
+  // a card nobody listed (an agent's, ADR-29) is not among the listed ones: the run's own repo and branch are the card's
   const found = new BacklogStore(home).listed().find((one) => one.id === run.card);
-  const item = found ?? { repo: run.repo, branch: run.branch, state: 'started' };
+  const item = found ?? { repo: run.repo, branch: run.branch, state: 'started', story: null };
   if (!item.branch || !item.repo || item.state === 'dropped') {
     return null;
   }
   const stories = new StoryStore({ home });
-  const entry = localEntries(stories, { now }).find(
-    (one) => one.story.branch === item.branch && sameRepo(one.story.repo, item.repo),
-  );
+  // the newest local story on the card's branch, else the story the card holds (a branch renamed or edited since it was told)
+  const entries = localEntries(stories, { now });
+  const entry =
+    entries.find(
+      (one) => one.story.branch === item.branch && sameRepo(one.story.repo, item.repo),
+    ) ?? (item.story ? entries.find((one) => one.story.id === item.story) : undefined);
   const approval = entry && readApproval(stories, entry.story.id);
   if (!entry?.repo_path || !entry.head_ref || !approval || !approvalFresh(approval, now)) {
     return null;

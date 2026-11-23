@@ -1,6 +1,6 @@
 /*
  * The card keeper (core/src/features/cards/card-keeper.ts): a board build learns the work it saw (board/src/stages/learned.ts) and the
- * keeper stores a card for each, in shadow. The worlds here are real Boards over a home with PR and local stories, live sessions on
+ * keeper stores a card for each, which the board then reads (ADR-29). The worlds here are real Boards over a home with PR and local stories, live sessions on
  * worktrees, a fake GitHub watcher and a keeper on the home; the rules of the keeper alone are tested on the cards it is handed.
  */
 import { test, after } from 'node:test';
@@ -438,6 +438,28 @@ test('a failing write is logged and the board is the same as one with no keeper'
   chmodSync(scene.file, 0o644);
 });
 
+test('a card whose branch has two local stories follows the newest one, and the board is the same before and after', async () => {
+  const scene = world();
+  const { fixture, home } = scene;
+  const tree = fixture.add('feat/retold');
+  localStory(home, 'local-first', tree, 'feat/retold');
+  const item = scene.store.add({ title: 'retold', repo: REPO });
+  scene.store.start(item.id, { branch: 'feat/retold', repo: REPO });
+  scene.store.link(item.id, { story: 'local-first' });
+  // told again later under another id (another checkout folder's name gives another default id)
+  localStory(home, 'local-second', tree, 'feat/retold');
+  writeJson(path.join(home, 'local-second', 'meta.json'), {
+    ...JSON.parse(readFileSync(path.join(home, 'local-second', 'meta.json'), 'utf8')),
+    built_at: new Date(NOW.getTime() - 60_000).toISOString(),
+  });
+  scene.live(tree, 'on-retold');
+  await scene.build();
+  assert.equal(scene.stored().find((one) => one.id === item.id)?.story, 'local-second');
+  const text = scene.text();
+  await scene.build();
+  assert.equal(scene.text(), text, 'a second build writes nothing');
+});
+
 // ---- the keeper alone, on the cards it is handed
 
 const learned = (num: number, more: Partial<LearnedCard> = {}): LearnedCard => ({
@@ -460,6 +482,76 @@ const handed = (
   cards,
   ended,
   open,
+});
+
+test('the keeper moves a card’s story to the branch’s newest local story, and keeps the stored one when the branch has none', () => {
+  const home = tmp('keeper-story');
+  const keeper = new CardKeeper(home, () => undefined);
+  const store = new BacklogStore(home);
+  const wanted = (more: Partial<LearnedCard>) => learned(1, { story: 'local-old', ...more });
+  keeper.apply(handed([wanted({})]));
+  const [card] = store.items();
+  assert.equal(card.story, 'local-old');
+  // a story only fills a card that has none, unless it is the newest local story of the card's branch
+  keeper.apply(handed([wanted({ story: 'local-other' })]));
+  assert.equal(
+    store.items()[0].story,
+    'local-old',
+    'a story that is not marked newest does not replace',
+  );
+  keeper.apply(handed([wanted({ story: 'local-new', newestLocal: true })]));
+  assert.equal(
+    store.items()[0].story,
+    'local-new',
+    'the newest local story of the branch replaces it',
+  );
+  const text = readFileSync(path.join(home, 'backlog.jsonl'), 'utf8');
+  keeper.apply(handed([wanted({ story: 'local-new', newestLocal: true })]));
+  assert.equal(
+    readFileSync(path.join(home, 'backlog.jsonl'), 'utf8'),
+    text,
+    'and writes nothing again',
+  );
+  // the branch has no local story now (its folder is gone): the card keeps the story it holds
+  keeper.apply(handed([wanted({ story: null })]));
+  assert.equal(store.items()[0].story, 'local-new');
+  assert.equal(store.items().length, 1, 'one card throughout');
+});
+
+test('two works on one stored card: only the newest built local story moves its story, and a second build writes nothing', () => {
+  const home = tmp('keeper-two-works');
+  const keeper = new CardKeeper(home, () => undefined);
+  const store = new BacklogStore(home);
+  // a card with PR 12 on feat/old, whose head was renamed to feat/new; a local story is still listed on each branch
+  keeper.apply(
+    handed([learned(1, { branch: 'feat/old', pr: 12, source: 'pr', story: 'local-first' })]),
+  );
+  const open = [{ repo: REPO, number: 12 }];
+  const onNew = learned(1, {
+    branch: 'feat/new',
+    pr: 12,
+    source: 'pr',
+    story: 'local-new',
+    newestLocal: true,
+    storyBuiltAt: '2026-11-23T12:00:00.000Z',
+  });
+  const onOld = learned(1, {
+    branch: 'feat/old',
+    story: 'local-old',
+    newestLocal: true,
+    storyBuiltAt: '2026-11-23T10:00:00.000Z',
+  });
+  for (const order of [
+    [onNew, onOld],
+    [onOld, onNew],
+  ]) {
+    keeper.apply(handed(order, [], open));
+    assert.equal(store.items().length, 1, 'one card');
+    assert.equal(store.items()[0].story, 'local-new', 'the newer built story');
+    const text = readFileSync(path.join(home, 'backlog.jsonl'), 'utf8');
+    keeper.apply(handed(order, [], open));
+    assert.equal(readFileSync(path.join(home, 'backlog.jsonl'), 'utf8'), text, 'nothing rewritten');
+  }
 });
 
 test('a restart-sized world: the first build writes 40 cards, the next the rest, the third nothing', () => {

@@ -73,7 +73,7 @@ interface Call {
   who: string | null;
   /** the listed card the first word names (a card an agent made is refused with the way to adopt it) */
   found(): BacklogItem;
-  /** the cards agents made (ADR-27, ADR-29): stored, but not listed in the backlog until adopted */
+  /** the cards agents made (ADR-29): stored, but not listed in the backlog until adopted */
   implicit(): BacklogItem[];
   adoptCard(id: string | undefined, title: string | null, note?: string | null): AdoptedCard;
   adoptStarted(id: string | undefined, title: string | null, note?: string | null): BacklogItem;
