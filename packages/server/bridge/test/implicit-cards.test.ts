@@ -604,6 +604,29 @@ const startOut = async (home: string, ...args: string[]) => {
 };
 const AUTHOR = ['--role', 'author', '--repo', 'acme/widgets'];
 
+test('a --kind reviewer start that joins the branch’s card does not suggest --new-card, which that start refuses', async () => {
+  const home = tmp('join-reviewer');
+  const first = await start(home, 'ou-one', ...AUTHOR, '--branch', 'feat-rv', '--task', 'build');
+  assert.equal((await agent(home, 'finish', 'ou-one', '--commit', 'abc1234')).code, 0);
+  const [line, joined] = await startOut(
+    home,
+    'rv-one',
+    '--kind',
+    'reviewer',
+    '--repo',
+    'acme/widgets',
+    '--branch',
+    'feat-rv',
+    '--task',
+    'review',
+  );
+  assert.equal(line.split(' ')[2], first.card);
+  assert.match(
+    joined,
+    new RegExp(`^joined ${first.card} \\(build\\): the open card on feat-rv\\.$`),
+  );
+});
+
 test('a cardless start on a branch whose card is still open joins it, says so, and puts the card in Working', async () => {
   const home = tmp('join-open');
   const first = await start(home, 'ou-one', ...AUTHOR, '--branch', 'feat-join', '--task', 'build');

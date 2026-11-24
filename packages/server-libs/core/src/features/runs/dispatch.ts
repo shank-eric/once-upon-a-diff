@@ -7,10 +7,13 @@
 import { readLogText } from '@once-upon-a-diff/adapters/stores/fs/jsonl';
 import { worktreeProblem } from '@once-upon-a-diff/state/queues/backlog/worktree-check';
 import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
+import { runsOf } from '@once-upon-a-diff/state/queues/backlog/phase';
+import { readAgents } from '@once-upon-a-diff/state/records/agents/read';
 import { readSettings, repoSettings, shipsByPr } from '@once-upon-a-diff/foundation/settings';
 import path from 'node:path';
 import { LAUNCH, agentCall, renderBrief, type Shape } from './briefs.ts';
 import { defaultBranch, flat, mainCheckout, workPaths } from './checkout.ts';
+import { roundBaseOf, type RoundBase } from './round.ts';
 import { startRun, type RunIo } from './start-run.ts';
 
 /** The roles `dispatch` takes: a run's own roles, and the fan-out chapter writer and finisher (runs of the storyteller role). */
@@ -41,6 +44,7 @@ export interface DispatchInput {
   /** an author that only plans, or builds from a planner's notes file */
   plan?: boolean;
   fromNotes?: string | null;
+  /** the base the critic's diff and the story run from; a critic or storyteller of a card's later round defaults to `origin/<branch>` (its sha), else the default branch */
   base?: string | null;
   findingsFrom?: string | null;
   /** a critic's findings file */
@@ -64,6 +68,8 @@ export interface Dispatched {
   description: string;
   prompt: string;
   run: string;
+  /** a critic or storyteller of the card's second round or later: the pushed tip it starts from, unless `base` was typed */
+  round: RoundBase | null;
 }
 
 /** The standing rules of a lean agent type: its definition's body, in this checkout's agents/ folder (the once-upon repo's). */
@@ -194,11 +200,13 @@ interface Launching {
   extra: string | null;
   /** launched as general-purpose, so the brief carries the lean type's standing rules */
   general: boolean;
+  /** the base the brief's diff and story run from */
+  base: string;
 }
 
 /** The brief the editor hands to the Agent call. */
 function briefOf(home: string, input: DispatchInput, launching: Launching, now: Date): string {
-  const { item, shape, branch, main } = launching;
+  const { item, shape, branch } = launching;
   const reviewFile = path.join(
     home,
     'reviews',
@@ -211,11 +219,11 @@ function briefOf(home: string, input: DispatchInput, launching: Launching, now: 
     card: item.id,
     title: item.title,
     note: item.note,
-    checkout: main,
+    checkout: launching.main,
     worktree: launching.worktree,
     notes: launching.notes,
     branch,
-    base: text(input.base) ?? defaultBranch(main),
+    base: launching.base,
     check: optional(input.check),
     task: optional(input.task),
     out: text(input.out) ?? reviewFile,
@@ -232,6 +240,20 @@ function briefOf(home: string, input: DispatchInput, launching: Launching, now: 
     rules: launching.general ? agentRules(LAUNCH[shape].type) : null,
     extra: launching.extra,
   });
+}
+
+/** The round a critic or storyteller starts from when the card's branch has new commits on top of a push (null for every other role, which read no base of this kind). */
+function roundOf(
+  home: string,
+  item: Item,
+  branch: string,
+  role: DispatchRole,
+  main: string,
+): RoundBase | null {
+  if (role !== 'critic' && role !== 'storyteller') {
+    return null;
+  }
+  return roundBaseOf({ branch, pr: item.pr }, runsOf(item, readAgents(home).agents), main);
 }
 
 /** The run's start: a run of the card, on its branch, with the model and effort its shape launches with. */
@@ -283,8 +305,10 @@ export async function dispatchRun(
   const extra = general
     ? text(readLogText(path.join(home, 'editor', 'brief-extra.md')).trim())
     : null;
+  const round = text(input.base) ? null : roundOf(home, item, branch, role, main);
   const launching: Launching = {
     item,
+    base: text(input.base) ?? round?.sha ?? defaultBranch(main),
     shape,
     name,
     sid,
@@ -311,6 +335,7 @@ export async function dispatchRun(
     description: `${name}: ${role} for ${item.id}`,
     prompt,
     run: started.run,
+    round,
   };
 }
 

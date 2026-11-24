@@ -2665,6 +2665,95 @@ export function scrubPids(text: string, all: number[]): string {
     (board as any).invalidate();
     await record('25-pr-ahead-local', board);
   }
+
+  // 26. your own open PR whose branch has commits not pushed, with no local story of the branch (the 11/19 case: an author committed
+  // after the push and ran `agent start --branch`): the worktree's unpushed count puts it on the Mac's side. a (an author's
+  // finished commit, scanner says 1 unpushed, origin not asked yet) is Ready; c (pushed: its tracking ref is the tip) stays pr_open;
+  // d (the scanner says 1 unpushed, but origin says 0: pushed from another clone) is pr_open once origin answers; e (origin
+  // answers that it has a tip this checkout lacks: rebased or force-pushed elsewhere) is pr_open too, not the scanner's count
+  {
+    const names = ['feat-r2-a', 'feat-r2-c', 'feat-r2-d', 'feat-r2-e'];
+    const { home } = world(
+      names.map((branch, index) => ({
+        op: 'add',
+        id: `bl_storedpr${41 + index}`,
+        title: `stored PR ${41 + index}`,
+        repo: 'acme/widgets',
+        branch,
+        source: 'pr',
+        pr: 41 + index,
+      })),
+    );
+    const at = '2026-10-26T18:00:00Z';
+    const parent = tmp('ahead-repo');
+    const checkout = path.join(parent, 'widgets');
+    mkdirSync(checkout);
+    git(checkout, 'init', '-q', '-b', 'main');
+    git(checkout, 'remote', 'add', 'origin', 'git@github.com:acme/widgets.git');
+    writeFileSync(path.join(checkout, 'a.txt'), 'a\n');
+    git(checkout, 'add', '.');
+    gitAt(checkout, at, 'commit', '-q', '-m', 'base');
+    // main is the remote's: only the branches' own commits count as unpushed
+    git(checkout, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+    const trees = path.join(parent, 'widgets-worktrees');
+    mkdirSync(trees);
+    const tips: Record<string, string> = {};
+    const authors = new AgentRegistry(home);
+    for (const [index, name] of names.entries()) {
+      const dir = path.join(trees, name);
+      git(checkout, 'worktree', 'add', '-q', dir, '-b', name);
+      writeFileSync(path.join(dir, `${name}.txt`), `${name}\n`);
+      git(dir, 'add', '.');
+      gitAt(dir, at, 'commit', '-q', '-m', `work ${name}`);
+      tips[name] = git(dir, 'rev-parse', 'HEAD');
+      authors.start({
+        sid: 'dddddddd',
+        name: `round-two-${name}`,
+        kind: 'author',
+        task: `build ${name}`,
+        repo: 'acme/widgets',
+        branch: name,
+        card: `bl_storedpr${41 + index}`,
+        cwd: dir,
+        model: 'sonnet',
+        effort: 'low',
+        at: et(10 + index, 0),
+      });
+      authors.finish(`round-two-${name}`, {
+        outcome: 'built',
+        result: { commit: tips[name], branch: name },
+        at: et(10 + index, 30),
+      });
+    }
+    git(checkout, 'update-ref', 'refs/remotes/origin/feat-r2-c', tips['feat-r2-c']);
+    shasSeen.push(...Object.values(tips));
+    seenCheckout(home, 'acme/widgets', checkout);
+    const infos = names.map((branch, index) => prInfo(41 + index, { branch }));
+    const board = new Board(
+      home,
+      new StoryStore({ home }),
+      fakeWatcher(
+        infos,
+        Object.fromEntries(infos.map((info) => [`acme/widgets@${info.branch}`, info])),
+      ).watcher as never,
+      new Builds(home),
+      {
+        source: sourceSaying({}),
+        now: () => NOW,
+        repoOf,
+        aheadOf: async (_checkout: string, branch: string) =>
+          (({ 'feat-r2-d': 0, 'feat-r2-e': 'diverged' }) as const)[branch as 'feat-r2-d'] ?? null,
+      },
+    );
+    await board.snapshot();
+    await (board as any).scanner.idle();
+    (board as any).invalidate();
+    // the first build reads the scan; the origin look of d answers 0 in the background, and the next build has it
+    await board.snapshot();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    (board as any).invalidate();
+    await record('26-pr-ahead-no-story', board);
+  }
 }
 
 // ---- normalize paths and pids

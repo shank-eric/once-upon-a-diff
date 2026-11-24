@@ -183,10 +183,14 @@ export async function pushBranch(
 
 /**
  * How many commits the local branch has that origin's copy lacks, from `git ls-remote` and `git rev-list --count`
- * without fetching: 0 when they match, null when it can't be said (origin unreachable, no such branch there or here, or
- * origin's copy has commits this checkout doesn't, which a push would be refused over).
+ * without fetching: 0 when they match, `'diverged'` when origin answered with a tip this checkout does not have as an
+ * ancestor of its head (a push would be refused over it: a rebase or a force-push elsewhere), and null when it can't be said
+ * (origin unreachable, no such branch there or here, or git failed to count).
  */
-export async function aheadOf(repoPath: string, branch: string): Promise<number | null> {
+export async function aheadOf(
+  repoPath: string,
+  branch: string,
+): Promise<number | 'diverged' | null> {
   const headSha = headOf(repoPath, branch);
   if (!headSha) {
     return null;
@@ -200,7 +204,7 @@ export async function aheadOf(repoPath: string, branch: string): Promise<number 
     return 0;
   }
   if (!(await isAncestorAsync(repoPath, remoteSha, headSha))) {
-    return null;
+    return 'diverged';
   }
   const counted = await runGitAsync(repoPath, ['rev-list', '--count', `${remoteSha}..${headSha}`]);
   const count = Number(counted.stdout.trim());

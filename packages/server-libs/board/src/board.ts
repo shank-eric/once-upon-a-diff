@@ -392,7 +392,10 @@ export class Board {
    * ls-remote) runs in the background, at most every AHEAD_MS, and a change drops the kept snapshot. Null when nothing is
    * ahead.
    */
-  private aheadFor(found: { story: string; checkout: string }, branch: string): BoardCard['ahead'] {
+  private aheadFor(
+    found: { story: string | null; checkout: string; count?: number },
+    branch: string,
+  ): BoardCard['ahead'] {
     const key = `${found.checkout}\0${branch}`;
     const kept = this.aheads.get(key);
     const now = Date.now();
@@ -400,7 +403,9 @@ export class Board {
       // the old answer stays until the new one arrives, and a failed look keeps it
       this.aheads.set(key, { at: now, count: kept?.count ?? null });
       (this.options.aheadOf || aheadOf)(found.checkout, branch)
-        .then((count) => {
+        .then((answer) => {
+          // a diverged branch is an answer too: origin's tip is not behind the head, so nothing here is new to push
+          const count = answer === 'diverged' ? 0 : answer;
           const last = this.aheads.get(key);
           if (count !== null && last?.count !== count) {
             this.invalidate();
@@ -409,7 +414,8 @@ export class Board {
         })
         .catch(() => undefined);
     }
-    const count = kept?.count;
+    // the look at origin is exact once it has answered (0 included); until then the scanner's count, if the caller has one
+    const count = kept?.count ?? found.count;
     return count ? { count, story: found.story } : null;
   }
 

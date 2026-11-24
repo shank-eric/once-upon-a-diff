@@ -76,8 +76,14 @@ export interface Lookups {
    * It never runs git for the caller: an approval is held against the tip, and a null leaves it standing.
    */
   tipOf(repo: string, ref: string): string | null;
-  /** a PR card's commits ahead of origin, as the checkout of a local story of its branch has them */
-  aheadFor(found: { story: string; checkout: string }, branch: string): BoardCard['ahead'];
+  /**
+   * a PR card's commits ahead of origin, as the checkout of a local story of its branch has them (or, with no story, the
+   * worktree on the branch, whose scanner `count` stands until the look at origin answers)
+   */
+  aheadFor(
+    found: { story: string | null; checkout: string; count?: number },
+    branch: string,
+  ): BoardCard['ahead'];
   /**
    * Whether the branch's tip `tip`, in the worktree `checkout`, has moved past `told`, the commit a story or an author's work
    * was reviewed at: a new commit on top, or an amend (not a pure rebase). Null until the background look answers, or when git

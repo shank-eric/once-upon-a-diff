@@ -2,6 +2,7 @@
 import { branchKey, canonicalRepo } from '@once-upon-a-diff/terms/ids';
 import { hasRepoAndBranch } from '@once-upon-a-diff/terms/repo-branch';
 import { isAutoDone } from '@once-upon-a-diff/core/features/review/story-lists';
+import { findTree, type WorktreeFacts } from '@once-upon-a-diff/state/records/worktrees/worktrees';
 import { requestFor } from '@once-upon-a-diff/state/queues/requests/progress';
 import { columnOf } from '../columns.ts';
 import type {
@@ -112,17 +113,29 @@ export interface CardFacts {
   localCheckouts: Map<string, { story: string; checkout: string }>;
   /** the local stories by id, for the story an ahead card shows */
   localById: Map<string, InboxLocalStory>;
+  /** the worktrees the scanner knows, for the commits-ahead count of a branch with no local story */
+  trees: WorktreeFacts[];
 }
 
-/** A PR card's commits ahead of origin, as the checkout of a local story of its branch has them: null when the branch has no local story. */
+/**
+ * A PR card's commits ahead of origin: as the checkout of a local story of its branch has them, else (no local story: a PR
+ * story only, or an author's commit before any story) the worktree on the branch, when the scanner counts commits it has not
+ * pushed. The scanner's count is only the gate and the answer until the look at origin comes back (Lookups.aheadFor).
+ */
 function aheadFor(
   ctx: BuildContext,
-  localCheckouts: CardFacts['localCheckouts'],
+  facts: CardFacts,
   repo: string,
   branch: string,
 ): BoardCard['ahead'] {
-  const found = localCheckouts.get(branchKey(repo, branch));
-  return found ? ctx.lookups.aheadFor(found, branch) : null;
+  const found = facts.localCheckouts.get(branchKey(repo, branch));
+  if (found) {
+    return ctx.lookups.aheadFor(found, branch);
+  }
+  const tree = findTree(facts.trees, repo, branch);
+  return tree?.unpushed
+    ? ctx.lookups.aheadFor({ story: null, checkout: tree.path, count: tree.unpushed }, branch)
+    : null;
 }
 
 /** How old GitHub's last answer about a PR can be before its card says so (5 x the watcher's 3 minute cache). */
@@ -240,7 +253,7 @@ function isUnconfirmed(ctx: BuildContext, work: Work, pr: PrInfo | null): boolea
   );
 }
 
-/** An open PR's commits ahead of origin, from the checkout of a local story of its branch. */
+/** An open PR's commits ahead of origin, from the checkout of a local story of its branch or the worktree on it. */
 function openPrAhead(
   ctx: BuildContext,
   facts: CardFacts,
@@ -251,7 +264,7 @@ function openPrAhead(
   if (pr?.state !== 'open' || !branch || !work.repo) {
     return null;
   }
-  return aheadFor(ctx, facts.localCheckouts, work.repo, branch);
+  return aheadFor(ctx, facts, work.repo, branch);
 }
 
 /** While your own PR's branch is ahead, the local story of that branch stands for the card: it is the one to review and approve. */
@@ -260,7 +273,7 @@ function aheadStoryOf(
   ahead: BoardCard['ahead'],
   pr: PrInfo | null,
 ): InboxLocalStory | undefined {
-  return ahead && pr?.mine ? facts.localById.get(ahead.story) : undefined;
+  return ahead?.story && pr?.mine ? facts.localById.get(ahead.story) : undefined;
 }
 
 /** A card for a work, or null when there is nothing left to show on it (a PR closed, or merged long ago, with no session). */

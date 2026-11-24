@@ -5,7 +5,12 @@
  */
 import { ownSession } from '@once-upon-a-diff/core/features/listeners/service';
 import { sweepStatusLines } from '@once-upon-a-diff/core/features/sessions/status-lines';
-import { callLine, dispatchRun, handbackRun } from '@once-upon-a-diff/core/features/runs/service';
+import {
+  callLine,
+  dispatchRun,
+  handbackRun,
+  roundNote,
+} from '@once-upon-a-diff/core/features/runs/service';
 import { carryApproval } from '@once-upon-a-diff/core/features/review/carry-approval';
 import { stateWord } from '@once-upon-a-diff/state/records/agents/ledger';
 import { shortSha } from '@once-upon-a-diff/terms/text';
@@ -68,6 +73,10 @@ async function dispatch(home: string, _cfg: unknown, opts: CliOpts) {
         2,
       ),
     );
+  }
+  // the round's base is said on stderr: stdout is the Agent call and its brief, which the editor passes on as they are
+  if (done.round) {
+    process.stderr.write(`${roundNote(done.round)}\n`);
   }
   return out(`${callLine(done)}\n\n${done.prompt.trimEnd()}`);
 }

@@ -38,6 +38,10 @@ import { SESSION_RE } from '@once-upon-a-diff/terms/patterns';
 import { isAbsolute } from 'node:path';
 import { worktreeFacts } from '@once-upon-a-diff/adapters/git';
 import { SELF_PREFIX, isSelfName } from '@once-upon-a-diff/terms/ids';
+import { runsOf } from '@once-upon-a-diff/state/queues/backlog/phase';
+import { readAgents } from '@once-upon-a-diff/state/records/agents/read';
+import { mainCheckout } from './checkout.ts';
+import { roundBaseOf, type RoundBase } from './round.ts';
 import { trustedLiveSids } from './live-sids.ts';
 import { liveWrites } from './live-writes.ts';
 import { roleKind, selfProblem } from './roles.ts';
@@ -95,6 +99,10 @@ export interface StartedRun {
   joined: { card: string; title: string; branch: string } | null;
   /** the session's earlier recent no-card runs, when this start made a card of its own beside them; empty otherwise (see related-runs.ts) */
   related: RelatedRun[];
+  /** whether --new-card would be taken on this start: a critic or fixer (by role or kind) works on a card, so it never is */
+  newCardAllowed: boolean;
+  /** the card's later review round (new commits on top of a push) this run is in, with the pushed tip it starts from; null in a first round */
+  round: RoundBase | null;
 }
 
 const text = (value: unknown): string | null => (typeof value === 'string' && value ? value : null);
@@ -178,6 +186,10 @@ function refuseFlagsBesideCard(run: Start): void {
   }
 }
 
+/** A run that works on a card it did not make: a critic or fixer by role, or a critic by kind (`--kind reviewer` with no role). */
+const joinsByBranch = ({ role, kind }: Pick<Start, 'role' | 'kind'>): boolean =>
+  role === 'critic' || role === 'fixer' || canonicalKind(kind) === 'critic';
+
 /**
  * A critic or fixer works on a card: one with no --card but a --branch (or a checkout of a feature branch) is on the open card
  * that branch has, and the card gives the branch and repo from here on. Several open cards are the run's to choose between,
@@ -185,13 +197,13 @@ function refuseFlagsBesideCard(run: Start): void {
  */
 function joinCardOfBranch(run: Start): void {
   const { input } = run;
-  if (run.card || (run.role !== 'critic' && run.role !== 'fixer')) {
+  if (run.card || !joinsByBranch(run)) {
     return;
   }
   // a critic or fixer never makes a card, so --new-card has nothing to do for it: say so, not drop it
   if (input.newCard) {
     throw new Error(
-      `a ${run.role} works on an existing card, so --new-card is not taken: pass --card ID`,
+      `a ${run.role ?? 'critic'} works on an existing card, so --new-card is not taken: pass --card ID`,
     );
   }
   const branch = run.typedBranch ?? worktreeFacts(input.cwd)?.branch ?? null;
@@ -214,14 +226,15 @@ function joinCardOfBranch(run: Start): void {
 }
 
 /** The roles that need work to read, and the run a story agent's name gives away. */
-function refuseNoWork({ role, card, typedPr, typedBranch, name }: Start): void {
+function refuseNoWork(run: Start): void {
+  const { role, card, typedPr, typedBranch, name } = run;
   // (a storyteller reads a PR or a branch, so either names its work with no card: the board joins it by that)
   const namesWork = !!(card || typedPr || typedBranch);
   if (role === 'storyteller' && !namesWork) {
     throw new Error('a storyteller needs --pr N, --branch NAME or --card ID');
   }
-  if ((role === 'critic' || role === 'fixer') && !card) {
-    throw new Error(`a ${role} works on a card: pass --card ID`);
+  if (joinsByBranch(run) && !card) {
+    throw new Error(`a ${role ?? 'critic'} works on a card: pass --card ID`);
   }
   // a story run with no role, PR, branch or card is a card of its own that no PR story can match (the board shows two
   // cards for one PR): the skill names story agents story-<id>, so the shape is caught here, by name
@@ -594,6 +607,20 @@ function relatedOf(
   });
 }
 
+/** The card's later review round the run is in, when the card (its branch, or the run's) has new commits on top of a push. */
+function roundOfStart(
+  run: Start,
+  onCard: Item | undefined,
+  branch: string | null,
+): RoundBase | null {
+  const onBranch = onCard?.branch ?? branch;
+  if (!onCard || !onBranch) {
+    return null;
+  }
+  const runs = runsOf(onCard, readAgents(run.home).agents);
+  return roundBaseOf({ branch: onBranch, pr: onCard.pr }, runs, mainCheckout(run.input.cwd));
+}
+
 export async function startRun(
   home: string,
   input: RunStartInput,
@@ -629,5 +656,7 @@ export async function startRun(
     stamped: run.card && stamp ? stamp : null,
     joined: plan.join?.joined ?? run.joinedCard ?? null,
     related,
+    newCardAllowed: !joinsByBranch(run),
+    round: roundOfStart(run, onCard, branch),
   };
 }

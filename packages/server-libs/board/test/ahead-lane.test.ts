@@ -57,7 +57,10 @@ test("not ahead, a PR story, someone else's PR: the PR side as before", () => {
     columnOf(input({ ahead: false, story: local({ reviewed: true, approved: true }) })),
     'pr_open',
   );
-  assert.equal(columnOf(input({ story: local({ local: false, reviewed: true }) })), 'pr_open');
+  assert.equal(
+    columnOf(input({ ahead: false, story: local({ local: false, reviewed: true }) })),
+    'pr_open',
+  );
   assert.equal(columnOf(input({ story: local({ local: false, unread: true }) })), 'back');
   assert.equal(
     columnOf(input({ ahead: false, story: local({ reviewed: true, answered: 1 }) })),
@@ -71,4 +74,29 @@ test('the caller sets ahead only for your own open PR: columnOf takes it as give
 
 test('a merged PR is Done whatever ahead says', () => {
   assert.equal(columnOf(input({ pr: { state: 'merged', mine: true } as PrInfo })), 'done');
+});
+
+test('an ahead PR with no story at all (an author committed after the push) is Ready', () => {
+  assert.equal(columnOf(input({ story: null })), 'ready');
+  assert.equal(columnOf(input({ story: null, ahead: false })), 'pr_open');
+});
+
+test('an ahead PR with a PR story: read, Ready; unread or answered, still Back to you', () => {
+  assert.equal(columnOf(input({ story: local({ local: false, reviewed: true }) })), 'ready');
+  assert.equal(columnOf(input({ story: local({ local: false }) })), 'ready');
+  assert.equal(columnOf(input({ story: local({ local: false, unread: true }) })), 'back');
+  assert.equal(columnOf(input({ story: local({ local: false, answered: 1 }) })), 'back');
+});
+
+test('an ahead PR is never Ready to ship without an approved local story', () => {
+  assert.equal(columnOf(input({ story: null })), 'ready');
+  assert.equal(
+    columnOf(input({ story: local({ local: false, reviewed: true, approved: true }) })),
+    'ready',
+  );
+});
+
+test('an ahead PR whose branch moved past what was told is Working', () => {
+  assert.equal(columnOf(input({ story: null, moved: true })), 'working');
+  assert.equal(columnOf(input({ moved: true })), 'working');
 });

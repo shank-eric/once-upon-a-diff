@@ -131,6 +131,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
     unreadById,
     localCheckouts: collected.localCheckouts,
     localById: new Map(localStoryList.map((story) => [story.id, story])),
+    trees: settings.worktrees ? state.scanner.read().items : [],
   };
 
   const facts = await readSessionFacts(ctx, liveFacts, {

@@ -123,9 +123,9 @@ export interface BoardCard {
   } | null;
   /**
    * a work card with an open PR whose local checkout has commits origin's branch lacks (a fix made after review), and
-   * the local story of that checkout; absent when no local story of the branch is known
+   * the local story of that checkout (null when the branch has none: the count then comes from the checkout alone)
    */
-  ahead?: { count: number; story: string } | null;
+  ahead?: { count: number; story: string | null } | null;
   /** a session is building, rebuilding or fixing for it (a claimed request) */
   building: {
     kind: StoryRequest['kind'] | 'write';

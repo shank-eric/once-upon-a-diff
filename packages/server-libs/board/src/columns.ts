@@ -22,8 +22,9 @@
  *   ready     its story is built, it has no PR yet, and you haven't reviewed it, or an agent on it says `[review]` ("done" is not done until you've seen
  *             it), or (set by stages/agents.ts on an agent's own card) a finished author's commit is on a branch with no PR
  *             that is not merged and not pushed yet (pushed with no PR is ship, ready.ts). It is the Mac's side: a card with a PR, whoever wrote it and whatever story it has, is on GitHub's
- *             (back or pr_open), unless it is your own PR whose branch is ahead (commits not pushed yet) with a local story: that
- *             is ready, or ship once its story is approved for the head, and goes back to pr_open when the push makes it 0 ahead. A rebuild of a local story since you opened it is a chip on its card
+ *             (back or pr_open), unless it is your own PR whose branch is ahead (commits not pushed yet): that is ready (with its
+ *             local story, a PR story you have read or none at all; an unread PR story is still back), or ship once a local story
+ *             is approved for the head, and goes back to pr_open when the push makes it 0 ahead. A rebuild of a local story since you opened it is a chip on its card
  *   pr_open   pushed with a PR, and nothing waits on you
  *   thinking  a research agent still running with no card to sit in (set by stages/agents.ts on an agent's own card), or a busy
  *             session with no author or fixer run open under its id that is not on a work card (its `thinking` flag, set where the sessions are
@@ -188,7 +189,7 @@ function inProgressColumn({
 function storyColumn(input: ColumnInput): BoardColumn | null {
   const { agents, pr, story, moved, ahead } = input;
   const ready = moved ? 'working' : 'ready';
-  // an ahead PR is on the Mac's side through its local story only: a PR story keeps the GitHub side's rules
+  // an ahead PR is on the Mac's side through its local story only: a PR story keeps the GitHub side's rules for its own arms
   const local = !pr || (onLocalSide(input) && !!story?.local);
   // an answer to a question you asked, unread: back to you on the GitHub side for your own PR, in Ready while there is
   // no PR. On someone else's PR the answer is a chip on the card, not a reason to leave PR open (you asked about their
@@ -214,9 +215,10 @@ function storyColumn(input: ColumnInput): BoardColumn | null {
   if (story && !story.reviewed && local) {
     return ready;
   }
-  // your PR's branch has commits not pushed, and the story that says so is local: its Approve and Push is still to come
-  if (ahead && story?.local) {
-    return 'ready';
+  // your PR's branch has commits not pushed: they are on the Mac, so their review and push is still to come, whether the story
+  // is the local one that says so, a PR story (not about these commits) or none yet (an unread PR story is still back, above)
+  if (ahead) {
+    return ready;
   }
   return null;
 }

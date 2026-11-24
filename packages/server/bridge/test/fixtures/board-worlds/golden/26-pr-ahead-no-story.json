@@ -1,0 +1,432 @@
+{
+  "board": {
+    "at": "2026-10-26T19:00:00.000Z",
+    "blank": [],
+    "editors": [],
+    "helpers": [],
+    "lanes": [
+      {
+        "cards": [
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": "2026-10-26T14:30:00.000Z",
+                "gate": null,
+                "key": "dddddddd:round-two-feat-r2-a",
+                "kind": "author",
+                "model": "sonnet",
+                "name": "round-two-feat-r2-a",
+                "notes": null,
+                "outcome": "built",
+                "review": false,
+                "sid": "dddddddd",
+                "stale": false,
+                "started_at": "2026-10-26T14:00:00.000Z",
+                "state": "done",
+                "status": "done",
+                "summary": {
+                  "did": "build feat-r2-a",
+                  "why": "committed <SHA:13>, PR open"
+                },
+                "task": "build feat-r2-a"
+              }
+            ],
+            "ahead": {
+              "count": 1,
+              "story": null
+            },
+            "branch": "feat-r2-a",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "ready",
+            "detail": null,
+            "focus_session": null,
+            "id": "pr:acme/widgets#41",
+            "kind": "work",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": {
+              "approvals": 0,
+              "author": "octocat",
+              "branch": "feat-r2-a",
+              "checks": null,
+              "draft": false,
+              "merge": null,
+              "merged_at": null,
+              "mine": true,
+              "number": 41,
+              "others_at": null,
+              "required": null,
+              "review": null,
+              "review_requested": false,
+              "state": "open",
+              "title": "PR 41",
+              "unresolved": 0,
+              "url": "https://github.com/acme/widgets/pull/41",
+              "viewer_at": null
+            },
+            "repo": "acme/widgets",
+            "sessions": [],
+            "since": null,
+            "story": null,
+            "title": "PR 41",
+            "worktrees": [
+              {
+                "attention": null,
+                "branch": "feat-r2-a",
+                "deletes_branch": false,
+                "ignored": [],
+                "in_use": [],
+                "keep": [
+                  "made less than an hour ago",
+                  "1 unpushed",
+                  "PR #41 open"
+                ],
+                "lane": "acme/widgets",
+                "last_commit_at": "2026-10-26T18:00:00.000Z",
+                "locked": false,
+                "main": "<WORK>/ahead-repo-89/widgets",
+                "modified": 0,
+                "name": "feat-r2-a",
+                "path": "<WORK>/ahead-repo-89/widgets-worktrees/feat-r2-a",
+                "pr": {
+                  "number": 41,
+                  "state": "open"
+                },
+                "removable": false,
+                "repo": "acme/widgets",
+                "size_kb": "<kb>",
+                "stale": false,
+                "state": "clean",
+                "unpushed": 1,
+                "untracked": 0,
+                "verdict": "new"
+              }
+            ]
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": "2026-10-26T15:30:00.000Z",
+                "gate": null,
+                "key": "dddddddd:round-two-feat-r2-c",
+                "kind": "author",
+                "model": "sonnet",
+                "name": "round-two-feat-r2-c",
+                "notes": null,
+                "outcome": "built",
+                "review": false,
+                "sid": "dddddddd",
+                "stale": false,
+                "started_at": "2026-10-26T15:00:00.000Z",
+                "state": "done",
+                "status": "done",
+                "summary": {
+                  "did": "build feat-r2-c",
+                  "why": "committed <SHA:14>, PR open"
+                },
+                "task": "build feat-r2-c"
+              }
+            ],
+            "ahead": null,
+            "branch": "feat-r2-c",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "pr_open",
+            "detail": null,
+            "focus_session": null,
+            "id": "pr:acme/widgets#42",
+            "kind": "work",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": {
+              "approvals": 0,
+              "author": "octocat",
+              "branch": "feat-r2-c",
+              "checks": null,
+              "draft": false,
+              "merge": null,
+              "merged_at": null,
+              "mine": true,
+              "number": 42,
+              "others_at": null,
+              "required": null,
+              "review": null,
+              "review_requested": false,
+              "state": "open",
+              "title": "PR 42",
+              "unresolved": 0,
+              "url": "https://github.com/acme/widgets/pull/42",
+              "viewer_at": null
+            },
+            "repo": "acme/widgets",
+            "sessions": [],
+            "since": null,
+            "story": null,
+            "title": "PR 42",
+            "worktrees": [
+              {
+                "attention": null,
+                "branch": "feat-r2-c",
+                "deletes_branch": false,
+                "ignored": [],
+                "in_use": [],
+                "keep": [
+                  "made less than an hour ago",
+                  "PR #42 open"
+                ],
+                "lane": "acme/widgets",
+                "last_commit_at": "2026-10-26T18:00:00.000Z",
+                "locked": false,
+                "main": "<WORK>/ahead-repo-89/widgets",
+                "modified": 0,
+                "name": "feat-r2-c",
+                "path": "<WORK>/ahead-repo-89/widgets-worktrees/feat-r2-c",
+                "pr": {
+                  "number": 42,
+                  "state": "open"
+                },
+                "removable": false,
+                "repo": "acme/widgets",
+                "size_kb": "<kb>",
+                "stale": false,
+                "state": "clean",
+                "unpushed": 0,
+                "untracked": 0,
+                "verdict": "new"
+              }
+            ]
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": "2026-10-26T16:30:00.000Z",
+                "gate": null,
+                "key": "dddddddd:round-two-feat-r2-d",
+                "kind": "author",
+                "model": "sonnet",
+                "name": "round-two-feat-r2-d",
+                "notes": null,
+                "outcome": "built",
+                "review": false,
+                "sid": "dddddddd",
+                "stale": false,
+                "started_at": "2026-10-26T16:00:00.000Z",
+                "state": "done",
+                "status": "done",
+                "summary": {
+                  "did": "build feat-r2-d",
+                  "why": "committed <SHA:15>, PR open"
+                },
+                "task": "build feat-r2-d"
+              }
+            ],
+            "ahead": null,
+            "branch": "feat-r2-d",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "pr_open",
+            "detail": null,
+            "focus_session": null,
+            "id": "pr:acme/widgets#43",
+            "kind": "work",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": {
+              "approvals": 0,
+              "author": "octocat",
+              "branch": "feat-r2-d",
+              "checks": null,
+              "draft": false,
+              "merge": null,
+              "merged_at": null,
+              "mine": true,
+              "number": 43,
+              "others_at": null,
+              "required": null,
+              "review": null,
+              "review_requested": false,
+              "state": "open",
+              "title": "PR 43",
+              "unresolved": 0,
+              "url": "https://github.com/acme/widgets/pull/43",
+              "viewer_at": null
+            },
+            "repo": "acme/widgets",
+            "sessions": [],
+            "since": null,
+            "story": null,
+            "title": "PR 43",
+            "worktrees": [
+              {
+                "attention": null,
+                "branch": "feat-r2-d",
+                "deletes_branch": false,
+                "ignored": [],
+                "in_use": [],
+                "keep": [
+                  "made less than an hour ago",
+                  "1 unpushed",
+                  "PR #43 open"
+                ],
+                "lane": "acme/widgets",
+                "last_commit_at": "2026-10-26T18:00:00.000Z",
+                "locked": false,
+                "main": "<WORK>/ahead-repo-89/widgets",
+                "modified": 0,
+                "name": "feat-r2-d",
+                "path": "<WORK>/ahead-repo-89/widgets-worktrees/feat-r2-d",
+                "pr": {
+                  "number": 43,
+                  "state": "open"
+                },
+                "removable": false,
+                "repo": "acme/widgets",
+                "size_kb": "<kb>",
+                "stale": false,
+                "state": "clean",
+                "unpushed": 1,
+                "untracked": 0,
+                "verdict": "new"
+              }
+            ]
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": "2026-10-26T17:30:00.000Z",
+                "gate": null,
+                "key": "dddddddd:round-two-feat-r2-e",
+                "kind": "author",
+                "model": "sonnet",
+                "name": "round-two-feat-r2-e",
+                "notes": null,
+                "outcome": "built",
+                "review": false,
+                "sid": "dddddddd",
+                "stale": false,
+                "started_at": "2026-10-26T17:00:00.000Z",
+                "state": "done",
+                "status": "done",
+                "summary": {
+                  "did": "build feat-r2-e",
+                  "why": "committed <SHA:16>, PR open"
+                },
+                "task": "build feat-r2-e"
+              }
+            ],
+            "ahead": null,
+            "branch": "feat-r2-e",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "pr_open",
+            "detail": null,
+            "focus_session": null,
+            "id": "pr:acme/widgets#44",
+            "kind": "work",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": {
+              "approvals": 0,
+              "author": "octocat",
+              "branch": "feat-r2-e",
+              "checks": null,
+              "draft": false,
+              "merge": null,
+              "merged_at": null,
+              "mine": true,
+              "number": 44,
+              "others_at": null,
+              "required": null,
+              "review": null,
+              "review_requested": false,
+              "state": "open",
+              "title": "PR 44",
+              "unresolved": 0,
+              "url": "https://github.com/acme/widgets/pull/44",
+              "viewer_at": null
+            },
+            "repo": "acme/widgets",
+            "sessions": [],
+            "since": null,
+            "story": null,
+            "title": "PR 44",
+            "worktrees": [
+              {
+                "attention": null,
+                "branch": "feat-r2-e",
+                "deletes_branch": false,
+                "ignored": [],
+                "in_use": [],
+                "keep": [
+                  "made less than an hour ago",
+                  "1 unpushed",
+                  "PR #44 open"
+                ],
+                "lane": "acme/widgets",
+                "last_commit_at": "2026-10-26T18:00:00.000Z",
+                "locked": false,
+                "main": "<WORK>/ahead-repo-89/widgets",
+                "modified": 0,
+                "name": "feat-r2-e",
+                "path": "<WORK>/ahead-repo-89/widgets-worktrees/feat-r2-e",
+                "pr": {
+                  "number": 44,
+                  "state": "open"
+                },
+                "removable": false,
+                "repo": "acme/widgets",
+                "size_kb": "<kb>",
+                "stale": false,
+                "state": "clean",
+                "unpushed": 1,
+                "untracked": 0,
+                "verdict": "new"
+              }
+            ]
+          }
+        ],
+        "key": "acme/widgets",
+        "name": "widgets"
+      }
+    ],
+    "listeners": [],
+    "phone": null,
+    "status_source": "registry",
+    "usage": null,
+    "voice": null,
+    "voice_paused": false,
+    "voice_start": null,
+    "warning": null,
+    "worktrees": {
+      "at": "2026-10-26T19:00:00.000Z",
+      "items": [],
+      "on_cards": 4,
+      "prunable": [],
+      "removable": 0,
+      "scanning": false,
+      "size_kb": "<kb>",
+      "total": 4
+    }
+  }
+}

@@ -20,6 +20,7 @@ import {
   autoFinishRun,
   openSelfRun,
   type StartedRun,
+  roundNote,
 } from '@once-upon-a-diff/core/features/runs/service';
 import { carryApproval } from '@once-upon-a-diff/core/features/review/carry-approval';
 import { shortSha } from '@once-upon-a-diff/terms/text';
@@ -139,6 +140,16 @@ function relatedHint(started: StartedRun): string {
   );
 }
 
+type Started = Awaited<ReturnType<typeof startRun>>;
+
+/** What a start prints: the run's line, the card it joined, and the review round it is in (the pushed tip it starts from). */
+function startText(started: Started, line: string, another: string): string {
+  const joined = started.joined
+    ? `${line}\njoined ${started.joined.card} (${started.joined.title}): the open card on ${started.joined.branch}.${another}`
+    : line;
+  return started.round ? `${joined}\n${roundNote(started.round)}` : joined;
+}
+
 async function start({ home, opts, mirror, warn, sid, who, name, words }: Call) {
   const started = await startRun(
     home,
@@ -177,15 +188,9 @@ async function start({ home, opts, mirror, warn, sid, who, name, words }: Call) 
   // the card a start made is printed beside the run's id, so a later run on the same work (a critic of it) can pass --card; so is
   // the card a start joined. A start that named its card prints nothing extra
   const line = `${started.id} ${started.run}${started.card && (!opts.card || started.joined) ? ` ${started.card}` : ''}`;
-  // a critic or fixer never makes a card, so --new-card is no way out for them
-  const another = ['critic', 'fixer'].includes(text(opts.role) ?? '')
-    ? ''
-    : ' --new-card starts another.';
-  return out(
-    started.joined
-      ? `${line}\njoined ${started.joined.card} (${started.joined.title}): the open card on ${started.joined.branch}.${another}`
-      : line,
-  );
+  // a critic or fixer never makes a card, so --new-card is no way out for them (core says who: joinsByBranch)
+  const another = started.newCardAllowed ? ' --new-card starts another.' : '';
+  return out(startText(started, line, another));
 }
 
 function state({ opts, registry, warn, name, sid, run, prefer, who }: Call) {

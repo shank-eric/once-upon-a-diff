@@ -18,6 +18,9 @@
  *   was resolved and a patch-id differs, the same number of commits with the same subjects. A rebase that drops, adds or
  *   rewords a commit carries nothing. A branch stacked on another unlanded branch has its own commits at the top of the
  *   tip, whatever lies under them: the approved count of commits below the tip counts as the new base too.
+ * A fix carries only while the approval is unspent: once the approved commit is on origin (`origin/<branch>`, the push of
+ * that round), a commit after it is round 2 of the card and is approved on its own, so nothing carries. A rebase still
+ * carries after a push: the approved commits are the same, on a new base.
  * An undone approval is gone, so there is nothing to carry. A story pinned to the commits it was told over
  * (`--head <branch>`) keeps its head, so `carried.from` is the first approved commit: `approvalOf` counts the approval
  * for the story at that head too.
@@ -229,6 +232,16 @@ export function carryRebasedApproval(
   }
 }
 
+/**
+ * Whether the approved commit is already on the branch's origin (the local `origin/<branch>` ref, shared by every worktree): the
+ * approval was spent by the push, so a fixer's commit after it is a second round, reviewed and approved on its own. A missing
+ * ref reads as not pushed. A ref left stale by a push from another clone misses the push, and the approval carries as before.
+ */
+function isPushed(repo: string, branch: string, approvedHead: string): boolean {
+  const origin = commitOf(repo, `refs/remotes/origin/${branch}`);
+  return !!origin && isAncestor(repo, approvedHead, origin);
+}
+
 /** Carries the approval of the finished fixer run's story to its commit; returns where from and to, and `via: 'rebase'` for a rebase, or null when nothing carried. */
 export function carryApproval(
   home: string,
@@ -264,6 +277,9 @@ export function carryApproval(
   const since = Math.floor((run.started?.getTime() ?? Infinity) / 1000) * 1000;
   let rebasedBase: string | null = null;
   if (isAncestor(entry.repo_path, approval.head_oid, tip)) {
+    if (isPushed(entry.repo_path, item.branch, approval.head_oid)) {
+      return null;
+    }
     const made = commitLog(entry.repo_path, [`${approval.head_oid}..${tip}`]);
     if (!made.length || made.some((one) => !(Date.parse(one.at) >= since))) {
       return null;

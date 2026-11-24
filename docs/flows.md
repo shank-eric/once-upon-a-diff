@@ -250,6 +250,8 @@ flowchart LR
 
 A launching session registers an agent's run on a Backlog card, which is all it takes to hold the card: there is no claim (ADR-29), and the card's runs say who works it (an agent started with no card stores one of its own first). The agent beats as it works and finishes with the commit it made. A deploy then marks the card done by that commit; where there is no deploy, the bridge marks it by its branch when the PR merged (hops 24 to 27). Every step is a CLI command over append-only files: no HTTP.
 
+New commits on a branch the user already pushed are round 2 of the same card, not a new one: the board puts the card back in Ready for your review while its branch has commits `origin` lacks (the worktree's unpushed count, then the `ls-remote` count), and `dispatch` and `agent start` derive the round's base from the local `origin/<branch>` ref (never stored, so the files above are unchanged) for the critic's diff and the story, which cover only the new commits. A fixer's commit carries a story approval only while the approved commit is not on origin; a push spends it.
+
 ```mermaid
 flowchart LR
   start["agent start"] --> reg[("agents.jsonl")]

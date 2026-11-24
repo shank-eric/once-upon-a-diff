@@ -603,7 +603,7 @@ describe('Create pull request on a local story', () => {
           'theirs',
         );
         git(other, 'push', '-q', 'origin', 'feature');
-        assert.equal(await aheadOf(repo, 'feature'), null, 'diverged: no count');
+        assert.equal(await aheadOf(repo, 'feature'), 'diverged', 'diverged: an answer, no count');
         assert.equal(
           git(repo, 'rev-parse', 'refs/remotes/origin/feature'),
           tracking,
