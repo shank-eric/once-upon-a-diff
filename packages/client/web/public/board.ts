@@ -11,6 +11,7 @@
  */
 import { html, render, useEffect, useRef } from '/assets/preact.mjs';
 import { createClient, type Transport } from '/assets/bridge-client/client.ts';
+import { createPoll } from '/assets/bridge-client/poll.ts';
 import { usePoll } from '/assets/bridge-client/use-poll.ts';
 import { createUsage } from '/assets/bridge-client/usage.ts';
 import { ROUTES } from '/assets/contracts/routes.ts';
@@ -40,6 +41,8 @@ import { useBusy } from '/assets/ui-kit/components/action-button.ts';
 import { Worktrees } from '/assets/board/worktrees/worktrees.ts';
 
 const POLL_MS = 3000;
+/** A hidden tab's slow poll: the board it shows on return is at most this old, and the focus load then brings it current. */
+const HIDDEN_POLL_MS = 30000;
 const app = document.getElementById('ou-board-app') as HTMLElement;
 const KEY = new URLSearchParams(location.hash.slice(1)).get('key') || '';
 /** Hands the key to the server when the host takes a cookie; calls wait for that so the cookie is there. */
@@ -180,6 +183,17 @@ function BoardApp() {
     { everyMs: POLL_MS },
   );
   const { refresh } = view;
+  // the visible poll skips a hidden tab, so this one keeps the board from going stale there
+  useEffect(() => {
+    const hidden = createPoll<void>({
+      everyMs: HIDDEN_POLL_MS,
+      whenHidden: true,
+      load: () => refresh(),
+      onChange: () => {},
+    });
+    hidden.start();
+    return () => hidden.stop();
+  }, [refresh]);
   const full = view.data ?? EMPTY;
   const api: Api = { bridge, board: full, refresh, count: usage.count };
   const [laneFilter, setLaneFilter] = useSetting('ou-board-filter', '', String, asText);

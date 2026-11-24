@@ -207,6 +207,8 @@ Object.assign(globalThis, {
   },
 });
 const BOARD_POLL_MS = 3000;
+const HIDDEN_POLL_MS = 30000;
+let hiddenPoll = () => {};
 const realSetTimeout = globalThis.setTimeout;
 // the page's usage counter arms a real 60 s timer on its first count (board.ts keeps the counter to itself, so the test cannot
 // flush it, as the local page's tests do): the timers that long are cleared when the tests end, or they keep the process up
@@ -220,6 +222,10 @@ Object.assign(globalThis, {
   setTimeout: (callback: () => void, delay?: number, ...rest: unknown[]) => {
     if (delay === BOARD_POLL_MS) {
       poll = callback;
+      return 0;
+    }
+    if (delay === HIDDEN_POLL_MS) {
+      hiddenPoll = callback;
       return 0;
     }
     const timer = realSetTimeout(callback, delay, ...rest);
@@ -262,7 +268,8 @@ Object.assign(globalThis, {
     return { ok: true, status: 200, headers, json: async () => result };
   },
 });
-Object.defineProperty(document, 'visibilityState', { value: 'visible' });
+let visibility = 'visible';
+Object.defineProperty(document, 'visibilityState', { get: () => visibility });
 const opened: string[] = [];
 const confirmed: string[] = [];
 let sure = true;
@@ -475,6 +482,27 @@ test('Thinking shows only with a card in it, sits right before Working, and is c
     await pollNow();
   }
   assert.ok(!headings().includes('Thinking'), 'gone with its card');
+});
+
+test('a hidden tab keeps a slow 30 s board poll, and the 3 s poll stays quiet', async () => {
+  visibility = 'hidden';
+  try {
+    const before = boardGets;
+    await pollNow();
+    assert.equal(boardGets, before, 'hidden: the 3 s poll does not fetch');
+    hiddenPoll();
+    await tick();
+    await tick();
+    assert.equal(boardGets, before + 1, 'hidden: the 30 s poll fetches');
+    visibility = 'visible';
+    hiddenPoll();
+    await tick();
+    assert.equal(boardGets, before + 1, 'visible: the 30 s poll sits out');
+    await pollNow();
+    assert.equal(boardGets, before + 2, 'visible: the 3 s poll fetches');
+  } finally {
+    visibility = 'visible';
+  }
 });
 
 test('a poll redraws in place: the same nodes stay, so focus and scroll are not lost', async () => {
