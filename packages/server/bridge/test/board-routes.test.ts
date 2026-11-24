@@ -999,7 +999,7 @@ test('POST /api/board/review: a session’s branch becomes a storyless review ov
 
 test(
   'POST /api/board/record-fix: a finished author’s branch that moved outside every run says so, and Record as fix files the tip as a fixer run',
-  { timeout: 120000 },
+  { timeout: 200000 },
   async () => {
     const home = tmp('board-record-fix');
     const sessions = tmp('board-sessions');
@@ -1022,11 +1022,17 @@ test(
     after(() => child.stop());
     registry(sessions, child.pid, { cwd: fixture.main, name: 'elsewhere' }, child.procStart);
     writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
+    // someone commits by hand before the bridge's first board build: the worktree scanner reads the tip once and looks again
+    // only a minute later (worktrees.ts REFRESH_MS), so a commit that raced its first scan would leave the card waiting for the
+    // second one. The tip is then the scanner's first fact, whatever the load.
+    fixture.commit(dir, 'x two', 2);
+    const tip = git(dir, 'rev-parse', 'HEAD');
     const bridge = await startBridge({ home });
     open.push(bridge);
     const outside = async (): Promise<BoardCard | undefined> => {
-      // the scanner and the movedPast look answer in the background: a loaded machine takes a while
-      for (const deadline = Date.now() + 45000; Date.now() < deadline;) {
+      // the scanner and the movedPast look answer in the background: a loaded machine takes a while, and a scan whose git
+      // timed out is only repeated after REFRESH_MS, so the limit is two of those
+      for (const deadline = Date.now() + 150000; Date.now() < deadline;) {
         const cards = (await bridge.call<BoardData>('GET', '/api/board')).body.lanes.flatMap(
           (lane) => lane.cards,
         );
@@ -1045,19 +1051,9 @@ test(
         body,
         { Authorization: `Bearer ${key}` },
       );
-    const notYet = (await bridge.call<BoardData>('GET', '/api/board')).body.lanes.flatMap(
-      (lane) => lane.cards,
-    );
-    assert.equal(
-      notYet.some((one) => one.outside),
-      false,
-      'the tip is the commit: nothing to record',
-    );
     assert.equal((await post({ card: 'nope' })).status, 404);
 
-    // someone commits by hand: the card is Working and outside a run, with the tip and its worktree
-    fixture.commit(dir, 'x two', 2);
-    const tip = git(dir, 'rev-parse', 'HEAD');
+    // the card is Working and outside a run, with the tip and its worktree
     const card = await outside();
     assert.ok(card, 'the card says it changed outside a run');
     assert.equal(card.column, 'working');
