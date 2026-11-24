@@ -116,7 +116,7 @@ export const dispatchCommands: Command[] = [
       '                                                                                   --name NAME (default by role), --branch NAME (a card with no branch), --base REF, --findings-from PATH (a fixer), --out PATH (a critic’s file)',
       '                                                                                   --fan-out (a storyteller of a story the user reviews); --key K --dir D (a chapter writer), --story ID --dir D [--failed K1,K2] (the finisher)',
       '                                                                                   --general: a general-purpose call (its lean type is not installed): the brief carries the type’s standing rules',
-      '                                                                                   --json: the call as JSON. <home>/editor/brief-extra.md, when it exists, is appended to every brief',
+      '                                                                                   --json: the call as JSON. <home>/editor/brief-extra.md, when it exists, is appended to a --general brief only',
     ],
     run: dispatch,
   },

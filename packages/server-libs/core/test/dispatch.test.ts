@@ -281,19 +281,26 @@ test('a storyteller brief names pr-draft for a PR repo and not for one whose set
   assert.doesNotMatch(skip.prompt, /pr-draft/);
 });
 
-test('<home>/editor/brief-extra.md is appended to every brief and swaps the Agent call to general-purpose', async () => {
+test('<home>/editor/brief-extra.md never switches the type: a lean launch leaves it out, only --general appends it', async () => {
   const ctx = world();
-  const plain = await ctx.dispatch({ role: 'helper', check: undefined, task: 'x' });
-  assert.equal(plain.subagentType, 'once-upon-helper');
   mkdirSync(path.join(ctx.home, 'editor'), { recursive: true });
   writeFileSync(
     path.join(ctx.home, 'editor', 'brief-extra.md'),
     'Forward results to the relay by SendMessage.\n',
   );
+  const lean = await ctx.dispatch({ role: 'helper', check: undefined, task: 'x' });
+  assert.equal(lean.subagentType, 'once-upon-helper');
+  assert.doesNotMatch(lean.prompt, /Forward results to the relay/);
+  assert.doesNotMatch(lean.prompt, /Standing rules/);
   finishRun(ctx.home, 'check-feat-x', { sid: SID });
-  const extra = await ctx.dispatch({ role: 'helper', check: undefined, task: 'x' });
-  assert.ok(extra.prompt.trimEnd().endsWith('Forward results to the relay by SendMessage.'));
-  assert.equal(extra.subagentType, 'general-purpose');
+  const general = await ctx.dispatch({
+    role: 'helper',
+    check: undefined,
+    task: 'x',
+    general: true,
+  });
+  assert.equal(general.subagentType, 'general-purpose');
+  assert.ok(general.prompt.trimEnd().endsWith('Forward results to the relay by SendMessage.'));
 });
 
 test('a worktree that is gone refuses a fixer and says so, writing nothing', async () => {
@@ -304,7 +311,7 @@ test('a worktree that is gone refuses a fixer and says so, writing nothing', asy
   assert.deepEqual(ctx.agents(), []);
 });
 
-test('a general-purpose launch (brief-extra, or --general) carries the role’s standing rules in its prompt; a lean type does not', async () => {
+test('a general-purpose launch (--general) carries the role’s standing rules in its prompt; a lean type does not', async () => {
   const ctx = world();
   const lean = await ctx.dispatch({ role: 'helper', check: undefined, task: 'x' });
   assert.equal(lean.subagentType, 'once-upon-helper');
@@ -328,7 +335,7 @@ test('a general-purpose launch (brief-extra, or --general) carries the role’s 
   finishRun(ctx.home, 'check-feat-x', { sid: SID });
   mkdirSync(path.join(ctx.home, 'editor'), { recursive: true });
   writeFileSync(path.join(ctx.home, 'editor', 'brief-extra.md'), 'Forward results.\n');
-  const author = await ctx.dispatch();
+  const author = await ctx.dispatch({ general: true });
   assert.equal(author.subagentType, 'general-purpose');
   assert.match(author.prompt, /100 tool calls/);
   assert.ok(author.prompt.trimEnd().endsWith('Forward results.'), 'the extra stays last');

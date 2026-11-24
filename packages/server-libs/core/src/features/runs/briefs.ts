@@ -49,7 +49,7 @@ export interface BriefFacts {
   failed?: string;
   /** the role's agent-type body, for a general-purpose launch (a lean type carries it itself) */
   rules?: string | null;
-  /** text appended last (<home>/editor/brief-extra.md) */
+  /** text appended last (<home>/editor/brief-extra.md, a --general launch only) */
   extra?: string | null;
 }
 

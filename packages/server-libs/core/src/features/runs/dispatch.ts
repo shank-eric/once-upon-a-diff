@@ -190,7 +190,7 @@ interface Launching {
   main: string;
   worktree: string;
   notes: string;
-  /** the user's own lines for every brief (`<home>/editor/brief-extra.md`) */
+  /** the user's own lines for a general-purpose brief (`<home>/editor/brief-extra.md`) */
   extra: string | null;
   /** launched as general-purpose, so the brief carries the lean type's standing rules */
   general: boolean;
@@ -278,9 +278,11 @@ export async function dispatchRun(
       throw new Error(`${problem}: recreate the worktree before a fixer starts`);
     }
   }
-  const extra = text(readLogText(path.join(home, 'editor', 'brief-extra.md')).trim());
-  // the user's relay line asks for a general-purpose agent too
-  const general = !!input.general || !!extra;
+  // only --general (or a missing lean type) launches general-purpose: a brief-extra.md never switches the type
+  const general = !!input.general;
+  const extra = general
+    ? text(readLogText(path.join(home, 'editor', 'brief-extra.md')).trim())
+    : null;
   const launching: Launching = {
     item,
     shape,
@@ -300,7 +302,6 @@ export async function dispatchRun(
   if (role === 'fixer') {
     store.link(item.id, { worktree, by: text(input.by) ?? name });
   }
-  // a general-purpose agent carries the relay line the user's brief-extra asks for: the lean types have no SendMessage
   return {
     name,
     role,

@@ -79,11 +79,11 @@ test('the editor skill launches each role by its type and keeps the general-purp
   assert.doesNotMatch(text, /`lookup`|`backlog-clerk`|`research`|clerk/);
 });
 
-test('the lean-types bullet sends a relaying role and a self-telling author to general-purpose', () => {
+test('the lean-types bullet keeps relay from changing the type and sends a self-telling author to general-purpose', () => {
   const text = readFileSync(path.join(SKILL, 'SKILL.md'), 'utf8');
   assert.match(
     text,
-    /relay session is on, a role whose brief carries the forwarding line launches as `general-purpose` at the same effort, because the lean types have no SendMessage/,
+    /The relay line never changes the type: the lean types stay lean with voice on or off/,
   );
   assert.match(
     text,
