@@ -7,6 +7,7 @@
 # patch-id match in <landed-into-ref> (git cherry) instead. Untracked symlinks and regenerable ignored paths (node_modules, dist, build, .output, .wxt, .venv*, __pycache__, *.log, .yarn/cache, tool cache files such as .eslintcache and .prettiercache; never a generic folder like .cache or coverage, which can hold hand-made files) are forced past. A local story's folder (ignored `.once-upon/<id>/` holding meta.json and chapters.json) is moved
 # to <home>/<id>/ (home is $ONCE_UPON_HOME, else ~/.once-upon), where the bridge still serves it, before the worktree goes; a
 # folder already there keeps the worktree. Any other untracked, ignored or modified file makes it refuse and say so. Prints one "deploy-local:" line either way. Never fails the caller.
+# A landed card's notes files (see trash_landed_notes) go to the Trash once its worktree or branch is gone.
 # Ignored paths that an install or build recreates. Anything else ignored (.env, *.pem, ...) blocks removal.
 _regenerable() {
   case "$1" in
@@ -96,6 +97,71 @@ _story_folder() {
   [ -f "$wt/.once-upon/$id/meta.json" ] && [ -f "$wt/.once-upon/$id/chapters.json" ]
 }
 
+# Moves a landed card's notes files to the Trash: <worktrees-dir>/<branch>.notes.md and check-<branch>.notes.md (the plan
+# check's), the two names the editor's briefs give them.
+#
+#   trash_landed_notes <worktrees-dir> <branch>
+#
+# Keeps a file whose basename an open card (its title or note, Someday cards too) still mentions: the caller defines
+# `open_cards_text`, which prints those cards' text. With no such function, or when it fails, every file is kept (the open
+# cards could not be read). Goes to the Trash with `trash`, else into ${ONCE_UPON_TRASH_DIR:-~/.Trash}. Prints one
+# "deploy-local:" line per file. Never fails the caller.
+_trash_file() {
+  local f="$1" dir="${ONCE_UPON_TRASH_DIR:-$HOME/.Trash}" dest
+  if [ -z "${ONCE_UPON_TRASH_DIR:-}" ] && command -v trash >/dev/null 2>&1; then
+    trash "$f" 2>/dev/null
+    return
+  fi
+  mkdir -p "$dir" 2>/dev/null || return 1
+  dest="$dir/${f##*/}"
+  [ ! -e "$dest" ] || dest="$dest.$(date +%s)"
+  mv "$f" "$dest" 2>/dev/null
+}
+
+# The cards of `backlog list --all --json` (stdin) that are not done or dropped, as JSON text: started, Someday and
+# agent-made ones count as open, the card that just landed does not. Fails when stdin is not that JSON.
+open_cards_from_json() {
+  node -e '
+    let s = "";
+    process.stdin.on("data", (d) => (s += d)).on("end", () => {
+      const open = JSON.parse(s).filter((c) => c.state !== "done" && c.state !== "dropped");
+      process.stdout.write(JSON.stringify(open) + "\n");
+    });
+  '
+}
+
+# A branch's name as the briefs spell it in a file name (the terms package's `slug`): `feat/x` is `feat-x`.
+_notes_slug() {
+  local s
+  s="$(printf '%s' "$1" | tr -cs 'A-Za-z0-9._-' '-')"
+  s="${s#"${s%%[!-]*}"}"
+  s="${s%"${s##*[!-]}"}"
+  printf '%s' "${s:0:100}"
+}
+
+trash_landed_notes() {
+  local root="$1" branch="$2" f text="" read=0 name
+  name="$(_notes_slug "$branch")"
+  [ -n "$name" ] || return 0
+  for f in "$root/$name.notes.md" "$root/check-$name.notes.md"; do
+    [ -f "$f" ] || continue
+    if [ "$read" = 0 ]; then
+      read=1
+      if declare -F open_cards_text >/dev/null && text="$(open_cards_text 2>/dev/null)"; then :; else text="" read=-1; fi
+    fi
+    if [ "$read" = -1 ]; then
+      echo "deploy-local: notes file $f kept: could not read the open cards"
+    elif printf '%s\n' "$text" | grep -qF -- "${f##*/}"; then
+      echo "deploy-local: notes file $f kept: an open card points to it"
+    elif _trash_file "$f"; then
+      echo "deploy-local: moved notes file $f to the Trash"
+    else
+      echo "deploy-local: notes file $f kept: could not move it to the Trash"
+    fi
+  done
+  return 0
+}
+
 cleanup_landed_worktree() {
   local repo="$1" root="$2" branch="$3" into="$4" mode="${5:-}" wt="" line cur dirt p out id home d
   local stories=()
@@ -173,6 +239,7 @@ EOS
   done
   if git -C "$repo" worktree remove --force "$wt" 2>/dev/null; then
     echo "deploy-local: removed worktree $wt"
+    [ "$mode" = patch ] || trash_landed_notes "$root" "$branch" # a batch deploy trashes them once the branch is deleted
   else
     echo "deploy-local: worktree $wt kept: git could not remove it"
   fi
@@ -202,6 +269,7 @@ cleanup_landed_branch() {
   if git -C "$repo" branch -D "$branch" >/dev/null 2>&1; then
     echo "deploy-local: deleted branch $branch (was $tip). Restore: git branch $branch $tip"
     DELETED_BRANCH_NOTE="$branch@$tip"
+    trash_landed_notes "$root" "$branch"
   else
     echo "deploy-local: branch $branch kept: it is still checked out in a worktree"
   fi

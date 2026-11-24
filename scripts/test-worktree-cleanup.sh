@@ -232,4 +232,55 @@ git -C "$R" revert --no-edit HEAD >/dev/null
 git -C "$R" cherry main reverted | grep -q '^+' || fail "reverted fixture: git cherry matched, so it tests nothing"
 out="$(cleanup_landed_branch "$R" "$W" reverted main)"
 echo "$out" | grep -q "branch reverted kept" && [ -e "$W/reverted" ] && git -C "$R" rev-parse -q --verify refs/heads/reverted >/dev/null || fail "reverted (pick then revert): $out"
+# 11. a landed card's notes files go to the Trash with its worktree (ff) or branch (batch), unless an open card names them
+export ONCE_UPON_TRASH_DIR="$T/trash"
+OPEN_TEXT="see other.notes.md for the plan"
+open_cards_text() { echo "$OPEN_TEXT"; }
+mk nt; echo n >"$W/nt.notes.md"; echo c >"$W/check-nt.notes.md"; echo o >"$W/other.notes.md"
+out="$(cleanup_landed_worktree "$R" "$W" nt main)"
+echo "$out" | grep -q "moved notes file $W/nt.notes.md to the Trash" && echo "$out" | grep -q "moved notes file $W/check-nt.notes.md to the Trash" || fail "notes ff: $out"
+[ ! -e "$W/nt.notes.md" ] && [ ! -e "$W/check-nt.notes.md" ] && [ -f "$T/trash/nt.notes.md" ] && [ -f "$T/trash/check-nt.notes.md" ] && [ -f "$W/other.notes.md" ] || fail "notes ff files"
+# a kept worktree keeps its notes
+mk ntd; echo n >"$W/ntd.notes.md"; echo x >"$W/ntd/new.txt"
+cleanup_landed_worktree "$R" "$W" ntd main >/dev/null
+[ -f "$W/ntd.notes.md" ] || fail "notes trashed with a kept worktree"
+# an open card names the file: kept
+mk nt2; echo n >"$W/nt2.notes.md"; OPEN_TEXT="plan in /x/nt2.notes.md"
+out="$(cleanup_landed_worktree "$R" "$W" nt2 main)"
+echo "$out" | grep -q "notes file $W/nt2.notes.md kept: an open card points to it" && [ -f "$W/nt2.notes.md" ] || fail "notes open card: $out"
+# open_cards_from_json (what deploy-local.sh's open_cards_text pipes `backlog list --all --json` through) keeps a started
+# card, which plain `backlog list` leaves out, and drops done and dropped ones
+CARDS='[{"title":"a","state":"started","note":"build from nt2s.notes.md"},{"title":"b","state":"done","note":"gone.notes.md"},{"title":"c","state":"dropped","note":"drop.notes.md"},{"title":"d","state":"open","someday":true,"note":"later.notes.md"}]'
+text="$(printf '%s' "$CARDS" | open_cards_from_json)" || fail "open_cards_from_json failed"
+echo "$text" | grep -q "nt2s.notes.md" && echo "$text" | grep -q "later.notes.md" && ! echo "$text" | grep -q "gone.notes.md" && ! echo "$text" | grep -q "drop.notes.md" || fail "open cards filter: $text"
+printf 'not json' | open_cards_from_json >/dev/null 2>&1 && fail "open_cards_from_json accepted bad input"
+mk nt2s; echo n >"$W/nt2s.notes.md"; echo n >"$W/gone.notes.md"
+OPEN_TEXT="$text"
+out="$(cleanup_landed_worktree "$R" "$W" nt2s main)"
+echo "$out" | grep -q "notes file $W/nt2s.notes.md kept: an open card points to it" && [ -f "$W/nt2s.notes.md" ] || fail "notes started card: $out"
+# a slash branch: its notes file is named with a dash (feat/x is feat-x.notes.md)
+OPEN_TEXT="nothing"
+mk feat/nt5; echo n >"$W/feat-nt5.notes.md"
+out="$(cleanup_landed_worktree "$R" "$W" feat/nt5 main)"
+echo "$out" | grep -q "moved notes file $W/feat-nt5.notes.md to the Trash" && [ ! -e "$W/feat-nt5.notes.md" ] || fail "notes slash branch: $out"
+# the open cards cannot be read: kept
+mk nt3; echo n >"$W/nt3.notes.md"; open_cards_text() { return 1; }
+out="$(cleanup_landed_worktree "$R" "$W" nt3 main)"
+echo "$out" | grep -q "kept: could not read the open cards" && [ -f "$W/nt3.notes.md" ] || fail "notes unreadable: $out"
+# no hook at all: kept
+unset -f open_cards_text
+mk nt4; echo n >"$W/nt4.notes.md"
+cleanup_landed_worktree "$R" "$W" nt4 main >/dev/null
+[ -f "$W/nt4.notes.md" ] || fail "notes trashed with no card reader"
+# batch: notes go once the branch is deleted, not before
+open_cards_text() { echo "nothing"; }
+mk nb; echo 1 >"$W/nb/nb.txt"; git -C "$W/nb" add .; git -C "$W/nb" commit -qm nb; echo n >"$W/nb.notes.md"
+GIT_COMMITTER_DATE=2001-01-02T00:00:00 git -C "$R" cherry-pick "$(git -C "$W/nb" rev-parse HEAD)" >/dev/null
+out="$(cleanup_landed_branch "$R" "$W" nb main)"
+echo "$out" | grep -q "deleted branch nb " && echo "$out" | grep -q "moved notes file $W/nb.notes.md to the Trash" && [ ! -e "$W/nb.notes.md" ] && [ -f "$T/trash/nb.notes.md" ] || fail "notes batch: $out"
+# batch, branch kept: notes stay
+mk nk; echo 1 >"$W/nk/nk.txt"; git -C "$W/nk" add .; git -C "$W/nk" commit -qm nk; echo n >"$W/nk.notes.md"
+out="$(cleanup_landed_branch "$R" "$W" nk main)"
+echo "$out" | grep -q "branch nk kept" && [ -f "$W/nk.notes.md" ] || fail "notes batch kept: $out"
+unset ONCE_UPON_TRASH_DIR
 echo "worktree-cleanup self-test: ok"

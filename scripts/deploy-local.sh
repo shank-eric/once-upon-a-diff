@@ -262,6 +262,13 @@ mark_landed() {
   (cd "$(bridge_dir)" && node bin/once-upon.mjs backlog land ${SHAS[@]+"${SHAS[@]}"} --from "$from" --to "$TIP" --by deploy-local </dev/null) || say "could not mark backlog items as done"
 }
 
+# The text of every card not done or dropped (started, Someday and agent-made ones too: plain `backlog list` leaves the
+# started and agent-made ones out, and `--all` adds the card that just landed, so open_cards_from_json filters):
+# trash_landed_notes keeps a notes file one of them still names. Fails when the list cannot be read.
+open_cards_text() {
+  (cd "$(bridge_dir)" && node bin/once-upon.mjs backlog list --all --json </dev/null) | open_cards_from_json
+}
+
 go_live() {
   trap recover EXIT
   SWITCHED=1

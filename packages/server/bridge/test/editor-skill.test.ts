@@ -140,10 +140,11 @@ test('the claim/start ordering is dispatch’s: the skill and AGENTS.md "Backlog
   assert.match(skill, /brief-extra\.md/);
 });
 
-test('the cleanup helper is started by hand: a landed card refuses every run, so dispatch cannot launch it', () => {
+test('the editor starts no cleanup agent: the deploy cleans up the landed worktree, branch and notes files', () => {
   const skill = readFileSync(path.join(SKILL, 'SKILL.md'), 'utf8');
   assert.doesNotMatch(skill, /dispatch <card> --role helper --name cleanup-/);
-  assert.match(skill, /agent start cleanup-<branch>/);
+  assert.doesNotMatch(skill, /agent start cleanup-<branch>/);
+  assert.match(skill, /the deploy cleans up after itself/);
 });
 
 test('the skill says a general-purpose launch asks dispatch for it (--general), which carries the standing rules', () => {
