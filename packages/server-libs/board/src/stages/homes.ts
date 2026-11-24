@@ -5,7 +5,7 @@
  * card whose branch a newer card took over) is still found by its repo and branch: the stages that act on it have their own guards
  * for work that is another card's (markLandedWorks reads the story's times).
  */
-import { cardOnBranch } from '@once-upon-a-diff/state/queues/backlog/backlog';
+import { cardOnBranch, cardRiddenOn } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
 import type { BoardCard } from '@once-upon-a-diff/contracts/types';
 import type { Work } from './types.ts';
@@ -55,4 +55,14 @@ export function homeOf(
     return own;
   }
   return cardOnBranch(place, cards);
+}
+
+/** `homeOf` for an item that rides on work (`ridesOnWork`): its home, else the card it rides on (`cardRiddenOn`). */
+export function ridingHomeOf(
+  homes: Homes,
+  item: BacklogItem,
+  cards: BoardCard[],
+): BoardCard | undefined {
+  const own = homes.byCard.get(item.id);
+  return own && cards.includes(own) ? own : cardRiddenOn(item, cards);
 }

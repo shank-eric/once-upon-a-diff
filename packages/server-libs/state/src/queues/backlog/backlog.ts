@@ -990,13 +990,49 @@ function backlogCardOf(
   };
 }
 
-/** Whether a started item with a branch rode on the work or session card for that branch (its runs' views go there). */
+/**
+ * Whether an item's work is under way, so it rides on its work or session card instead of being a card of its own: started, an
+ * open one that landed (`done` with no `start`), or an open one with a PR (a keeper `link`) though no `start` was ever written.
+ * A PR does not count for a card set aside for someday (nobody chose to work it), and a worktree, session or story link alone
+ * never counts: the card keeper writes those on any open card, and it must change no board. Needs a branch to find the card by.
+ */
+export function ridesOnWork(
+  item: Pick<BacklogItem, 'state' | 'branch' | 'landed_at' | 'pr' | 'someday'>,
+): boolean {
+  if (!item.branch) {
+    return false;
+  }
+  return (
+    item.state === 'started' ||
+    (item.state === 'open' && (!!item.landed_at || (!!item.pr && !item.someday)))
+  );
+}
+
+/**
+ * The card an item that rides on work (`ridesOnWork`) sits on: for a started or landed one, `cardOnBranch`. An open one that only
+ * has a PR sits on that PR's own work card, never on whatever else is on its branch: a PR that closed shows no card, and its branch
+ * may be reused by another PR or a session.
+ */
+export function cardRiddenOn(
+  item: Pick<BacklogItem, 'state' | 'branch' | 'repo' | 'landed_at' | 'pr'>,
+  cards: BoardCard[],
+): BoardCard | undefined {
+  const startedOrLanded = item.state !== 'open' || !!item.landed_at;
+  if (startedOrLanded || !item.pr) {
+    return cardOnBranch(item, cards);
+  }
+  return cards.find(
+    (card) => card.kind === 'work' && card.pr?.number === item.pr && sameRepo(card.repo, item.repo),
+  );
+}
+
+/** Whether an item that rides on work (`ridesOnWork`) sat on the work or session card for its branch (its runs' views go there). */
 function mergedIntoWorkCard(
   item: BacklogItem,
   homeOf: (item: BacklogItem) => BoardCard | undefined,
   views: BoardAgent[],
 ): boolean {
-  const work = item.state === 'started' && item.branch ? homeOf(item) : undefined;
+  const work = ridesOnWork(item) ? homeOf(item) : undefined;
   if (work) {
     mergeIntoWork(work, item, views);
   }
@@ -1025,7 +1061,7 @@ export function backlogCards(
   links: Map<string, BoardStartedLinks> = new Map(),
   views: Map<string, BoardAgent[]> = new Map(),
   phases: Map<string, CardPhase | null> = new Map(),
-  homeOf: (item: BacklogItem) => BoardCard | undefined = (item) => cardOnBranch(item, cards),
+  homeOf: (item: BacklogItem) => BoardCard | undefined = (item) => cardRiddenOn(item, cards),
 ): BoardCard[] {
   const shown: BoardCard[] = [];
   for (const original of items) {

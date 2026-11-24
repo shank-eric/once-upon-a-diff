@@ -5,7 +5,11 @@
 import { branchKey, repoKey } from '@once-upon-a-diff/terms/ids';
 import { checkoutFor, sameRepo, seenCheckouts } from '@once-upon-a-diff/foundation/repos';
 import { repoSettings } from '@once-upon-a-diff/foundation/settings';
-import { backlogCards, cardOnBranch } from '@once-upon-a-diff/state/queues/backlog/backlog';
+import {
+  backlogCards,
+  cardOnBranch,
+  ridesOnWork,
+} from '@once-upon-a-diff/state/queues/backlog/backlog';
 import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
 import { agentKey, sameAgentView } from '@once-upon-a-diff/state/queues/backlog/claims';
 import {
@@ -29,7 +33,7 @@ import type {
   BoardStartedLinks,
 } from '@once-upon-a-diff/contracts/types';
 import { isLocalStoryCard } from '../columns.ts';
-import { homeOf, NO_HOMES, type Homes } from './homes.ts';
+import { homeOf, NO_HOMES, ridingHomeOf, type Homes } from './homes.ts';
 import { AGENT_OPEN, forgotten } from './agents.ts';
 import type { BuildContext, StoryFacts, Work } from './types.ts';
 import { readyFactsFor } from './ready-facts.ts';
@@ -48,9 +52,8 @@ export function nestCardAgents(
   homes: Homes = NO_HOMES,
 ): void {
   for (const item of items) {
-    // a landed item may still be `open` (a `done` with no `start`): its agents still ride its card
-    const rides = item.state === 'started' || (item.state === 'open' && !!item.landed_at);
-    const card = rides && item.branch ? homeOf(homes, item.id, item, cards) : null;
+    // a landed or linked item may still be `open` (no `start`): its agents still ride its card
+    const card = ridesOnWork(item) ? ridingHomeOf(homes, item, cards) : null;
     for (const view of card ? (views.get(item.id) ?? []) : []) {
       if (card && !card.agents.some((one) => sameAgentView(one, view))) {
         card.agents.push(view);
@@ -71,8 +74,7 @@ export function keepWorkWorking(
 ): void {
   const onWork = new Set<BoardCard>();
   for (const item of items) {
-    const rides = item.state === 'started' || (item.state === 'open' && !!item.landed_at);
-    const card = rides && item.branch ? homeOf(homes, item.id, item, cards) : null;
+    const card = ridesOnWork(item) ? ridingHomeOf(homes, item, cards) : null;
     if (card) {
       onWork.add(card);
     }
@@ -394,7 +396,7 @@ export function addBacklogCards(
     }
   }
   const added = backlogCards(backlogItems, cards, nowMs, links, views, phases, (item) =>
-    homeOf(homes, item.id, item, cards),
+    ridingHomeOf(homes, item, cards),
   );
   return added;
 }

@@ -2754,6 +2754,57 @@ export function scrubPids(text: string, all: number[]): string {
     (board as any).invalidate();
     await record('26-pr-ahead-no-story', board);
   }
+
+  // 27. an open card that was never started but has a PR (a keeper `link`) joins its PR's work card when a fixer run on its branch
+  // is open: one card, the fixer on it, not the PR's card beside the stored card. A card set aside for someday with an open PR stays
+  // in Someday, and one whose PR closed does not ride on the PR now on its branch
+  {
+    const child = liveChild();
+    const { home, sessions } = world([
+      {
+        op: 'add',
+        id: 'bl_openwithpr01',
+        title: 'Open card with a PR',
+        repo: 'acme/widgets',
+        branch: 'feat/open-pr',
+      },
+      { op: 'link', id: 'bl_openwithpr01', pr: 26 },
+      {
+        op: 'add',
+        id: 'bl_somedaypr01',
+        title: 'Someday card with a PR',
+        repo: 'acme/widgets',
+        branch: 'feat/someday-pr',
+      },
+      { op: 'link', id: 'bl_somedaypr01', pr: 27 },
+      { op: 'someday', id: 'bl_somedaypr01', on: true, by: 'cli' },
+      {
+        op: 'add',
+        id: 'bl_closedpr01',
+        title: 'Open card whose PR closed',
+        repo: 'acme/widgets',
+        branch: 'feat/reused',
+      },
+      { op: 'link', id: 'bl_closedpr01', pr: 28 },
+    ]);
+    registry(sessions, child, { cwd: checkoutOf('widgets', 'feat/open-pr'), name: 'open-pr' });
+    new AgentRegistry(home).start({
+      sid: sid(child),
+      name: 'fix-open-pr',
+      kind: 'author',
+      role: 'fixer',
+      task: 'fix the open card',
+      card: 'bl_openwithpr01',
+      at: et(14, 40),
+    });
+    const infos = [
+      prInfo(26, { title: 'Open card PR', branch: 'feat/open-pr' }),
+      prInfo(27, { title: 'Someday card PR', branch: 'feat/someday-pr' }),
+      prInfo(28, { title: 'Closed PR', branch: 'feat/reused', state: 'closed' }),
+      prInfo(29, { title: 'Reused branch PR', branch: 'feat/reused' }),
+    ];
+    await record('27-open-card-joins-pr', boardOf(home, fakeWatcher(infos, {}).watcher));
+  }
 }
 
 // ---- normalize paths and pids
