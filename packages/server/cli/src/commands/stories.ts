@@ -8,6 +8,7 @@ import { openTarget } from '@once-upon-a-diff/foundation/settings';
 import { StoryStore } from '@once-upon-a-diff/stories/store';
 import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
 import { AGENT_RE, Listening, ownSession } from '@once-upon-a-diff/core/features/listeners/service';
+import { supersedeStoryteller } from '@once-upon-a-diff/core/features/runs/service';
 import { storyIdOf } from './inbox.ts';
 
 import { afterRebuild } from '@once-upon-a-diff/core/features/publishing/after-rebuild';
@@ -51,7 +52,8 @@ function agentOf(opts: CliOpts): string | null {
 /**
  * Binds the story to its agent, owned by this session (the parent's, for a subagent), and says so, and whether that
  * session is running. A story built without --agent drops an older binding, so a rebuild by someone else doesn't send
- * its questions to the agent that built it before.
+ * its questions to the agent that built it before. A story re-told by another agent finishes the previous agent's
+ * storyteller run, if it is still parked in review or waiting (superseded).
  */
 function bindStory(home: string, id: string, agent: string | null): void {
   if (!agent) {
@@ -64,8 +66,10 @@ function bindStory(home: string, id: string, agent: string | null): void {
     return;
   }
   const session = ownSession();
+  const previous = new Listening(home).binding(id);
   new Listening(home).bind(id, agent, session);
   process.stderr.write(`${bindingLine(home, id, agent, session)}\n`);
+  supersedeStoryteller(home, previous, agent, (line) => process.stderr.write(`${line}\n`));
 }
 
 /** What a new binding says: who relays, or why nothing will. */

@@ -16,6 +16,7 @@
  *   dispatch.ts     launching an agent for a card: start and the brief (`once-upon dispatch`); briefs.ts the brief's text, checkout.ts the paths.
  *   handback.ts     an agent's hand-back (`once-upon handback`): the run's commit, branch and card recorded, or its state moved.
  *   backfill.ts     `once-upon card backfill`: stores the `ic_` cards of runs made before ADR-29, and with `cardless` a card for each recent cardless run.
+ *   supersede.ts    a re-told story's previous storyteller, finished when the story is bound to the new one.
  *   auto-finish.ts  an end for a subagent that stopped with its run open (the SubagentStop hook).
  */
 export { startRun } from './start-run.ts';
@@ -37,3 +38,4 @@ export type { BackfillCounts } from './backfill.ts';
 export { handbackRun } from './handback.ts';
 export type { HandbackInput, HandedBack } from './handback.ts';
 export { autoFinishRun } from './auto-finish.ts';
+export { supersedeStoryteller } from './supersede.ts';

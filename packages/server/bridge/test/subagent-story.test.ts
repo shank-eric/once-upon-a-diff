@@ -15,6 +15,7 @@ import {
   writeJson,
   CLAUDE_DIR,
 } from './helpers.ts';
+import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { Inbox } from '@once-upon-a-diff/state/queues/requests/inbox';
 import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
 import { readFixes } from '@once-upon-a-diff/state/queues/requests/fixes';
@@ -186,6 +187,58 @@ describe('a story bound to the agent that built it', () => {
     await runCli(home, ['publish', '--dir', folder, '--agent', 'ou-fix-cache'], env);
     await runCli(home, ['publish', '--dir', folder, '--agent', 'ou-second'], env);
     assert.equal(readBinding(home, 'acme-widgets-8')?.agent, 'ou-second');
+  });
+
+  test("publish --agent for a re-told story finishes the previous agent's parked storyteller, and no other story's", async () => {
+    const home = tmp('home');
+    registerSession(OWNER);
+    const env = { CLAUDE_CODE_SESSION_ID: 'abcd1234-0000-4000-8000-000000000000' };
+    const backlog = new BacklogStore(home);
+    const item = backlog.add({ title: 'The work', repo: 'acme/widgets' });
+    backlog.start(item.id, { branch: 'feature' });
+    const folder = path.join(tmp('once'), 'acme-widgets-8');
+    githubStory(folder);
+    writeJson(path.join(folder, 'pr.json'), {
+      url: 'https://github.com/acme/widgets/pull/8',
+      number: 8,
+      title: 'Another',
+    });
+    const registry = new AgentRegistry(home);
+    const run = (name: string) => registry.agents().find((one) => one.name === name);
+    const tell = async (name: string, park: boolean) => {
+      const sid = 'abcd1234'; // a run's sid is the front of its session's id
+      const base = ['--role', 'storyteller', '--card', item.id, '--task', 't', '--sid', sid];
+      assert.equal((await runCli(home, ['agent', 'start', name, ...base])).code, 0);
+      if (park) {
+        const parked = [
+          'agent',
+          'state',
+          name,
+          '--state',
+          'review',
+          '--outcome',
+          's',
+          '--sid',
+          sid,
+        ];
+        assert.equal((await runCli(home, parked)).code, 0);
+      }
+    };
+    await tell('tell-one', true);
+    await tell('tell-other', true); // another story's storyteller on the same card
+    await tell('tell-two', false);
+    await runCli(home, ['publish', '--dir', folder, '--agent', 'tell-one'], env);
+    assert.equal(run('tell-one')?.state, 'waiting', 'the first telling supersedes nothing');
+    const retold = await runCli(home, ['publish', '--dir', folder, '--agent', 'tell-two'], env);
+    assert.equal(retold.code, 0, retold.stderr);
+    assert.equal(run('tell-one')?.state, 'done');
+    assert.equal(run('tell-one')?.outcome, 'superseded by tell-two');
+    assert.equal(
+      run('tell-other')?.state,
+      'waiting',
+      'a storyteller bound to no story it re-told is left',
+    );
+    assert.equal(run('tell-two')?.state, 'running');
   });
 
   test('local --agent binds the local story, and a session that is not running is warned about', async () => {
