@@ -18,7 +18,7 @@ import {
   lastActivity,
   type LedgerAgent,
 } from '../../records/agents/ledger.ts';
-import { OPEN, agentKey } from './claims.ts';
+import { OPEN, agentKey, isListed } from './claims.ts';
 import { UNKNOWN_READY, readyColumn, type ReadyFacts } from './ready.ts';
 import type { BacklogItem } from './types.ts';
 
@@ -539,7 +539,7 @@ export function duplicateCardProblems(
       runsOf(item, agents).length === 0,
   );
   for (const card of stored) {
-    const listed = (card.source ?? 'backlog') === 'backlog';
+    const listed = isListed(card);
     const runs = listed || card.state === 'dropped' ? [] : runsOf(card, agents);
     if (!runs.length) {
       continue;

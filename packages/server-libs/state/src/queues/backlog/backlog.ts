@@ -42,6 +42,7 @@ import {
   STORY_ID_RE,
 } from '@once-upon-a-diff/terms/patterns';
 import { canonicalRepo } from '@once-upon-a-diff/terms/ids';
+import { hasRepoAndBranch } from '@once-upon-a-diff/terms/repo-branch';
 import { CARD_SOURCES, readBacklogEvent } from '@once-upon-a-diff/contracts/files/schemas';
 import { strictBacklogEvent } from '@once-upon-a-diff/contracts/files/strict';
 import { checkWrite } from '@once-upon-a-diff/foundation/shared-files';
@@ -51,7 +52,7 @@ import { tailLog } from '@once-upon-a-diff/adapters/stores/fs/tail-log';
 import { withLock } from '@once-upon-a-diff/adapters/stores/fs/lock';
 import { appendBacklogEvent } from '@once-upon-a-diff/adapters/stores/backlog-file';
 import path from 'node:path';
-import { OPEN, sameAgentView } from './claims.ts';
+import { OPEN, isListed, sameAgentView } from './claims.ts';
 import { DONE_HOURS, workAgent, type CardPhase } from './phase.ts';
 import { REPO_RE, sameRepo } from '@once-upon-a-diff/foundation/repos';
 import { newId } from '@once-upon-a-diff/foundation/ids';
@@ -61,7 +62,7 @@ import type { LedgerAgent } from '../../records/agents/ledger.ts';
 import type { CardLookup } from '../../records/agents/registry.ts';
 import type { BacklogItem, CardSource } from './types.ts';
 
-export { DONE_HOURS };
+export { DONE_HOURS, isListed };
 
 const TITLE_MAX = 200;
 const NOTE_MAX = BACKLOG_NOTE_MAX; // long enough for a plan or a repro: the CLI takes one from a file or stdin
@@ -108,14 +109,6 @@ export interface LinkInput {
   source?: 'backlog';
   by?: string | null;
 }
-
-/**
- * Whether the Backlog column, the lists and the checks that decide what a card IS see it: a card someone added (or an agent's,
- * once adopted). The cards the first fact about some work made (`source` agent, session, pr, story) are stored and found by id,
- * and shown by nothing until the board reads them (ADR-29).
- */
-export const isListed = (item: Pick<BacklogItem, 'source'>): boolean =>
-  (item.source ?? 'backlog') === 'backlog';
 
 /** What a landing carries: the sha it landed as, who recorded it, and when GitHub merged it (a merge-landed card's own time). */
 export interface DoneInput {
@@ -963,7 +956,7 @@ function backlogCardOf(
     can_focus: false,
     listening: null,
     build: null,
-    ...(outside && item.repo && item.branch && column === 'working'
+    ...(outside && hasRepoAndBranch(item) && column === 'working'
       ? {
           outside: { sha: outside.tip, branch: item.branch, repo: item.repo, path: outside.path },
         }

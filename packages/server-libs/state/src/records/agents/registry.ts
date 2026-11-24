@@ -20,10 +20,14 @@ import { appendLine } from '@once-upon-a-diff/adapters/stores/fs/lines';
 import { withLock } from '@once-upon-a-diff/adapters/stores/fs/lock';
 import { checkWrite } from '@once-upon-a-diff/foundation/shared-files';
 import { isFeatureBranch } from '@once-upon-a-diff/foundation/settings';
-import { END_STATES, OPEN_STATES } from '@once-upon-a-diff/contracts/files/agent-states';
+import {
+  END_STATES,
+  OPEN_STATES,
+  isEndState,
+} from '@once-upon-a-diff/contracts/files/agent-states';
 import { readAgentEvent } from '@once-upon-a-diff/contracts/files/schemas';
 import { strictAgentEvent } from '@once-upon-a-diff/contracts/files/strict';
-import { lastActivity } from './ledger.ts';
+import { isCritic, lastActivity } from './ledger.ts';
 import { SWEPT_STATES, canAutoEnd, endOfStopped, quietSign } from './auto-end.ts';
 import { livenessKey } from '@once-upon-a-diff/adapters/claude-sessions/subagent-liveness';
 import { AGENT_KINDS, type AgentKind, type AgentResult, type AgentRole } from './agent-types.ts';
@@ -877,12 +881,12 @@ export class AgentRegistry {
   /** Ends the run. Finishing a run that is already over is refused: a fix round is a new run (`agent start`). */
   finish(name: string, input: FinishInput = {}, warn?: (text: string) => void): LedgerAgent {
     const state = input.state ?? 'done';
-    if (!(END_STATES as readonly string[]).includes(state)) {
+    if (!isEndState(state)) {
       throw new Error(`the state must be one of ${END_STATES.join(', ')}`);
     }
     const agent = this.runToFinish(name, input, warn);
     // a null count reads as a pass, so a critic on a card must say how many (0 is fine)
-    const criticOnCard = this.cards && agent.kind === 'critic' && agent.card;
+    const criticOnCard = this.cards && isCritic(agent) && agent.card;
     if (criticOnCard && state === 'done' && count(input.findings, 'the findings count') === null) {
       throw new Error(
         'a critic finishes with its findings count: --findings N (0 if it found none). Without one the card would read as passed',

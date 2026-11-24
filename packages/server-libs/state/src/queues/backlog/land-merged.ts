@@ -6,6 +6,7 @@
  * default branch (merged-pr.ts), and merged at or after the card's work began (so a branch name used before is not the work).
  */
 import { canonicalRepo, repoKey } from '@once-upon-a-diff/terms/ids';
+import { hasRepoAndBranch } from '@once-upon-a-diff/terms/repo-branch';
 import type { LedgerAgent } from '../../records/agents/ledger.ts';
 import type { MergedCheck } from '../../records/github/merged-pr.ts';
 import type { BacklogStore } from './backlog.ts';
@@ -40,8 +41,7 @@ function landable(
     !item.landed_at &&
     !item.hold &&
     !item.someday &&
-    !!item.repo &&
-    !!item.branch &&
+    hasRepoAndBranch(item) &&
     workBeganAt(item, agents) !== null
   );
 }

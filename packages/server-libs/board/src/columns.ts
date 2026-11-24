@@ -44,6 +44,7 @@
  * you read), submit your review on GitHub, or the auto-review rules fire.
  */
 import { hasRepoAndBranch } from '@once-upon-a-diff/terms/repo-branch';
+import { isStoryteller } from '@once-upon-a-diff/state/records/agents/ledger';
 import type {
   BoardAgent,
   BoardCard,
@@ -173,9 +174,7 @@ function inProgressColumn({
     (launched?.running ?? 0) > 0 ||
     sessions.some((session) => session.status === 'working' && !session.thinking) ||
     // a storyteller silent for an hour is dead: it is not working, and holds no gate (stages/agents.ts)
-    agents.some(
-      (agent) => agent.state === 'running' && !(agent.kind === 'storyteller' && agent.stale),
-    )
+    agents.some((agent) => agent.state === 'running' && !(isStoryteller(agent) && agent.stale))
   ) {
     return 'working';
   }

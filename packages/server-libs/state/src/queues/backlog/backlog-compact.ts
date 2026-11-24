@@ -18,7 +18,7 @@
  * Pure: the caller reads the runs, the clock, and writes (adapters' `replaceLog`).
  */
 import { readBacklogEvent } from '@once-upon-a-diff/contracts/files/schemas';
-import { foldBacklogEvents } from './backlog.ts';
+import { foldBacklogEvents, isListed } from './backlog.ts';
 
 type BacklogEvent = NonNullable<ReturnType<typeof readBacklogEvent>>;
 
@@ -62,7 +62,7 @@ export function compactBacklogLines(
   }
   const goes = new Set<string>();
   for (const item of items) {
-    if ((item.source ?? 'backlog') === 'backlog' || named(item.id) || target.has(item.id)) {
+    if (isListed(item) || named(item.id) || target.has(item.id)) {
       continue;
     }
     const closedAt = Date.parse(item.dropped_at ?? item.landed_at ?? '');

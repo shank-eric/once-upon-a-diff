@@ -17,6 +17,7 @@ import {
 import type { InboxLocalStory, InboxStory } from '@once-upon-a-diff/contracts/types';
 import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
 import { findWorkCard } from '@once-upon-a-diff/state/queues/backlog/ensure';
+import { isListed } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import type { PrWatcher } from './pr-watcher.ts';
 import type { BuildContext, Work } from './types.ts';
 
@@ -357,7 +358,7 @@ function startStoredWorks(
     const placed = { ...card, repo: card.repo, pr: card.pr };
     if (card.landed_at) {
       // a listed card lands through deploy or MergeLander and is drawn as a card, not as a PR's work
-      if ((card.source ?? 'backlog') !== 'backlog') {
+      if (!isListed(card)) {
         startLandedCardWork(ctx, works, start, placed);
       }
       continue;

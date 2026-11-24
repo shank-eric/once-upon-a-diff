@@ -556,7 +556,7 @@ export function placeCards(
         move,
         card.kind === 'session' ? launched.get(card.id.slice(0, 8)) : undefined,
       );
-      if (move && !move.covering && card.column === 'working' && card.repo && card.branch) {
+      if (move && !move.covering && card.column === 'working' && hasRepoAndBranch(card)) {
         card.outside = { sha: move.tip, branch: card.branch, repo: card.repo, path: move.path };
       }
     }
