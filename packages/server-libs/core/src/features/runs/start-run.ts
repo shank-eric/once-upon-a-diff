@@ -20,6 +20,7 @@ import { BACKLOG_NOTE_MAX } from '@once-upon-a-diff/terms/text';
 import { prHeadBranch } from '@once-upon-a-diff/foundation/gh';
 import { canonicalKind } from '@once-upon-a-diff/state/records/agents/events';
 import type { AgentKind } from '@once-upon-a-diff/state/records/agents/agent-types';
+import type { LedgerAgent } from '@once-upon-a-diff/state/records/agents/ledger';
 import {
   flagsBesideCard,
   flagsBesideCardError,
@@ -41,6 +42,7 @@ import { trustedLiveSids } from './live-sids.ts';
 import { liveWrites } from './live-writes.ts';
 import { roleKind, selfProblem } from './roles.ts';
 import { runRegistry, type Mirror } from './registry.ts';
+import { relatedRuns, type RelatedRun } from './related-runs.ts';
 
 /** What a start is asked for, as typed: strings that are empty count as absent. */
 export interface RunStartInput {
@@ -91,6 +93,8 @@ export interface StartedRun {
   stamped: { branch: string; repo: string | null } | null;
   /** the open card on the run's branch that this start joined, instead of making its own; null when it made one or named one */
   joined: { card: string; title: string; branch: string } | null;
+  /** the session's earlier recent no-card runs, when this start made a card of its own beside them; empty otherwise (see related-runs.ts) */
+  related: RelatedRun[];
 }
 
 const text = (value: unknown): string | null => (typeof value === 'string' && value ? value : null);
@@ -568,6 +572,28 @@ function stampBacklogCard(
   }
 }
 
+/** The session's earlier no-card runs, for a start that made its own card (not --card, a join, --new-card or --self). */
+function relatedOf(
+  run: Start,
+  agents: LedgerAgent[],
+  startInput: Parameters<AgentRegistry['start']>[0],
+  plan: CardPlan,
+): RelatedRun[] {
+  const isOwnCardStart = !!plan.minted && !run.joinedCard && !run.input.self && !run.input.newCard;
+  if (!isOwnCardStart || !run.sid) {
+    return [];
+  }
+  return relatedRuns({
+    agents,
+    items: run.store.items(),
+    name: run.name,
+    sid: run.sid,
+    repo: startInput.repo ?? null,
+    branch: startInput.branch ?? null,
+    now: run.input.at ?? new Date(),
+  });
+}
+
 export async function startRun(
   home: string,
   input: RunStartInput,
@@ -575,9 +601,11 @@ export async function startRun(
 ): Promise<StartedRun> {
   const run = beginStart(home, input, options.warn ?? (() => {}));
   const registry = runRegistry(home, options.mirror);
+  // read before the sweep: it stamps a long-dead run's end at now, which would make the run look active just now
+  const beforeSweep = registry.agents();
   registry.sweep({
     liveSids: await (options.liveSids ?? (() => trustedLiveSids(home)))(),
-    lastWrite: await liveWrites(home, registry.agents()),
+    lastWrite: await liveWrites(home, beforeSweep),
   });
   const onPr = await branchOfPr(run, options);
   const { branch, pr } = onPr;
@@ -585,6 +613,8 @@ export async function startRun(
   warnTypedRepo(run);
   const startInput = startInputOf(run, { branch, pr });
   const plan = planCard(run, registry, startInput, branch);
+  // looked up before the registry writes, so the run is not its own match; reported only once the start is accepted
+  const related = relatedOf(run, beforeSweep, startInput, plan);
   const started = registryStart(run, registry, startInput, plan, branch);
   // the join's writes, now that the start is accepted: what the card lacked
   if (plan.join?.link) {
@@ -598,5 +628,6 @@ export async function startRun(
     ...started,
     stamped: run.card && stamp ? stamp : null,
     joined: plan.join?.joined ?? run.joinedCard ?? null,
+    related,
   };
 }

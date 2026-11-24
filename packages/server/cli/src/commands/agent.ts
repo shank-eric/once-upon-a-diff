@@ -19,6 +19,7 @@ import {
   finishRun,
   autoFinishRun,
   openSelfRun,
+  type StartedRun,
 } from '@once-upon-a-diff/core/features/runs/service';
 import { carryApproval } from '@once-upon-a-diff/core/features/review/carry-approval';
 import { shortSha } from '@once-upon-a-diff/terms/text';
@@ -31,6 +32,7 @@ const USAGE =
   '                             [--repo owner/name] [--branch NAME] [--pr N (its head branch, read through gh)] [--cwd DIR] [--card ID | --new-card] [--notes PATH]\n' +
   '                             [--replaces NAME  the earlier run of this session this one retries: once this one finishes done, that one, if it failed, leaves the board]\n' +
   '                             with --card the card gives the repo and branch and --role says the kind: --kind, --lane, a --repo or --branch the card has, and a --pr when it has a branch, are refused (a card with no branch takes --pr or --branch and is stamped with it); --lane is ignored without a card\n' +
+  '                             a start with no --card in a session whose earlier no-card run (same repo, active in the last 4 hours) has its own card prints a hint on stderr: backlog drop NEW --into EARLIER makes it one card\n' +
   '       once-upon agent state NAME --state running|waiting|review|plan|fixing [--outcome TEXT|--outcome-file PATH] [--findings N] [--notes PATH] [--sid SID8] [--run ID]\n' +
   '       once-upon agent beat NAME N/M STEP [NOTE...] [--sid SID8] [--no-mirror]\n' +
   '       once-upon agent finish NAME [--state done|failed|stopped] [--outcome TEXT|--outcome-file PATH] [--commit SHA] [--pr N] [--branch NAME] [--card ID] [--findings N] [--notes PATH] [--sid SID8] [--run ID]\n' +
@@ -120,6 +122,23 @@ function ack({ registry, name, sid, who }: Call) {
   return out(`${agentKey(acked)} ${wrote ? 'acknowledged' : 'was already acknowledged'}`);
 }
 
+/**
+ * A no-card start whose session has recent no-card runs of its own: they are likely one piece of work with two cards, and
+ * `backlog drop --into` makes it one (moves this run onto the earlier card, nothing retyped).
+ */
+function relatedHint(started: StartedRun): string {
+  const { related, card } = started;
+  if (!related.length || !card) {
+    return '';
+  }
+  const names = related.map((one) => `${one.run} (${one.card}, ${one.minutesAgo}m ago)`).join(', ');
+  return (
+    `once-upon: this session already started ${names} with no --card, and this run has its own card ${card}. ` +
+    `If it is the same work, make it one card: once-upon backlog drop ${card} --into ${related[0].card} ` +
+    `(or pass --card ${related[0].card} on the next start). Different work: ignore this.`
+  );
+}
+
 async function start({ home, opts, mirror, warn, sid, who, name, words }: Call) {
   const started = await startRun(
     home,
@@ -151,6 +170,10 @@ async function start({ home, opts, mirror, warn, sid, who, name, words }: Call) 
   );
   // the day-old status line files of gone sessions go with a start that was accepted (housekeeping, not part of the run)
   await sweepStatusLines(home);
+  const hint = relatedHint(started);
+  if (hint) {
+    warn(hint); // stderr: stdout stays the id line (callers split it on spaces)
+  }
   // the card a start made is printed beside the run's id, so a later run on the same work (a critic of it) can pass --card; so is
   // the card a start joined. A start that named its card prints nothing extra
   const line = `${started.id} ${started.run}${started.card && (!opts.card || started.joined) ? ` ${started.card}` : ''}`;

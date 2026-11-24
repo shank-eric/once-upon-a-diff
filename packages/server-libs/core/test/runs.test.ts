@@ -263,3 +263,133 @@ test('a critic on a card finishes with a findings count; 0 counts, stopped and u
   await startRun(dir, input({ name: 'helper-a', role: 'helper' }));
   assert.equal(finishRun(dir, 'helper-a', { sid: SID }).state, 'done');
 });
+
+/** A no-card helper start, as a research session fans them out. */
+const helper = (over: Partial<RunStartInput> = {}) =>
+  input({ name: 'flag-adr-2', kind: 'helper', repo: 'acme/widgets', ...over });
+const onCard = (id: string, over: Partial<RunStartInput> = {}) =>
+  input({ name: 'on-card', role: 'helper', card: id, ...over });
+const HOUR = 3_600_000;
+
+test('a second no-card start by the same session in the same repo names the earlier card', async () => {
+  const dir = home('related');
+  const first = await startRun(dir, helper({ name: 'flag-adr-1' }));
+  assert.deepEqual(first.related, []);
+  const second = await startRun(dir, helper());
+  assert.notEqual(second.card, first.card);
+  assert.deepEqual(
+    second.related.map((one) => [one.run, one.card]),
+    [['flag-adr-1', first.card]],
+  );
+  // a same-name restart carries its card over: no hint
+  assert.deepEqual((await startRun(dir, helper())).related, []);
+});
+
+test('no related run for another session or repo, branches that differ, or a run on a backlog card', async () => {
+  const dir = home('related-none');
+  await startRun(dir, helper({ name: 'one', branch: 'feat/a' }));
+  assert.deepEqual((await startRun(dir, helper({ sid: 'ffff0000' }))).related, [], 'other session');
+  assert.deepEqual(
+    (await startRun(dir, helper({ repo: 'acme/other', name: 'two' }))).related,
+    [],
+    'other repo',
+  );
+  assert.deepEqual(
+    (await startRun(dir, helper({ branch: 'feat/b', name: 'three' }))).related,
+    [],
+    'two branches',
+  );
+  assert.equal(
+    (await startRun(dir, helper({ name: 'four' }))).related.length,
+    2,
+    'a side with no branch matches feat/a and feat/b',
+  );
+  const backlogDir = home('related-backlog');
+  await startRun(backlogDir, onCard(card(backlogDir, 'feat/x'), { name: 'one' }));
+  assert.deepEqual((await startRun(backlogDir, helper())).related, [], 'a run on a backlog card');
+});
+
+test('an earlier run counts for four hours from its last activity', async () => {
+  const now = Date.now();
+  const old = home('related-old');
+  await startRun(old, helper({ name: 'one', at: new Date(now - 5 * HOUR) }));
+  assert.deepEqual((await startRun(old, helper())).related, [], 'five hours');
+  const young = home('related-young');
+  await startRun(young, helper({ name: 'one', at: new Date(now - 3 * HOUR) }));
+  const [hit] = (await startRun(young, helper())).related;
+  assert.equal(hit.run, 'one');
+  assert.ok(hit.minutesAgo >= 179 && hit.minutesAgo <= 181, String(hit.minutesAgo));
+});
+
+test('no related run when the start named its card, asked for another, joined a card, or is a self, critic or standing run', async () => {
+  const dir = home('related-skip');
+  await startRun(dir, helper({ name: 'one' }));
+  const id = card(dir, 'feat/x');
+  assert.deepEqual((await startRun(dir, onCard(id, { name: 'two' }))).related, [], '--card');
+  assert.deepEqual(
+    (await startRun(dir, helper({ name: 'three', newCard: true }))).related,
+    [],
+    '--new-card',
+  );
+  const self = await startRun(dir, {
+    name: '',
+    task: 'mine',
+    cwd: CWD,
+    self: true,
+    role: 'helper',
+    session: `${SID}-1111-4222-8333-444444444444`,
+  });
+  assert.deepEqual(self.related, [], '--self');
+  const critic = await startRun(dir, onCard(id, { name: 'rev-a', role: 'critic' }));
+  assert.deepEqual(critic.related, [], 'a critic');
+  assert.deepEqual(
+    (await startRun(dir, helper({ name: 'five', standing: true }))).related,
+    [],
+    'a standing run',
+  );
+  const joined = await startRun(dir, helper({ name: 'four', branch: 'feat/x' }));
+  assert.ok(joined.joined, 'joined the open card on feat/x');
+  assert.deepEqual(joined.related, [], 'a start that joined a card');
+});
+
+test('the hint names the newest three earlier cards, one per card', async () => {
+  const dir = home('related-three');
+  for (const [index, name] of ['a1', 'a2', 'a3', 'a4'].entries()) {
+    await startRun(dir, helper({ name, at: new Date(Date.now() - (5 - index) * 60_000) }));
+  }
+  const { related } = await startRun(dir, helper({ name: 'a5' }));
+  assert.deepEqual(
+    related.map((one) => one.run),
+    ['a4', 'a3', 'a2'],
+  );
+});
+
+test('no related run for an author the start itself swept after 24 silent hours', async () => {
+  const dir = home('related-swept');
+  await startRun(
+    dir,
+    helper({
+      name: 'old-author',
+      kind: 'author',
+      branch: 'feat/a',
+      at: new Date(Date.now() - 26 * HOUR),
+    }),
+  );
+  const { related } = await startRun(dir, helper());
+  assert.deepEqual(related, [], 'a run the sweep just stopped is not recent');
+  assert.equal(
+    new AgentRegistry(dir).agents().find((one) => one.name === 'old-author')?.state,
+    'stopped',
+  );
+});
+
+test("no related run for a run that joined another session's agent card with --card", async () => {
+  const dir = home('related-foreign-card');
+  const other = await startRun(
+    dir,
+    helper({ name: 'other-one', sid: 'ffff0000', branch: 'feat/z' }),
+  );
+  assert.ok(other.card);
+  await startRun(dir, onCard(other.card, { name: 'rev-x', role: 'critic' }));
+  assert.deepEqual((await startRun(dir, helper())).related, [], 'rev-x did not make the card');
+});

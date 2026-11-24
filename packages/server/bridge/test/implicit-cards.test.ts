@@ -1012,3 +1012,65 @@ test('two open cards on one branch: agent start refuses and asks for --card, for
   assert.equal(named.id.length > 0, true);
   assert.deepEqual(cardOf(home, 'fix-two'), [cardA.id]);
 });
+
+test('a second no-card start in the session hints on stderr how to make one card; stdout stays the id line, and the printed drop makes one card', async () => {
+  const home = tmp('implicit-nudge');
+  const first = await start(home, 'flag-adr-1', '--kind', 'helper', '--task', 'one');
+  const quiet = await agent(
+    home,
+    'start',
+    'flag-adr-0',
+    '--kind',
+    'helper',
+    '--task',
+    'other',
+    '--sid',
+    'ffff0000',
+  );
+  assert.equal(quiet.stderr, '', 'another session gets no hint');
+  const done = await agent(home, 'start', 'flag-adr-2', '--kind', 'helper', '--task', 'two');
+  assert.equal(done.code, 0, done.stderr);
+  const second = done.stdout.trim().split(' ');
+  assert.equal(second.length, 3, 'stdout is the single id line');
+  assert.match(second[2], IMPLICIT);
+  assert.notEqual(second[2], first.card);
+  assert.match(
+    done.stderr,
+    new RegExp(`once-upon backlog drop ${second[2]} --into ${first.card}`),
+    'the hint names the new card and the earlier one',
+  );
+  // a start that names its card, or asks for another, hints nothing
+  const named = await agent(
+    home,
+    'start',
+    'flag-adr-3',
+    '--role',
+    'helper',
+    '--card',
+    first.card,
+    '--task',
+    'three',
+  );
+  assert.equal(named.stderr, '');
+  const fresh = await agent(
+    home,
+    'start',
+    'flag-adr-4',
+    '--kind',
+    'helper',
+    '--new-card',
+    '--task',
+    'four',
+  );
+  assert.equal(fresh.stderr, '');
+  // running the printed command leaves the new card with no runs: both runs are on the earlier card
+  const merged = await backlog(home, 'drop', second[2], '--into', first.card);
+  assert.equal(merged.code, 0, merged.stderr);
+  assert.deepEqual(
+    [
+      cardOf(home, 'flag-adr-1')[0],
+      new AgentRegistry(home).agents().find((one) => one.name === 'flag-adr-2')?.card,
+    ],
+    [first.card, first.card],
+  );
+});
