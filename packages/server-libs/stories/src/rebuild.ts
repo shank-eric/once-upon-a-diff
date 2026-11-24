@@ -21,7 +21,7 @@
 import { chaptersOf, entryOf, refOf } from './chapters.ts';
 import { chapterKeyOf } from '@once-upon-a-diff/terms/chapters';
 import { plural, sameSha } from '@once-upon-a-diff/terms/text';
-import { canonical, keptChapters, withoutKey } from './validate.ts';
+import { canonical, keptChapters, withoutGoneFiles, withoutKey } from './validate.ts';
 import { uncoveredHunks, sidesOf } from './hunk-coverage.ts';
 import type { DiffFile } from '@once-upon-a-diff/contracts/types';
 import type { Plan, PlanChapter } from './chapters.ts';
@@ -92,7 +92,7 @@ function coverageProblems(
     problems.push(`${missing.length} files are in no chapter: ${missing.join(', ')}`);
   }
   // a ref counts when its chapter's text links it, but a chapter kept as it was published counts all its refs
-  const kept = keptChapters(after, before);
+  const kept = keptChapters(after, before, diff);
   const uncovered = allowUncovered ? [] : uncoveredHunks(chapters, diff, { linked: true, kept });
   if (uncovered.length) {
     const refs = uncovered.flatMap((file) => file.hunks.map((hunk) => hunk.ref));
@@ -152,7 +152,18 @@ export function updateProblems(
   // a chapter published with no key may have been given one since: that is not the author changing it
   const bare = (chapter: PlanChapter, keyless: boolean) => {
     const { files: _files, ...rest } = keyless ? withoutKey(chapter) : chapter;
-    return canonical(rest);
+    return rest as Record<string, unknown>;
+  };
+  // the fields that differ between the published chapter and the kept one, files aside; refs and files on a file the update removed from the diff may go
+  const changedParts = (was: PlanChapter, now: PlanChapter): string[] => {
+    const keyless = was.key === undefined;
+    const [was0, now0] = [
+      bare(withoutGoneFiles(was, diff), keyless),
+      bare(withoutGoneFiles(now, diff), keyless),
+    ];
+    return [...new Set([...Object.keys(was0), ...Object.keys(now0)])]
+      .filter((field) => canonical(was0[field]) !== canonical(now0[field]))
+      .sort();
   };
   old.forEach((chapter, i) => {
     const kept = now[i + 1];
@@ -160,12 +171,13 @@ export function updateProblems(
       return;
     }
     const left = new Set(filesOf(chapter));
-    if (
-      bare(chapter, chapter.key === undefined) !== bare(kept, chapter.key === undefined) ||
-      filesOf(kept).some((rel) => !left.has(rel))
-    ) {
+    const changed = changedParts(chapter, kept);
+    if (filesOf(kept).some((rel) => !left.has(rel))) {
+      changed.push('files it did not list');
+    }
+    if (changed.length) {
       problems.push(
-        `chapter "${chapter.title || ''}" changed; the update keeps the earlier chapters as published (copy them from the published chapters.json)`,
+        `chapter "${chapter.title || ''}" changed (${changed.join(', ')}); the update keeps the earlier chapters as published, apart from refs and files on a file no longer in the diff`,
       );
     }
   });

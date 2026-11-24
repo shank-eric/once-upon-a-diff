@@ -15,7 +15,7 @@
 import { chapterKeyOf } from '@once-upon-a-diff/terms/chapters';
 import { REF_ID, refIdsIn } from '@once-upon-a-diff/terms/line-refs';
 import { textOf } from './text-refs.ts';
-import { refOf } from './chapters.ts';
+import { entryOf, refOf } from './chapters.ts';
 import { offPageComments, offPageRefs } from './pointers.ts';
 import type { ChapterRef, DiffFile } from '@once-upon-a-diff/contracts/types';
 import type { Plan, PlanChapter, PlanRef } from './chapters.ts';
@@ -68,19 +68,44 @@ const overviewText = (plan: Plan) =>
 
 export const withoutKey = ({ key: _key, ...rest }: PlanChapter) => rest;
 
+/** Whether a ref's path has left the diff (a fix round removed the file). */
+const isGone = (ref: PlanRef, diff: Map<string, DiffFile>) => !diff.has(refOf(ref).path);
+
+/** The chapter without its refs and files on a file the diff no longer has: what a kept chapter may lose. */
+export function withoutGoneFiles(chapter: PlanChapter, diff: Map<string, DiffFile>): PlanChapter {
+  return {
+    ...chapter,
+    ...(Array.isArray(chapter.refs)
+      ? { refs: chapter.refs.filter((ref) => !isGone(ref, diff)) }
+      : {}),
+    ...(Array.isArray(chapter.files)
+      ? { files: chapter.files.filter((entry) => diff.has(entryOf(entry).rel)) }
+      : {}),
+  };
+}
+
 /**
  * Which of the plan's chapters are kept: exactly the served chapter of the same key, key aside. A kept chapter is text
- * nobody touched in this telling, so a rule added since it was written does not apply to it.
+ * nobody touched in this telling, so a rule added since it was written does not apply to it. With the diff, a chapter that
+ * only lost its refs and files on a file the diff no longer has is kept too.
  */
-export function keptChapters(plan: Plan, served?: Plan | null): boolean[] {
+export function keptChapters(
+  plan: Plan,
+  served?: Plan | null,
+  diff?: Map<string, DiffFile>,
+): boolean[] {
   const before = new Map(
     (served?.chapters || []).map((chapter) => [
       chapterKeyOf(chapter),
-      canonical(withoutKey(chapter)),
+      [
+        canonical(withoutKey(chapter)),
+        ...(diff ? [canonical(withoutKey(withoutGoneFiles(chapter, diff)))] : []),
+      ],
     ]),
   );
   return (plan.chapters || []).map(
-    (chapter) => before.get(chapterKeyOf(chapter)) === canonical(withoutKey(chapter)),
+    (chapter) =>
+      before.get(chapterKeyOf(chapter))?.includes(canonical(withoutKey(chapter))) ?? false,
   );
 }
 
@@ -232,8 +257,13 @@ function keyProblem(chapter: PlanChapter, num: number, byKey: Map<string, number
 }
 
 /** The ids a chapter's text links to (`ref:<id>`) that its refs do not have, as lines. */
-function unlistedLinkProblems(chapter: PlanChapter, num: number, refs: PlanRef[]): string[] {
-  const ids = new Set(refs.map((ref) => String(ref.id ?? '')));
+function unlistedLinkProblems(
+  chapter: PlanChapter,
+  num: number,
+  refs: PlanRef[],
+  gone: Set<string>,
+): string[] {
+  const ids = new Set([...refs.map((ref) => String(ref.id ?? '')), ...gone]);
   const text = textOf({
     headline: chapter.headline || '',
     scenario: chapter.scenario || '',
@@ -245,12 +275,19 @@ function unlistedLinkProblems(chapter: PlanChapter, num: number, refs: PlanRef[]
     .map((id) => `chapter ${num}: the text links to ref:${id}, which the chapter does not have`);
 }
 
+/** The ids of the served chapter's refs on a file the diff no longer has: a kept chapter's text may still link them (it shows as plain text). */
+function goneRefIds(served: PlanChapter | undefined, diff?: Map<string, DiffFile>): Set<string> {
+  const refs = diff && Array.isArray(served?.refs) ? served.refs : [];
+  return new Set(refs.filter((ref) => isGone(ref, diff!)).map((ref) => String(ref.id ?? '')));
+}
+
 /** The problems of a chapter's refs: the list itself (unless the chapter is kept as served), its places, and the text's links. A kept chapter's places are not checked against the diff. */
 function chapterRefsProblems(
   chapter: PlanChapter,
   num: number,
   isKept: boolean,
   { diff, pointers = true }: PlanRefsOpts,
+  gone: Set<string>,
 ): string[] {
   const refs = chapter.refs;
   if (!Array.isArray(refs)) {
@@ -266,7 +303,7 @@ function chapterRefsProblems(
   return [
     ...prefixed(`chapter ${num}`, refListProblems(refs, { files: listed, diff })),
     ...(diff && pointers && !isKept ? prefixed(`chapter ${num}`, offPageRefs(refs, diff)) : []),
-    ...unlistedLinkProblems(chapter, num, refs),
+    ...unlistedLinkProblems(chapter, num, refs, gone),
   ];
 }
 
@@ -311,7 +348,8 @@ function chapterCommentProblems(
  * in no hunk is a problem (not for a chapter equal to the served one); the story check reports those itself, so it asks for none.
  */
 export function chapterProblems(plan: Plan, opts: PlanRefsOpts = {}): string[] {
-  const kept = keptChapters(plan, opts.served);
+  const kept = keptChapters(plan, opts.served, opts.diff);
+  const servedByKey = new Map((opts.served?.chapters || []).map((one) => [chapterKeyOf(one), one]));
   const byKey = new Map<string, number>();
   const perChapter = (plan.chapters || []).flatMap((chapter, index) => {
     const num = index + 1;
@@ -319,7 +357,13 @@ export function chapterProblems(plan: Plan, opts: PlanRefsOpts = {}): string[] {
     const isKept = kept[index] ?? false;
     return [
       ...(key ? [key] : []),
-      ...chapterRefsProblems(chapter, num, isKept, opts),
+      ...chapterRefsProblems(
+        chapter,
+        num,
+        isKept,
+        opts,
+        isKept ? goneRefIds(servedByKey.get(chapterKeyOf(chapter)), opts.diff) : new Set(),
+      ),
       ...chapterCommentProblems(chapter, num, isKept, opts),
       ...(storyMapIn(String(chapter.narrative || ''))
         ? [`chapter ${num}'s narrative opens with a story map: put it in \`overview\``]
