@@ -6,6 +6,7 @@ import path from 'node:path';
 import { tmp, writeJson, runCli } from './helpers.ts';
 import { doctor } from '@once-upon-a-diff/core/orchestration/bridge/doctor';
 import {
+  agentHooksText,
   installHooksText,
   listenHookBlock,
 } from '@once-upon-a-diff/core/features/sessions/hook-setup';
@@ -13,11 +14,14 @@ import { ROOT } from './script-helpers.ts';
 
 const SCRIPT = path.join(ROOT, 'extras/hooks/listen-pending.sh');
 
-/** The JSON object in the printed lines (from the first `{` line to the matching last `}`). */
-const blockOf = (lines: string[]) => {
-  const start = lines.findIndex((line) => line === '{');
-  const end = lines.lastIndexOf('}');
-  return JSON.parse(lines.slice(start, end + 1).join('\n'));
+/** The nth JSON object in the printed lines (from a `{` line to the next `}` line). */
+const blockOf = (lines: string[], nth = 0) => {
+  let from = 0;
+  for (let i = 0; i < nth; i++) {
+    from = lines.indexOf('}', from) + 1;
+  }
+  const start = lines.indexOf('{', from);
+  return JSON.parse(lines.slice(start, lines.indexOf('}', start) + 1).join('\n'));
 };
 
 test('install-hooks prints a block that parses, with both events and the absolute script path, and writes nothing', async () => {
@@ -38,6 +42,27 @@ test('install-hooks prints a block that parses, with both events and the absolut
   );
   assert.equal(readFileSync(path.join(claude, 'settings.json'), 'utf8'), settings, 'left alone');
   assert.ok(statSync(SCRIPT).mode & 0o111, 'the script it names is executable');
+});
+
+test('install-hooks also prints the optional agent hooks beside the listen script, and still writes nothing', async () => {
+  const claude = tmp('install-hooks-agents-claude');
+  const run = await runCli(tmp('install-hooks-agents-home'), ['install-hooks'], {
+    CLAUDE_CONFIG_DIR: claude,
+  });
+  assert.equal(run.code, 0, run.stderr);
+  const block = blockOf(run.stdout.split('\n'), 1);
+  const beats = path.join(ROOT, 'extras/hooks/require-beats.sh');
+  const finish = path.join(ROOT, 'extras/hooks/auto-finish-run.sh');
+  assert.deepEqual(block.hooks.PreToolUse, [
+    { matcher: 'Agent', hooks: [{ type: 'command', command: beats }] },
+  ]);
+  assert.deepEqual(block.hooks.SubagentStop, [{ hooks: [{ type: 'command', command: finish }] }]);
+  assert.ok(statSync(beats).mode & 0o111 && statSync(finish).mode & 0o111, 'both are executable');
+  assert.match(run.stdout, /once-upon dispatch/);
+  assert.equal(
+    agentHooksText('/x/y/listen-pending.sh').join('\n').includes('/x/y/require-beats.sh'),
+    true,
+  );
 });
 
 test('a script path with a space is one shell word inside the command', () => {

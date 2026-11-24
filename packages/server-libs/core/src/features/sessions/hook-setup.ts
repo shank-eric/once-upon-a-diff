@@ -46,6 +46,35 @@ export function installHooksText(
   ];
 }
 
+export const REQUIRE_BEATS_HOOK = 'require-beats.sh';
+export const AUTO_FINISH_HOOK = 'auto-finish-run.sh';
+
+/**
+ * The two optional agent hooks beside the listen script: require-beats.sh (PreToolUse on the Agent tool) and
+ * auto-finish-run.sh (SubagentStop). Printed after the listen block by `install-hooks`; never written for you.
+ */
+export function agentHooksText(script = listenHookPath()): string[] {
+  const dir = path.dirname(script);
+  const command = (file: string) => shellQuote(path.join(dir, file));
+  const block = {
+    hooks: {
+      PreToolUse: [
+        { matcher: 'Agent', hooks: [{ type: 'command', command: command(REQUIRE_BEATS_HOOK) }] },
+      ],
+      SubagentStop: [{ hooks: [{ type: 'command', command: command(AUTO_FINISH_HOOK) }] }],
+    },
+  };
+  return [
+    '',
+    'Optional, for agents you launch by hand or with once-upon dispatch: merge these too.',
+    ...JSON.stringify(block, null, 2).split('\n'),
+    '',
+    `${REQUIRE_BEATS_HOOK} stops an Agent launch whose brief has no "once-upon beat" line (or "no-beats"), so every agent shows its progress; you can skip it when you only launch with once-upon dispatch, which writes that line.`,
+    `${AUTO_FINISH_HOOK} ends the run of a background agent that stopped without finishing it.`,
+    `Both hooks run /usr/bin/python3; without it ${REQUIRE_BEATS_HOOK} refuses every Agent launch, so install python3 first or skip the block.`,
+  ];
+}
+
 /** Whether the settings name the listen hook: true, false, or 'unreadable'. */
 export const listenHookWired = (configDir = claudeConfigDir()): boolean | 'unreadable' =>
   settingsMention(configDir, LISTEN_HOOK);

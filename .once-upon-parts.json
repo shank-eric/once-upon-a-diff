@@ -172,7 +172,7 @@
         "skills/",
         "agents/"
       ],
-      "note": "The once-upon, once-upon-listen and once-upon-editor skills, and the agent types the editor launches"
+      "note": "The once-upon, once-upon-listen, once-upon-editor and once-upon-agents skills, and the agent types the editor launches"
     },
     {
       "id": "scripts-docs",

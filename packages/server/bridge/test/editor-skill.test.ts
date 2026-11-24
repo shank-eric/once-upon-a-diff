@@ -170,3 +170,33 @@ test('the deploy gate still runs the full suite: the batch block of deploy-local
     /the deploy gate is the only place the full suite runs/,
   );
 });
+
+test('the once-upon-agents skill gives a session outside the editor beats, card-joined runs, the heavy lock and plan-first, with no person in it', () => {
+  const text = read('skills/once-upon-agents/SKILL.md');
+  assert.match(text, /^---\nname: once-upon-agents\ndescription: ".+"\n---\n/);
+  for (const part of [
+    'once-upon beat',
+    'once-upon heavy',
+    'ONCE_UPON_PATH',
+    '--card',
+    'run_in_background',
+    'Node 24',
+    'handback',
+    '--from-notes',
+    'require-beats.sh',
+  ]) {
+    assert.ok(text.includes(part), `the skill names ${part}`);
+  }
+  assert.doesNotMatch(
+    text,
+    /Configuration|ClariFi|\/Users\/|OneDrive|\.larmor|Larmor|shank-eric|Eric/,
+  );
+  assert.ok(read('README.md').includes('once-upon-agents'));
+});
+
+test('the editor skill launches the storyteller with the critic and labels judgment calls "Agent review"', () => {
+  const text = read('skills/once-upon-editor/SKILL.md');
+  assert.match(text, /storyteller launches in this same step as the critic/);
+  assert.match(text, /chapter comment starting "Agent review:"/);
+  assert.match(text, /work across more than one package/);
+});
