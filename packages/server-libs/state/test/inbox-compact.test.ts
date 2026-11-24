@@ -1,5 +1,5 @@
 /*
- * What doctor --fix does to inbox.jsonl (src/queues/requests/inbox-compact.ts): old reads and positions go, the conversation
+ * What `once-upon compact` does to inbox.jsonl (src/queues/requests/inbox-compact.ts): reads and positions go, the conversation
  * stays, and every consumer's cursor (a byte offset) moves with the file, so nothing old is handed over again and nothing new is
  * skipped.
  */
@@ -15,7 +15,6 @@ import { compactInboxText } from '../src/queues/requests/inbox-compact.ts';
 
 const DAY = 24 * 3600 * 1000;
 const NOW = Date.parse('2026-11-17T12:00:00Z');
-const CUTOFF = NOW - 14 * DAY;
 const ago = (days: number) => new Date(NOW - days * DAY).toISOString();
 const raw = (inbox: Inbox, value: Record<string, unknown>) =>
   appendFileSync(inbox.file, JSON.stringify(value) + '\n');
@@ -46,7 +45,7 @@ const compactNow = (inbox: Inbox, beforeSwap?: () => void) => {
   const done = replaceLog(
     inbox.file,
     (whole) => {
-      const plan = compactInboxText(whole, CUTOFF);
+      const plan = compactInboxText(whole);
       move = plan.remap;
       return plan.text;
     },
@@ -60,12 +59,12 @@ const compactNow = (inbox: Inbox, beforeSwap?: () => void) => {
   return done;
 };
 
-test('old reads and positions go, a recent read and every question stay', () => {
+test('reads and positions go whatever their age, and every question stays', () => {
   const inbox = build();
   compactNow(inbox);
   assert.deepEqual(
     inbox.all().map((entry) => entry.type),
-    ['question', 'question', 'question', 'read'],
+    ['question', 'question', 'question'],
   );
   assert.ok(!readFileSync(inbox.file, 'utf8').includes('"position"'));
 });
@@ -102,7 +101,7 @@ test('nothing old: the text is the same and every offset maps to itself', () => 
   const inbox = new Inbox(tmp('inbox-compact'));
   inbox.append({ type: 'question', story: 's', text: 'q1' });
   const whole = readFileSync(inbox.file, 'utf8');
-  const plan = compactInboxText(whole, CUTOFF);
+  const plan = compactInboxText(whole);
   assert.equal(plan.text, whole);
   assert.equal(plan.removed, 0);
   assert.equal(plan.remap(whole.length), whole.length);
@@ -126,4 +125,40 @@ test('a read that advances a cursor waits for the inbox lock that a compaction h
     rmdirSync(lock);
   }
   assert.ok(inbox.unread('late', { advance: true }).length > 0);
+});
+
+test('an answered question keeps its answer whatever its age, and the build lines go with the reads', () => {
+  const inbox = new Inbox(tmp('inbox-compact'));
+  inbox.append({ type: 'question', story: 's', text: 'old q', at: ago(90), id: 'q_old' });
+  inbox.append({
+    type: 'answer',
+    story: 's',
+    question: 'q_old',
+    text: 'old a',
+    by: 'x',
+    at: ago(89),
+  });
+  raw(inbox, { type: 'build_request', id: 'b_1', at: ago(88), story: 's' });
+  raw(inbox, { type: 'build_done', id: 'b_2', at: ago(87), story: 's' });
+  raw(inbox, read('rd_old', ago(86)));
+  compactNow(inbox);
+  assert.deepEqual(
+    inbox.all().map((entry) => entry.type),
+    ['question', 'answer'],
+  );
+  const asked = inbox.questions('s');
+  assert.equal(asked.length, 1);
+  assert.deepEqual(
+    asked[0].answers.map((answer) => answer.text),
+    ['old a'],
+  );
+});
+
+test('compacting twice removes nothing the second time', () => {
+  const inbox = build();
+  compactNow(inbox);
+  const once = readFileSync(inbox.file, 'utf8');
+  const plan = compactInboxText(once);
+  assert.equal(plan.removed, 0);
+  assert.equal(plan.text, once);
 });

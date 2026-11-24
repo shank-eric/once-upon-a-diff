@@ -2943,6 +2943,45 @@ export async function keeperChangesNothing(): Promise<
   return out;
 }
 
+/**
+ * The gate for `once-upon compact`: compacting a world's logs (every run's beats thinned, the runs and cards closed for 30 days
+ * archived, every inbox read gone) changes no board. Each world's board is built, its logs compacted at the frozen clock, and
+ * built again. The two builds are returned by world name, with the lines the compaction took out.
+ */
+export async function compactionChangesNothing(): Promise<
+  Record<string, { before: string; after: string; report: string[] }>
+> {
+  const { compactLogs } = await src('core', 'orchestration/bridge/compact-logs.ts');
+  const out: Record<string, { before: string; after: string; report: string[] }> = {};
+  for (const { name, board, home } of worldBoards) {
+    // an earlier beat before every beat the world has (the last one a run's beat is what the board shows), for the compaction to thin
+    const agentsFile = path.join(home, 'agents.jsonl');
+    if (existsSync(agentsFile)) {
+      const padded = readFileSync(agentsFile, 'utf8')
+        .split('\n')
+        .flatMap((line) => {
+          const row = line.startsWith('{') ? JSON.parse(line) : null;
+          return row?.op === 'beat'
+            ? [
+                JSON.stringify({
+                  ...row,
+                  at: new Date(Date.parse(row.at) - 60_000).toISOString(),
+                  note: 'earlier',
+                }),
+                line,
+              ]
+            : [line];
+        });
+      writeFileSync(agentsFile, padded.join('\n'));
+    }
+    const before = JSON.stringify(await board.rebuild());
+    // keepDays 0: even a run that ended a minute ago is thinned; null live sessions: every session card stays
+    const report: string[] = compactLogs(home, { keepDays: 0, liveSessions: null });
+    out[name] = { before, after: JSON.stringify(await board.rebuild()), report };
+  }
+  return out;
+}
+
 export function finish() {
   children.forEach((child) => child.kill());
   rmSync(WORK, { recursive: true, force: true });

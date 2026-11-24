@@ -91,6 +91,7 @@ const HELP_ORDER = [
   'comment',
   'drafts',
   'doctor',
+  'compact',
   'builds',
   'since',
   'update',

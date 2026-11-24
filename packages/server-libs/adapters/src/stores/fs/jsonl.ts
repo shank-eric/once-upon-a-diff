@@ -8,10 +8,12 @@ import {
   existsSync,
   linkSync,
   openSync,
+  readdirSync,
   readFileSync,
   readSync,
   renameSync,
   statSync,
+  unlinkSync,
   writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
@@ -89,6 +91,21 @@ function backupName(file: string, now: Date): string {
   return name;
 }
 
+/** Removes the other `<file>.<yyyymmdd>[-n].bak` copies of the log, so that `keep` is the one left. */
+function pruneBackups(file: string, keep: string): void {
+  const prefix = `${path.basename(file)}.`;
+  for (const name of readdirSync(path.dirname(file))) {
+    const old = path.join(path.dirname(file), name);
+    if (
+      old !== keep &&
+      name.startsWith(prefix) &&
+      /^\d{8}(-\d+)?\.bak$/.test(name.slice(prefix.length))
+    ) {
+      unlinkSync(old);
+    }
+  }
+}
+
 /**
  * Replaces a log with a rewrite of it, and keeps the old one. Under the file's lock it hands `rewrite` the log's whole lines
  * (a last line with no newline yet is carried over as it is), writes what `rewrite` returns beside the log, copies on any bytes
@@ -98,6 +115,7 @@ function backupName(file: string, now: Date): string {
  * kept all the same). A reader that tails the log sees a different file and starts over. `rewrite` returning null leaves the
  * log alone. `beforeSwap` runs just before the last size check (tests append there; a caller that keeps offsets into the log
  * moves them there), `beforeRename` between the link and the rename (a test's append that lands in the old file).
+ * `keepBackups: 1` removes the older `.bak` copies of this log once the new one is linked, so the latest is the only one.
  */
 export function replaceLog(
   file: string,
@@ -106,7 +124,13 @@ export function replaceLog(
     now = new Date(),
     beforeSwap,
     beforeRename,
-  }: { now?: Date; beforeSwap?: () => void; beforeRename?: () => void } = {},
+    keepBackups,
+  }: {
+    now?: Date;
+    beforeSwap?: () => void;
+    beforeRename?: () => void;
+    keepBackups?: 1;
+  } = {},
 ): { before: number; after: number; kept: string } | null {
   return withLock(file, () => {
     if (!existsSync(file)) {
@@ -129,6 +153,9 @@ export function replaceLog(
     }
     const kept = backupName(file, now);
     linkSync(file, kept);
+    if (keepBackups) {
+      pruneBackups(file, kept);
+    }
     beforeRename?.();
     renameSync(fresh, file);
     // an unlocked append that landed after the read above (or whose writer opened the old path just before the rename) went

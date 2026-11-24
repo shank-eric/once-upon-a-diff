@@ -269,6 +269,11 @@ open_cards_text() {
   (cd "$(bridge_dir)" && node bin/once-upon.mjs backlog list --all --json </dev/null) | open_cards_from_json
 }
 
+# After the landed cards are closed (mark_landed), so their runs are judged as closed: shrink the append-only logs. Never gates a deploy.
+compact_logs() {
+  (cd "$(bridge_dir)" && node bin/once-upon.mjs compact </dev/null) || say "could not compact the logs"
+}
+
 go_live() {
   trap recover EXIT
   SWITCHED=1
@@ -292,6 +297,7 @@ go_live() {
     say "local main is not an ancestor of the tip, left it alone"
   fi
   mark_landed || say "could not mark backlog items as done"
+  compact_logs || true
   local b
   DELETED_BRANCHES=()
   for b in ${LANDED_BRANCHES[@]+"${LANDED_BRANCHES[@]}"}; do

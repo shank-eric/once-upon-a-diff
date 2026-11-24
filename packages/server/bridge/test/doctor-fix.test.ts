@@ -45,33 +45,33 @@ const row = (
     ...more,
   }) + '\n';
 
-/** A home with one landed card, one open card, an old run on each, a recent run, and old and new reads. */
+/** A home with one card landed 35 days ago, one open card, an old run on each, a recent run, and old and new reads. */
 function build() {
   const home = tmp('doctor-fix');
   const backlog = new BacklogStore(home);
   const landed = backlog.add({ title: 'landed card' });
   backlog.start(landed.id, { branch: 'landed-branch' });
-  backlog.done(landed.id, { sha: 'abc1234' });
+  backlog.done(landed.id, { sha: 'abc1234', mergedAt: ago(35) });
   const open = backlog.add({ title: 'open card' });
   backlog.start(open.id, { branch: 'open-branch' });
   const rows = [
-    row('start', 'old-landed', 'r_0000000001', ago(30), {
+    row('start', 'old-landed', 'r_0000000001', ago(41), {
       kind: 'author',
       task: 't',
       card: landed.id,
     }),
     ...[1, 2, 3].map((count) =>
-      row('beat', 'old-landed', 'r_0000000001', ago(30, count), { n: count, of: 5, step: 'code' }),
+      row('beat', 'old-landed', 'r_0000000001', ago(41, count), { n: count, of: 5, step: 'code' }),
     ),
-    row('finish', 'old-landed', 'r_0000000001', ago(29), {
+    row('finish', 'old-landed', 'r_0000000001', ago(40), {
       state: 'done',
       result: { commit: 'abc1234', card: landed.id },
     }),
-    row('start', 'old-open', 'r_0000000002', ago(30), { kind: 'author', task: 't', card: open.id }),
+    row('start', 'old-open', 'r_0000000002', ago(41), { kind: 'author', task: 't', card: open.id }),
     ...[1, 2, 3].map((count) =>
-      row('beat', 'old-open', 'r_0000000002', ago(30, count), { n: count, of: 5, step: 'code' }),
+      row('beat', 'old-open', 'r_0000000002', ago(41, count), { n: count, of: 5, step: 'code' }),
     ),
-    row('finish', 'old-open', 'r_0000000002', ago(29), {
+    row('finish', 'old-open', 'r_0000000002', ago(40), {
       state: 'done',
       result: { commit: 'def5678', card: open.id },
     }),
@@ -88,7 +88,7 @@ function build() {
     JSON.stringify({
       type: 'read',
       id: 'rd_1',
-      at: ago(30),
+      at: ago(35),
       story: 's',
       chapter: 'c',
       reason: 'time',
@@ -213,8 +213,8 @@ test('--keep-days keeps what is newer; the command takes --fix and --keep-days',
     /Logs: agents\.jsonl [\d.]+ MB -> [\d.]+ MB/,
     'the extra beats still go',
   );
-  assert.doesNotMatch(result.stdout, /inbox\.jsonl [\d.]+ MB ->/, 'the read is 30 days old');
-  assert.equal(readAgents(home).agents.length, 3, 'no run is 45 days old');
+  assert.match(result.stdout, /inbox\.jsonl [\d.]+ MB ->/, 'a read goes whatever its age');
+  assert.equal(readAgents(home).agents.length, 3, 'nothing is 45 days old');
   const bad = await runCli(home, ['doctor', '--port', '1', '--fix', '--keep-days', 'soon']);
   assert.notEqual(bad.code, 0);
   const real = await runCli(home, ['doctor', '--port', '1', '--fix']);
@@ -224,13 +224,13 @@ test('--keep-days keeps what is newer; the command takes --fix and --keep-days',
 
 test('a plain doctor warns about a big log and names the fix', async () => {
   const home = tmp('doctor-fix');
-  writeFileSync(path.join(home, 'agents.jsonl'), row('beat', 'x', 'r_1', ago(1)).repeat(12000));
+  writeFileSync(path.join(home, 'agents.jsonl'), row('beat', 'x', 'r_1', ago(1)).repeat(36000));
   const lines = await run(home);
   assert.ok(
-    lines.some((line) => /^WARN\s+Logs: agents\.jsonl 1\.\d\d MB/.test(line)),
+    lines.some((line) => /^WARN\s+Logs: agents\.jsonl \d\.\d\d MB/.test(line)),
     lines.join('\n'),
   );
-  assert.ok(lines.some((line) => /fix: Run: once-upon doctor --fix/.test(line)));
+  assert.ok(lines.some((line) => /fix: Run: once-upon compact/.test(line)));
 });
 
 test('doctor says when a story still has the old review files, and --fix folds them into review.json', async () => {

@@ -88,3 +88,20 @@ test('a tail reader starts over on the replaced file', () => {
     ['a', 'c', 'e'],
   );
 });
+
+test('keepBackups: 1 leaves the latest old log beside the new one and no older .bak of this log', () => {
+  const dir = tmp('replace-log');
+  const file = path.join(dir, 'log.jsonl');
+  const other = path.join(dir, 'other.jsonl.20261101.bak');
+  writeFileSync(other, 'not this log\n');
+  writeFileSync(file, '{"n":"a"}\n{"n":"b"}\n{"n":"c"}\n');
+  replaceLog(file, dropB, { now: new Date('2026-11-16T15:00:00Z'), keepBackups: 1 });
+  writeFileSync(file, readFileSync(file, 'utf8') + '{"n":"b"}\n{"n":"d"}\n');
+  const done = replaceLog(file, dropB, { now: NOW, keepBackups: 1 });
+  assert.deepEqual(readdirSync(dir).sort(), [
+    'log.jsonl',
+    'log.jsonl.20261117.bak',
+    'other.jsonl.20261101.bak',
+  ]);
+  assert.equal(readFileSync(done!.kept, 'utf8'), '{"n":"a"}\n{"n":"c"}\n{"n":"b"}\n{"n":"d"}\n');
+});

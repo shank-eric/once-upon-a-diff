@@ -2,7 +2,7 @@
  * `once-upon doctor`: is everything connected? The Node it runs on, the config and token, the
  * bridge, a Claude session listening, and the extension. Each check prints
  * PASS, WARN or FAIL with what it found and, when it isn't passing, the fix. It writes nothing, except with `fix`
- * (`--fix`), which compacts the logs that only grow and keeps the old ones (compact-logs.ts) and folds old reviewed.json and
+ * (`--fix`), which compacts the logs that only grow, archives what goes and keeps the latest old log (compact-logs.ts, also `once-upon compact`) and folds old reviewed.json and
  * approved.json files into review.json (convert-review-files.ts).
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -25,7 +25,6 @@ import { MIN_NODE_MAJOR, nodeVersionProblem } from '@once-upon-a-diff/foundation
 import type { Config } from '@once-upon-a-diff/foundation/settings';
 import { listenerPid, openListeners } from '@once-upon-a-diff/adapters/os';
 import {
-  liveRegistry,
   liveSessions,
   registryHealth,
   registryNote,
@@ -53,7 +52,7 @@ import { StoryStore } from '@once-upon-a-diff/stories/store';
 import { readIndex } from '@once-upon-a-diff/stories/placement';
 import { readMeta, stateKeyOf } from '@once-upon-a-diff/stories/meta';
 import { seenCheckoutRepos } from '@once-upon-a-diff/foundation/repos';
-import { bigLogs, compactLogs, DEFAULT_KEEP_DAYS } from './compact-logs.ts';
+import { bigLogs, compactLogs, DEFAULT_ARCHIVE_DAYS, liveSessionIds } from './compact-logs.ts';
 import { convertReviewFiles, legacyReviewFolders } from './convert-review-files.ts';
 import { stateKeyForPr } from '@once-upon-a-diff/terms/ids';
 import {
@@ -682,11 +681,9 @@ const repoCheck: Check = ({ home, items, agents, stories: facts }) => {
 const logsCheck: Check = async ({ home, fix, keepDays }) => {
   if (fix) {
     // a session still running keeps its card; with a registry that cannot be trusted, every session card stays
-    const scan = await liveRegistry(readSettings(home).board.sessionsDir);
-    const trusted = scan.health.folder === 'ok' && !scan.unknown;
     const done = compactLogs(home, {
-      keepDays,
-      liveSessions: trusted ? scan.sessions.map((one) => one.session) : null,
+      archiveDays: keepDays,
+      liveSessions: await liveSessionIds(home),
     });
     const nothing = `nothing in agents.jsonl, backlog.jsonl or inbox.jsonl to drop (runs older than ${keepDays} days)`;
     return [{ level: 'PASS', name: 'Logs', detail: done.length ? done.join('; ') : nothing }];
@@ -700,7 +697,7 @@ const logsCheck: Check = async ({ home, fix, keepDays }) => {
       level: 'WARN',
       name: 'Logs',
       detail: big.join(', '),
-      fix: 'Run: once-upon doctor --fix (the old logs are kept beside the new ones)',
+      fix: 'Run: once-upon compact (what goes is archived under archive/, the latest old log is kept beside the new one)',
     },
   ];
 };
@@ -781,7 +778,7 @@ export async function doctor(
     launchAgent = readLaunchAgentFacts,
     proxyListeners = openListeners,
     fix = false,
-    keepDays = DEFAULT_KEEP_DAYS,
+    keepDays = DEFAULT_ARCHIVE_DAYS,
   }: {
     port?: number | string;
     wait?: number;

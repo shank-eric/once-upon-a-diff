@@ -202,6 +202,7 @@ export const COMMAND_AREAS: Record<string, Area> = {
   token: 'Settings, config and doctor',
   config: 'Settings, config and doctor',
   doctor: 'Settings, config and doctor',
+  compact: 'Settings, config and doctor',
   usage: 'Settings, config and doctor',
   list: 'Story pipeline',
   local: 'Story pipeline',

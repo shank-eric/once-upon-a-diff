@@ -1,22 +1,18 @@
 /*
- * What `once-upon doctor --fix` keeps of inbox.jsonl: the chapter reads and positions older versions logged (and the
- * build_request and build_done lines before them), once they are older than the cutoff, go. Questions, answers, notes, fixes,
- * approvals and comments are the conversation and stay. A consumer's cursor is a byte offset into this file, so the plan also
+ * What `once-upon compact` keeps of inbox.jsonl: the chapter reads and positions older versions logged (and the
+ * build_request and build_done lines before them) go, whatever their age: nothing writes them any more (reads are in a story's
+ * read.json). Questions, answers, notes, fixes, approvals and comments are the conversation (the panel's Ask box reads an
+ * answered question) and stay. A consumer's cursor is a byte offset into this file, so the plan also
  * says where an old offset lands in the new file. Pure: doctor reads, writes and moves the cursors (adapters' `replaceLog`).
  */
 
 const DROPPED = new Set(['read', 'position', 'build_request', 'build_done']);
 
-/** Whether the line is one of the dropped types and older than the cutoff (ms). A line with no readable time stays. */
-function expired(line: string, cutoff: number): boolean {
+/** Whether the line is one of the dropped types. */
+function expired(line: string): boolean {
   try {
-    const value = JSON.parse(line) as { type?: unknown; at?: unknown };
-    return (
-      typeof value.type === 'string' &&
-      DROPPED.has(value.type) &&
-      typeof value.at === 'string' &&
-      Date.parse(value.at) < cutoff
-    );
+    const value = JSON.parse(line) as { type?: unknown };
+    return typeof value.type === 'string' && DROPPED.has(value.type);
   } catch {
     return false;
   }
@@ -27,10 +23,11 @@ function expired(line: string, cutoff: number): boolean {
  * always at the start of a line) to the same place in the new one. An offset past the text, where lines were appended while it
  * was being rewritten, keeps its distance from the end.
  */
-export function compactInboxText(
-  whole: string,
-  cutoff: number,
-): { text: string; removed: number; remap: (offset: number) => number } {
+export function compactInboxText(whole: string): {
+  text: string;
+  removed: number;
+  remap: (offset: number) => number;
+} {
   const lines = whole.split('\n');
   lines.pop(); // the text ends with a newline: whole lines only
   const kept: string[] = [];
@@ -42,7 +39,7 @@ export function compactInboxText(
   for (const line of lines) {
     const size = Buffer.byteLength(line) + 1;
     starts.push({ old, fresh });
-    if (expired(line, cutoff)) {
+    if (expired(line)) {
       removed++;
     } else {
       kept.push(line + '\n');

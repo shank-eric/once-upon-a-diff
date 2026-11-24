@@ -5,7 +5,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { foldAgentEvents, parseAgentEvents } from '../src/records/agents/events.ts';
-import { compactAgentLines, type CardState } from '../src/records/agents/compact.ts';
+import {
+  compactAgentLines,
+  planAgentLines,
+  type CardState,
+} from '../src/records/agents/compact.ts';
+import { recordedTips } from '../src/queues/backlog/landing.ts';
 
 const DAY = 24 * 3600 * 1000;
 const NOW = Date.parse('2026-11-17T12:00:00Z');
@@ -233,5 +238,82 @@ test('an implicit card that was adopted and has landed no longer keeps its runs'
   assert.deepEqual(
     compactAgentLines(textOf(rows), CUTOFF, (card) => (card === 'ic_x3' ? 'closed' : undefined)),
     [],
+  );
+});
+
+test('the runs that go are returned for the archive, whole, and every line is kept, archived or a thinned beat', () => {
+  const lines = textOf(world);
+  const plan = planAgentLines(lines, CUTOFF, cardState);
+  assert.deepEqual(names(plan.archived).sort(), [
+    'acked',
+    'again',
+    'hooked-only',
+    'moved',
+    'old-done',
+  ]);
+  assert.ok(plan.archived.every((line) => lines.includes(line)));
+  // what is neither kept nor archived is a beat
+  const dropped = lines.filter(
+    (line) => !plan.kept.includes(line) && !plan.archived.includes(line),
+  );
+  assert.ok(dropped.length > 0);
+  assert.ok(dropped.every((line) => JSON.parse(line).op === 'beat'));
+  // an archived run, with every line it had, folds as it did in the whole log
+  const whole = foldAgentEvents(events(lines)).flatMap((agent) => [
+    ...(agent.earlier ?? []),
+    agent,
+  ]);
+  const archived = foldAgentEvents(events(plan.archived));
+  const done = archived.find((agent) => agent.name === 'old-done');
+  assert.deepEqual(
+    done,
+    whole.find((agent) => agent.run === 'r_0000000001' && agent.name === 'old-done'),
+  );
+});
+
+test('a deploy finds the same commit for a card that stays, and the archive has the one that went', () => {
+  const lines = textOf(world);
+  const plan = planAgentLines(lines, CUTOFF, cardState);
+  const before = recordedTips(events(lines));
+  const after = recordedTips(events(plan.kept));
+  assert.equal(after.get('bl_open'), 'def5678');
+  assert.equal(after.get('bl_open'), before.get('bl_open'));
+  assert.equal(before.get('bl_done'), 'abc1234');
+  assert.equal(after.get('bl_done'), undefined);
+  assert.equal(recordedTips(events(plan.archived)).get('bl_done'), 'abc1234');
+});
+
+test('a second pass archives nothing and changes nothing', () => {
+  const first = planAgentLines(textOf(world), CUTOFF, cardState);
+  const second = planAgentLines(first.kept, CUTOFF, cardState);
+  assert.deepEqual(second.kept, first.kept);
+  assert.deepEqual(second.archived, []);
+});
+
+test('with a fold cutoff, a run that finished after it keeps every beat, and one that finished before it keeps the last', () => {
+  const rows = [
+    start('fresh', 'r_0000000021', ago(3), { card: 'bl_open' }),
+    beat('fresh', 'r_0000000021', ago(3, 1), 1),
+    beat('fresh', 'r_0000000021', ago(3, 2), 2),
+    finish('fresh', 'r_0000000021', ago(2)),
+    start('older', 'r_0000000022', ago(20), { card: 'bl_open' }),
+    beat('older', 'r_0000000022', ago(20, 1), 1),
+    beat('older', 'r_0000000022', ago(20, 2), 2),
+    finish('older', 'r_0000000022', ago(19)),
+    start('going', 'r_0000000023', ago(1), { card: 'bl_open' }),
+    beat('going', 'r_0000000023', ago(1, 1), 1),
+    beat('going', 'r_0000000023', ago(1, 2), 2),
+  ];
+  const { kept } = planAgentLines(textOf(rows), CUTOFF, cardState, NOW - 14 * DAY);
+  const beats = (name: string) =>
+    events(kept).filter((event) => event.name === name && event.op === 'beat').length;
+  assert.equal(beats('fresh'), 2);
+  assert.equal(beats('older'), 1);
+  assert.equal(beats('going'), 1, 'a run still going is thinned whatever its age');
+  assert.deepEqual(
+    events(kept)
+      .filter((event) => event.name === 'fresh')
+      .map((event) => event.op),
+    ['start', 'beat', 'beat', 'finish'],
   );
 });

@@ -10,6 +10,8 @@
 import { formatTime, readSettings, repoSettings } from '@once-upon-a-diff/foundation/settings';
 import { prHeadBranch } from '@once-upon-a-diff/foundation/gh';
 import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
+import { archivedCards } from '@once-upon-a-diff/state/queues/backlog/archive';
+import { archivedAgents } from '@once-upon-a-diff/state/records/agents/archive';
 import { PHASE_ROWS, cardPhase, runsOf } from '@once-upon-a-diff/state/queues/backlog/phase';
 import {
   backfillCards,
@@ -19,6 +21,7 @@ import {
   runRegistry,
   trustedLiveSids,
 } from '@once-upon-a-diff/core/features/runs/service';
+import type { LedgerAgent } from '@once-upon-a-diff/state/records/agents/ledger';
 import { stateWord } from '@once-upon-a-diff/state/records/agents/ledger';
 import { agentKey } from '@once-upon-a-diff/state/queues/backlog/claims';
 import { out } from '../output.ts';
@@ -142,18 +145,42 @@ async function statusOf(home: string, id: string) {
   const store = new BacklogStore(home);
   // the stored record (ADR-29): a card an agent made is stored under its id, hidden from the lists until adopted
   const stored = store.items().find((one) => one.id === id);
-  const item = stored;
+  // a card or runs that `once-upon compact` moved to the archive: the board never has them, status says so
+  const archivedItem = stored ? undefined : archivedCards(home).find((one) => one.id === id);
+  const item = stored ?? archivedItem;
   if (!item) {
     throw new Error(`no card ${id}`);
   }
   const runs = runsOf(item, agents);
+  const archivedRuns = runsOf(item, archivedAgents(home));
+  if (archivedItem) {
+    return { item, stored, runs, archivedRuns, archivedCard: true, phase: undefined };
+  }
   const skipsReview = !!repoSettings(readSettings(home), item.repo).skips_review;
-  return { item, stored, runs, phase: cardPhase(item, runs, Date.now(), undefined, skipsReview) };
+  return {
+    item,
+    stored,
+    runs,
+    archivedRuns,
+    archivedCard: false,
+    phase: cardPhase(item, runs, Date.now(), undefined, skipsReview),
+  };
 }
 
 type Status = Awaited<ReturnType<typeof statusOf>>;
 
-function statusJson({ item, stored, runs, phase }: Status): string {
+function runJson(run: LedgerAgent) {
+  return {
+    id: agentKey(run),
+    run: run.run,
+    kind: run.kind,
+    state: run.state,
+    started: run.started?.toISOString() ?? null,
+    ended: run.ended?.toISOString() ?? null,
+  };
+}
+
+function statusJson({ item, stored, runs, archivedRuns, archivedCard, phase }: Status): string {
   return JSON.stringify(
     {
       id: item.id,
@@ -172,14 +199,9 @@ function statusJson({ item, stored, runs, phase }: Status): string {
       row: phase?.row ?? null,
       rule: phase ? PHASE_ROWS[phase.row] : null,
       tried: phase?.tried ?? false,
-      runs: runs.map((run) => ({
-        id: agentKey(run),
-        run: run.run,
-        kind: run.kind,
-        state: run.state,
-        started: run.started?.toISOString() ?? null,
-        ended: run.ended?.toISOString() ?? null,
-      })),
+      archivedCard,
+      runs: runs.map(runJson),
+      archivedRuns: archivedRuns.map(runJson),
     },
     null,
     2,
@@ -224,17 +246,28 @@ function columnLines(phase: Phase): string[] {
   ];
 }
 
-function statusText(home: string, { item, stored, runs, phase }: Status): string {
+function runLine(home: string, run: LedgerAgent): string {
+  const ended = run.ended ? `\tended ${formatTime(run.ended.toISOString(), home)}` : '';
+  return `  ${agentKey(run)}\t${run.kind}\t${stateWord(run)}${ended}`;
+}
+
+function statusText(
+  home: string,
+  { item, stored, runs, archivedRuns, archivedCard, phase }: Status,
+): string {
   return [
     `${item.id}  ${item.title}`,
     stateLine(item),
-    ...recordLines(stored),
+    ...(archivedCard
+      ? ['archived: the card left backlog.jsonl (once-upon compact); the board does not show it']
+      : recordLines(stored)),
     runs.length ? 'runs, oldest first:' : 'runs: none',
-    ...runs.map(
-      (run) =>
-        `  ${agentKey(run)}\t${run.kind}\t${stateWord(run)}${run.ended ? `\tended ${formatTime(run.ended.toISOString(), home)}` : ''}`,
-    ),
-    ...columnLines(phase),
+    ...runs.map((run) => runLine(home, run)),
+    ...(archivedRuns.length
+      ? ['archived runs (once-upon compact moved them out of agents.jsonl):']
+      : []),
+    ...archivedRuns.map((run) => runLine(home, run)),
+    ...(archivedCard ? [] : columnLines(phase)),
     TIME_NOTE,
   ].join('\n');
 }

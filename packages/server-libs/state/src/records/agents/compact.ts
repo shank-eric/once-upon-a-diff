@@ -1,11 +1,12 @@
 /*
- * What `once-upon doctor --fix` keeps of agents.jsonl. The log only grows, so a run that is over for good goes, and a run that
+ * What `once-upon compact` keeps of agents.jsonl. The log only grows, so a run that is over for good goes (to the archive), and a run that
  * stays keeps one beat. It plans from the lines and returns lines, never new ones: the format and the fold are untouched,
  * and what the fold tells about every run that stays is what it told before.
  *
  * A run goes, with every event it has (its start, state, branch, card and finish lines, found by the `run` they name, and by
  * its place after the id's latest start for a line that names none), when it is over, it ended before the cutoff (the end of its latest finish: the agent's own replaces the SubagentStop hook's), it did not
- * fail or its failure was acknowledged (`agent ack`: an unacked failed run stays, it is what the board shows as failed), and its card is done, dropped or none (and so is every card its finishes
+ * fail,
+ * or its failure was acknowledged (`agent ack`) or a later start of its id replaced it (an unacked failed run that is its id's latest stays: it is what the board shows as failed), and its card is done, dropped or none (and so is every card its finishes
  * named): a run on an open or started card, or on a card the backlog does not know (an implicit `ic_` card: it never lands, and
  * its runs are all there is of it), is the card's history, and a deploy matches a card to the commit its finish recorded. A run that stays keeps
  * only the last `beat` the fold applied (a beat is the only event that overwrites the one before it, and a beat after the run
@@ -31,6 +32,8 @@ interface Run {
   hooked: boolean;
   /** a failed run acknowledged (`agent ack`) */
   acked: boolean;
+  /** a later start of its id came: the board shows only an id's latest run, so a failure here is no longer shown */
+  replaced: boolean;
   lastBeat: number;
   events: number[];
 }
@@ -52,6 +55,9 @@ interface Runs {
 
 function startRun(runs: Runs, event: AgentEvent, index: number, when: number): void {
   const current = runs.latest.get(event.id);
+  if (current) {
+    current.replaced = true;
+  }
   if (current?.open) {
     current.open = false;
     current.endState = 'stopped';
@@ -66,6 +72,7 @@ function startRun(runs: Runs, event: AgentEvent, index: number, when: number): v
     endedAt: null,
     hooked: false,
     acked: false,
+    replaced: false,
     lastBeat: -1,
     events: [index],
   };
@@ -137,16 +144,24 @@ function foldRunEvent(run: Run, event: AgentEvent, index: number, when: number):
   }
 }
 
+/** What `planAgentLines` decided: the lines to keep (in the file's order) and those of the runs that go, for the archive. */
+export interface AgentPlan {
+  kept: string[];
+  archived: string[];
+}
+
 /**
- * The lines to keep, in the file's order. `cardState` tells what a card is (`open` for one that is open or started;
- * `closed` for one done or dropped; undefined for one the backlog does not know, which stays like an open one); a run ended
- * before `cutoff` (ms) whose cards are all closed (or none), and did not fail, goes.
+ * Plans the lines. `cardState` tells what a card is (`open` for one that is open or started, or closed too recently; `closed` for
+ * one done or dropped before the archive cutoff; undefined for one the backlog does not know, which stays like an open one). A run
+ * ended before `cutoff` (ms) whose cards are all closed (or none), and did not fail, goes whole, to `archived`. Of the runs that
+ * stay, every one keeps only its last beat, except a finished run that ended after `foldCutoff` (ms), which keeps all of them.
  */
-export function compactAgentLines(
+export function planAgentLines(
   lines: string[],
   cutoff: number,
   cardState: (card: string) => CardState | undefined,
-): string[] {
+  foldCutoff = Infinity,
+): AgentPlan {
   const events: (AgentEvent | null)[] = lines.map((line) => {
     try {
       return readAgentEvent(JSON.parse(line)) ?? null;
@@ -170,21 +185,32 @@ export function compactAgentLines(
     runs.all.filter(
       (run) =>
         !run.open &&
-        (run.endState !== 'failed' || run.acked) &&
+        (run.endState !== 'failed' || run.acked || run.replaced) &&
         run.endedAt !== null &&
         run.endedAt < cutoff &&
         // a card the backlog does not know (an implicit `ic_` card, which never lands) is as live as an open one
         [run.card, ...run.named].every((card) => !card || cardState(card) === 'closed'),
     ),
   );
-  return lines.filter((line, index) => {
+  // a finished run that ended after the fold cutoff keeps its beats
+  const recent = (run: Run) => !run.open && (run.endedAt ?? -Infinity) >= foldCutoff;
+  const plan: AgentPlan = { kept: [], archived: [] };
+  lines.forEach((line, index) => {
     const run = runs.group.get(index);
-    if (!run) {
-      return true;
+    if (run && gone.has(run)) {
+      plan.archived.push(line);
+    } else if (!run || events[index]?.op !== 'beat' || run.lastBeat === index || recent(run)) {
+      plan.kept.push(line);
     }
-    if (gone.has(run)) {
-      return false;
-    }
-    return events[index]?.op !== 'beat' || run.lastBeat === index;
   });
+  return plan;
+}
+
+/** The lines `planAgentLines` keeps, thinning every run's beats. */
+export function compactAgentLines(
+  lines: string[],
+  cutoff: number,
+  cardState: (card: string) => CardState | undefined,
+): string[] {
+  return planAgentLines(lines, cutoff, cardState).kept;
 }

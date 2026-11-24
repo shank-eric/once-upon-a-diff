@@ -1,5 +1,5 @@
 /*
- * What `once-upon doctor --fix` keeps of backlog.jsonl. The log only grows, and ADR-29 makes the stored cards of agents, sessions, PRs
+ * What `once-upon compact` keeps of backlog.jsonl. The log only grows, and ADR-29 makes the stored cards of agents, sessions, PRs
  * and stories (`source` other than `backlog`) its bulk, so a card nobody can still be on goes, with every event it has (found by the
  * event's `id`). It plans from the lines and returns lines, never new ones: the fold and the format are untouched, and the cards
  * that stay fold as they did, in the same order (a listed card's moves name listed cards or edges, and a card another card's `move`
@@ -31,19 +31,22 @@ const parse = (line: string): BacklogEvent | null => {
 };
 
 /** The lines to keep, in the file's order. `cutoffMs` is the time before which a card is idle or closed; `named` tells a card some retained run names. */
-export function compactBacklogLines(
+export function compactBacklogLines(lines: string[], options: CompactOptions): string[] {
+  return planBacklogLines(lines, options).kept;
+}
+
+interface CompactOptions {
+  cutoffMs: number;
+  named: (id: string) => boolean;
+  /** whether a session (its full id) is still running; with none, no session is */
+  live?: (session: string) => boolean;
+}
+
+/** The lines to keep, and the lines of the cards that go (for the archive), each in the file's order. */
+export function planBacklogLines(
   lines: string[],
-  {
-    cutoffMs,
-    named,
-    live = () => false,
-  }: {
-    cutoffMs: number;
-    named: (id: string) => boolean;
-    /** whether a session (its full id) is still running; with none, no session is */
-    live?: (session: string) => boolean;
-  },
-): string[] {
+  { cutoffMs, named, live = () => false }: CompactOptions,
+): { kept: string[]; archived: string[] } {
   const events = lines.map(parse);
   const items = foldBacklogEvents(events.flatMap((event) => event ?? []));
   const latest = new Map<string, number>(); // a card's latest event time
@@ -83,8 +86,12 @@ export function compactBacklogLines(
       goes.add(item.id);
     }
   }
-  return lines.filter((_, index) => {
+  const archived = (index: number) => {
     const event = events[index];
-    return !event || !goes.has(event.id);
-  });
+    return !!event && goes.has(event.id);
+  };
+  return {
+    kept: lines.filter((_, index) => !archived(index)),
+    archived: lines.filter((_, index) => archived(index)),
+  };
 }

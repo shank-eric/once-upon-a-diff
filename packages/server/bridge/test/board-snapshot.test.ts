@@ -11,8 +11,14 @@ const golden = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
   'fixtures/board-worlds/golden',
 );
-const { snapshots, finish, scrubPids, storedCardsChangeNothing, keeperChangesNothing } =
-  await import('./fixtures/board-worlds/worlds.ts');
+const {
+  snapshots,
+  finish,
+  scrubPids,
+  storedCardsChangeNothing,
+  keeperChangesNothing,
+  compactionChangesNothing,
+} = await import('./fixtures/board-worlds/worlds.ts');
 after(finish);
 
 for (const [name, text] of Object.entries(snapshots)) {
@@ -76,5 +82,18 @@ test('the card keeper changes no board, and writes nothing a second time', async
   assert.ok(
     worlds.some(([, one]) => one.wrote > 0),
     'the keeper wrote a card in at least one world',
+  );
+});
+
+// `once-upon compact` (core/src/orchestration/bridge/compact-logs.ts): every world's board is the same with its logs compacted. The report says
+// whether a world had anything to compact; the gate means nothing if no world did.
+test('compacting the logs changes no board', async () => {
+  const worlds = Object.entries(await compactionChangesNothing());
+  for (const [name, one] of worlds) {
+    assert.equal(one.after, one.before, `${name}: the board changed when the logs were compacted`);
+  }
+  assert.ok(
+    worlds.some(([, one]) => one.report.some((line) => line.startsWith('agents.jsonl'))),
+    'agents.jsonl shrank in at least one world',
   );
 });

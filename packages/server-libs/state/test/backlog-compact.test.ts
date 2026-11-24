@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { foldBacklog } from '../src/queues/backlog/backlog.ts';
-import { compactBacklogLines } from '../src/queues/backlog/backlog-compact.ts';
+import { compactBacklogLines, planBacklogLines } from '../src/queues/backlog/backlog-compact.ts';
 
 const DAY = 24 * 3600 * 1000;
 const NOW = Date.parse('2026-11-18T12:00:00Z');
@@ -184,4 +184,38 @@ test('an idle session card whose session is still live stays; one whose session 
     }),
   );
   assert.deepEqual(kept, ['ic_live0000']);
+});
+
+test('the cards that go are returned for the archive with every line they had, and what stays folds the same', () => {
+  const rows = [
+    add('bl_stays00', 40),
+    event('start', 'bl_stays00', 39, { branch: 'b-1', repo: 'o/r' }),
+    add('ic_gone000', 40, { source: 'agent' }),
+    event('link', 'ic_gone000', 39, { branch: 'old' }),
+    add('bl_prclosed', 50, { source: 'pr', pr: 5, repo: 'o/r', branch: 'b-5' }),
+    event('drop', 'bl_prclosed', 40),
+    add('ic_recent00', 1, { source: 'agent' }),
+  ];
+  const plan = planBacklogLines(lines(rows), { cutoffMs: CUTOFF, named: () => false });
+  assert.deepEqual(ids(plan.archived), ['ic_gone000', 'bl_prclosed']);
+  assert.equal(plan.archived.length, 4);
+  assert.equal(plan.kept.length + plan.archived.length, rows.length);
+  // what went folds, alone, as the card did in the whole log; what stays folds as it did
+  const whole = foldBacklog(lines(rows).join('\n'));
+  for (const card of foldBacklog(plan.archived.join('\n'))) {
+    assert.deepEqual(
+      card,
+      whole.find((one) => one.id === card.id),
+    );
+  }
+  for (const card of foldBacklog(plan.kept.join('\n'))) {
+    assert.deepEqual(
+      card,
+      whole.find((one) => one.id === card.id),
+    );
+  }
+  // a second pass has nothing to move
+  const second = planBacklogLines(plan.kept, { cutoffMs: CUTOFF, named: () => false });
+  assert.deepEqual(second.kept, plan.kept);
+  assert.deepEqual(second.archived, []);
 });
