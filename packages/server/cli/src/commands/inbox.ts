@@ -81,11 +81,7 @@ async function wait(home: string, cfg: Config, opts: CliOpts) {
       out(JSON.stringify(stoppedEvent(outcome.scope, outcome.reason)));
       return;
     }
-    stoppedLines(
-      outcome.scope,
-      outcome.reason,
-      typeof opts.consumer === 'string' ? opts.consumer : undefined,
-    ).forEach(out);
+    stoppedLines(outcome.scope, outcome.reason).forEach(out);
     return;
   }
   for (const { entry, relay, lines } of outcome.items) {
@@ -233,11 +229,12 @@ export const inboxCommands: Command[] = [
       "                                                                 or a PR number here) takes one story's questions, and with build_request its Rebuild",
       "                                                                 requests, ahead of a --repo wait while it's live;",
       "                                                                 a consumer's first wait starts from now, but queued build requests are handed over whenever",
-      '                                                                 they were asked; a --story wait and a --repo wait stop themselves (printing "Stopped listening")',
-      '                                                                 once no page has shown the story for story_listener_idle_minutes (10; a background tab still counts);',
+      '                                                                 they were asked; a --repo wait stops itself (printing "Stopped listening")',
+      '                                                                 once no page has shown one of its stories for listen_idle_minutes (10; a background tab still counts);',
+      '                                                                 a --story wait keeps waiting while the story is in review and stops once the story is approved or deleted;',
       '                                                                 run from the session that owns the agent that built a story (once-upon bind), a question on that story',
       '                                                                 is printed with the SendMessage to send the agent instead of to answer; --no-relay answers it here;',
-      "                                                                 --keep (a listener you started by hand) skips that idle stop; the board's Stop listening still ends a --repo wait",
+      "                                                                 --keep (a listener you started by hand) skips a --repo wait's idle stop; the board's Stop listening still ends a --repo wait",
     ],
     run: wait,
   },

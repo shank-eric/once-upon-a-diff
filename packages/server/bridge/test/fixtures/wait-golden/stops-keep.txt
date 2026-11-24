@@ -1,14 +1,3 @@
-## --keep story: no idle stop
-args: wait --story acme-widgets-7 --keep --timeout 4
-exit: 2
---- stdout
-
---- stderr
-
---- files
-cursors/story-acme-widgets-7.json: {"offset":0,"at":"<ts>"}
-listeners/story-acme-widgets-7.json: {"consumer":"story-acme-widgets-7","pid":0,"state":"waiting","at":"<ts>","story":"acme-widgets-7","builds":true,"fixes":true}
-
 ## --keep repo: no idle stop
 args: wait --repo acme/widgets --keep --timeout 4
 exit: 2

@@ -1,18 +1,19 @@
 /*
  * A story listener's natural end. A page showing a story tells the bridge so: the panel's pulse (every 5s while
  * its tab shows) and the local page's version poll (while its panel is closed). The bridge notes the time as the
- * story's seen.json, at most every SEEN_WRITE_MS. A `wait --story` stops itself once no page has shown its story
- * for the idle window (story_listener_idle_minutes in config.json, default 10), counted from when the wait started
- * if no page has shown it since. It never stops while its session has the story's fix request or rebuild in hand.
- * A `wait --repo` stops the same way, once no page has shown any of the repo's stories for the idle window
+ * story's seen.json, at most every SEEN_WRITE_MS. A `wait --story` has no idle window: an idle wait costs nothing, so
+ * it keeps waiting while the story is in review, whether or not a page shows it, and stops once it is not: the story is
+ * gone (deleted), or an approval that counts is on it (a wait started on an approved story, as after handling an
+ * approval, ends at once). An approval, a fix request and a question made while it waits end it by being handed over.
+ * A `wait --repo` stops once no page has shown any of the repo's stories for the idle window
  * (listen_idle_minutes, default 10), and also when the board's Stop listening asks (a stop request: stopRequest). Both
- * are logged to <home>/listeners.log. Catch-all waits never stop this way.
+ * are logged to <home>/listeners.log, as is a story wait's stop. Catch-all waits never stop this way.
  *
  * A tab in the background doesn't pulse, but its page is still open: while the tab is hidden the panel and the local
  * page send a slow "still open" signal instead (POST /api/stories/<id>/seen, about once a minute, STILL_OPEN_MS in
  * panel/src/shell/overlay.ts and web/public/local/polls.ts). It does nothing but note the story as seen, so a reader who keeps the
- * story's tab in the background doesn't lose the listener. Only a closed tab, or a browser that stops its timers, lets
- * the idle window run out.
+ * story's tab in the background doesn't lose the repo listener. Only a closed tab, or a browser that stops its timers,
+ * lets the idle window run out.
  */
 import { repoKey } from '@once-upon-a-diff/terms/ids';
 import { readFixes } from '@once-upon-a-diff/state/queues/requests/fixes';
@@ -22,6 +23,8 @@ import { readJson, writeFileAtomic } from '@once-upon-a-diff/adapters/stores/fs/
 import { plural } from '@once-upon-a-diff/terms/text';
 import path from 'node:path';
 import { SEEN_WRITE_MS } from '@once-upon-a-diff/terms/timing';
+import { approvalOf } from '@once-upon-a-diff/stories/approval';
+import { readMeta } from '@once-upon-a-diff/stories/meta';
 import { sameRepo } from '@once-upon-a-diff/foundation/repos';
 import type { StoryStore } from '@once-upon-a-diff/stories/store';
 import { ensureDir, appendText } from '@once-upon-a-diff/adapters/stores/fs/files';
@@ -57,10 +60,6 @@ function lastSeen(stories: StoryStore, id: string): number | null {
   return Number.isFinite(seenAt) ? seenAt : null;
 }
 
-/** The idle window: story_listener_idle_minutes in config.json, else DEFAULT_IDLE_MINUTES. */
-export const idleMsOf = (home: string): number =>
-  (readSettings(home).storyListenerIdleMinutes ?? DEFAULT_IDLE_MINUTES) * 60000;
-
 /** What this listener still has in hand for the story (a fix request or a rebuild it claimed), or null. */
 export function inHand(home: string, consumer: string, story: string): string | null {
   const fixes = Object.values(readFixes(home)).filter(
@@ -83,31 +82,24 @@ const windowText = (windowMs: number) =>
     : plural(Math.round(windowMs / 1000), 'second');
 
 /**
- * Why the story's listener should stop now, or null. startedAt is when the wait began, so a story no page has
- * shown since then gets the whole window too.
+ * Why the story's listener should stop now, or null: the story is no longer in review (it is gone, or an approval that
+ * still counts is on it), never that no page shows it.
  */
 export function stopReason({
-  home,
   stories,
   story,
-  consumer,
-  startedAt,
-  idleMs,
-  now = Date.now(),
 }: {
-  home: string;
   stories: StoryStore;
   story: string;
-  consumer: string;
-  startedAt: number;
-  idleMs: number;
-  now?: number;
 }): string | null {
-  const since = Math.max(lastSeen(stories, story) || 0, startedAt);
-  if (now - since < idleMs || inHand(home, consumer, story)) {
-    return null;
+  const dir = stories.dirOf(story);
+  if (!dir) {
+    return 'the story is no longer there';
   }
-  return `no page has shown the story for ${windowText(idleMs)}`;
+  const headOid = readMeta(dir).head_oid;
+  return approvalOf(stories, story, typeof headOid === 'string' ? headOid : null)
+    ? 'the story is approved'
+    : null;
 }
 
 /** The idle window for a repo's wait: listen_idle_minutes in config.json, else DEFAULT_IDLE_MINUTES. */

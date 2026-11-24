@@ -397,8 +397,6 @@ function readBoard(cfg: Record<string, unknown>, repos: Record<string, RepoSetti
  *   listen_idle_minutes     how long a `wait --repo` keeps listening with no page showing one of the repo's stories (default 10;
  *                           it logs when it stops, to <home>/listeners.log). A page in a background tab still counts: it
  *                           sends a "still open" signal about once a minute, so only a closed tab runs the window out
- *   story_listener_idle_minutes  how long a `wait --story` keeps listening with no page showing its story (default 10; a
- *                           background tab counts as showing it, as above)
  *   allowed_hosts           host names the bridge answers besides 127.0.0.1 and localhost (a reverse proxy such as puma-dev
  *                           forwards the name you typed); only these exact names, which keeps DNS rebinding out
  *                           (default ["once-upon.test", "once-upon.fidev.net"])
@@ -448,7 +446,6 @@ export function readSettings(home = homeDir()) {
         : null,
     unsetGithubToken: cfg.gh_unset_github_token === true,
     repoListenerIdleMinutes: positiveNumber(cfg.listen_idle_minutes),
-    storyListenerIdleMinutes: positiveNumber(cfg.story_listener_idle_minutes),
     ...readHosts(cfg),
     board: readBoard(cfg, repos),
     repos,

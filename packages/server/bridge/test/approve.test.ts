@@ -415,7 +415,19 @@ test('once-upon approve approves at the current head, tells a story listener onl
     const heard = await wait('--story', id, '--consumer', `story-${id}`);
     assert.deepEqual(types(heard.stdout), ['approved']);
     assert.match(
-      (await runCli(home, ['wait', '--story', id, '--consumer', 'x', '--timeout', '1'])).stdout,
+      // (--no-auto-stop: an approved story's wait would otherwise stop with its notice)
+      (
+        await runCli(home, [
+          'wait',
+          '--story',
+          id,
+          '--consumer',
+          'x',
+          '--no-auto-stop',
+          '--timeout',
+          '1',
+        ])
+      ).stdout,
       /^$/,
       'a wait with no cursor yet starts from now',
     );

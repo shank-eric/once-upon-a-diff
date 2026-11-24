@@ -64,7 +64,7 @@ This covers every file and in-memory cache that the bridge, the CLI, the extensi
 |---|---|---|---|---|
 | `ui.json` | bridge `POST …/ui` (local page only) | local page | panel step, width, collapsed, hidden | Missing: Overview. **The extension keeps its own copy per PR in `chrome.storage`** |
 | `position.json` | bridge `POST …/position` (panel, debounced 1.2 s) | skills ("this one"), the board's `seen_at` for a story | `{step, chapter, file, at}` | Missing: the skill can't tell where the reader is |
-| `seen.json` | bridge on pulse, version poll and hidden-tab ping, at most every 30 s (in-memory throttle) | `wait --story`/`--repo` auto-stop | `{at}` | Missing: the idle window counts from the wait's start |
+| `seen.json` | bridge on pulse, version poll and hidden-tab ping, at most every 30 s (in-memory throttle) | `wait --repo` auto-stop | `{at}` | Missing: the idle window counts from the wait's start |
 | `viewed.json` | bridge `POST …/viewed` (local stories) | local page via story data | `{path: {hash}}` | A changed file hash shows "changed since viewed" |
 | `notes.json` | bridge (add, edit, send, take back), CLI `fixed` | panel, local page, `notes`, `drafts`, pulse | `[LocalNote]` with `sent`/`fixed`/`returned` | Written under `fixes.json.lock`. The marks follow `fixes.json`, which is the record: each change writes the request first, then brings the notes in line (`alignNotes`), and the fixes view mends notes that lag |
 | `fix-settings.json` | bridge (Auto-send) | bridge | `{auto_send, at}` | off |

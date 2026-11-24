@@ -168,18 +168,21 @@ function check(name: string, text: string): void {
   assert.equal(text, readFileSync(file, 'utf8'), `${name} differs from ${file}`);
 }
 
-/** A home with the PR story and the idle windows (seconds), and the inbox ready. */
+/**
+ * A home with the PR story and the repo wait's idle window (seconds), and the inbox ready. `oldStoryWindow` writes the
+ * retired story_listener_idle_minutes (seconds): a story wait on main stopped after that long with no page.
+ */
 function homeWith({
-  story = 1000,
   repo = 1000,
   local = false,
-}: { story?: number; repo?: number; local?: boolean } = {}) {
+  oldStoryWindow,
+}: { repo?: number; local?: boolean; oldStoryWindow?: number } = {}) {
   const home = tmp('home');
   writeJson(path.join(home, 'config.json'), {
     port: 0,
     token: TOKEN,
-    story_listener_idle_minutes: story / 60,
     listen_idle_minutes: repo / 60,
+    ...(oldStoryWindow !== undefined && { story_listener_idle_minutes: oldStoryWindow / 60 }),
   });
   githubStory(
     path.join(home, STORY),
@@ -690,26 +693,53 @@ describe('wait', { concurrency: 2 }, () => {
     });
 
     // the stop cases wait out an idle window or a timeout each, so each group is its own test and runs beside the others
-    test('stops: a story wait and a repo wait that go idle, as text and as --json', async () => {
-      const [story, storyJson, repo, repoJson] = [
-        homeWith({ story: 1 }),
-        homeWith({ story: 1 }),
+    test('stops: a repo wait that goes idle, as text and as --json, while a story wait with no page keeps waiting', async () => {
+      // the story's old window (1 second) is long past by the 4-second timeout: main stopped this wait, this one runs into it
+      const [story, repo, repoJson] = [
+        homeWith({ oldStoryWindow: 1 }),
         homeWith({ repo: 1 }),
         homeWith({ repo: 1 }),
       ];
       const runs = await Promise.all([
-        cli(story.home, [...STORY_WAIT, '--timeout', '20']),
-        cli(storyJson.home, [...STORY_WAIT, '--timeout', '20', '--json']),
+        cli(story.home, [...STORY_WAIT, '--timeout', '4']),
         cli(repo.home, [...REPO_WAIT, '--timeout', '20']),
         cli(repoJson.home, [...REPO_WAIT, '--timeout', '20', '--json']),
       ]);
       check(
         'stops-idle',
         [
-          section('story idle', runs[0], story.home),
-          section('story idle, json', runs[1], storyJson.home),
-          section('repo idle', runs[2], repo.home),
-          section('repo idle, json', runs[3], repoJson.home),
+          section('story with no page: no idle stop', runs[0], story.home),
+          section('repo idle', runs[1], repo.home),
+          section('repo idle, json', runs[2], repoJson.home),
+        ].join('\n'),
+      );
+    });
+
+    test('stops: a story wait on an approved story stops, as text and as --json', async () => {
+      const [text, json] = [homeWith({ local: true }), homeWith({ local: true })];
+      for (const { home } of [text, json]) {
+        // the story's head is the commit the approval names, and the approval was handed over already
+        writeJson(path.join(home, STORY, 'meta.json'), {
+          kind: 'local',
+          repo: 'acme/widgets',
+          title: 'Add widgets',
+          branch: 'ou-cache',
+          repo_path: '/work/widgets-worktrees/ou-cache',
+          head_oid: 'c'.repeat(40),
+        });
+        writeJson(path.join(home, 'state', STORY, 'review.json'), {
+          approval: { at: new Date().toISOString(), head_oid: 'c'.repeat(40), base_oid: null },
+        });
+      }
+      const runs = await Promise.all([
+        cli(text.home, [...STORY_WAIT, '--timeout', '20']),
+        cli(json.home, [...STORY_WAIT, '--timeout', '20', '--json']),
+      ]);
+      check(
+        'stops-story-approved',
+        [
+          section('story approved', runs[0], text.home),
+          section('story approved, json', runs[1], json.home),
         ].join('\n'),
       );
     });
@@ -727,58 +757,33 @@ describe('wait', { concurrency: 2 }, () => {
       check('stops-board', section('board stop', await waiting, board.home));
     });
 
-    test('stops: a claimed fix or rebuild holds the wait, and --no-auto-stop and a catch-all never stop', async () => {
-      const heldFix = homeWith({ story: 1 });
-      addFixes(
-        heldFix.home,
-        FIX('fx_held', { to: 'story-acme-widgets-7', claimed_by: 'story-acme-widgets-7' }),
-      );
-      const heldBuild = homeWith({ story: 1 });
-      rebuild(heldBuild.home);
-      new Builds(heldBuild.home).toHand('story-acme-widgets-7', { story: STORY });
+    test('stops: a claimed fix holds a repo wait, and --no-auto-stop and a catch-all never stop', async () => {
       const heldRepo = homeWith({ repo: 1 });
       addFixes(
         heldRepo.home,
         FIX('fx_held', { to: 'repo-acme-widgets', claimed_by: 'repo-acme-widgets' }),
       );
-      const [optStory, optRepo, catchAll] = [
-        homeWith({ story: 1, repo: 1 }),
-        homeWith({ story: 1, repo: 1 }),
-        homeWith({ story: 1, repo: 1 }),
-      ];
+      const [optRepo, catchAll] = [homeWith({ repo: 1 }), homeWith({ repo: 1 })];
       const runs = await Promise.all([
-        cli(heldFix.home, [...STORY_WAIT, '--timeout', '4']),
-        cli(heldBuild.home, [...STORY_WAIT, '--type', 'question', '--timeout', '4']),
         cli(heldRepo.home, [...REPO_WAIT, '--timeout', '4']),
-        cli(optStory.home, [...STORY_WAIT, '--no-auto-stop', '--timeout', '4']),
         cli(optRepo.home, [...REPO_WAIT, '--no-auto-stop', '--timeout', '4']),
         cli(catchAll.home, ['wait', '--timeout', '4']),
       ]);
       check(
         'stops-held',
         [
-          section('held by a fix', runs[0], heldFix.home),
-          section('held by a rebuild', runs[1], heldBuild.home),
-          section('repo held by a fix', runs[2], heldRepo.home),
-          section('--no-auto-stop story', runs[3], optStory.home),
-          section('--no-auto-stop repo', runs[4], optRepo.home),
-          section('catch-all never stops', runs[5], catchAll.home),
+          section('repo held by a fix', runs[0], heldRepo.home),
+          section('--no-auto-stop repo', runs[1], optRepo.home),
+          section('catch-all never stops', runs[2], catchAll.home),
         ].join('\n'),
       );
     });
 
-    test("stops: --keep skips the idle stop for a story and a repo wait, but the board's Stop listening still ends a repo wait", async () => {
-      const [story, repo, board] = [
-        homeWith({ story: 1 }),
-        homeWith({ repo: 1 }),
-        homeWith({ repo: 1 }),
-      ];
+    test("stops: --keep skips the idle stop for a repo wait, but the board's Stop listening still ends it", async () => {
+      const [repo, board] = [homeWith({ repo: 1 }), homeWith({ repo: 1 })];
       const waiting = cli(board.home, [...REPO_WAIT, '--keep', '--timeout', '20']);
-      const runs = await Promise.all([
-        cli(story.home, [...STORY_WAIT, '--keep', '--timeout', '4']),
-        cli(repo.home, [...REPO_WAIT, '--keep', '--timeout', '4']),
-      ]);
-      // the idle window (1 second) is long past in those two; this one is stopped by the board, which still counts
+      const run = await cli(repo.home, [...REPO_WAIT, '--keep', '--timeout', '4']);
+      // the idle window (1 second) is long past in the first; this one is stopped by the board, which still counts
       while (!existsSync(path.join(board.home, 'listeners', 'repo-acme-widgets.json'))) {
         await new Promise((resolve) => setTimeout(resolve, 50));
       }
@@ -788,20 +793,19 @@ describe('wait', { concurrency: 2 }, () => {
       check(
         'stops-keep',
         [
-          section('--keep story: no idle stop', runs[0], story.home),
-          section('--keep repo: no idle stop', runs[1], repo.home),
+          section('--keep repo: no idle stop', run, repo.home),
           section('--keep repo: the board still stops it', await waiting, board.home),
         ].join('\n'),
       );
     });
 
     test('stops: a due timeout wins over a due idle stop', async () => {
-      const order = homeWith({ story: 1, repo: 1 });
+      const order = homeWith({ repo: 1 });
       check(
         'stops-timeout-first',
         section(
           'timeout due with a stop',
-          await cli(order.home, [...STORY_WAIT, '--timeout', '1']),
+          await cli(order.home, [...REPO_WAIT, '--timeout', '1']),
           order.home,
         ),
       );

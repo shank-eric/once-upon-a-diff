@@ -1,0 +1,26 @@
+## story approved
+args: wait --story acme-widgets-7 --timeout 20
+exit: 0
+--- stdout
+Stopped listening for acme-widgets-7: the story is approved.
+Don't start this wait again: the story is no longer in review (approved, or gone). Its questions go to the repo's listener, if one is running.
+
+--- stderr
+
+--- files
+cursors/story-acme-widgets-7.json: {"offset":0,"at":"<ts>"}
+listeners/story-acme-widgets-7.json: {"consumer":"story-acme-widgets-7","pid":0,"state":"waiting","at":"<ts>","story":"acme-widgets-7","builds":true,"fixes":true,"stopped":true}
+listeners.log: <ts> story-acme-widgets-7 stopped listening for story acme-widgets-7: the story is approved
+
+## story approved, json
+args: wait --story acme-widgets-7 --timeout 20 --json
+exit: 0
+--- stdout
+{"type":"listen_stopped","story":"acme-widgets-7","reason":"the story is approved","at":"<ts>"}
+
+--- stderr
+
+--- files
+cursors/story-acme-widgets-7.json: {"offset":0,"at":"<ts>"}
+listeners/story-acme-widgets-7.json: {"consumer":"story-acme-widgets-7","pid":0,"state":"waiting","at":"<ts>","story":"acme-widgets-7","builds":true,"fixes":true,"stopped":true}
+listeners.log: <ts> story-acme-widgets-7 stopped listening for story acme-widgets-7: the story is approved

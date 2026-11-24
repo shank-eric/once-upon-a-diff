@@ -22,7 +22,6 @@ test('readSettings: an empty or wrongly shaped config reads as the defaults', ()
     assert.equal(got.openCommand, null);
     assert.equal(got.unsetGithubToken, false);
     assert.equal(got.repoListenerIdleMinutes, null);
-    assert.equal(got.storyListenerIdleMinutes, null);
     assert.deepEqual(got.allowedHosts, ['once-upon.test', 'once-upon.fidev.net']);
     assert.equal(got.publicHost, 'once-upon.test');
     assert.equal(got.publicHostSet, false);
@@ -51,7 +50,6 @@ test('readSettings: text, number, list and path settings of the wrong type or em
     open_command: [],
     gh_unset_github_token: 'true',
     listen_idle_minutes: 0,
-    story_listener_idle_minutes: '5',
     board_it2_path: '',
     board_sessions_dir: 5,
     board_ledger_file: [],
@@ -69,7 +67,6 @@ test('readSettings: text, number, list and path settings of the wrong type or em
   assert.equal(bad.openCommand, null);
   assert.equal(bad.unsetGithubToken, false);
   assert.equal(bad.repoListenerIdleMinutes, null);
-  assert.equal(bad.storyListenerIdleMinutes, null);
   assert.equal(bad.board.it2Path, null);
   assert.equal(bad.board.sessionsDir, path.join(claude, 'sessions'));
   assert.equal(bad.board.ledgerFile, null);
@@ -89,7 +86,6 @@ test('readSettings: good values are kept, trimmed or expanded as each setting sa
     open_command: ['open', 1],
     gh_unset_github_token: true,
     listen_idle_minutes: 3,
-    story_listener_idle_minutes: 4.5,
     board_it2_path: '~/bin/it2',
     board_sessions_dir: '/s',
     board_projects_dir: '~/p',
@@ -109,7 +105,6 @@ test('readSettings: good values are kept, trimmed or expanded as each setting sa
   assert.deepEqual(got.openCommand, ['open', '1']);
   assert.equal(got.unsetGithubToken, true);
   assert.equal(got.repoListenerIdleMinutes, 3);
-  assert.equal(got.storyListenerIdleMinutes, 4.5);
   assert.equal(got.board.it2Path, path.join(os.homedir(), 'bin/it2'));
   assert.equal(got.board.sessionsDir, '/s');
   assert.equal(got.board.projectsDir, path.join(os.homedir(), 'p'));

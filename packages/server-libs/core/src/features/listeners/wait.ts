@@ -5,12 +5,12 @@
  * A story's own wait (`--story`) takes that story's questions ahead of a repo-wide one: see the routing rule in
  * queues/requests/conversation.ts. With build_request in its type, it takes the story's Rebuild requests the same way
  * (queues/requests/builds.ts). Fix requests (fix_request in the type) are routed the same way too, from the queue in
- * queues/requests/fixes.ts. A story's wait also stops itself once no page has shown the story for a while (auto-stop.ts), unless
- * --no-auto-stop or --keep. A repo's wait stops once none of its stories has been shown, or when the board's Stop listening asks;
- * --keep (a listener started by hand) skips only the idle stop, so the board's Stop listening still ends it, which --no-auto-stop does not.
+ * queues/requests/fixes.ts. A story's wait keeps waiting while the story exists, however long no page shows it, and stops itself only
+ * when the story is deleted (auto-stop.ts), unless --no-auto-stop or --keep. A repo's wait stops once none of its stories has
+ * been shown, or when the board's Stop listening asks; --keep (a listener started by hand) skips only the idle stop, so the board's Stop listening still ends it, which --no-auto-stop does not.
  *
  * The order inside one pass is the contract the once-upon-listen skill leans on: what was handed over wins over a due timeout,
- * a due timeout over a story's idle stop, and that over the repo's.
+ * a due timeout over a story's stop, and that over the repo's.
  */
 import { repoListenerName } from '@once-upon-a-diff/terms/ids';
 import { existsSync, watch } from 'node:fs';
@@ -35,14 +35,7 @@ import { fixesToHand } from '@once-upon-a-diff/state/queues/requests/fixes';
 import { ownSession, type Binding } from '@once-upon-a-diff/state/records/listeners/binding';
 import { beat, listeners, wasStopped } from '@once-upon-a-diff/state/records/listeners/listeners';
 import { StoryStore } from '@once-upon-a-diff/stories/store';
-import {
-  idleMsOf,
-  logStop,
-  repoIdleMsOf,
-  repoStopReason,
-  stopReason,
-  stopRequested,
-} from './auto-stop.ts';
+import { logStop, repoIdleMsOf, repoStopReason, stopReason, stopRequested } from './auto-stop.ts';
 import { noteRelayed, relayEntryMessage, relayFallback, relaysOf } from './relay.ts';
 import type { Relayable } from './relay.ts';
 import { handOverLines, relayBlock, type Printable, type StopScope } from './hand-over.ts';
@@ -331,15 +324,13 @@ export async function wait(home: string, opts: WaitOptions): Promise<WaitOutcome
   };
   const pollMs = pollMsOf(opts.pollSeconds);
   const deadline = opts.timeout ? Date.now() + Number(opts.timeout) * 1000 : Infinity;
-  // a story's wait ends on its own once no page has shown the story for the idle window
+  // a story's wait has no idle stop: it keeps waiting while the story is in review and ends on its own once it is not (a
+  // story that was there when it began is deleted, or is approved). A wait for a story not told yet, by its number,
+  // keeps waiting for it.
+  const stories = new StoryStore({ home });
   const autoStop =
-    story && !opts.noAutoStop && !opts.keep
-      ? {
-          stories: new StoryStore({ home }),
-          story: String(story),
-          startedAt: Date.now(),
-          idleMs: idleMsOf(home),
-        }
+    story && !opts.noAutoStop && !opts.keep && stories.dirOf(String(story))
+      ? { stories, story: String(story) }
       : null;
   // a repo's wait ends on its own once no page has shown one of the repo's stories for the idle window, or when the
   // board's Stop listening asks (both logged to listeners.log)
@@ -382,6 +373,7 @@ export async function wait(home: string, opts: WaitOptions): Promise<WaitOutcome
   );
   // build requests come from builds.json (queued ones, claimed as they're handed over), so none are missed or given twice
   const builds = takesBuilds ? new Builds(home) : null;
+  let lastLook: string | null = null;
   try {
     for (;;) {
       const unread = filterEntries([...backlog, ...messages.unread(consumer, { advance: true })], {
@@ -425,7 +417,11 @@ export async function wait(home: string, opts: WaitOptions): Promise<WaitOutcome
         clearInterval(heartbeat);
         return { kind: 'timeout' };
       }
-      const reason = autoStop && stopReason({ home, consumer, ...autoStop });
+      // the stop must hold on two looks in a row: Approve writes the story's record before it appends the `approved` line,
+      // so a look between the two sees an approval whose line the next look hands over instead
+      const looked = autoStop && stopReason(autoStop);
+      const reason = looked && looked === lastLook ? looked : null;
+      lastLook = looked || null;
       if (reason) {
         clearInterval(heartbeat);
         logStop(home, `${consumer} stopped listening for story ${autoStop!.story}: ${reason}`);
