@@ -9,7 +9,7 @@
  * with keys, so focus, scroll and half-typed text stay. The regions (public/board/<region>) are its components; the page
  * holds what they share: the remembered settings, the bridge and the choice of which view draws a card.
  */
-import { html, render, useEffect } from '/assets/preact.mjs';
+import { html, render, useEffect, useRef } from '/assets/preact.mjs';
 import { createClient, type Transport } from '/assets/bridge-client/client.ts';
 import { usePoll } from '/assets/bridge-client/use-poll.ts';
 import { createUsage } from '/assets/bridge-client/usage.ts';
@@ -28,6 +28,14 @@ import { Helpers } from '/assets/board/columns/standing-helpers.ts';
 import { BacklogCard, useAddPanel, useBacklogDnd } from '/assets/board/backlog/backlog.ts';
 import { sameLaneKey } from '/assets/terms/lane-key.ts';
 import { Header } from '/assets/board/header/header.ts';
+import {
+  parseServerTiming,
+  timingText,
+  newPollLog,
+  pollEnded,
+  pollStarted,
+  type PollLog,
+} from '/assets/board/header/timing-text.ts';
 import { useBusy } from '/assets/ui-kit/components/action-button.ts';
 import { Worktrees } from '/assets/board/worktrees/worktrees.ts';
 
@@ -36,6 +44,8 @@ const app = document.getElementById('ou-board-app') as HTMLElement;
 const KEY = new URLSearchParams(location.hash.slice(1)).get('key') || '';
 /** Hands the key to the server when the host takes a cookie; calls wait for that so the cookie is there. */
 const authed = startAuth(KEY, '/api/board');
+/** The Server-Timing header of the last /api/board answer: how long the bridge's build took and the machine's load. */
+let boardServerTiming: string | null = null;
 
 /** The board's way to the bridge for the contracts package's client: its key (or its cookie), once the host's auth has settled. */
 const transport: Transport = async ({ method, path, body, signal }) => {
@@ -52,6 +62,9 @@ const transport: Transport = async ({ method, path, body, signal }) => {
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     const json: unknown = await response.json().catch(() => ({}));
+    if (path === '/api/board') {
+      boardServerTiming = response.headers.get('Server-Timing');
+    }
     if (!response.ok) {
       if (response.status === 401) {
         keyRefused(); // a key saved by an earlier visit that the bridge no longer takes
@@ -145,9 +158,27 @@ const EMPTY: BoardData = {
 
 /** The page: the board as last polled, and what went wrong with the polls since (none when the last one worked). */
 function BoardApp() {
-  const view = usePoll((signal) => bridge.ask(ROUTES.board, undefined, { signal }), {
-    everyMs: POLL_MS,
-  });
+  // what this page measured of its polls (the tooltip on the summary): read at each redraw, which every poll causes
+  const polled = useRef<PollLog>(newPollLog());
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        polled.current.hiddenSince = true;
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
+  const view = usePoll(
+    async (signal) => {
+      const start = Date.now();
+      pollStarted(polled.current, start);
+      const answer = await bridge.ask(ROUTES.board, undefined, { signal });
+      pollEnded(polled.current, start, Date.now());
+      return answer;
+    },
+    { everyMs: POLL_MS },
+  );
   const { refresh } = view;
   const full = view.data ?? EMPTY;
   const api: Api = { bridge, board: full, refresh, count: usage.count };
@@ -256,7 +287,7 @@ function BoardApp() {
   }
   return html`${
     failure ||
-    html`<${Header} summary=${summary} data=${data} now=${now} filter=${laneFilter} filterOn=${data !== full} onFilter=${setLaneFilter} tabs=${tabs} onToggleTabs=${() => {
+    html`<${Header} summary=${summary} timing=${timingText(parseServerTiming(boardServerTiming), polled.current)} data=${data} now=${now} filter=${laneFilter} filterOn=${data !== full} onFilter=${setLaneFilter} tabs=${tabs} onToggleTabs=${() => {
       usage.count('board.tab.switch');
       setTabs(!tabs);
     }} api=${api} busy=${voiceBusy} />

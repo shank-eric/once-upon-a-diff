@@ -4,6 +4,7 @@
  * tools is in ADR-11: Board has the actions, which are the board's writes, and landing a card whose PR merged (landMerged).
  */
 import { agentId } from '@once-upon-a-diff/terms/ids';
+import os from 'node:os';
 import path from 'node:path';
 import { readSettings } from '@once-upon-a-diff/foundation/settings';
 import {
@@ -101,6 +102,12 @@ const MOVED_AT_ONCE = 4;
 /** A snapshot waits this long for a session's repo to be looked up, then goes on without it (what was last known, or none). */
 const REPO_WAIT_MS = 500;
 
+/** How long a build took (ms) and the one-minute load average when it finished. */
+export interface BuildTiming {
+  ms: number;
+  load: number;
+}
+
 /** The data behind /board/. The instance remembers when each session entered its status, since the registry's time is for its own. */
 export class Board {
   private seen = new Map<string, SeenSession>();
@@ -130,6 +137,8 @@ export class Board {
   private tipsMoved = false;
   /** Bumped when what a build read is out of date, so a build that started before it does not fill the cache. */
   private generation = 0;
+  /** How long the last build took and the machine's one-minute load then, for the page's timing line (/api/board's Server-Timing). */
+  private lastBuild: BuildTiming | null = null;
   private blank = new BlankSessions();
   private titles = new SessionTitles();
   private liveness = new SubagentLiveness();
@@ -295,6 +304,11 @@ export class Board {
     const item = this.backlog.drop(id, who);
     this.invalidate();
     return item;
+  }
+
+  /** The last finished build's duration and the machine's load then; null before the first build. */
+  buildTiming(): BuildTiming | null {
+    return this.lastBuild;
   }
 
   async snapshot(): Promise<BoardData> {
@@ -676,7 +690,9 @@ export class Board {
       learn: !!this.options.keeper,
     });
     this.seen = built.seen;
-    this.logIfSlow(performance.now() - started, built.times);
+    const took = performance.now() - started;
+    this.lastBuild = { ms: Math.round(took), load: os.loadavg()[0] };
+    this.logIfSlow(took, built.times);
     this.listeningNow = { input: built.listening };
     // what the build learned goes to the keeper, which writes stored cards and never throws: nothing it does reaches the board
     try {
@@ -698,7 +714,7 @@ export class Board {
       .map(([stage, spent]) => `${stage} ${spent}`)
       .join(', ');
     this.options.log(
-      `board build ${Math.round(took)} ms (${stages || 'no stage over 50 ms'}); event loop max ${loop.max} ms, p99 ${loop.p99} ms since the last build`,
+      `board build ${Math.round(took)} ms (${stages || 'no stage over 50 ms'}); event loop max ${loop.max} ms, p99 ${loop.p99} ms since the last build; load ${os.loadavg()[0].toFixed(2)}`,
     );
   }
 

@@ -33,6 +33,18 @@ test('a quick build logs nothing', async () => {
   assert.deepEqual(lines, []);
 });
 
+test('the board keeps how long its last build took and the load then, and the slow-build line carries the load', async () => {
+  const home = tmp('board-build-timing');
+  const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
+    source: registrySource,
+    now: () => NOW,
+  });
+  assert.equal(board.buildTiming(), null, 'nothing before the first build');
+  await board.snapshot();
+  const timing = board.buildTiming();
+  assert.ok(timing && timing.ms >= 0 && timing.load >= 0);
+});
+
 test('a build over half a second logs one line: the slow stages and how long the event loop stood still', async () => {
   const home = tmp('board-slow-stage');
   const lines: string[] = [];
@@ -55,7 +67,7 @@ test('a build over half a second logs one line: the slow stages and how long the
   assert.equal(lines.length, 2);
   assert.match(
     lines[1],
-    /^board build \d+ ms \(.*collectWorks \d+.*\); event loop max \d+ ms, p99 \d+ ms/,
+    /^board build \d+ ms \(.*collectWorks \d+.*\); event loop max \d+ ms, p99 \d+ ms since the last build; load \d+\.\d\d$/,
   );
 });
 

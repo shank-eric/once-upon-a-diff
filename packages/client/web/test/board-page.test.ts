@@ -248,15 +248,18 @@ Object.assign(globalThis, {
       };
     }
     boardGets++;
+    const headers = {
+      get: (name: string) => (name === 'Server-Timing' ? 'build;dur=120, load;desc="2.31"' : null),
+    };
     await heldBoard;
     if (refuse) {
-      return { ok: false, status: refuse, json: async () => ({ error: 'no key' }) };
+      return { ok: false, status: refuse, headers, json: async () => ({ error: 'no key' }) };
     }
     const result = answer();
     if (result instanceof Error) {
       throw result;
     }
-    return { ok: true, status: 200, json: async () => result };
+    return { ok: true, status: 200, headers, json: async () => result };
   },
 });
 Object.defineProperty(document, 'visibilityState', { value: 'visible' });
@@ -336,6 +339,13 @@ test('the header says what is on the board: the summary, the usage meters and th
   assert.equal(meters[0].getAttribute('aria-valuenow'), '75');
   assert.ok(meters[0].className.includes('ou-ui-usage-warn'), 'yellow from 70%');
   assert.match($('[data-board-filter]')?.textContent as string, /Repo: All/);
+});
+
+test("the summary's tooltip carries the bridge's build time and load, from the board answer's Server-Timing header", () => {
+  assert.match(
+    $('.ou-local-top-main .ou-local-muted')?.getAttribute('title') as string,
+    /^bridge build 120 ms · load 2\.31 · request \d+ ms/,
+  );
 });
 
 test('a PR card GitHub has not answered lately carries an "unconfirmed" chip; one it has answered does not', async () => {

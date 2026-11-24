@@ -179,6 +179,8 @@ function VoiceControls(props: {
 export type HeaderProps = {
   /** The summary line under the title. */
   summary: string;
+  /** The summary's tooltip: the bridge's build time and load, and this page's poll gap (timing-text.ts); empty before the first poll. */
+  timing?: string;
   data: BoardData;
   now: number;
   /** The repo filter: a lane key, '' for All. The menu lists the lanes of the full board. */
@@ -194,7 +196,8 @@ export type HeaderProps = {
 };
 
 export function Header(props: HeaderProps) {
-  const { summary, data, now, filter, filterOn, onFilter, tabs, onToggleTabs, api, busy } = props;
+  const { summary, timing, data, now, filter, filterOn, onFilter, tabs, onToggleTabs, api, busy } =
+    props;
   const filterItems = () => [
     { value: '', label: 'All', detail: plural(api.board.lanes.length, 'lane'), checked: !filter },
     ...api.board.lanes.map((lane) => ({
@@ -209,7 +212,7 @@ export function Header(props: HeaderProps) {
     onFilter(value);
   };
   return html`<header class="ou-local-top">
-    <div class="ou-local-top-main"><h1>Agent board</h1><div class="ou-local-muted">${summary}</div></div>
+    <div class="ou-local-top-main"><h1>Agent board</h1><div class="ou-local-muted" title=${timing || undefined}>${summary}</div></div>
     <${Usage} usage=${data.usage} now=${now} />
     <${MenuButton} data-board-filter items=${filterItems} onPick=${pickFilter} label="Show one repo" title="Narrow the whole board to one repo's lane">Repo: ${filterOn ? (api.board.lanes.find((lane) => sameLaneKey(lane.key, filter))?.name ?? filter) : 'All'} ▾</${MenuButton}>
     <button type="button" data-board-tabs aria-pressed=${String(tabs)} onClick=${onToggleTabs} title="Show This Mac and GitHub as two tabs at any width (a narrow window always does)">Tabs${tabs ? ' ●' : ''}</button>

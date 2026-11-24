@@ -1081,3 +1081,12 @@ test(
     assert.equal((await post({ card: card.id })).status, 409);
   },
 );
+
+test("GET /api/board says how long its build took and the machine's load in a Server-Timing header", async () => {
+  const { bridge } = await boardBridge();
+  const answer = await rawRequest(bridge.base, 'GET', '/api/board', {
+    Authorization: `Bearer ${TOKEN}`,
+  });
+  assert.equal(answer.status, 200);
+  assert.match(String(answer.headers['server-timing']), /^build;dur=\d+, load;desc="\d+\.\d\d"$/);
+});

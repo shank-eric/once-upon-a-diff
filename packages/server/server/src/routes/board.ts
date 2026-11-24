@@ -1,7 +1,7 @@
 /*
  * The agent board (board/src/board.ts): the live Claude Code sessions and the registered background agents.
  *
- *   GET /api/board              the lanes and their cards
+ *   GET /api/board              the lanes and their cards; the Server-Timing header gives the last build's ms and the load
  *   GET /api/board/link         the board page's link, with the board's key. Only the bridge's token (the extension, the CLI) gets it
  *   POST /api/board/type        {kind: build|listen, session, repo? | story?}: type Build story's or Start listening's line (a
  *                               story's own listener with story) into the session's iTerm tab, when the session is at its prompt
@@ -55,8 +55,14 @@ import { carryApproval } from '@once-upon-a-diff/core/features/review/carry-appr
 import type { MoveTo } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import type { ApiRoute, Call } from '../types.ts';
 
+/** The snapshot, with how long its build took and the machine's load in a Server-Timing header (the board page's timing line reads it). */
 async function data({ app, send }: Call) {
-  return send(200, await app.board.snapshot());
+  const snapshot = await app.board.snapshot();
+  const timing = app.board.buildTiming();
+  const extra = timing
+    ? { 'Server-Timing': `build;dur=${timing.ms}, load;desc="${timing.load.toFixed(2)}"` }
+    : undefined;
+  return send(200, snapshot, undefined, extra);
 }
 
 /** The address the page was opened on, when it is a name from allowed_hosts, so the other page opens there too (and has its own cookie). */
