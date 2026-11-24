@@ -344,7 +344,20 @@ function isShown(
   );
 }
 
-/** The agents the board shows, minus the held ones, a retried run's predecessors, acked runs and dropped cards. */
+/**
+ * A storyteller still open (parked for your review, or running) on a PR that GitHub says merged: there is nothing left to
+ * review, and a merged PR is never learned as a card (so the run has none to join), so the run is left off the board.
+ * Asked only for a storyteller that names its PR (`--pr`); an answer GitHub has not given yet leaves it shown.
+ */
+function storyOnMergedPr(ctx: BuildContext, agent: LedgerAgent): boolean {
+  if (!isStoryteller(agent) || isFinished(agent) || !agent.repo || !agent.pr) {
+    return false;
+  }
+  ctx.review.kickInfo(agent.repo, agent.pr, ctx.nowMs);
+  return ctx.review.info(agent.repo, agent.pr)?.state === 'merged';
+}
+
+/** The agents the board shows, minus the held ones, a retried run's predecessors, acked runs, dropped cards and stories of merged PRs. */
 function shownAgents(
   ctx: BuildContext,
   agents: LedgerAgent[],
@@ -358,7 +371,8 @@ function shownAgents(
       !replacedByRetry(agent, agents) &&
       !isAcked(agent) &&
       !droppedCard(agent, stored) &&
-      isShown(ctx, agent, pendingOf.get(agent)),
+      isShown(ctx, agent, pendingOf.get(agent)) &&
+      !storyOnMergedPr(ctx, agent),
   );
 }
 

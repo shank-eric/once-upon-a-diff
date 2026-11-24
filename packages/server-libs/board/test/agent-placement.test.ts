@@ -920,6 +920,38 @@ test('an agent parked on [review] splits by push state, like the other doors', (
   );
 });
 
+test('a storyteller open on a PR that merged is left off the board, not parked in Ready (story-pr-7115)', () => {
+  const story = (over: Partial<LedgerAgent> = {}) =>
+    agent({
+      name: 'story-pr-7115',
+      kind: 'storyteller',
+      state: 'waiting',
+      review: true,
+      repo: 'acme/widgets',
+      branch: 'ADO-41650',
+      pr: 7115,
+      ...over,
+    });
+  const shown = (info: unknown, over: Partial<LedgerAgent> = {}) => {
+    const asked: number[] = [];
+    return [placeWith([story(over)], { tree: null, info, asked }).length, asked] as const;
+  };
+  assert.deepEqual(shown({ state: 'open' }), [1, [7115]], 'an open PR: parked in Ready as before');
+  assert.deepEqual(shown(null), [1, [7115]], 'GitHub has not answered: still shown');
+  assert.deepEqual(shown({ state: 'merged' }), [0, [7115]], 'merged: nothing left to review');
+  assert.deepEqual(
+    shown({ state: 'merged' }, { state: 'running', review: undefined }),
+    [0, [7115]],
+    'a story still being told for a merged PR',
+  );
+  assert.deepEqual(shown({ state: 'merged' }, { pr: null }), [1, []], 'no PR named: never asked');
+  assert.deepEqual(
+    shown({ state: 'merged' }, { kind: 'author' }),
+    [1, []],
+    'only a storyteller is hidden for a merged PR',
+  );
+});
+
 test('an old author whose branch name is reused is not Ready: its commit must be the worktree’s tip', () => {
   const done = { column: 'done', why: 'committed c80964d' };
   assert.deepEqual(
