@@ -123,6 +123,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
   const cardFacts: CardFacts = {
     unreadById,
     localCheckouts: collected.localCheckouts,
+    localById: new Map(localStoryList.map((story) => [story.id, story])),
   };
 
   const facts = await readSessionFacts(ctx, liveFacts, {

@@ -110,6 +110,8 @@ export interface CardFacts {
   unreadById: Map<string, number>;
   /** the newest local story's checkout for each repo and branch, for a PR card's commits-ahead count */
   localCheckouts: Map<string, { story: string; checkout: string }>;
+  /** the local stories by id, for the story an ahead card shows */
+  localById: Map<string, InboxLocalStory>;
 }
 
 /** A PR card's commits ahead of origin, as the checkout of a local story of its branch has them: null when the branch has no local story. */
@@ -238,6 +240,29 @@ function isUnconfirmed(ctx: BuildContext, work: Work, pr: PrInfo | null): boolea
   );
 }
 
+/** An open PR's commits ahead of origin, from the checkout of a local story of its branch. */
+function openPrAhead(
+  ctx: BuildContext,
+  facts: CardFacts,
+  work: Work,
+  pr: PrInfo | null,
+  branch: string | null | undefined,
+): BoardCard['ahead'] {
+  if (pr?.state !== 'open' || !branch || !work.repo) {
+    return null;
+  }
+  return aheadFor(ctx, facts.localCheckouts, work.repo, branch);
+}
+
+/** While your own PR's branch is ahead, the local story of that branch stands for the card: it is the one to review and approve. */
+function aheadStoryOf(
+  facts: CardFacts,
+  ahead: BoardCard['ahead'],
+  pr: PrInfo | null,
+): InboxLocalStory | undefined {
+  return ahead && pr?.mine ? facts.localById.get(ahead.story) : undefined;
+}
+
 /** A card for a work, or null when there is nothing left to show on it (a PR closed, or merged long ago, with no session). */
 function workCard(ctx: BuildContext, facts: CardFacts, work: Work): BoardCard | null {
   let pr = prOf(ctx, work);
@@ -252,6 +277,9 @@ function workCard(ctx: BuildContext, facts: CardFacts, work: Work): BoardCard | 
     pr = null;
     story = null;
   }
+  const branch = work.branch ?? pr?.branch;
+  const ahead = openPrAhead(ctx, facts, work, pr, branch);
+  story = aheadStoryOf(facts, ahead, pr) ?? story;
   const known =
     (!!pr && (pr.mine || pr.review_requested || !!story || work.built || !!building)) ||
     localToReview(facts, work, story);
@@ -260,7 +288,6 @@ function workCard(ctx: BuildContext, facts: CardFacts, work: Work): BoardCard | 
   }
   const sessions = work.sessions.map((view) => view.card);
   const repo = work.repo;
-  const branch = work.branch ?? pr?.branch;
   return {
     id: work.key,
     kind: 'work',
@@ -273,10 +300,7 @@ function workCard(ctx: BuildContext, facts: CardFacts, work: Work): BoardCard | 
     since: null,
     pr,
     ...(isUnconfirmed(ctx, work, pr) ? { pr_unconfirmed: true as const } : {}),
-    ahead:
-      pr?.state === 'open' && branch && work.repo
-        ? aheadFor(ctx, facts.localCheckouts, work.repo, branch)
-        : null,
+    ahead,
     story: storyView(story, facts),
     building,
     sessions,
@@ -357,6 +381,7 @@ function columnInputOf(
       : null,
     building: !!card.building,
     moved: !!moved,
+    ahead: !!card.ahead && card.pr?.state === 'open' && card.pr.mine,
     launched: launched && { running: launched.running.length },
   };
 }

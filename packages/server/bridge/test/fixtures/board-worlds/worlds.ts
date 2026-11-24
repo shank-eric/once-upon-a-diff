@@ -2596,6 +2596,75 @@ export function scrubPids(text: string, all: number[]): string {
     const info = prInfo(12, { title: 'Renamed PR', branch: 'feat/new-name' });
     await record('24-renamed-head-session', boardOf(home, fakeWatcher([info], {}).watcher));
   }
+
+  // 25. your own open PR whose branch has commits not pushed (the board asks each checkout, `aheadOf`) goes back to the Mac's side,
+  // on its local story: a (1 ahead, story not reviewed) and d (1 ahead, story reviewed, approved at an older head: the armada
+  // case: its PR story and its retold local story) are Ready; b (1 ahead, story approved for the head) is Ready to ship; f (1 ahead, a PR story and a local
+  // one) shows the local story; c (pushed, 0 ahead) stays on the PR side; e is someone else's PR, which stays where it was
+  {
+    const approvedAt = '2026-10-26T15:00:00Z';
+    const { home } = world([]);
+    const counts: Record<string, number> = {
+      'feat/ahead-a': 1,
+      'feat/ahead-b': 1,
+      'feat/ahead-c': 0,
+      'feat/ahead-d': 1,
+      'feat/ahead-e': 1,
+      'feat/ahead-f': 1,
+    };
+    const [a, b, c, d, e, f] = Object.keys(counts);
+    localStory(home, 'story-ahead-a', checkoutOf('widgets', a), a);
+    localStory(
+      home,
+      'story-ahead-b',
+      checkoutOf('widgets', b),
+      b,
+      { head_oid: 'b'.repeat(40) },
+      { 'review.json': { approval: { at: approvedAt, head_oid: 'b'.repeat(40), base_oid: null } } },
+    );
+    localStory(home, 'story-ahead-c', checkoutOf('widgets', c), c);
+    // d: approved at an older head (the tip is another commit), then amended; the retold story was reviewed by hand, not approved
+    localStory(
+      home,
+      'story-ahead-d',
+      checkoutOf('widgets', d, true),
+      d,
+      { head_oid: 'd'.repeat(40) },
+      {
+        'review.json': {
+          mark: { at: '2026-10-26T14:00:00Z', by: 'manual' },
+          approval: { at: approvedAt, head_oid: 'a'.repeat(40), base_oid: null },
+        },
+      },
+    );
+    prStory(home, 'acme-widgets-34', 'acme/widgets', 34, d);
+    localStory(home, 'story-ahead-e', checkoutOf('widgets', e), e);
+    prStory(home, 'acme-widgets-36', 'acme/widgets', 36, f);
+    localStory(home, 'story-ahead-f', checkoutOf('widgets', f), f);
+    const infos = [a, b, c, d, e, f].map((branch, index) =>
+      prInfo(31 + index, { branch, mine: branch !== e }),
+    );
+    const board = new Board(
+      home,
+      new StoryStore({ home }),
+      fakeWatcher(
+        infos,
+        Object.fromEntries(infos.map((info) => [`acme/widgets@${info.branch}`, info])),
+      ).watcher as never,
+      new Builds(home),
+      {
+        source: sourceSaying({}),
+        now: () => NOW,
+        repoOf,
+        aheadOf: async (_checkout: string, branch: string) => counts[branch],
+      },
+    );
+    // the first build has no ahead answer (it is looked up in the background); the answers are in by the next
+    await board.snapshot();
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    (board as any).invalidate();
+    await record('25-pr-ahead-local', board);
+  }
 }
 
 // ---- normalize paths and pids

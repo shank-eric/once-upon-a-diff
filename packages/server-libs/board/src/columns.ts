@@ -22,7 +22,8 @@
  *   ready     its story is built, it has no PR yet, and you haven't reviewed it, or an agent on it says `[review]` ("done" is not done until you've seen
  *             it), or (set by stages/agents.ts on an agent's own card) a finished author's commit is on a branch with no PR
  *             that is not merged and not pushed yet (pushed with no PR is ship, ready.ts). It is the Mac's side: a card with a PR, whoever wrote it and whatever story it has, is on GitHub's
- *             (back or pr_open). A rebuild of a local story since you opened it is a chip on its card
+ *             (back or pr_open), unless it is your own PR whose branch is ahead (commits not pushed yet) with a local story: that
+ *             is ready, or ship once its story is approved for the head, and goes back to pr_open when the push makes it 0 ahead. A rebuild of a local story since you opened it is a chip on its card
  *   pr_open   pushed with a PR, and nothing waits on you
  *   thinking  a research agent still running with no card to sit in (set by stages/agents.ts on an agent's own card), or a busy
  *             session with no author or fixer run open under its id that is not on a work card (its `thinking` flag, set where the sessions are
@@ -83,6 +84,8 @@ export interface ColumnInput {
   launched?: { running: number };
   /** the branch has moved past the commit the story was told over (stages/moved.ts): a card that would be Ready is Working */
   moved?: boolean;
+  /** your own open PR whose branch has commits origin lacks: its work is on the Mac again (see `onLocalSide`) */
+  ahead?: boolean;
 }
 
 /** When you last acted on the PR (ms): on GitHub, or by marking its story reviewed by hand. null when there is no sign. */
@@ -138,9 +141,14 @@ export function isLandedLocal({ story, pr }: Pick<ColumnInput, 'story' | 'pr'>):
   return !!story?.local && !!story.landed && !pr;
 }
 
-/** A local story approved for its current head, with no PR yet: ready to ship. */
-export function isApprovedLocal({ story, pr }: Pick<ColumnInput, 'story' | 'pr'>): boolean {
-  return !!story?.local && !!story.approved && !pr;
+/** Whether the card's work is on the Mac's side: it has no PR, or its PR is yours and its branch has commits not pushed yet. */
+export function onLocalSide({ pr, ahead }: Pick<ColumnInput, 'pr' | 'ahead'>): boolean {
+  return !pr || !!ahead;
+}
+
+/** A local story approved for its current head, with no PR yet (or a PR with commits not pushed): ready to ship. */
+export function isApprovedLocal(input: Pick<ColumnInput, 'story' | 'pr' | 'ahead'>): boolean {
+  return !!input.story?.local && !!input.story.approved && onLocalSide(input);
 }
 
 /** The column of a card that is being worked on or waits on an answer: Waiting, Checks, Working or Thinking, else null. */
@@ -178,31 +186,37 @@ function inProgressColumn({
 
 /** The column a story puts its card in (Ready, or back to you) while its work has no PR or the PR is yours, else null. */
 function storyColumn(input: ColumnInput): BoardColumn | null {
-  const { agents, pr, story, moved } = input;
+  const { agents, pr, story, moved, ahead } = input;
   const ready = moved ? 'working' : 'ready';
+  // an ahead PR is on the Mac's side through its local story only: a PR story keeps the GitHub side's rules
+  const local = !pr || (onLocalSide(input) && !!story?.local);
   // an answer to a question you asked, unread: back to you on the GitHub side for your own PR, in Ready while there is
   // no PR. On someone else's PR the answer is a chip on the card, not a reason to leave PR open (you asked about their
   // code while reviewing it; the ball is theirs unless GitHub requests you or its story has a new version)
   // a stub PR (before GitHub says who wrote it) is not known to be yours: it stays in PR open, marked unconfirmed, until it fills in
   if (story?.answered && (!pr || pr.mine)) {
-    return pr ? 'back' : ready;
+    return local ? ready : 'back';
   }
   // a story you have marked reviewed takes the card out of Ready even while the agent's [review] line stands
-  if (!pr && !story?.reviewed && agents.some((agent) => agent.review)) {
+  if (local && !story?.reviewed && agents.some((agent) => agent.review)) {
     return ready;
   }
   // Ready for your review is the Mac's side: a story whose work has no PR. Once a PR exists (even with a local story
   // of its branch, or a PR story you haven't opened), the card follows the PR's rules on the GitHub side
   if (story?.unread) {
-    if (!pr) {
+    if (local) {
       return ready;
     }
     if (!story.local) {
       return 'back';
     }
   }
-  if (story && !story.reviewed && !pr) {
+  if (story && !story.reviewed && local) {
     return ready;
+  }
+  // your PR's branch has commits not pushed, and the story that says so is local: its Approve and Push is still to come
+  if (ahead && story?.local) {
+    return 'ready';
   }
   return null;
 }
