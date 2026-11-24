@@ -29,6 +29,9 @@
     "packages/server-libs/stories": {
       "entry": ["scripts/*.ts"],
     },
+    "packages/server/bridge": {
+      "entry": ["scripts/*.ts"],
+    },
     "packages/client/panel": {
       "ignoreBinaries": ["jq"],
     },

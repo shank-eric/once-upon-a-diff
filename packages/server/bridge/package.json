@@ -16,7 +16,8 @@
     "test": "yarn workspace @once-upon-a-diff/foundation run node-check && node --test --test-timeout=60000 test/*.test.ts",
     "test:extension": "yarn workspace @once-upon-a-diff/foundation run node-check && yarn workspace @once-upon-a-diff/extension build && EXTENSION_DIR=\"$(yarn workspace @once-upon-a-diff/extension exec pwd)\" node test/browser/load-test.ts",
     "test:expand": "yarn workspace @once-upon-a-diff/foundation run node-check && yarn workspace @once-upon-a-diff/extension build && EXTENSION_DIR=\"$(yarn workspace @once-upon-a-diff/extension exec pwd)\" node test/browser/expand-test.ts",
-    "typecheck": "tsc -p tsconfig.json && tsc -p test/tsconfig.json && tsc -p test/browser/tsconfig.json"
+    "dup:rules": "yarn workspace @once-upon-a-diff/foundation run node-check && node scripts/restated-rules.ts",
+    "typecheck": "tsc -p tsconfig.json && tsc -p test/tsconfig.json && tsc -p test/browser/tsconfig.json && tsc -p scripts/tsconfig.json"
   },
   "dependencies": {
     "@once-upon-a-diff/cli": "workspace:*",

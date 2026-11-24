@@ -23,7 +23,8 @@
       "paths": [
         "packages/server/cli/src/",
         "packages/server/bridge/bin/",
-        "packages/server/bridge/instrumentation/"
+        "packages/server/bridge/instrumentation/",
+        "packages/server/bridge/scripts/"
       ],
       "note": "The once-upon command"
     },
