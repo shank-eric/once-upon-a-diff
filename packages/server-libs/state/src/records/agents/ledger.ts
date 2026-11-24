@@ -80,6 +80,10 @@ export const isAcked = (agent: Pick<LedgerAgent, 'state' | 'acked'>): boolean =>
 export const shownState = (agent: Pick<LedgerAgent, 'state' | 'acked'>): LedgerAgent['state'] =>
   isAcked(agent) ? 'stopped' : agent.state;
 
+/** The state word the CLI prints for a run: a story parked for review is stored as waiting with the review flag, and reads `review`, as `agent state --state review` does. */
+export const stateWord = (agent: Pick<LedgerAgent, 'state' | 'review'>): string =>
+  agent.review ? 'review' : agent.state;
+
 /** The gate an agent is at, or null: its plan to check, findings being fixed, or a critic or a storyteller running. The one place for the rule. */
 export function gateOf(
   agent: Pick<LedgerAgent, 'state'> & Partial<Pick<LedgerAgent, 'kind' | 'findings'>>,

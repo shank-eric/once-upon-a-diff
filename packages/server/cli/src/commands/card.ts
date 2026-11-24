@@ -19,6 +19,7 @@ import {
   runRegistry,
   trustedLiveSids,
 } from '@once-upon-a-diff/core/features/runs/service';
+import { stateWord } from '@once-upon-a-diff/state/records/agents/ledger';
 import { agentKey } from '@once-upon-a-diff/state/queues/backlog/claims';
 import { out } from '../output.ts';
 import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
@@ -231,7 +232,7 @@ function statusText(home: string, { item, stored, runs, phase }: Status): string
     runs.length ? 'runs, oldest first:' : 'runs: none',
     ...runs.map(
       (run) =>
-        `  ${agentKey(run)}\t${run.kind}\t${run.state}${run.ended ? `\tended ${formatTime(run.ended.toISOString(), home)}` : ''}`,
+        `  ${agentKey(run)}\t${run.kind}\t${stateWord(run)}${run.ended ? `\tended ${formatTime(run.ended.toISOString(), home)}` : ''}`,
     ),
     ...columnLines(phase),
     TIME_NOTE,

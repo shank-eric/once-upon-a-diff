@@ -145,6 +145,28 @@ test('handback --plan and --state waiting move the run; critic handback needs --
   assert.equal(ctx.runs().find((one) => one.name === 'review-feat-x')?.findings, 2);
 });
 
+test('a storyteller handed back with --state review is parked in review, and the line says review', async () => {
+  const ctx = world();
+  assert.equal((await ctx.cli(['dispatch', ctx.card, '--role', 'storyteller'])).code, 0);
+  const back = await ctx.cli(
+    ['handback', 'story-feat-x', '--sid', SID, '--state', 'review', '--outcome', 'story-one'],
+    AGENT,
+  );
+  assert.equal(back.code, 0, back.stderr);
+  assert.equal(back.stdout.trim(), 'story-feat-x review');
+  const run = ctx.runs().find((one) => one.name === 'story-feat-x');
+  assert.equal(run?.review, true);
+  assert.equal(run?.outcome, 'story-one');
+  // `agent list` and `card status` read the stored run: they say review too, not waiting
+  const listed = (await ctx.cli(['agent', 'list'], AGENT)).stdout;
+  assert.match(
+    listed.split('\n').find((line) => line.includes('story-feat-x')) ?? '',
+    /\treview\t/,
+  );
+  const status = (await ctx.cli(['card', 'status', ctx.card], AGENT)).stdout;
+  assert.match(status, /story-feat-x\s+storyteller\s+review/);
+});
+
 test('the command table and the help order list dispatch and handback', async () => {
   const ctx = world();
   const help = await ctx.cli(['nonsense']);

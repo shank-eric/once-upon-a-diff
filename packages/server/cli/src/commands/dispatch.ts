@@ -7,6 +7,7 @@ import { ownSession } from '@once-upon-a-diff/core/features/listeners/service';
 import { sweepStatusLines } from '@once-upon-a-diff/core/features/sessions/status-lines';
 import { callLine, dispatchRun, handbackRun } from '@once-upon-a-diff/core/features/runs/service';
 import { carryApproval } from '@once-upon-a-diff/core/features/review/carry-approval';
+import { stateWord } from '@once-upon-a-diff/state/records/agents/ledger';
 import { shortSha } from '@once-upon-a-diff/terms/text';
 import { given } from '../options.ts';
 import { out } from '../output.ts';
@@ -94,7 +95,7 @@ function handback(home: string, _cfg: unknown, opts: CliOpts) {
     { warn: (line) => process.stderr.write(line + '\n'), mirror: 'both' },
   );
   if (!done.ended) {
-    return out(`${name} ${done.run.state}`);
+    return out(`${name} ${stateWord(done.run)}`);
   }
   // a fixer's commit on an approved story's card keeps the approval, as `agent finish` does
   const carried = carryApproval(home, done.run);

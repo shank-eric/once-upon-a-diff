@@ -9,7 +9,7 @@ import { agentId } from '@once-upon-a-diff/terms/ids';
 import path from 'node:path';
 import { ownSession } from '@once-upon-a-diff/core/features/listeners/service';
 import { sweepStatusLines } from '@once-upon-a-diff/core/features/sessions/status-lines';
-import { lastActivity } from '@once-upon-a-diff/state/records/agents/ledger';
+import { lastActivity, stateWord } from '@once-upon-a-diff/state/records/agents/ledger';
 import { agentKey } from '@once-upon-a-diff/state/queues/backlog/claims';
 import {
   runRegistry,
@@ -101,7 +101,7 @@ function listLine(one: ReturnType<ReturnType<typeof runRegistry>['agents']>[numb
   const beat = one.beat ? `${one.beat.n}/${one.beat.of} ${one.beat.step}` : '-';
   const last = lastActivity(one);
   const quiet = last ? `${Math.round((now - last.getTime()) / 60000)}m ago` : '-';
-  return [agentId(one.sid, one.name), one.kind, one.state, beat, quiet, one.task].join('\t');
+  return [agentId(one.sid, one.name), one.kind, stateWord(one), beat, quiet, one.task].join('\t');
 }
 
 function list({ opts, registry }: Call) {
