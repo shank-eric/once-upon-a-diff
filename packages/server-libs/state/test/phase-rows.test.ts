@@ -251,3 +251,19 @@ test('row 1b: a park (reopen, hold, someday) newer than every run is Backlog; a 
   // a park with no work run on the card is not this row
   assert.notEqual(cardPhase(parked(10), [passed], NOW)?.row, '1b');
 });
+
+test('an agent-made card on a branch is built once its author finished done with a commit: rows 5 and 6 with no backlog start', () => {
+  const implicit = { ...plain, state: 'open' as const, source: 'agent' as const };
+  const committed = run({ state: 'done', ended: minutes(30), result: { commit: 'abc1234' } });
+  const openCritic = run({ kind: 'critic', name: 'review', lastEvent: minutes(1) });
+  assert.equal(cardPhase(implicit, [committed, passed], NOW)?.row, '6');
+  assert.equal(cardPhase(implicit, [committed, passed], NOW)?.column, 'ready');
+  assert.equal(cardPhase(implicit, [committed], NOW)?.row, '5');
+  assert.equal(cardPhase(implicit, [committed, openCritic], NOW)?.row, '2');
+  // no commit, no branch or a backlog-sourced open card: not built, as before
+  assert.equal(cardPhase(implicit, [done, passed], NOW)?.row, '7');
+  assert.equal(cardPhase({ ...implicit, branch: null }, [committed, passed], NOW)?.row, '7');
+  const listed = { ...implicit, source: 'backlog' as const };
+  assert.equal(cardPhase(listed, [committed, passed], NOW)?.row, '7');
+  assert.equal(cardPhase({ ...plain, source: 'backlog' }, [committed, passed], NOW)?.row, '6');
+});

@@ -191,7 +191,8 @@ const msOf = (date: Date | null | undefined): number | null => (date ? date.getT
  *   3b a storyteller is open     running with a sign of life in the last hour: Agent checks, in every repo (a failed build is read first; a waiting one, with a question, holds nothing)
  *   4  fixes are due             the latest critic finished with findings above 0, after the latest work run
  *                                ended (and under STALE_MS ago: findings nobody fixed lapse): Agent checks until a fix run opens (row 1)
- *   5  built, no critic passed   no critic yet, or the latest failed, was stopped or died, and the card's critic is not skipped
+ *   5  built, no critic passed   (built: started on a branch, or an agent-made card on a branch whose author finished done with a commit)
+ *                                no critic yet, or the latest failed, was stopped or died, and the card's critic is not skipped
  *                                (`backlog skip-critic`): Waiting, for Eric's call to skip the critic or start one. A card that
  *                                is not built (landed, or no branch) never waits here: it is row 7
  *   6  built                     With a branch: an open PR is PR open; pushed with no PR is Ready to ship (ready.ts); else Ready for
@@ -207,7 +208,7 @@ const msOf = (date: Date | null | undefined): number | null => (date ? date.getT
  */
 export function cardPhase(
   item: Pick<BacklogItem, 'state' | 'repo' | 'branch' | 'critic_skipped'> &
-    Partial<Pick<BacklogItem, 'landed_at' | 'someday' | 'parked_at'>>,
+    Partial<Pick<BacklogItem, 'landed_at' | 'someday' | 'parked_at' | 'source'>>,
   runs: LedgerAgent[],
   nowMs: number,
   ready: ReadyFacts = UNKNOWN_READY,
@@ -226,7 +227,7 @@ export function cardPhase(
 /** What the rows read of a card: its runs, how old they are and whether it is built. */
 interface PhaseFacts {
   item: Pick<BacklogItem, 'state' | 'repo' | 'branch' | 'critic_skipped'> &
-    Partial<Pick<BacklogItem, 'landed_at' | 'someday' | 'parked_at'>>;
+    Partial<Pick<BacklogItem, 'landed_at' | 'someday' | 'parked_at' | 'source'>>;
   runs: LedgerAgent[];
   nowMs: number;
   ready: ReadyFacts;
@@ -234,7 +235,7 @@ interface PhaseFacts {
   critics: LedgerAgent[];
   latestWork: LedgerAgent | undefined;
   latestCritic: LedgerAgent | undefined;
-  /** started on a branch */
+  /** started on a branch, or an agent's card whose author finished with a commit */
   built: boolean;
   /** when the latest work run ended */
   when: number | null;
@@ -247,6 +248,25 @@ const NEXT_ROW = Symbol('next row');
 type PhaseVerdict = CardPhase | null | undefined | typeof NEXT_ROW;
 
 const isOpenRun = (run: LedgerAgent) => OPEN.includes(run.state);
+
+/**
+ * Whether the card is built: started on a branch, or an agent-made card (`source: agent`, never adopted or started) on a
+ * branch whose author finished done with a commit. An agent's card has no `backlog start`, so its finished work stands for it.
+ */
+function isBuilt(
+  item: Pick<BacklogItem, 'state' | 'branch'> & Partial<Pick<BacklogItem, 'source'>>,
+  runs: LedgerAgent[],
+): boolean {
+  if (!item.branch) {
+    return false;
+  }
+  if (item.state === 'started') {
+    return true;
+  }
+  const finishedWithCommit = (run: LedgerAgent) =>
+    isWorkRun(run) && run.state === 'done' && !!run.result?.commit;
+  return item.state === 'open' && item.source === 'agent' && runs.some(finishedWithCommit);
+}
 
 function phaseFacts(
   item: PhaseFacts['item'],
@@ -269,7 +289,7 @@ function phaseFacts(
     critics,
     latestWork,
     latestCritic: [...critics].sort((first, second) => settledAt(second) - settledAt(first))[0],
-    built: item.state === 'started' && !!item.branch,
+    built: isBuilt(item, runs),
     when: msOf(latestWork?.ended),
     alive: (run) => isOpenRun(run) && nowMs - lastSign(run) <= staleAfterMs(run),
   };

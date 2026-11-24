@@ -767,6 +767,27 @@ test('an author’s merged commit is Done, as before', () => {
   );
 });
 
+test('an agent-made card whose author finished with a commit goes Done once its branch’s PR merged, and rides on its branch’s work card instead of showing twice', () => {
+  const stored = [{ id: 'ic_builtcard001', source: 'agent', state: 'open' }] as BacklogItem[];
+  const author = committer({ card: 'ic_builtcard001' });
+  const merged = {
+    number: 9,
+    state: 'merged',
+    merged_at: '2026-11-03T15:00:00Z',
+    head_oid: 'f'.repeat(40),
+  };
+  // built, branch not merged: its own card, Ready for your review
+  const [open] = placeWith([author], { items: stored });
+  assert.equal(open.column, 'ready');
+  // the PR merged: Done
+  const [gone] = placeWith([author], { items: stored, pr: merged });
+  assert.equal(gone.column, 'done');
+  // the branch has a work card: the agent card rides on it, no second card
+  const work = card({ branch: 'feat/x', pr: { number: 9 } as BoardCard['pr'] });
+  assert.deepEqual(placeWith([author], { items: stored, cards: [work] }), []);
+  assert.deepEqual(nestedIn(work), ['ou-commit']);
+});
+
 test('an author’s commit whose branch has a PR follows the PR’s rules', () => {
   const open = { number: 9, state: 'open', merged_at: null };
   assert.deepEqual(ownCard(committer(), { pr: open }), {
